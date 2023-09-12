@@ -33,7 +33,7 @@ int main(void)
     // Initialization
     if (!application_create(&game_inst))
     {
-        BINFO("Application failed to create!");
+        BFATAL("Application failed to create!");
         return 1;
     }
 
