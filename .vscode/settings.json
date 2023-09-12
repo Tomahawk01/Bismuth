@@ -7,6 +7,12 @@
     "C_Cpp.vcFormat.indent.namespaceContents": true,
     "files.associations": {
         "logger.h": "c",
-        "iosfwd": "c"
+        "iosfwd": "c",
+        "iterator": "c",
+        "vector": "c",
+        "initializer_list": "c",
+        "type_traits": "c",
+        "xstring": "c",
+        "xutility": "c"
     },
 }
