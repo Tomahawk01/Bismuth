@@ -23,6 +23,7 @@
         "xstring": "c",
         "xutility": "c",
         "utility": "cpp",
-        "xmemory": "c"
+        "xmemory": "c",
+        "darray.h": "c"
     },
 }
