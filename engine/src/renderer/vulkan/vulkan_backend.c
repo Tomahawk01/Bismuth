@@ -1,6 +1,7 @@
 #include "vulkan_backend.h"
 #include "vulkan_types.inl"
 #include "vulkan_platform.h"
+#include "vulkan_device.h"
 #include "core/logger.h"
 #include "core/bstring.h"
 #include "containers/darray.h"
@@ -21,7 +22,7 @@ b8 vulkan_renderer_backend_initialize(renderer_backend* backend, const char* app
 
     // Setup Vulkan instance
     VkApplicationInfo app_info = {VK_STRUCTURE_TYPE_APPLICATION_INFO};
-    app_info.apiVersion = VK_API_VERSION_1_2;
+    app_info.apiVersion = VK_API_VERSION_1_3;
     app_info.pApplicationName = application_name;
     app_info.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
     app_info.pEngineName = "Bismuth Engine";
@@ -88,7 +89,7 @@ b8 vulkan_renderer_backend_initialize(renderer_backend* backend, const char* app
             return FALSE;
         }
     }
-    BINFO("All required validation layers are present.");
+    BINFO("All required validation layers are present");
 #endif
 
     create_info.enabledLayerCount = required_validation_layer_count;
@@ -116,6 +117,22 @@ b8 vulkan_renderer_backend_initialize(renderer_backend* backend, const char* app
     VK_CHECK(func(context.instance, &debug_create_info, context.allocator, &context.debug_messenger));
     BDEBUG("Vulkan debugger created");
 #endif
+
+    // Surface
+    BDEBUG("Creating Vulkan surface...");
+    if (!platform_create_vulkan_surface(plat_state, &context))
+    {
+        BERROR("Failed to create platform surface");
+        return FALSE;
+    }
+    BDEBUG("Vulkan surface created");
+
+    // Device creation
+    if (!vulkan_device_create(&context))
+    {
+        BERROR("Failed to create device");
+        return FALSE;
+    }
 
     BINFO("Vulkan renderer initialized successfully");
     return TRUE;
