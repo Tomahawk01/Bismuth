@@ -26,8 +26,8 @@ typedef enum memory_tag {
     MEMORY_TAG_MAX_TAGS
 } memory_tag;
 
-BAPI void initialize_memory();
-BAPI void shutdown_memory();
+BAPI void memory_system_initialize(u64* memory_requirement, void* state);
+BAPI void memory_system_shutdown(void* state);
 
 BAPI void* ballocate(u64 size, memory_tag tag);
 
