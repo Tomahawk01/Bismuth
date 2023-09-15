@@ -10,10 +10,10 @@ typedef struct clock
 
 // Updates the provided clock. Should be called just before checking elapsed time.
 // Has no effect on non-started clocks.
-void clock_update(clock* clock);
+BAPI void clock_update(clock* clock);
 
 // Starts the provided clock. Resets elapsed time.
-void clock_start(clock* clock);
+BAPI void clock_start(clock* clock);
 
 // Stops the provided clock. Does not reset elapsed time.
-void clock_stop(clock* clock);
+BAPI void clock_stop(clock* clock);
