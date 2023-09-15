@@ -14,6 +14,8 @@
 #include "core/application.h"
 #include "containers/darray.h"
 #include "platform/platform.h"
+// Shaders
+#include "shaders/vulkan_object_shader.h"
 
 static vulkan_context context;
 static u32 cached_framebuffer_width = 0;
@@ -200,6 +202,13 @@ b8 vulkan_renderer_backend_initialize(renderer_backend* backend, const char* app
     context.images_in_flight = darray_reserve(vulkan_fence, context.swapchain.image_count);
     for (u32 i = 0; i < context.swapchain.image_count; ++i)
         context.images_in_flight[i] = 0;
+
+    // Create builtin shaders
+    if (!vulkan_object_shader_create(&context, &context.object_shader))
+    {
+        BERROR("Error loading built-in basic_lighting shader");
+        return false;
+    }  
 
     BINFO("Vulkan renderer initialized successfully");
     return true;
