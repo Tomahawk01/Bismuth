@@ -243,7 +243,7 @@ LRESULT CALLBACK win32_process_message(HWND hwnd, u32 msg, WPARAM w_param, LPARA
         case WM_CLOSE:
             event_context data = {};
             event_fire(EVENT_CODE_APPLICATION_QUIT, 0, data);
-            return true;
+            return 0;
         case WM_DESTROY:
             PostQuitMessage(0);
             return 0;
@@ -270,6 +270,40 @@ LRESULT CALLBACK win32_process_message(HWND hwnd, u32 msg, WPARAM w_param, LPARA
             // Key pressed/released
             b8 pressed = (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN);
             keys key = (u16)w_param;
+
+            if (w_param == VK_MENU) // Alt key
+            {
+                if (GetKeyState(VK_RMENU) & 0x8000)
+                {
+                    key = KEY_RALT;
+                }
+                else if (GetKeyState(VK_LMENU) & 0x8000)
+                {
+                    key = KEY_LALT;
+                }                
+            }
+            else if (w_param == VK_SHIFT)
+            {
+                if (GetKeyState(VK_RSHIFT) & 0x8000)
+                {
+                    key = KEY_RSHIFT;
+                }
+                else if (GetKeyState(VK_LSHIFT) & 0x8000)
+                {
+                    key = KEY_LSHIFT;
+                }   
+            }
+            else if (w_param == VK_CONTROL)
+            {
+                if (GetKeyState(VK_RCONTROL) & 0x8000)
+                {
+                    key = KEY_RCONTROL;
+                }
+                else if (GetKeyState(VK_LCONTROL) & 0x8000)
+                {
+                    key = KEY_LCONTROL;
+                }   
+            }
 
             // Pass to input subsystem for processing
             input_process_key(key, pressed);

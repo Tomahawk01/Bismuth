@@ -73,7 +73,10 @@ STATIC_ASSERT(sizeof(f64) == 8, "Expected f64 to be 8 bytes.");
 #define BCLAMP(value, min, max) (value <= min) ? min : (value >= max) ? max : value
 
 // Inlining
-#ifdef _MSC_VER
+#if defined(__clang__) || defined(__gcc__)
+#define BINLINE __attribute__((always_inline)) inline
+#define BNOINLINE __attribute__((noinline))
+#elif defined(_MSC_VER)
 #define BINLINE __forceinline
 #define BNOINLINE __declspec(noinline)
 #else

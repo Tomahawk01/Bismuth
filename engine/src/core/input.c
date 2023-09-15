@@ -52,6 +52,32 @@ void input_update(f64 delta_time)
 
 void input_process_key(keys key, b8 pressed)
 {
+    if (key == KEY_LALT)
+    {
+        BINFO("Left alt pressed");
+    }
+    else if (key == KEY_RALT)
+    {
+        BINFO("Right alt pressed");
+    }
+    if (key == KEY_LCONTROL)
+    {
+        BINFO("Left ctrl pressed");
+    }
+    else if (key == KEY_RCONTROL)
+    {
+        BINFO("Right ctrl pressed");
+    }
+    
+    if (key == KEY_LSHIFT)
+    {
+        BINFO("Left shift pressed");
+    }
+    else if (key == KEY_RSHIFT)
+    {
+        BINFO("Right shift pressed");
+    }
+
     // Only handle this if the state actually changed
     if (state.keyboard_current.keys[key] != pressed)
     {
