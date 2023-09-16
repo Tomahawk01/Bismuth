@@ -219,6 +219,9 @@ void vulkan_renderer_backend_shutdown(renderer_backend* backend)
     vkDeviceWaitIdle(context.device.logical_device);
     // Destroy in the opposite order of creation
 
+    // Shader
+    vulkan_object_shader_destroy(&context, &context.object_shader);
+
     // Sync objects
     for (u8 i = 0; i < context.swapchain.max_frames_in_flight; ++i)
     {
