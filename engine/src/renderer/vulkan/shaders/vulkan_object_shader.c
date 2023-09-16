@@ -24,7 +24,7 @@ b8 vulkan_object_shader_create(vulkan_context* context, vulkan_object_shader* ou
 
     // TODO: Descriptors
 
-    // Pipeline generation
+    // Pipeline creation
     VkViewport viewport;
     viewport.x = 0.0f;
     viewport.y = (f32)context->framebuffer_height;
@@ -106,5 +106,6 @@ void vulkan_object_shader_destroy(vulkan_context* context, struct vulkan_object_
 
 void vulkan_object_shader_use(vulkan_context* context, struct vulkan_object_shader* shader)
 {
-
+    u32 image_index = context->image_index;
+    vulkan_pipeline_bind(&context->graphics_command_buffers[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, &shader->pipeline);
 }

@@ -21,7 +21,7 @@ typedef union vec2_u
     };
 } vec2;
 
-typedef struct vec3_u
+typedef union vec3_u
 {
     // Array of x, y, z
     f32 elements[3];

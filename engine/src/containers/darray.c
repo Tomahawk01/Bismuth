@@ -67,7 +67,7 @@ void _darray_pop(void* array, void* dest)
     u64 addr = (u64)array;
     addr += ((length - 1) * stride);
     bcopy_memory(dest, (void*)addr, stride);
-    _darray_field_set(array, DARRAY_LENGTH, length + 1);
+    _darray_field_set(array, DARRAY_LENGTH, length - 1);
 }
 
 void* _darray_pop_at(void* array, u64 index, void* dest)
