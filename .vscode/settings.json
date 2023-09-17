@@ -25,6 +25,8 @@
         "utility": "cpp",
         "xmemory": "c",
         "darray.h": "c",
-        "defines.h": "c"
+        "defines.h": "c",
+        "bmemory.h": "c",
+        "platform.h": "c"
     },
 }
