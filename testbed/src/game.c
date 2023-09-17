@@ -63,26 +63,27 @@ b8 game_update(game* game_inst, f32 delta_time)
         BDEBUG("Allocations: %llu (%llu this frame)", alloc_count, alloc_count - prev_alloc_count);
 
     game_state* state = (game_state*)game_inst->state;
+    static f32 camera_multiplier = 1.5f;
 
     // NOTE: temp hack to move camera around
     if (input_is_key_down(KEY_LEFT))
     {
-        camera_yaw(state, 1.0f * delta_time);
+        camera_yaw(state, 1.0f * camera_multiplier * delta_time);
     }
 
     if (input_is_key_down(KEY_RIGHT))
     {
-        camera_yaw(state, -1.0f * delta_time);
+        camera_yaw(state, -1.0f * camera_multiplier * delta_time);
     }
 
     if (input_is_key_down(KEY_UP))
     {
-        camera_pitch(state, 1.0f * delta_time);
+        camera_pitch(state, 1.0f * camera_multiplier * delta_time);
     }
 
     if (input_is_key_down(KEY_DOWN))
     {
-        camera_pitch(state, -1.0f * delta_time);
+        camera_pitch(state, -1.0f * camera_multiplier * delta_time);
     }
 
     f32 temp_move_speed = 50.0f;
