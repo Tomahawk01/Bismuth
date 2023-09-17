@@ -9,8 +9,11 @@
 
 #define BUILTIN_SHADER_NAME_OBJECT "Builtin.ObjectShader"
 
-b8 vulkan_object_shader_create(vulkan_context* context, vulkan_object_shader* out_shader)
+b8 vulkan_object_shader_create(vulkan_context* context, texture* default_diffuse, vulkan_object_shader* out_shader)
 {
+    // Take copy of default texture pointer
+    out_shader->default_diffuse = default_diffuse;
+
     // Shader module init per stage
     char stage_type_strs[OBJECT_SHADER_STAGE_COUNT][5] = {"vert", "frag"};
     VkShaderStageFlagBits stage_types[OBJECT_SHADER_STAGE_COUNT] = {VK_SHADER_STAGE_VERTEX_BIT, VK_SHADER_STAGE_FRAGMENT_BIT};
@@ -159,11 +162,12 @@ b8 vulkan_object_shader_create(vulkan_context* context, vulkan_object_shader* ou
     }
 
     // Create uniform buffer
+    u32 device_local_bits = context->device.supports_device_local_host_visible ? VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT : 0;
     if (!vulkan_buffer_create(
             context,
             sizeof(global_uniform_object),
             VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | device_local_bits,
             true,
             &out_shader->global_uniform_buffer))
     {
@@ -189,7 +193,7 @@ b8 vulkan_object_shader_create(vulkan_context* context, vulkan_object_shader* ou
             context,
             sizeof(object_uniform_object),
             VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
             true,
             &out_shader->object_uniform_buffer))
     {
@@ -328,6 +332,15 @@ void vulkan_object_shader_update_object(vulkan_context* context, struct vulkan_o
     {
         texture* t = data.textures[sampler_index];
         u32* descriptor_generation = &object_state->descriptor_states[descriptor_index].generations[image_index];
+
+        // If the texture hasn't been loaded yet use the default
+        // TODO: determine which use the texture has and pull appropriate default based on that
+        if (t->generation == INVALID_ID)
+        {
+            t = shader->default_diffuse;
+            // Reset descriptor generation if using the default texture
+            *descriptor_generation = INVALID_ID;
+        }
 
         // Check if the descriptor needs updating first
         if (t && (*descriptor_generation != t->generation || *descriptor_generation == INVALID_ID))

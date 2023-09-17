@@ -4,6 +4,13 @@
 #include "core/bmemory.h"
 #include "math/bmath.h"
 #include "resources/resource_types.h"
+// TODO: temporary
+#include "core/bstring.h"
+#include "core/event.h"
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "vendor/stb_image.h"
+// TODO: end temporary
 
 typedef struct renderer_system_state
 {
@@ -14,9 +21,120 @@ typedef struct renderer_system_state
     f32 far_clip;
 
     texture default_texture;
+
+    // TODO: temporary
+    texture test_diffuse;
 } renderer_system_state;
 
 static renderer_system_state* state_ptr;
+
+void create_texture(texture* t)
+{
+    bzero_memory(t, sizeof(texture));
+    t->generation = INVALID_ID;
+}
+
+b8 load_texture(const char* texture_name, texture* t)
+{
+    // TODO: Should be able to be located anywhere
+    char* format_str = "assets/textures/%s.%s";
+    const i32 required_channel_count = 4;
+    stbi_set_flip_vertically_on_load(true);
+    char full_file_path[512];
+
+    string_format(full_file_path, format_str, texture_name, "png");
+
+    // Use a temporary texture to load into
+    texture temp_texture;
+
+    u8* data = stbi_load(
+        full_file_path,
+        (i32*)&temp_texture.width,
+        (i32*)&temp_texture.height,
+        (i32*)&temp_texture.channel_count,
+        required_channel_count);
+
+    temp_texture.channel_count = required_channel_count;
+
+    if (data)
+    {
+        u32 current_generation = t->generation;
+        t->generation = INVALID_ID;
+
+        u64 total_size = temp_texture.width * temp_texture.height * required_channel_count;
+        // Check for transparency
+        b32 has_transparency = false;
+        for (u64 i = 0; i < total_size; i += required_channel_count)
+        {
+            u8 a = data[i + 3];
+            if (a < 255)
+            {
+                has_transparency = true;
+                break;
+            }
+        }
+
+        if (stbi_failure_reason())
+            BWARN("load_texture() failed to load file '%s': %s", full_file_path, stbi_failure_reason());
+
+        // Acquire internal texture resources and upload to GPU
+        renderer_create_texture(
+            texture_name,
+            true,
+            temp_texture.width,
+            temp_texture.height,
+            temp_texture.channel_count,
+            data,
+            has_transparency,
+            &temp_texture);
+
+        // Take a copy of the old texture
+        texture old = *t;
+
+        // Assign temp texture to the pointer
+        *t = temp_texture;
+
+        // Destroy the old texture
+        renderer_destroy_texture(&old);
+
+        if (current_generation == INVALID_ID)
+        {
+            t->generation = 0;
+        }
+        else
+        {
+            t->generation = current_generation + 1;
+        }
+
+        // Clean up data
+        stbi_image_free(data);
+        return true;
+    }
+    else
+    {
+        if (stbi_failure_reason())
+            BWARN("load_texture() failed to load file '%s': %s", full_file_path, stbi_failure_reason());
+        return false;
+    }
+}
+
+// TODO: temporary
+b8 event_on_debug_event(u16 code, void* sender, void* listener_inst, event_context data)
+{
+    const char* names[3] = {
+        "rocks",
+        "stone",
+        "wood"
+    };
+    static i8 choice = 2;
+    choice++;
+    choice %= 3;
+
+    // Load new texture
+    load_texture(names[choice], &state_ptr->test_diffuse);
+    return true;
+}
+// TODO: end temporary
 
 b8 renderer_system_initialize(u64* memory_requirement, void* state, const char* application_name)
 {
@@ -24,6 +142,12 @@ b8 renderer_system_initialize(u64* memory_requirement, void* state, const char* 
     if (state == 0)
         return true;
     state_ptr = state;
+
+    // TODO: temporary
+    event_register(EVENT_CODE_DEBUG0, state_ptr, event_on_debug_event);
+
+    // Take a pointer to default textures for use in backend
+    state_ptr->backend.default_diffuse = &state_ptr->default_texture;
 
     // TODO: make this configurable     V
     renderer_backend_create(RENDERER_BACKEND_TYPE_VULKAN, &state_ptr->backend);
@@ -86,6 +210,12 @@ b8 renderer_system_initialize(u64* memory_requirement, void* state, const char* 
         false,
         &state_ptr->default_texture);
 
+    // Manually set texture generation to invalid since this is default texture
+    state_ptr->default_texture.generation = INVALID_ID;
+
+    // TODO: load other textures
+    create_texture(&state_ptr->test_diffuse);
+
     return true;
 }
 
@@ -93,7 +223,11 @@ void renderer_system_shutdown(void* state)
 {
     if (state_ptr)
     {
+        // TODO: temporary
+        event_unregister(EVENT_CODE_DEBUG0, state_ptr, event_on_debug_event);
+
         renderer_destroy_texture(&state_ptr->default_texture);
+        renderer_destroy_texture(&state_ptr->test_diffuse);
         state_ptr->backend.shutdown(&state_ptr->backend);
     }
     state_ptr = 0;
@@ -143,7 +277,7 @@ b8 renderer_draw_frame(render_packet* packet)
         geometry_render_data data = {};
         data.object_id = 0; // TODO: actual object id
         data.model = model;
-        data.textures[0] = &state_ptr->default_texture;
+        data.textures[0] = &state_ptr->test_diffuse;
         state_ptr->backend.update_object(data);
 
         // End frame. If this fails, it is likely unrecoverable

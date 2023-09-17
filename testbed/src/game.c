@@ -3,6 +3,7 @@
 #include <core/logger.h>
 #include <core/bmemory.h>
 #include <core/input.h>
+#include <core/event.h>
 #include <math/bmath.h>
 
 // NOTE: this should not be available outside the engine
@@ -62,6 +63,15 @@ b8 game_update(game* game_inst, f32 delta_time)
     if (input_is_key_up('M') && input_was_key_down('M'))
         BDEBUG("Allocations: %llu (%llu this frame)", alloc_count, alloc_count - prev_alloc_count);
 
+    // TODO: temporary
+    if (input_is_key_up('T') && input_was_key_down('T'))
+    {
+        BDEBUG("Swapping texture");
+        event_context context = {};
+        event_fire(EVENT_CODE_DEBUG0, game_inst, context);
+    }
+    // TODO: end temporary
+
     game_state* state = (game_state*)game_inst->state;
     static f32 camera_multiplier = 1.5f;
 
@@ -115,12 +125,12 @@ b8 game_update(game* game_inst, f32 delta_time)
 
     if (input_is_key_down(KEY_SPACE))
     {
-        velocity.y += 1.0f;
+        velocity.y += 0.5f;
     }
     
     if (input_is_key_down(KEY_LCONTROL))
     {
-        velocity.y -= 1.0f;
+        velocity.y -= 0.5f;
     }
 
     vec3 z = vec3_zero();
