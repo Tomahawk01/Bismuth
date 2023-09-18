@@ -27,6 +27,10 @@
         "darray.h": "c",
         "defines.h": "c",
         "bmemory.h": "c",
-        "platform.h": "c"
+        "platform.h": "c",
+        "bstring.h": "c",
+        "image_loader.h": "c",
+        "filesystem.h": "c",
+        "resource_system.h": "c"
     },
 }
