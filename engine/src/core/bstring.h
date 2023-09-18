@@ -25,6 +25,14 @@ BAPI i32 string_format(char* dest, const char* format, ...);
  */
 BAPI i32 string_format_v(char* dest, const char* format, void* va_list);
 
+/**
+ * @brief Empties the provided string by setting the first character to 0
+ * 
+ * @param str The string to be emptied.
+ * @return A pointer to str. 
+ */
+BAPI char* string_empty(char* str);
+
 BAPI char* string_copy(char* dest, const char* source);
 
 BAPI char* string_ncopy(char* dest, const char* source, i64 length);
