@@ -65,16 +65,14 @@ void filesystem_close(file_handle* handle)
     }
 }
 
-b8 filesystem_read_line(file_handle* handle, char** line_buf)
+b8 filesystem_read_line(file_handle* handle, u64 max_length, char** line_buf, u64* out_line_length)
 {
-    if (handle->handle)
+    if (handle->handle && line_buf && out_line_length && max_length > 0)
     {
-        char buffer[32000];
-        if (fgets(buffer, 32000, (FILE*)handle->handle) != 0)
+        char* buf = *line_buf;
+        if (fgets(buf, max_length, (FILE*)handle->handle) != 0)
         {
-            u64 length = strlen(buffer);
-            *line_buf = ballocate((sizeof(char) * length) + 1, MEMORY_TAG_STRING);
-            strcpy(*line_buf, buffer);
+            *out_line_length = strlen(*line_buf);
             return true;
         }
     }
