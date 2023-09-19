@@ -421,6 +421,7 @@ b8 vulkan_renderer_backend_begin_frame(renderer_backend* backend, f32 delta_time
             0,
             &context.image_index))
     {
+        BERROR("Failed to acquire next image index, booting");
         return false;
     }
 

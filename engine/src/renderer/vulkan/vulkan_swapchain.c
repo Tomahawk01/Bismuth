@@ -88,6 +88,7 @@ void vulkan_swapchain_present(
     {
         // Swapchain is out of date, suboptimal or framebuffer resize has occured. Trigger swapchain recreation
         vulkan_swapchain_recreate(context, context->framebuffer_width, context->framebuffer_height, swapchain);
+        BDEBUG("Swapchain recreated because swapchain returned out of date or suboptimal");
     }
     else if (result != VK_SUCCESS)
     {
