@@ -340,7 +340,7 @@ typedef struct vulkan_context
     VkFence in_flight_fences[2];
 
     // Holds pointers to fences which exist and are owned elsewhere, one per frame
-    VkFence* images_in_flight[3];
+    VkFence images_in_flight[3];
 
     u32 image_index;
     u32 current_frame;
