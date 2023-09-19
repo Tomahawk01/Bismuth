@@ -310,8 +310,7 @@ b8 select_physical_device(vulkan_context* context)
         for (u32 i = 0; i < memory.memoryTypeCount; ++i)
         {
             // Check each memory type to see if its bit is set to 1.
-            if (
-                ((memory.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) != 0) &&
+            if (((memory.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) != 0) &&
                 ((memory.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) != 0))
             {
                 supports_device_local_host_visible = true;

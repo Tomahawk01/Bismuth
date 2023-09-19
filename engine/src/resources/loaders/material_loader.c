@@ -6,6 +6,7 @@
 #include "systems/resource_system.h"
 #include "math/bmath.h"
 #include "platform/filesystem.h"
+#include "loader_utils.h"
 
 b8 material_loader_load(struct resource_loader* self, const char* name, resource* out_resource)
 {
@@ -16,9 +17,6 @@ b8 material_loader_load(struct resource_loader* self, const char* name, resource
     char full_file_path[512];
     string_format(full_file_path, format_str, resource_system_base_path(), self->type_path, name, ".bmt");
 
-    // TODO: Use allocator here
-    out_resource->full_path = string_duplicate(full_file_path);
-
     file_handle f;
     if (!filesystem_open(full_file_path, FILE_MODE_READ, false, &f))
     {
@@ -27,8 +25,12 @@ b8 material_loader_load(struct resource_loader* self, const char* name, resource
     }
 
     // TODO: Use allocator here
+    out_resource->full_path = string_duplicate(full_file_path);
+
+    // TODO: Use allocator here
     material_config* resource_data = ballocate(sizeof(material_config), MEMORY_TAG_MATERIAL_INSTANCE);
     // Set some defaults.
+    resource_data->type = MATERIAL_TYPE_WORLD;
     resource_data->auto_release = true;
     resource_data->diffuse_color = vec4_one();  // white
     resource_data->diffuse_map_name[0] = 0;
@@ -96,6 +98,12 @@ b8 material_loader_load(struct resource_loader* self, const char* name, resource
                 BWARN("Error parsing diffuse_color in file '%s'. Using default of white instead", full_file_path);
             }
         }
+        else if (strings_equali(trimmed_var_name, "type"))
+        {
+            // TODO: other material types
+            if (strings_equali(trimmed_value, "ui"))
+                resource_data->type = MATERIAL_TYPE_UI;
+        }
 
         // TODO: more fields
 
@@ -115,23 +123,8 @@ b8 material_loader_load(struct resource_loader* self, const char* name, resource
 
 void material_loader_unload(struct resource_loader* self, resource* resource)
 {
-    if (!self || !resource)
-    {
+    if (!resource_unload(self, resource, MEMORY_TAG_MATERIAL_INSTANCE))
         BWARN("material_loader_unload called with nullptr for self or resource");
-        return;
-    }
-
-    u32 path_length = string_length(resource->full_path);
-    if (path_length)
-        bfree(resource->full_path, sizeof(char) * path_length + 1, MEMORY_TAG_STRING);
-
-    if (resource->data)
-    {
-        bfree(resource->data, resource->data_size, MEMORY_TAG_MATERIAL_INSTANCE);
-        resource->data = 0;
-        resource->data_size = 0;
-        resource->loader_id = INVALID_ID;
-    }
 }
 
 resource_loader material_resource_loader_create()
