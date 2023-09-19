@@ -11,27 +11,17 @@ typedef enum renderer_backend_type
     RENDERER_BACKEND_TYPE_DIRECTX
 } renderer_backend_type;
 
-typedef struct global_uniform_object // Should be 256bytes in size
-{
-    mat4 projection;                 // 64bytes
-    mat4 view;                       // 64bytes
-    mat4 m_reserved0;                // 64bytes, reserved for future
-    mat4 m_reserved1;                // 64bytes, reserved for future
-} global_uniform_object;
-
-typedef struct material_uniform_object
-{
-    vec4 diffuse_color;              // 16bytes
-    vec4 v_reserved0;                // 16bytes, reserved for future
-    vec4 v_reserved1;                // 16bytes, reserved for future
-    vec4 v_reserved2;                // 16bytes, reserved for future
-} material_uniform_object;
-
 typedef struct geometry_render_data
 {
     mat4 model;
     geometry* geometry;
 } geometry_render_data;
+
+typedef enum builtin_renderpass
+{
+    BUILTIN_RENDERPASS_WORLD = 0x01,
+    BUILTIN_RENDERPASS_UI = 0x02,
+} builtin_renderpass;
 
 typedef struct renderer_backend
 {
@@ -44,8 +34,12 @@ typedef struct renderer_backend
     void (*resized)(struct renderer_backend* backend, u16 width, u16 height);
 
     b8 (*begin_frame)(struct renderer_backend* backend, f32 delta_time);
-    void (*update_global_state)(mat4 projection, mat4 view, vec3 view_position, vec4 ambient_color, i32 mode);
+    void (*update_global_world_state)(mat4 projection, mat4 view, vec3 view_position, vec4 ambient_color, i32 mode);
+    void (*update_global_ui_state)(mat4 projection, mat4 view, i32 mode);
     b8 (*end_frame)(struct renderer_backend* backend, f32 delta_time);
+
+    b8 (*begin_renderpass)(struct renderer_backend* backend, u8 renderpass_id);
+    b8 (*end_renderpass)(struct renderer_backend* backend, u8 renderpass_id);
 
     void (*draw_geometry)(geometry_render_data data);
 
@@ -65,4 +59,7 @@ typedef struct render_packet
 
     u32 geometry_count;
     geometry_render_data* geometries;
+
+    u32 ui_geometry_count;
+    geometry_render_data* ui_geometries;
 } render_packet;

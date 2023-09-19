@@ -123,12 +123,12 @@ b8 game_update(game* game_inst, f32 delta_time)
         velocity = vec3_add(velocity, right);
     }
 
-    if (input_is_key_down(KEY_SPACE))
+    if (input_is_key_down('E'))
     {
         velocity.y += 0.5f;
     }
     
-    if (input_is_key_down(KEY_LCONTROL))
+    if (input_is_key_down('Q'))
     {
         velocity.y -= 0.5f;
     }
