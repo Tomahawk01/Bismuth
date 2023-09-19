@@ -94,7 +94,7 @@ void* dynamic_allocator_allocate(dynamic_allocator* allocator, u64 size)
 
 b8 dynamic_allocator_free(dynamic_allocator* allocator, void* block, u64 size)
 {
-    if (!allocator || !block)
+    if (!allocator || !block || !size)
     {
         BERROR("dynamic_allocator_free requires both a valid allocator (0x%p) and a block (0x%p) to be freed", allocator, block);
         return false;

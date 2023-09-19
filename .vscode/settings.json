@@ -32,6 +32,7 @@
         "image_loader.h": "c",
         "filesystem.h": "c",
         "resource_system.h": "c",
-        "vulkan_material_shader.h": "c"
+        "vulkan_material_shader.h": "c",
+        "freelist.h": "c"
     },
 }
