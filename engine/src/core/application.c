@@ -400,7 +400,7 @@ b8 application_run()
             test_render.geometry = app_state->test_geometry;
             //test_render.model = mat4_identity();
             static f32 angle = 0;
-            angle += (0.05f * delta);
+            angle += (0.5f * delta);
             quat rotation = quat_from_axis_angle((vec3){0, 1, 0}, angle, false);
             mat4 t = mat4_translation(vec3_zero());
             mat4 r = quat_to_mat4(rotation);

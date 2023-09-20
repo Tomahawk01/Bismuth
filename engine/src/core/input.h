@@ -48,6 +48,17 @@ typedef enum keys
     DEFINE_KEY(DELETE, 0x2E),
     DEFINE_KEY(HELP, 0x2F),
 
+    DEFINE_KEY(0, 0x30),
+    DEFINE_KEY(1, 0x31),
+    DEFINE_KEY(2, 0x32),
+    DEFINE_KEY(3, 0x33),
+    DEFINE_KEY(4, 0x34),
+    DEFINE_KEY(5, 0x35),
+    DEFINE_KEY(6, 0x36),
+    DEFINE_KEY(7, 0x37),
+    DEFINE_KEY(8, 0x38),
+    DEFINE_KEY(9, 0x39),
+
     DEFINE_KEY(A, 0x41),
     DEFINE_KEY(B, 0x42),
     DEFINE_KEY(C, 0x43),
@@ -140,6 +151,7 @@ typedef enum keys
     DEFINE_KEY(MINUS, 0xBD),
     DEFINE_KEY(PERIOD, 0xBE),
     DEFINE_KEY(SLASH, 0xBF),
+    
     DEFINE_KEY(GRAVE, 0xC0),
 
     KEYS_MAX_KEYS

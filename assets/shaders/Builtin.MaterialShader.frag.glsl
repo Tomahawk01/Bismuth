@@ -14,10 +14,40 @@ struct directional_light
     vec4 color;
 };
 
+struct point_light
+{
+    vec3 position;
+    vec4 color;
+    // Usually 1
+    float constant;
+    // Reduces light intensity linearly
+    float linear;
+    // Makes light fall off slower at longer distances
+    float quadratic;
+};
+
 // TODO: temporary
 directional_light dir_light = {
     vec3(-0.57735, -0.57735, -0.57735),
-    vec4(0.8, 0.8, 0.8, 1.0)
+    vec4(0.6, 0.6, 0.6, 1.0)
+};
+
+// TODO: temporary
+point_light p_light_0 = {
+    vec3(-5.5, 0.0, -5.5),
+    vec4(0.0, 1.0, 0.0, 1.0),
+    1.0,  // Constant
+    0.35, // Linear
+    0.44  // Quadratic
+};
+
+// TODO: temporary
+point_light p_light_1 = {
+    vec3(5.5, 0.0, -5.5),
+    vec4(1.0, 0.0, 0.0, 1.0),
+    1.0,  // Constant
+    0.35, // Linear
+    0.44  // Quadratic
 };
 
 // Samplers, diffuse, spec
@@ -26,6 +56,7 @@ const int SAMP_SPECULAR = 1;
 const int SAMP_NORMAL = 2;
 layout(set = 1, binding = 1) uniform sampler2D samplers[3];
 
+layout(location = 0) flat in int in_mode;
 // Data Transfer Object
 layout(location = 1) in struct dto
 {
@@ -41,6 +72,7 @@ layout(location = 1) in struct dto
 mat3 TBN;
 
 vec4 calculate_directional_light(directional_light light, vec3 normal, vec3 view_direction);
+vec4 calculate_point_light(point_light light, vec3 normal, vec3 frag_position, vec3 view_direction);
 
 void main()
 {
@@ -54,9 +86,19 @@ void main()
     vec3 localNormal = 2.0 * texture(samplers[SAMP_NORMAL], in_dto.tex_coord).rgb - 1.0;
     normal = normalize(TBN * localNormal);
 
-    vec3 view_direction = normalize(in_dto.view_position - in_dto.frag_position);
+    if(in_mode == 0 || in_mode == 1)
+    {
+        vec3 view_direction = normalize(in_dto.view_position - in_dto.frag_position);
+        
+        out_color = calculate_directional_light(dir_light, normal, view_direction);
 
-    out_color = calculate_directional_light(dir_light, normal, view_direction);
+        out_color += calculate_point_light(p_light_0, normal, in_dto.frag_position, view_direction);
+        out_color += calculate_point_light(p_light_1, normal, in_dto.frag_position, view_direction);
+    }
+    else if (in_mode == 2)
+    {
+        out_color = vec4(abs(normal), 1.0);
+    }
 }
 
 vec4 calculate_directional_light(directional_light light, vec3 normal, vec3 view_direction)
@@ -71,9 +113,42 @@ vec4 calculate_directional_light(directional_light light, vec3 normal, vec3 view
     vec4 diffuse = vec4(vec3(light.color * diffuse_factor), diff_samp.a);
     vec4 specular = vec4(vec3(light.color * specular_factor), diff_samp.a);
 
-    diffuse *= diff_samp;
-    ambient *= diff_samp;
-    specular *= vec4(texture(samplers[SAMP_SPECULAR], in_dto.tex_coord).rgb, diffuse.a);
+    if(in_mode == 0)
+    {
+        diffuse *= diff_samp;
+        ambient *= diff_samp;
+        specular *= vec4(texture(samplers[SAMP_SPECULAR], in_dto.tex_coord).rgb, diffuse.a);
+    }
 
+    return (ambient + diffuse + specular);
+}
+
+vec4 calculate_point_light(point_light light, vec3 normal, vec3 frag_position, vec3 view_direction)
+{
+    vec3 light_direction =  normalize(light.position - frag_position);
+    float diff = max(dot(normal, light_direction), 0.0);
+
+    vec3 reflect_direction = reflect(-light_direction, normal);
+    float spec = pow(max(dot(view_direction, reflect_direction), 0.0), object_ubo.shininess);
+
+    // Calculate attenuation, or light fall off over distance
+    float distance = length(light.position - frag_position);
+    float attenuation = 1.0 / (light.constant + light.linear * distance + light.quadratic * (distance * distance));
+
+    vec4 ambient = in_dto.ambient;
+    vec4 diffuse = light.color * diff;
+    vec4 specular = light.color * spec;
+
+    if(in_mode == 0)
+    {
+        vec4 diff_samp = texture(samplers[SAMP_DIFFUSE], in_dto.tex_coord);
+        diffuse *= diff_samp;
+        ambient *= diff_samp;
+        specular *= vec4(texture(samplers[SAMP_SPECULAR], in_dto.tex_coord).rgb, diffuse.a);
+    }
+
+    ambient *= attenuation;
+    diffuse *= attenuation;
+    specular *= attenuation;
     return (ambient + diffuse + specular);
 }
