@@ -4,6 +4,12 @@
 #include "math/math_types.h"
 #include "resources/resource_types.h"
 
+#define BUILTIN_SHADER_NAME_MATERIAL "Shader.Builtin.Material"
+#define BUILTIN_SHADER_NAME_UI "Shader.Builtin.UI"
+
+struct shader;
+struct shader_uniform;
+
 typedef enum renderer_backend_type
 {
     RENDERER_BACKEND_TYPE_VULKAN,
@@ -34,8 +40,6 @@ typedef struct renderer_backend
     void (*resized)(struct renderer_backend* backend, u16 width, u16 height);
 
     b8 (*begin_frame)(struct renderer_backend* backend, f32 delta_time);
-    void (*update_global_world_state)(mat4 projection, mat4 view, vec3 view_position, vec4 ambient_color, i32 mode);
-    void (*update_global_ui_state)(mat4 projection, mat4 view, i32 mode);
     b8 (*end_frame)(struct renderer_backend* backend, f32 delta_time);
 
     b8 (*begin_renderpass)(struct renderer_backend* backend, u8 renderpass_id);
@@ -46,11 +50,29 @@ typedef struct renderer_backend
     void (*create_texture)(const u8* pixels, struct texture* texture);
     void (*destroy_texture)(struct texture* texture);
 
-    b8 (*create_material)(struct material* material);
-    void (*destroy_material)(struct material* material);
-
     b8 (*create_geometry)(geometry* geometry, u32 vertex_size, u32 vertex_count, const void* vertices, u32 index_size, u32 index_count, const void* indices);
     void (*destroy_geometry)(geometry* geometry);
+
+    b8 (*shader_create)(struct shader* shader, u8 renderpass_id, u8 stage_count, const char** stage_filenames, shader_stage* stages);
+    void (*shader_destroy)(struct shader* shader);
+
+    b8 (*shader_initialize)(struct shader* shader);
+
+    b8 (*shader_use)(struct shader* shader);
+
+    b8 (*shader_bind_globals)(struct shader* s);
+
+    b8 (*shader_bind_instance)(struct shader* s, u32 instance_id);
+
+    b8 (*shader_apply_globals)(struct shader* s);
+
+    b8 (*shader_apply_instance)(struct shader* s);
+
+    b8 (*shader_acquire_instance_resources)(struct shader* s, u32* out_instance_id);
+
+    b8 (*shader_release_instance_resources)(struct shader* s, u32 instance_id);
+
+    b8 (*shader_set_uniform)(struct shader* frontend_shader, struct shader_uniform* uniform, const void* value);
 } renderer_backend;
 
 typedef struct render_packet

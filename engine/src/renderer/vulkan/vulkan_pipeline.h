@@ -16,6 +16,8 @@ b8 vulkan_graphics_pipeline_create(
     VkRect2D scissor,
     b8 is_wireframe,
     b8 depth_test_enabled,
+    u32 push_constant_range_count,
+    range* push_constant_ranges,
     vulkan_pipeline* out_pipeline);
 
 void vulkan_pipeline_destroy(vulkan_context* context, vulkan_pipeline* pipeline);

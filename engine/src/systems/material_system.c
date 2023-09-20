@@ -6,6 +6,25 @@
 #include "renderer/renderer_frontend.h"
 #include "systems/texture_system.h"
 #include "systems/resource_system.h"
+#include "systems/shader_system.h"
+
+typedef struct material_shader_uniform_locations
+{
+    u16 projection;
+    u16 view;
+    u16 diffuse_color;
+    u16 diffuse_texture;
+    u16 model;
+} material_shader_uniform_locations;
+
+typedef struct ui_shader_uniform_locations
+{
+    u16 projection;
+    u16 view;
+    u16 diffuse_color;
+    u16 diffuse_texture;
+    u16 model;
+} ui_shader_uniform_locations;
 
 typedef struct material_system_state
 {
@@ -18,6 +37,14 @@ typedef struct material_system_state
 
     // Hashtable for material lookups
     hashtable registered_material_table;
+
+    // Known locations for the material shader
+    material_shader_uniform_locations material_locations;
+    u32 material_shader_id;
+
+    // Known locations for the UI shader
+    ui_shader_uniform_locations ui_locations;
+    u32 ui_shader_id;
 } material_system_state;
 
 typedef struct material_reference
@@ -52,6 +79,14 @@ b8 material_system_initialize(u64* memory_requirement, void* state, material_sys
 
     state_ptr = state;
     state_ptr->config = config;
+
+    state_ptr->material_shader_id = INVALID_ID;
+    state_ptr->material_locations.diffuse_color = INVALID_ID_U16;
+    state_ptr->material_locations.diffuse_texture = INVALID_ID_U16;
+
+    state_ptr->ui_shader_id = INVALID_ID;
+    state_ptr->ui_locations.diffuse_color = INVALID_ID_U16;
+    state_ptr->ui_locations.diffuse_texture = INVALID_ID_U16;
 
     // Array block is after the state. Already allocated, so just set the pointer
     void* array_block = state + struct_requirement;
@@ -175,6 +210,28 @@ material* material_system_acquire_from_config(material_config config)
                 return 0;
             }
 
+            // Get uniform indices
+            shader* s = shader_system_get_by_id(m->shader_id);
+            // Save off locations for known types for quick lookups
+            if (state_ptr->material_shader_id == INVALID_ID && strings_equal(config.shader_name, BUILTIN_SHADER_NAME_MATERIAL))
+            {
+                state_ptr->material_shader_id = s->id;
+                state_ptr->material_locations.projection = shader_system_uniform_index(s, "projection");
+                state_ptr->material_locations.view = shader_system_uniform_index(s, "view");
+                state_ptr->material_locations.diffuse_color = shader_system_uniform_index(s, "diffuse_color");
+                state_ptr->material_locations.diffuse_texture = shader_system_uniform_index(s, "diffuse_texture");
+                state_ptr->material_locations.model = shader_system_uniform_index(s, "model");
+            }
+            else if (state_ptr->ui_shader_id == INVALID_ID && strings_equal(config.shader_name, BUILTIN_SHADER_NAME_UI))
+            {
+                state_ptr->ui_shader_id = s->id;
+                state_ptr->ui_locations.projection = shader_system_uniform_index(s, "projection");
+                state_ptr->ui_locations.view = shader_system_uniform_index(s, "view");
+                state_ptr->ui_locations.diffuse_color = shader_system_uniform_index(s, "diffuse_color");
+                state_ptr->ui_locations.diffuse_texture = shader_system_uniform_index(s, "diffuse_texture");
+                state_ptr->ui_locations.model = shader_system_uniform_index(s, "model");
+            }
+
             if (m->generation == INVALID_ID)
             {
                 m->generation = 0;
@@ -252,6 +309,75 @@ material* material_system_get_default()
     return 0;
 }
 
+#define MATERIAL_APPLY_OR_FAIL(expr)                  \
+    if (!expr)                                        \
+    {                                                 \
+        BERROR("Failed to apply material: %s", expr); \
+        return false;                                 \
+    }
+
+b8 material_system_apply_global(u32 shader_id, const mat4* projection, const mat4* view)
+{
+    if (shader_id == state_ptr->material_shader_id)
+    {
+        MATERIAL_APPLY_OR_FAIL(shader_system_uniform_set_by_index(state_ptr->material_locations.projection, projection));
+        MATERIAL_APPLY_OR_FAIL(shader_system_uniform_set_by_index(state_ptr->material_locations.view, view));
+    }
+    else if (shader_id == state_ptr->ui_shader_id)
+    {
+        MATERIAL_APPLY_OR_FAIL(shader_system_uniform_set_by_index(state_ptr->ui_locations.projection, projection));
+        MATERIAL_APPLY_OR_FAIL(shader_system_uniform_set_by_index(state_ptr->ui_locations.view, view));
+    }
+    else
+    {
+        BERROR("material_system_apply_global(): Unrecognized shader id '%d'", shader_id);
+        return false;
+    }
+    MATERIAL_APPLY_OR_FAIL(shader_system_apply_global());
+    return true;
+}
+
+b8 material_system_apply_instance(material* m)
+{
+    // Apply instance-level uniforms
+    MATERIAL_APPLY_OR_FAIL(shader_system_bind_instance(m->internal_id));
+    if (m->shader_id == state_ptr->material_shader_id)
+    {
+        // Material shader
+        MATERIAL_APPLY_OR_FAIL(shader_system_uniform_set_by_index(state_ptr->material_locations.diffuse_color, &m->diffuse_color));
+        MATERIAL_APPLY_OR_FAIL(shader_system_uniform_set_by_index(state_ptr->material_locations.diffuse_texture, m->diffuse_map.texture));
+    }
+    else if (m->shader_id == state_ptr->ui_shader_id)
+    {
+        // UI shader
+        MATERIAL_APPLY_OR_FAIL(shader_system_uniform_set_by_index(state_ptr->ui_locations.diffuse_color, &m->diffuse_color));
+        MATERIAL_APPLY_OR_FAIL(shader_system_uniform_set_by_index(state_ptr->ui_locations.diffuse_texture, m->diffuse_map.texture));
+    }
+    else
+    {
+        BERROR("material_system_apply_instance(): Unrecognized shader id '%d' on shader '%s'", m->shader_id, m->name);
+        return false;
+    }
+    MATERIAL_APPLY_OR_FAIL(shader_system_apply_instance());
+
+    return true;
+}
+
+b8 material_system_apply_local(material* m, const mat4* model)
+{
+    if (m->shader_id == state_ptr->material_shader_id)
+    {
+        return shader_system_uniform_set_by_index(state_ptr->material_locations.model, model);
+    }
+    else if (m->shader_id == state_ptr->ui_shader_id)
+    {
+        return shader_system_uniform_set_by_index(state_ptr->ui_locations.model, model);
+    }
+
+    BERROR("Unrecognized shader id '%d'", m->shader_id);
+    return false;
+}
+
 b8 load_material(material_config config, material* m)
 {
     bzero_memory(m, sizeof(material));
@@ -259,8 +385,7 @@ b8 load_material(material_config config, material* m)
     // Name
     string_ncopy(m->name, config.name, MATERIAL_NAME_MAX_LENGTH);
 
-    // Type
-    m->type = config.type;
+    m->shader_id = shader_system_get_id(config.shader_name);
 
     // Diffuse color
     m->diffuse_color = config.diffuse_color;
@@ -285,7 +410,13 @@ b8 load_material(material_config config, material* m)
     // TODO: other maps
 
     // Send it off to renderer to acquire resources
-    if (!renderer_create_material(m))
+    shader* s = shader_system_get(config.shader_name);
+    if (!s)
+    {
+        BERROR("Unable to load material because its shader was not found: '%s'. This is likely a problem with the material asset", config.shader_name);
+        return false;
+    }
+    if (!renderer_shader_acquire_instance_resources(s, &m->internal_id))
     {
         BERROR("Failed to acquire renderer resources for material '%s'", m->name);
         return false;
@@ -303,7 +434,11 @@ void destroy_material(material* m)
         texture_system_release(m->diffuse_map.texture->name);
 
     // Release renderer resources
-    renderer_destroy_material(m);
+    if (m->shader_id != INVALID_ID && m->internal_id != INVALID_ID)
+    {
+        renderer_shader_release_instance_resources(shader_system_get_by_id(m->shader_id), m->internal_id);
+        m->shader_id = INVALID_ID;
+    }
 
     // Zero it out, invalidate IDs
     bzero_memory(m, sizeof(material));
@@ -322,7 +457,8 @@ b8 create_default_material(material_system_state* state)
     state->default_material.diffuse_map.use = TEXTURE_USE_MAP_DIFFUSE;
     state->default_material.diffuse_map.texture = texture_system_get_default_texture();
 
-    if (!renderer_create_material(&state->default_material))
+    shader* s = shader_system_get(BUILTIN_SHADER_NAME_MATERIAL);
+    if (!renderer_shader_acquire_instance_resources(s, &state->default_material.internal_id))
     {
         BFATAL("Failed to acquire renderer resources for default material. Application cannot continue");
         return false;

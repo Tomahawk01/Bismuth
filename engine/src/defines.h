@@ -20,6 +20,14 @@ typedef double f64;
 typedef int b32;
 typedef char b8;
 
+typedef struct range
+{
+    // offset in bytes
+    u64 offset;
+    // size in bytes
+    u64 size;
+} range;
+
 // Properly define static assertions
 #if defined(__clang__) || defined(__gcc__)
 #define STATIC_ASSERT _Static_assert
@@ -49,6 +57,8 @@ STATIC_ASSERT(sizeof(f64) == 8, "Expected f64 to be 8 bytes.");
  * and not actually pointing to a real object. 
  */
 #define INVALID_ID 4294967295U
+#define INVALID_ID_U16 65535U
+#define INVALID_ID_U8 255U
 
 // Platform detection
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) 
@@ -103,3 +113,13 @@ STATIC_ASSERT(sizeof(f64) == 8, "Expected f64 to be 8 bytes.");
 #define MEGABYTES(amount) amount * 1000 * 1000
 // Gets the number of bytes from amount of kilobytes (KB) (1000)
 #define KILOBYTES(amount) amount * 1000
+
+BINLINE u64 get_aligned(u64 operand, u64 granularity)
+{
+    return ((operand + (granularity - 1)) & ~(granularity - 1));
+}
+
+BINLINE range get_aligned_range(offset, size, granularity)
+{
+    return (range){get_aligned(offset, granularity), get_aligned(size, granularity)};
+}

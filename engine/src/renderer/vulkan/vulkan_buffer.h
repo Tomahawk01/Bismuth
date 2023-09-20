@@ -8,6 +8,7 @@ b8 vulkan_buffer_create(
     VkBufferUsageFlagBits usage,
     u32 memory_property_flags,
     b8 bind_on_create,
+    b8 use_freelist,
     vulkan_buffer* out_buffer);
 
 void vulkan_buffer_destroy(vulkan_context* context, vulkan_buffer* buffer);
