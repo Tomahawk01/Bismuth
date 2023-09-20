@@ -20,6 +20,7 @@
 // TODO: temp
 #include "math/bmath.h"
 #include "math/geometry_utils.h"
+#include "containers/darray.h"
 
 typedef struct application_state
 {
@@ -63,7 +64,8 @@ typedef struct application_state
     void* geometry_system_state;
 
     // TODO: temp
-    geometry* test_geometry;
+    // darray
+    mesh* meshes;
     geometry* test_ui_geometry;
 } application_state;
 
@@ -82,60 +84,28 @@ b8 event_on_debug_event(u16 code, void* sender, void* listener_inst, event_conte
         "stone",
         "wood"
     };
-    const char* spec_names[3] = {
-        "rocks_spec",
-        "stone_spec",
-        "wood_spec"
-    };
-    const char* normal_names[3] = {
-        "rocks_norm",
-        "stone_norm",
-        "wood_norm"
-    };
     static i8 choice = 2;
 
     // Save the old names
     const char* old_name = names[choice];
-    const char* old_spec_name = spec_names[choice];
-    const char* old_norm_name = normal_names[choice];
 
     choice++;
     choice %= 3;
 
-    if (app_state->test_geometry)
+    // Just swap out material on the first mesh if it exists
+    geometry* g = app_state->meshes[0].geometries[0];
+    if (g)
     {
-        // Acquire new diffuse texture
-        app_state->test_geometry->material->diffuse_map.texture = texture_system_acquire(names[choice], true);
-        if (!app_state->test_geometry->material->diffuse_map.texture)
+        // Acquire new material
+        g->material = material_system_acquire(names[choice]);
+        if (!g->material)
         {
-            BWARN("event_on_debug_event no diffuse texture! using default");
-            app_state->test_geometry->material->diffuse_map.texture = texture_system_get_default_texture();
+            BWARN("event_on_debug_event no material found! Using default material");
+            g->material = material_system_get_default();
         }
 
-        // Release old diffuse texture
-        texture_system_release(old_name);
-
-        // Acquire new spec texture
-        app_state->test_geometry->material->specular_map.texture = texture_system_acquire(spec_names[choice], true);
-        if (!app_state->test_geometry->material->specular_map.texture)
-        {
-            BWARN("event_on_debug_event no spec texture! using default");
-            app_state->test_geometry->material->specular_map.texture = texture_system_get_default_specular_texture();
-        }
-
-        // Release old spec texture
-        texture_system_release(old_spec_name);
-
-        // Acquire new normal texture
-        app_state->test_geometry->material->normal_map.texture = texture_system_acquire(normal_names[choice], true);
-        if (!app_state->test_geometry->material->normal_map.texture)
-        {
-            BWARN("event_on_debug_event no normal texture! using default");
-            app_state->test_geometry->material->normal_map.texture = texture_system_get_default_normal_texture();
-        }
-
-        // Release old normal texture
-        texture_system_release(old_norm_name);
+        // Release old diffuse material
+        material_system_release(old_name);
     }
 
     return true;
@@ -286,14 +256,34 @@ b8 application_create(game* game_inst)
     }
 
     // TODO: temp
+    app_state->meshes = darray_create(mesh);
+
     // Load up a cube configuration and load geometry from it
+    mesh cube_mesh;
+    cube_mesh.geometry_count = 1;
+    cube_mesh.geometries = ballocate(sizeof(mesh*) * cube_mesh.geometry_count, MEMORY_TAG_ARRAY);
     geometry_config g_config = geometry_system_generate_cube_config(10.0f, 10.0f, 10.0f, 1.0f, 1.0f, "test_cube", "test_material");
     geometry_generate_tangents(g_config.vertex_count, g_config.vertices, g_config.index_count, g_config.indices);
-    app_state->test_geometry = geometry_system_acquire_from_config(g_config, true);
 
+    cube_mesh.geometries[0] = geometry_system_acquire_from_config(g_config, true);
+    cube_mesh.model = mat4_identity();
+    darray_push(app_state->meshes, cube_mesh);
     // Clean up the allocations for the geometry config
     bfree(g_config.vertices, sizeof(vertex_3d) * g_config.vertex_count, MEMORY_TAG_ARRAY);
     bfree(g_config.indices, sizeof(u32) * g_config.index_count, MEMORY_TAG_ARRAY);
+
+    // Second cube
+    mesh cube_mesh_2;
+    cube_mesh_2.geometry_count = 1;
+    cube_mesh_2.geometries = ballocate(sizeof(mesh*) * cube_mesh_2.geometry_count, MEMORY_TAG_ARRAY);
+    geometry_config g_config_2 = geometry_system_generate_cube_config(5.0f, 5.0f, 5.0f, 1.0f, 1.0f, "test_cube_2", "test_material");
+    geometry_generate_tangents(g_config_2.vertex_count, g_config_2.vertices, g_config_2.index_count, g_config_2.indices);
+    cube_mesh_2.geometries[0] = geometry_system_acquire_from_config(g_config, true);
+    cube_mesh_2.model = mat4_translation((vec3){10.0f, 0.0f, 1.0f});
+    darray_push(app_state->meshes, cube_mesh_2);
+    // Clean up allocations for the geometry config
+    bfree(g_config_2.vertices, sizeof(vertex_3d) * g_config_2.vertex_count, MEMORY_TAG_ARRAY);
+    bfree(g_config_2.indices, sizeof(u32) * g_config_2.index_count, MEMORY_TAG_ARRAY);
 
     // Load test UI geometry
     geometry_config ui_config;
@@ -395,22 +385,41 @@ b8 application_run()
             render_packet packet;
             packet.delta_time = delta;
 
-            // TODO: temp
-            geometry_render_data test_render;
-            test_render.geometry = app_state->test_geometry;
-            //test_render.model = mat4_identity();
-            static f32 angle = 0;
-            angle += (0.5f * delta);
-            quat rotation = quat_from_axis_angle((vec3){0, 1, 0}, angle, false);
-            mat4 t = mat4_translation(vec3_zero());
-            mat4 r = quat_to_mat4(rotation);
-            mat4 s = mat4_scale(vec3_one());
-            t = mat4_mul(r, t);
-            t = mat4_mul(s, t);
-            test_render.model = t;
+            u32 mesh_count = darray_length(app_state->meshes);
+            if (mesh_count > 0)
+            {
+                packet.geometries = darray_create(geometry_render_data);
 
-            packet.geometry_count = 1;
-            packet.geometries = &test_render;
+                // Perform small rotation on the first mesh
+                quat rotation = quat_from_axis_angle((vec3){0, 1, 0}, 0.5f * delta, false);
+                mat4 rotation_matrix = quat_to_mat4(rotation);
+                app_state->meshes[0].model = mat4_mul(app_state->meshes[0].model, rotation_matrix);
+
+                if (mesh_count > 1)
+                {
+                    // Parent second cube to the first
+                    app_state->meshes[1].model = mat4_mul(mat4_translation((vec3){10.0f, 0.0f, 1.0f}), app_state->meshes[0].model);
+                }
+
+                // Iterate all meshes and add them to packet's geometries collection
+                for (u32 i = 0; i < mesh_count; ++i)
+                {
+                    for (u32 j = 0; j < app_state->meshes[i].geometry_count; ++j)
+                    {
+                        geometry_render_data data;
+                        data.geometry = app_state->meshes[i].geometries[j];
+                        data.model = app_state->meshes[i].model;
+                        darray_push(packet.geometries, data);
+                    }
+                }
+
+                packet.geometry_count = darray_length(packet.geometries);
+            }
+            else
+            {
+                packet.geometry_count = 0;
+                packet.geometries = 0;
+            }
 
             geometry_render_data test_ui_renderer;
             test_ui_renderer.geometry = app_state->test_ui_geometry;
@@ -420,6 +429,13 @@ b8 application_run()
             // TODO: end temp
 
             renderer_draw_frame(&packet);
+
+            // Clean-up
+            if (packet.geometries)
+            {
+                darray_destroy(packet.geometries);
+                packet.geometries = 0;
+            }
 
             // Calculate how long the frame took
             f64 frame_end_time = platform_get_absolute_time();

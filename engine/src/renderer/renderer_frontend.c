@@ -148,6 +148,8 @@ void renderer_on_resized(u16 width, u16 height)
 
 b8 renderer_draw_frame(render_packet* packet)
 {
+    state_ptr->backend.frame_number++;
+
     // If the begin frame returned successfully, mid-frame operations may continue
     if (state_ptr->backend.begin_frame(&state_ptr->backend, packet->delta_time))
     {
@@ -158,14 +160,14 @@ b8 renderer_draw_frame(render_packet* packet)
             return false;
         }
 
-        if(!shader_system_use_by_id(state_ptr->material_shader_id))
+        if (!shader_system_use_by_id(state_ptr->material_shader_id))
         {
             BERROR("Failed to use material shader. Render frame failed");
             return false;
         }
 
         // Apply globals
-        if(!material_system_apply_global(state_ptr->material_shader_id, &state_ptr->projection, &state_ptr->view, &state_ptr->ambient_color, &state_ptr->view_position, state_ptr->render_mode))
+        if (!material_system_apply_global(state_ptr->material_shader_id, &state_ptr->projection, &state_ptr->view, &state_ptr->ambient_color, &state_ptr->view_position, state_ptr->render_mode))
         {
             BERROR("Failed to use apply globals for material shader. Render frame failed");
             return false;
@@ -185,11 +187,20 @@ b8 renderer_draw_frame(render_packet* packet)
                 m = material_system_get_default();
             }
 
-            // Apply material
-            if (!material_system_apply_instance(m))
+            // Apply material if it hasn't already been this frame. This keeps
+            // same material from being updated multiple times
+            if (m->render_frame_number != state_ptr->backend.frame_number)
             {
-                BWARN("Failed to apply material '%s'. Skipping draw...", m->name);
-                continue;
+                if (!material_system_apply_instance(m))
+                {
+                    BWARN("Failed to apply material '%s'. Skipping draw...", m->name);
+                    continue;
+                }
+                else
+                {
+                    // Sync the frame number
+                    m->render_frame_number = state_ptr->backend.frame_number;
+                }
             }
 
             // Apply locals
@@ -214,14 +225,14 @@ b8 renderer_draw_frame(render_packet* packet)
         }
 
         // Update UI global state
-        if(!shader_system_use_by_id(state_ptr->ui_shader_id))
+        if (!shader_system_use_by_id(state_ptr->ui_shader_id))
         {
             BERROR("Failed to use UI shader. Render frame failed");
             return false;
         }
 
         // Apply globals
-        if(!material_system_apply_global(state_ptr->ui_shader_id, &state_ptr->ui_projection, &state_ptr->ui_view, 0, 0, 0))
+        if (!material_system_apply_global(state_ptr->ui_shader_id, &state_ptr->ui_projection, &state_ptr->ui_view, 0, 0, 0))
         {
             BERROR("Failed to use apply globals for UI shader. Render frame failed");
             return false;
@@ -263,7 +274,6 @@ b8 renderer_draw_frame(render_packet* packet)
 
         // End frame. If this fails, it is likely unrecoverable
         b8 result = state_ptr->backend.end_frame(&state_ptr->backend, packet->delta_time);
-        state_ptr->backend.frame_number++;
 
         if (!result)
         {
