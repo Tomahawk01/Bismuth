@@ -34,6 +34,7 @@ b8 material_loader_load(struct resource_loader* self, const char* name, resource
     resource_data->auto_release = true;
     resource_data->diffuse_color = vec4_one();  // white
     resource_data->diffuse_map_name[0] = 0;
+    resource_data->specular_map_name[0] = 0;
     string_ncopy(resource_data->name, name, MATERIAL_NAME_MAX_LENGTH);
 
     // Read each line of the file
@@ -90,6 +91,10 @@ b8 material_loader_load(struct resource_loader* self, const char* name, resource
         {
             string_ncopy(resource_data->diffuse_map_name, trimmed_value, TEXTURE_NAME_MAX_LENGTH);
         }
+        else if (strings_equali(trimmed_var_name, "specular_map_name"))
+        {
+           string_ncopy(resource_data->specular_map_name, trimmed_value, TEXTURE_NAME_MAX_LENGTH);
+        }
         else if (strings_equali(trimmed_var_name, "diffuse_color"))
         {
             // Parse the color
@@ -102,6 +107,14 @@ b8 material_loader_load(struct resource_loader* self, const char* name, resource
         {
             // Take copy of the material name
             resource_data->shader_name = string_duplicate(trimmed_value);
+        }
+        else if (strings_equali(trimmed_var_name, "shininess"))
+        {
+            if(!string_to_f32(trimmed_value, &resource_data->shininess))
+            {
+                BWARN("Error parsing shininess in file '%s'. Using default of 32.0 instead", full_file_path);
+                resource_data->shininess = 32.0f;
+            }
         }
 
         // TODO: more fields

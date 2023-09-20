@@ -146,7 +146,17 @@ b8 game_update(game* game_inst, f32 delta_time)
     recalculate_view_matrix(state);
 
     // NOTE: this should not be available outside the engine
-    renderer_set_view(state->view);
+    renderer_set_view(state->view, state->camera_position);
+
+    // TODO: temporary
+    if (input_is_key_up('P') && input_was_key_down('P'))
+    {
+        BDEBUG(
+            "Pos:[%.2f, %.2f, %.2f]",
+            state->camera_position.x,
+            state->camera_position.y,
+            state->camera_position.z);
+    }
 
     return true;
 }

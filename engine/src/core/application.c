@@ -81,26 +81,43 @@ b8 event_on_debug_event(u16 code, void* sender, void* listener_inst, event_conte
         "stone",
         "wood"
     };
+    const char* spec_names[3] = {
+        "rocks_spec",
+        "stone_spec",
+        "wood_spec"
+    };
     static i8 choice = 2;
 
-    // Save the old name
+    // Save the old names
     const char* old_name = names[choice];
+    const char* old_spec_name = spec_names[choice];
 
     choice++;
     choice %= 3;
 
-    // Acquire new texture
     if (app_state->test_geometry)
     {
+        // Acquire new diffuse texture
         app_state->test_geometry->material->diffuse_map.texture = texture_system_acquire(names[choice], true);
         if (!app_state->test_geometry->material->diffuse_map.texture)
         {
-            BWARN("event_on_debug_event no texture! using default");
+            BWARN("event_on_debug_event no diffuse texture! using default");
             app_state->test_geometry->material->diffuse_map.texture = texture_system_get_default_texture();
         }
 
-        // Release old texture
+        // Release old diffuse texture
         texture_system_release(old_name);
+
+        // Acquire new spec texture
+        app_state->test_geometry->material->specular_map.texture = texture_system_acquire(spec_names[choice], true);
+        if (!app_state->test_geometry->material->specular_map.texture)
+        {
+            BWARN("event_on_debug_event no spec texture! using default");
+            app_state->test_geometry->material->specular_map.texture = texture_system_get_default_specular_texture();
+        }
+
+        // Release old spec texture
+        texture_system_release(old_spec_name);
     }
 
     return true;
@@ -364,9 +381,14 @@ b8 application_run()
             test_render.geometry = app_state->test_geometry;
             //test_render.model = mat4_identity();
             static f32 angle = 0;
-            angle += (1.0f * delta);
-            quat rotation = quat_from_axis_angle((vec3){0, 1, 0}, angle, true);
-            test_render.model = quat_to_mat4(rotation);
+            angle += (0.5f * delta);
+            quat rotation = quat_from_axis_angle((vec3){0, 1, 0}, angle, false);
+            mat4 t = mat4_translation(vec3_zero());
+            mat4 r = quat_to_mat4(rotation);
+            mat4 s = mat4_scale(vec3_one());
+            t = mat4_mul(r, t);
+            t = mat4_mul(s, t);
+            test_render.model = t;
 
             packet.geometry_count = 1;
             packet.geometries = &test_render;
