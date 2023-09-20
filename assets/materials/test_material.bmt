@@ -3,5 +3,5 @@
 version=0.1
 name=test_material
 diffuse_color=1.0 1.0 1.0 1.0
-diffuse_map_name=stone
+diffuse_map_name=prototype_1024
 shader=Shader.Builtin.Material
