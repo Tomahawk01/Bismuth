@@ -19,6 +19,7 @@
 
 // TODO: temp
 #include "math/bmath.h"
+#include "math/geometry_utils.h"
 
 typedef struct application_state
 {
@@ -86,11 +87,17 @@ b8 event_on_debug_event(u16 code, void* sender, void* listener_inst, event_conte
         "stone_spec",
         "wood_spec"
     };
+    const char* normal_names[3] = {
+        "rocks_norm",
+        "stone_norm",
+        "wood_norm"
+    };
     static i8 choice = 2;
 
     // Save the old names
     const char* old_name = names[choice];
     const char* old_spec_name = spec_names[choice];
+    const char* old_norm_name = normal_names[choice];
 
     choice++;
     choice %= 3;
@@ -118,6 +125,17 @@ b8 event_on_debug_event(u16 code, void* sender, void* listener_inst, event_conte
 
         // Release old spec texture
         texture_system_release(old_spec_name);
+
+        // Acquire new normal texture
+        app_state->test_geometry->material->normal_map.texture = texture_system_acquire(normal_names[choice], true);
+        if (!app_state->test_geometry->material->normal_map.texture)
+        {
+            BWARN("event_on_debug_event no normal texture! using default");
+            app_state->test_geometry->material->normal_map.texture = texture_system_get_default_normal_texture();
+        }
+
+        // Release old normal texture
+        texture_system_release(old_norm_name);
     }
 
     return true;
@@ -268,8 +286,9 @@ b8 application_create(game* game_inst)
     }
 
     // TODO: temp
-    // Load up a plane configuration and load geometry from it
+    // Load up a cube configuration and load geometry from it
     geometry_config g_config = geometry_system_generate_cube_config(10.0f, 10.0f, 10.0f, 1.0f, 1.0f, "test_cube", "test_material");
+    geometry_generate_tangents(g_config.vertex_count, g_config.vertices, g_config.index_count, g_config.indices);
     app_state->test_geometry = geometry_system_acquire_from_config(g_config, true);
 
     // Clean up the allocations for the geometry config
@@ -381,7 +400,7 @@ b8 application_run()
             test_render.geometry = app_state->test_geometry;
             //test_render.model = mat4_identity();
             static f32 angle = 0;
-            angle += (0.5f * delta);
+            angle += (0.05f * delta);
             quat rotation = quat_from_axis_angle((vec3){0, 1, 0}, angle, false);
             mat4 t = mat4_translation(vec3_zero());
             mat4 r = quat_to_mat4(rotation);

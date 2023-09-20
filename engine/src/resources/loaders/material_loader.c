@@ -35,6 +35,7 @@ b8 material_loader_load(struct resource_loader* self, const char* name, resource
     resource_data->diffuse_color = vec4_one();  // white
     resource_data->diffuse_map_name[0] = 0;
     resource_data->specular_map_name[0] = 0;
+    resource_data->normal_map_name[0] = 0;
     string_ncopy(resource_data->name, name, MATERIAL_NAME_MAX_LENGTH);
 
     // Read each line of the file
@@ -94,6 +95,10 @@ b8 material_loader_load(struct resource_loader* self, const char* name, resource
         else if (strings_equali(trimmed_var_name, "specular_map_name"))
         {
            string_ncopy(resource_data->specular_map_name, trimmed_value, TEXTURE_NAME_MAX_LENGTH);
+        }
+        else if (strings_equali(trimmed_var_name, "normal_map_name"))
+        {
+            string_ncopy(resource_data->normal_map_name, trimmed_value, TEXTURE_NAME_MAX_LENGTH);
         }
         else if (strings_equali(trimmed_var_name, "diffuse_color"))
         {
