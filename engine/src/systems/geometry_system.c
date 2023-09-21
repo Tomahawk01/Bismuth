@@ -118,6 +118,18 @@ geometry* geometry_system_acquire_from_config(geometry_config config, b8 auto_re
     return g;
 }
 
+void geometry_system_config_dispose(geometry_config* config)
+{
+    if (config)
+    {
+        if (config->vertices)
+            bfree(config->vertices, config->vertex_size * config->vertex_count, MEMORY_TAG_ARRAY);
+        if (config->vertices)
+            bfree(config->indices, config->index_size * config->index_count, MEMORY_TAG_ARRAY);
+        bzero_memory(config, sizeof(geometry_config));
+    }
+}
+
 void geometry_system_release(geometry* geometry)
 {
     if (geometry && geometry->id != INVALID_ID)

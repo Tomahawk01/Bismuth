@@ -46,6 +46,13 @@ geometry* geometry_system_acquire_by_id(u32 id);
 geometry* geometry_system_acquire_from_config(geometry_config config, b8 auto_release);
 
 /**
+ * @brief Frees resources held by the provided configuration.
+ *
+ * @param config A pointer to the configuration to be disposed.
+ */
+void geometry_system_config_dispose(geometry_config* config);
+
+/**
  * @brief Releases a reference to the provided geometry.
  * 
  * @param geometry The geometry to be released.
