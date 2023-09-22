@@ -747,6 +747,32 @@ BINLINE f32 vec4_dot_f32(
 }
 
 /**
+ * @brief Compares all elements of vector_0 and vector_1 and ensures the difference
+ * is less than tolerance.
+ * 
+ * @param vector_0 The first vector.
+ * @param vector_1 The second vector.
+ * @param tolerance The difference tolerance. Typically B_FLOAT_EPSILON or similar.
+ * @return True if within tolerance; otherwise false. 
+ */
+BINLINE const b8 vec4_compare(vec4 vector_0, vec4 vector_1, f32 tolerance)
+{
+    if (babs(vector_0.x - vector_1.x) > tolerance)
+        return false;
+
+    if (babs(vector_0.y - vector_1.y) > tolerance)
+        return false;
+
+    if (babs(vector_0.z - vector_1.z) > tolerance)
+        return false;
+
+    if (babs(vector_0.w - vector_1.w) > tolerance)
+        return false;
+
+    return true;
+}
+
+/**
  * @brief Creates and returns an identity matrix:
  * 
  * {

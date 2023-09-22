@@ -13,6 +13,12 @@ BAPI b8 strings_equal(const char* str0, const char* str1);
 // Case-insensitive string comparison. Return true if same, otherwise false
 BAPI b8 strings_equali(const char* str0, const char* str1);
 
+// Case-sensitive string comparison for a number of characters
+BAPI b8 strings_nequal(const char* str0, const char* str1, u64 length);
+
+// Case-insensitive string comparison for a number of characters
+BAPI b8 strings_nequali(const char* str0, const char* str1, u64 length);
+
 // Performs string formatting to dest given format string and parameters
 BAPI i32 string_format(char* dest, const char* format, ...);
 
@@ -197,3 +203,19 @@ BAPI u32 string_split(const char* str, char delimiter, char*** str_darray, b8 tr
  * @param str_darray The darray to be cleaned up.
  */
 BAPI void string_cleanup_split_array(char** str_darray);
+
+BAPI void string_append_string(char* dest, const char* source, const char* append);
+
+BAPI void string_append_int(char* dest, const char* source, i64 i);
+
+BAPI void string_append_float(char* dest, const char* source, f32 f);
+
+BAPI void string_append_bool(char* dest, const char* source, b8 b);
+
+BAPI void string_append_char(char* dest, const char* source, char c);
+
+BAPI void string_directory_from_path(char* dest, const char* path);
+
+BAPI void string_filename_from_path(char* dest, const char* path);
+
+BAPI void string_filename_no_extension_from_path(char* dest, const char* path);

@@ -41,7 +41,7 @@ void main()
     // Fragment position in world space
     out_dto.frag_position = vec3(u_push_constants.model * vec4(in_position, 1.0));
     mat3 m3_model = mat3(u_push_constants.model);
-	out_dto.normal = m3_model * in_normal;
+	out_dto.normal = normalize(m3_model * in_normal);
 	out_dto.tangent = vec4(normalize(m3_model * in_tangent.xyz), in_tangent.w);
     out_dto.ambient = global_ubo.ambient_color;
     out_dto.view_position = global_ubo.view_position;

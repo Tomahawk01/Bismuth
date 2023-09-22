@@ -73,7 +73,7 @@ typedef struct renderer_backend
 
     b8 (*shader_apply_globals)(struct shader* s);
 
-    b8 (*shader_apply_instance)(struct shader* s);
+    b8 (*shader_apply_instance)(struct shader* s, b8 needs_update);
 
     b8 (*shader_acquire_instance_resources)(struct shader* s, u32* out_instance_id);
 
