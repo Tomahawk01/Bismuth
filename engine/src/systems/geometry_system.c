@@ -2,6 +2,7 @@
 #include "core/logger.h"
 #include "core/bmemory.h"
 #include "core/bstring.h"
+#include "math/geometry_utils.h"
 #include "systems/material_system.h"
 #include "renderer/renderer_frontend.h"
 
@@ -587,6 +588,8 @@ geometry_config geometry_system_generate_cube_config(f32 width, f32 height, f32 
     {
         string_ncopy(config.material_name, DEFAULT_MATERIAL_NAME, MATERIAL_NAME_MAX_LENGTH);
     }
+
+    geometry_generate_tangents(config.vertex_count, config.vertices, config.index_count, config.indices);
 
     return config;
 }

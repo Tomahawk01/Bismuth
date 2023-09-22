@@ -50,7 +50,7 @@ void process_subobject(vec3* positions, vec3* normals, vec2* tex_coords, mesh_fa
 b8 import_obj_material_library_file(const char* mtl_file_path);
 
 b8 load_bsm_file(file_handle* bsm_file, geometry_config** out_geometries_darray);
-b8 write_bsm_file(const char* path, const char* name, u32 geometry_count, geometry_config** geometries);
+b8 write_bsm_file(const char* path, const char* name, u32 geometry_count, geometry_config* geometries);
 b8 write_bmt_file(const char* directory, material_config* config);
 
 b8 mesh_loader_load(struct resource_loader* self, const char* name, resource* out_resource)
@@ -147,13 +147,127 @@ void mesh_loader_unload(struct resource_loader* self, resource* resource)
 
 b8 load_bsm_file(file_handle* bsm_file, geometry_config** out_geometries_darray)
 {
-    // TODO: Read bsm file
+    // Version
+    u64 bytes_read = 0;
+    u16 version = 0;
+    filesystem_read(bsm_file, sizeof(u16), &version, &bytes_read);
+
+    // Name length
+    u32 name_length = 0;
+    filesystem_read(bsm_file, sizeof(u32), &name_length, &bytes_read);
+    // Name + terminator
+    char name[256];
+    filesystem_read(bsm_file, sizeof(char) * name_length, name, &bytes_read);
+
+    // Geometry count
+    u32 geometry_count = 0;
+    filesystem_read(bsm_file, sizeof(u32), &geometry_count, &bytes_read);
+
+    // Each geometry
+    for (u32 i = 0; i < geometry_count; ++i)
+    {
+        geometry_config g = {};
+
+        // Vertices (size/count/array)
+        filesystem_read(bsm_file, sizeof(u32), &g.vertex_size, &bytes_read);
+        filesystem_read(bsm_file, sizeof(u32), &g.vertex_count, &bytes_read);
+        g.vertices = ballocate(g.vertex_size * g.vertex_count, MEMORY_TAG_ARRAY);
+        filesystem_read(bsm_file, g.vertex_size * g.vertex_count, g.vertices, &bytes_read);
+
+        // Indices (size/count/array)
+        filesystem_read(bsm_file, sizeof(u32), &g.index_size, &bytes_read);
+        filesystem_read(bsm_file, sizeof(u32), &g.index_count, &bytes_read);
+        g.indices = ballocate(g.index_size * g.index_count, MEMORY_TAG_ARRAY);
+        filesystem_read(bsm_file, g.index_size * g.index_count, g.indices, &bytes_read);
+
+        // Name
+        u32 g_name_length = 0;
+        filesystem_read(bsm_file, sizeof(u32), &g_name_length, &bytes_read);
+        filesystem_read(bsm_file, sizeof(char) * g_name_length, g.name, &bytes_read);
+
+        // Material Name
+        u32 m_name_length = 0;
+        filesystem_read(bsm_file, sizeof(u32), &m_name_length, &bytes_read);
+        filesystem_read(bsm_file, sizeof(char) * m_name_length, g.material_name, &bytes_read);
+
+        // Center
+        filesystem_read(bsm_file, sizeof(vec3), &g.center, &bytes_read);
+
+        // Extents (min/max)
+        filesystem_read(bsm_file, sizeof(vec3), &g.min_extents, &bytes_read);
+        filesystem_read(bsm_file, sizeof(vec3), &g.max_extents, &bytes_read);
+
+        // Add to output array
+        darray_push(*out_geometries_darray, g);
+    }
+
+    filesystem_close(bsm_file);
+
     return true;
 }
 
-b8 write_bsm_file(const char* path, const char* name, u32 geometry_count, geometry_config** geometries)
+b8 write_bsm_file(const char* path, const char* name, u32 geometry_count, geometry_config* geometries)
 {
-    // TODO: Write out bsm binary file
+    if (filesystem_exists(path))
+        BINFO("File '%s' already exists and will be overwritten", path);
+
+    file_handle f;
+    if (!filesystem_open(path, FILE_MODE_WRITE, true, &f))
+    {
+        BERROR("Unable to open file '%s' for writing. BSM write failed", path);
+        return false;
+    }
+
+    // Version
+    u64 written = 0;
+    u16 version = 0x0001U;
+    filesystem_write(&f, sizeof(u16), &version, &written);
+
+    // Name length
+    u32 name_length = string_length(name) + 1;
+    filesystem_write(&f, sizeof(u32), &name_length, &written);
+
+    // Name + terminator
+    filesystem_write(&f, sizeof(char) * name_length, name, &written);
+
+    // Geometry count
+    filesystem_write(&f, sizeof(u32), &geometry_count, &written);
+
+    // Each geometry
+    for (u32 i = 0; i < geometry_count; ++i)
+    {
+        geometry_config* g = &geometries[i];
+
+        // Vertices (size/count/array)
+        filesystem_write(&f, sizeof(u32), &g->vertex_size, &written);
+        filesystem_write(&f, sizeof(u32), &g->vertex_count, &written);
+        filesystem_write(&f, g->vertex_size * g->vertex_count, g->vertices, &written);
+
+        // Indices (size/count/array)
+        filesystem_write(&f, sizeof(u32), &g->index_size, &written);
+        filesystem_write(&f, sizeof(u32), &g->index_count, &written);
+        filesystem_write(&f, g->index_size * g->index_count, g->indices, &written);
+
+        // Name
+        u32 g_name_length = string_length(g->name) + 1;
+        filesystem_write(&f, sizeof(u32), &g_name_length, &written);
+        filesystem_write(&f, sizeof(char) * g_name_length, g->name, &written);
+
+        // Material Name
+        u32 m_name_length = string_length(g->material_name) + 1;
+        filesystem_write(&f, sizeof(u32), &m_name_length, &written);
+        filesystem_write(&f, sizeof(char) * m_name_length, g->material_name, &written);
+
+        // Center
+        filesystem_write(&f, sizeof(vec3), &g->center, &written);
+
+        // Extents (min/max)
+        filesystem_write(&f, sizeof(vec3), &g->min_extents, &written);
+        filesystem_write(&f, sizeof(vec3), &g->max_extents, &written);
+    }
+
+    filesystem_close(&f);
+
     return true;
 }
 
@@ -313,6 +427,20 @@ b8 import_obj_file(file_handle* obj_file, const char* out_bsm_filename, geometry
                     // TODO: verification
                 }
             } break;
+            case 'u':
+            {
+                // Any time there is a usemtl, assume a new group
+                // New named group or smoothing group, all faces coming after should be added to it
+                mesh_group_data new_group;
+                new_group.faces = darray_reserve(mesh_face_data, 16384);
+                darray_push(groups, new_group);
+
+                // use mtl
+                // Read material name
+                char t[8];
+                sscanf(line_buf, "%s %s", t, material_names[current_mat_name_count]);
+                current_mat_name_count++;
+            } break;
             case 'g':
             {
                 u64 group_count = darray_length(groups);
@@ -345,20 +473,6 @@ b8 import_obj_file(file_handle* obj_file, const char* out_bsm_filename, geometry
                 // Read name
                 char t[2];
                 sscanf(line_buf, "%s %s", t, name);
-            } break;
-            case 'u':
-            {
-                // Any time there is a usemtl, assume a new group
-                // New named group or smoothing group, all faces coming after should be added to it
-                mesh_group_data new_group;
-                new_group.faces = darray_reserve(mesh_face_data, 16384);
-                darray_push(groups, new_group);
-
-                // use mtl
-                // Read material name
-                char t[8];
-                sscanf(line_buf, "%s %s", t, material_names[current_mat_name_count]);
-                current_mat_name_count++;
             } break;
         }
 
@@ -431,10 +545,13 @@ b8 import_obj_file(file_handle* obj_file, const char* out_bsm_filename, geometry
         darray_destroy(g->indices);
         // Replace with non-darray version
         g->indices = indices;
+
+        // Generate tangents here, this way tangents are also stored in output file
+        geometry_generate_tangents(g->vertex_count, g->vertices, g->index_count, g->indices);
     }
 
     // Output a bsm file, which will be loaded in the future
-    return write_bsm_file(out_bsm_filename, name, count, out_geometries_darray);
+    return write_bsm_file(out_bsm_filename, name, count, *out_geometries_darray);
 }
 
 void process_subobject(vec3* positions, vec3* normals, vec2* tex_coords, mesh_face_data* faces, geometry_config* out_data)
@@ -515,9 +632,6 @@ void process_subobject(vec3* positions, vec3* normals, vec2* tex_coords, mesh_fa
     // Calculate center based on extents
     for (u8 i = 0; i < 3; ++i)
         out_data->center.elements[i] = (out_data->min_extents.elements[i] + out_data->max_extents.elements[i]) / 2.0f;
-
-    // Calculate tangents
-    geometry_generate_tangents(out_data->vertex_count, out_data->vertices, out_data->index_count, out_data->indices);
 }
 
 b8 import_obj_material_library_file(const char* mtl_file_path)
