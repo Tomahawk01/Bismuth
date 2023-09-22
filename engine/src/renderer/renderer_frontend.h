@@ -39,8 +39,12 @@ b8 renderer_shader_apply_globals(struct shader* s);
 
 b8 renderer_shader_apply_instance(struct shader* s, b8 needs_update);
 
-b8 renderer_shader_acquire_instance_resources(struct shader* s, u32* out_instance_id);
+b8 renderer_shader_acquire_instance_resources(struct shader* s, texture_map** maps, u32* out_instance_id);
 
 b8 renderer_shader_release_instance_resources(struct shader* s, u32 instance_id);
 
 b8 renderer_set_uniform(struct shader* s, struct shader_uniform* uniform, const void* value);
+
+b8 renderer_texture_map_acquire_resources(struct texture_map* map);
+
+void renderer_texture_map_release_resources(struct texture_map* map);

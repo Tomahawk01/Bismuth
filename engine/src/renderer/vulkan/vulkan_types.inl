@@ -226,7 +226,7 @@ typedef struct vulkan_shader_instance_state
 
     vulkan_shader_descriptor_set_state descriptor_set_state;
 
-    struct texture** instance_textures;
+    struct texture_map** instance_texture_maps;
 } vulkan_shader_instance_state;
 
 typedef struct vulkan_shader
@@ -313,5 +313,4 @@ typedef struct vulkan_context
 typedef struct vulkan_texture_data
 {
     vulkan_image image;
-    VkSampler sampler;
 } vulkan_texture_data;
