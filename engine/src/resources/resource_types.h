@@ -31,6 +31,15 @@ typedef struct image_resource_data
     u8* pixels;
 } image_resource_data;
 
+typedef enum texture_flag
+{
+    TEXTURE_FLAG_HAS_TRANSPARENCY = 0x1,
+    TEXTURE_FLAG_IS_WRITEABLE = 0x2,
+    TEXTURE_FLAG_IS_WRAPPED = 0x4,
+} texture_flag;
+
+typedef u8 texture_flag_bits;
+
 #define TEXTURE_NAME_MAX_LENGTH 512
 typedef struct texture
 {
@@ -38,8 +47,7 @@ typedef struct texture
     u32 width;
     u32 height;
     u8 channel_count;
-    b8 has_transparency;
-    b8 is_writeable;
+    texture_flag_bits flags;
     u32 generation;
     char name[TEXTURE_NAME_MAX_LENGTH];
     void* internal_data;

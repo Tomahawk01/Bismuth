@@ -15,9 +15,15 @@ b8 renderer_draw_frame(render_packet* packet);
 // NOTE: this should not be exposed outside the engine (until camera system will be implemented)
 BAPI void renderer_set_view(mat4 view, vec3 view_position);
 
-void renderer_create_texture(const u8* pixels, struct texture* texture);
+void renderer_texture_create(const u8* pixels, struct texture* texture);
 
-void renderer_destroy_texture(struct texture* texture);
+void renderer_texture_destroy(struct texture* texture);
+
+void renderer_texture_create_writeable(texture* t);
+
+void renderer_texture_resize(texture* t, u32 new_width, u32 new_height);
+
+void renderer_texture_write_data(texture* t, u32 offset, u32 size, const u8* pixels);
 
 b8 renderer_create_geometry(geometry* geometry, u32 vertex_size, u32 vertex_count, const void* vertices, u32 index_size, u32 index_count, const void* indices);
 void renderer_destroy_geometry(geometry* geometry);
