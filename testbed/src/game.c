@@ -45,7 +45,7 @@ b8 game_initialize(game* game_inst)
 
     game_state* state = ((game_state*)game_inst->state);
 
-    state->camera_position = (vec3){0, 0, 30.0f};
+    state->camera_position = (vec3){10.0f, 5.0f, 9.0f};
     state->camera_euler = vec3_zero();
 
     state->view = mat4_translation(state->camera_position);

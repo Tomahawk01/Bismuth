@@ -682,7 +682,7 @@ b8 import_obj_material_library_file(const char* mtl_file_path)
                     case 'd':
                     {
                         // Ambient/Diffuse color are treated the same at this level
-                        // Ambient colour is determined by the level
+                        // Ambient color is determined by the level
                         char t[2];
                         sscanf(
                             line,
@@ -849,7 +849,7 @@ b8 write_bmt_file(const char* mtl_file_path, material_config* config)
     filesystem_write_line(&f, "version=0.1"); // TODO: Hardcoded version
     string_format(line_buffer, "name=%s", config->name);
     filesystem_write_line(&f, line_buffer);
-    string_format(line_buffer, "diffuse_colour=%.6f %.6f %.6f %.6f", config->diffuse_color.r, config->diffuse_color.g, config->diffuse_color.b, config->diffuse_color.a);
+    string_format(line_buffer, "diffuse_color=%.6f %.6f %.6f %.6f", config->diffuse_color.r, config->diffuse_color.g, config->diffuse_color.b, config->diffuse_color.a);
     filesystem_write_line(&f, line_buffer);
     string_format(line_buffer, "shininess=%.6f", config->shininess);
     filesystem_write_line(&f, line_buffer);

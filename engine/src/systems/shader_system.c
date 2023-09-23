@@ -150,18 +150,18 @@ b8 shader_system_create(const shader_config* config)
     // NOTE: UBO alignment requirement set in renderer backend
 
     // This is hard-coded because the Vulkan spec only guarantees that a _minimum_ 128 bytes of space are available,
-    // and it's up to the driver to determine how much is available.
+    // and it's up to the driver to determine how much is available
     out_shader->push_constant_stride = 128;
     out_shader->push_constant_size = 0;
 
-    u8 renderpass_id = INVALID_ID_U8;
-    if (!renderer_renderpass_id(config->renderpass_name, &renderpass_id))
+    renderpass* pass = renderer_renderpass_get(config->renderpass_name);
+    if (!pass)
     {
         BERROR("Unable to find renderpass '%s'", config->renderpass_name);
         return false;
     }
 
-    if (!renderer_shader_create(out_shader, renderpass_id, config->stage_count, (const char**)config->stage_filenames, config->stages))
+    if (!renderer_shader_create(out_shader, pass, config->stage_count, (const char**)config->stage_filenames, config->stages))
     {
         BERROR("Error creating shader");
         return false;
