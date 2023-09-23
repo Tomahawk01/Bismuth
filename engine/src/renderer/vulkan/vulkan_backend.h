@@ -15,7 +15,7 @@ b8 vulkan_renderer_begin_renderpass(struct renderer_backend* backend, renderpass
 b8 vulkan_renderer_end_renderpass(struct renderer_backend* backend, renderpass* pass);
 renderpass* vulkan_renderer_renderpass_get(const char* name);
 
-void vulkan_backend_draw_geometry(geometry_render_data data);
+void vulkan_renderer_draw_geometry(geometry_render_data data);
 void vulkan_renderer_texture_create(const u8* pixels, texture* texture);
 void vulkan_renderer_texture_destroy(texture* texture);
 void vulkan_renderer_texture_create_writeable(texture* t);

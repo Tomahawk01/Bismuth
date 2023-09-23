@@ -91,7 +91,7 @@ b8 vulkan_renderer_backend_initialize(renderer_backend* backend, const renderer_
     VkInstanceCreateInfo create_info = {VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
     create_info.pApplicationInfo = &app_info;
 
-    // Obtain a list of requered extensions
+    // Obtain a list of required extensions
     const char** required_extensions = darray_create(const char*);
     darray_push(required_extensions, &VK_KHR_SURFACE_EXTENSION_NAME);
     platform_get_required_extension_names(&required_extensions);
@@ -1070,7 +1070,7 @@ void vulkan_renderer_destroy_geometry(geometry* geometry)
     }
 }
 
-void vulkan_backend_draw_geometry(geometry_render_data data)
+void vulkan_renderer_draw_geometry(geometry_render_data data)
 {
     // Ignore non-uploaded geometries
     if (data.geometry && data.geometry->internal_id == INVALID_ID)
