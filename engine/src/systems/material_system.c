@@ -267,11 +267,11 @@ material* material_system_acquire_from_config(material_config config)
 
             // Also use handle as the material id
             m->id = ref.handle;
-            BTRACE("Material '%s' does not yet exist. Created, and ref_count is now %i", config.name, ref.reference_count);
+            // BTRACE("Material '%s' does not yet exist. Created, and ref_count is now %i", config.name, ref.reference_count);
         }
         else
         {
-            BTRACE("Material '%s' already exists, ref_count increased to %i", config.name, ref.reference_count);
+            // BTRACE("Material '%s' already exists, ref_count increased to %i", config.name, ref.reference_count);
         }
 
         // Update entry
@@ -308,11 +308,11 @@ void material_system_release(const char* name)
             // Reset reference
             ref.handle = INVALID_ID;
             ref.auto_release = false;
-            BTRACE("Released material '%s', Material unloaded because reference count=0 and auto_release=true", name);
+            // BTRACE("Released material '%s', Material unloaded because reference count=0 and auto_release=true", name);
         }
         else
         {
-            BTRACE("Released material '%s', now has a reference count of '%i' (auto_release=%s)", name, ref.reference_count, ref.auto_release ? "true" : "false");
+            // BTRACE("Released material '%s', now has a reference count of '%i' (auto_release=%s)", name, ref.reference_count, ref.auto_release ? "true" : "false");
         }
 
         // Update entry
@@ -523,7 +523,7 @@ b8 load_material(material_config config, material* m)
 
 void destroy_material(material* m)
 {
-    BTRACE("Destroying material '%s'...", m->name);
+    // BTRACE("Destroying material '%s'...", m->name);
 
     // Release texture references
     if (m->diffuse_map.texture)

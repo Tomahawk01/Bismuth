@@ -101,7 +101,7 @@ camera* camera_system_acquire(const char* name)
             // Find free slot
             for (u16 i = 0; i < state_ptr->config.max_camera_count; ++i)
             {
-                if (state_ptr->cameras[i].id == INVALID_ID_U16)
+                if (i == INVALID_ID_U16)
                 {
                     id = i;
                     break;

@@ -9,6 +9,7 @@
 #include "systems/material_system.h"
 #include "systems/shader_system.h"
 #include "systems/camera_system.h"
+#include "systems/render_view_system.h"
 
 // TODO: temporary
 #include "core/bstring.h"
@@ -18,16 +19,8 @@
 typedef struct renderer_system_state
 {
     renderer_backend backend;
-    camera* active_world_camera;
-    mat4 projection;
-    vec4 ambient_color;
-    mat4 ui_projection;
-    mat4 ui_view;
-    f32 near_clip;
-    f32 far_clip;
     u32 material_shader_id;
     u32 ui_shader_id;
-    u32 render_mode;
     u8 window_render_target_count;
     u32 framebuffer_width;
     u32 framebuffer_height;
@@ -41,37 +34,6 @@ typedef struct renderer_system_state
 static renderer_system_state* state_ptr;
 
 void regenerate_render_targets();
-
-b8 renderer_on_event(u16 code, void* sender, void* listener_inst, event_context context)
-{
-    switch (code)
-    {
-        case EVENT_CODE_SET_RENDER_MODE:
-        {
-            renderer_system_state* state = (renderer_system_state*)listener_inst;
-            i32 mode = context.data.i32[0];
-            switch (mode)
-            {
-                default:
-                case RENDERER_VIEW_MODE_DEFAULT:
-                    BDEBUG("Renderer mode set to default");
-                    state->render_mode = RENDERER_VIEW_MODE_DEFAULT;
-                    break;
-                case RENDERER_VIEW_MODE_LIGHTING:
-                    BDEBUG("Renderer mode set to lighting");
-                    state->render_mode = RENDERER_VIEW_MODE_LIGHTING;
-                    break;
-                case RENDERER_VIEW_MODE_NORMALS:
-                    BDEBUG("Renderer mode set to normals");
-                    state->render_mode = RENDERER_VIEW_MODE_NORMALS;
-                    break;
-            }
-            return true;
-        }
-    }
-
-    return false;
-}
 
 #define CRITICAL_INIT(op, msg) \
     if (!op)                   \
@@ -96,9 +58,6 @@ b8 renderer_system_initialize(u64* memory_requirement, void* state, const char* 
     // TODO: make this configurable     V
     renderer_backend_create(RENDERER_BACKEND_TYPE_VULKAN, &state_ptr->backend);
     state_ptr->backend.frame_number = 0;
-    state_ptr->render_mode = RENDERER_VIEW_MODE_DEFAULT;
-
-    event_register(EVENT_CODE_SET_RENDER_MODE, state, renderer_on_event);
 
     renderer_backend_config renderer_config = {};
     renderer_config.application_name = application_name;
@@ -172,17 +131,6 @@ b8 renderer_system_initialize(u64* memory_requirement, void* state, const char* 
     resource_system_unload(&config_resource);
     state_ptr->ui_shader_id = shader_system_get_id(BUILTIN_SHADER_NAME_UI);
 
-    // World projection/view
-    state_ptr->near_clip = 0.1f;
-    state_ptr->far_clip = 1000.0f;
-    state_ptr->projection = mat4_perspective(deg_to_rad(45.0f), 16/9.0f, state_ptr->near_clip, state_ptr->far_clip);
-    // TODO: obtain from scene
-    state_ptr->ambient_color = (vec4){0.25f, 0.25f, 0.25f, 1.0f};
-
-    // UI projection/view
-    state_ptr->ui_projection = mat4_orthographic(0, 1280.0f, 720.0f, 0, -100.f, 100.0f);
-    state_ptr->ui_view = mat4_inverse(mat4_identity());
-
     return true;
 }
 
@@ -234,8 +182,7 @@ b8 renderer_draw_frame(render_packet* packet)
         {
             f32 width = state_ptr->framebuffer_width;
             f32 height = state_ptr->framebuffer_height;
-            state_ptr->projection = mat4_perspective(deg_to_rad(45.0f), width / (f32)height, state_ptr->near_clip, state_ptr->far_clip);
-            state_ptr->ui_projection = mat4_orthographic(0, (f32)width, (f32)height, 0, -100.f, 100.0f);
+            render_view_system_on_window_resize(width, height);
             state_ptr->backend.resized(&state_ptr->backend, width, height);
 
             state_ptr->frames_since_resize = 0;
@@ -248,147 +195,20 @@ b8 renderer_draw_frame(render_packet* packet)
         }
     }
 
-    // Update main/world renderpass dimensions
-    state_ptr->world_renderpass->render_area.z = state_ptr->framebuffer_width;
-    state_ptr->world_renderpass->render_area.w = state_ptr->framebuffer_height;
-
-    // Update UI renderpass dimensions
-    state_ptr->ui_renderpass->render_area.z = state_ptr->framebuffer_width;
-    state_ptr->ui_renderpass->render_area.w = state_ptr->framebuffer_height;
-
-    // Just grab default camera
-    if (!state_ptr->active_world_camera)
-        state_ptr->active_world_camera = camera_system_get_default();
-
-    mat4 view = camera_view_get(state_ptr->active_world_camera);
-
     // If the begin frame returned successfully, mid-frame operations may continue
     if (state_ptr->backend.begin_frame(&state_ptr->backend, packet->delta_time))
     {
         u8 attachment_index = state_ptr->backend.window_attachment_index_get();
 
-        // World renderpass
-        if (!state_ptr->backend.begin_renderpass(&state_ptr->backend, state_ptr->world_renderpass, &state_ptr->world_renderpass->targets[attachment_index]))
+        // Render each view
+        for (u32 i = 0; i < packet->view_count; ++i)
         {
-            BERROR("backend.begin_renderpass -> BUILTIN_RENDERPASS_WORLD failed. Application shutting down...");
-            return false;
-        }
-
-        if (!shader_system_use_by_id(state_ptr->material_shader_id))
-        {
-            BERROR("Failed to use material shader. Render frame failed");
-            return false;
-        }
-
-        // Apply globals
-        if (!material_system_apply_global(state_ptr->material_shader_id, &state_ptr->projection, &view, &state_ptr->ambient_color, &state_ptr->active_world_camera->position, state_ptr->render_mode))
-        {
-            BERROR("Failed to use apply globals for material shader. Render frame failed");
-            return false;
-        }
-
-        // Draw geometry
-        u32 count = packet->geometry_count;
-        for (u32 i = 0; i < count; ++i)
-        {
-            material* m = 0;
-            if (packet->geometries[i].geometry->material)
+            if (!render_view_system_on_render(packet->views[i].view, &packet->views[i], state_ptr->backend.frame_number, attachment_index))
             {
-                m = packet->geometries[i].geometry->material;
+                BERROR("Error rendering view index %i", i);
+                return false;
             }
-            else
-            {
-                m = material_system_get_default();
-            }
-
-            // Apply material if it hasn't already been this frame. This keeps
-            // same material from being updated multiple times
-            b8 needs_update = m->render_frame_number != state_ptr->backend.frame_number;
-            if (!material_system_apply_instance(m, needs_update))
-            {
-                BWARN("Failed to apply material '%s'. Skipping draw...", m->name);
-                continue;
-            }
-            else
-            {
-                // Sync frame number
-                m->render_frame_number = state_ptr->backend.frame_number;
-            }
-
-            // Apply locals
-            material_system_apply_local(m, &packet->geometries[i].model);
-
-            // Draw it
-            state_ptr->backend.draw_geometry(packet->geometries[i]);
         }
-
-        if (!state_ptr->backend.end_renderpass(&state_ptr->backend, state_ptr->world_renderpass))
-        {
-            BERROR("backend.end_renderpass -> BUILTIN_RENDERPASS_WORLD failed. Application shutting down...");
-            return false;
-        }
-        // End world renderpass
-
-        // UI renderpass
-        if (!state_ptr->backend.begin_renderpass(&state_ptr->backend, state_ptr->ui_renderpass, &state_ptr->ui_renderpass->targets[attachment_index]))
-        {
-            BERROR("backend.begin_renderpass -> BUILTIN_RENDERPASS_UI failed. Application shutting down...");
-            return false;
-        }
-
-        // Update UI global state
-        if (!shader_system_use_by_id(state_ptr->ui_shader_id))
-        {
-            BERROR("Failed to use UI shader. Render frame failed");
-            return false;
-        }
-
-        // Apply globals
-        if (!material_system_apply_global(state_ptr->ui_shader_id, &state_ptr->ui_projection, &state_ptr->ui_view, 0, 0, 0))
-        {
-            BERROR("Failed to use apply globals for UI shader. Render frame failed");
-            return false;
-        }
-
-        // Draw ui geometry
-        count = packet->ui_geometry_count;
-        for (u32 i = 0; i < count; ++i)
-        {
-            material* m = 0;
-            if (packet->ui_geometries[i].geometry->material)
-            {
-                m = packet->ui_geometries[i].geometry->material;
-            }
-            else
-            {
-                m = material_system_get_default();
-            }
-            // Apply material
-            b8 needs_update = m->render_frame_number != state_ptr->backend.frame_number;
-            if (!material_system_apply_instance(m, needs_update))
-            {
-                BWARN("Failed to apply UI material '%s'. Skipping draw...", m->name);
-                continue;
-            }
-            else
-            {
-                // Sync frame number
-                m->render_frame_number = state_ptr->backend.frame_number;
-            }
-
-            // Apply locals
-            material_system_apply_local(m, &packet->ui_geometries[i].model);
-
-            // Draw it
-            state_ptr->backend.draw_geometry(packet->ui_geometries[i]);
-        }
-
-        if (!state_ptr->backend.end_renderpass(&state_ptr->backend, state_ptr->ui_renderpass))
-        {
-            BERROR("backend.end_renderpass -> BUILTIN_RENDERPASS_UI failed. Application shutting down...");
-            return false;
-        }
-        // End UI renderpass
 
         // End frame. If this fails, it is likely unrecoverable
         b8 result = state_ptr->backend.end_frame(&state_ptr->backend, packet->delta_time);
@@ -436,6 +256,21 @@ b8 renderer_create_geometry(geometry* geometry, u32 vertex_size, u32 vertex_coun
 void renderer_destroy_geometry(geometry* geometry)
 {
     state_ptr->backend.destroy_geometry(geometry);
+}
+
+void renderer_draw_geometry(geometry_render_data* data)
+{
+    state_ptr->backend.draw_geometry(data);
+}
+
+b8 renderer_renderpass_begin(renderpass* pass, render_target* target)
+{
+    return state_ptr->backend.renderpass_begin(pass, target);
+}
+
+b8 renderer_renderpass_end(renderpass* pass)
+{
+    return state_ptr->backend.renderpass_end(pass);
 }
 
 renderpass* renderer_renderpass_get(const char* name)

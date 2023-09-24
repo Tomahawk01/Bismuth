@@ -91,12 +91,12 @@ typedef struct renderer_backend
     b8 (*begin_frame)(struct renderer_backend* backend, f32 delta_time);
     b8 (*end_frame)(struct renderer_backend* backend, f32 delta_time);
 
-    b8 (*begin_renderpass)(struct renderer_backend* backend, renderpass* pass, render_target* target);
-    b8 (*end_renderpass)(struct renderer_backend* backend, renderpass* pass);
+    b8 (*renderpass_begin)(renderpass* pass, render_target* target);
+    b8 (*renderpass_end)(renderpass* pass);
 
     renderpass* (*renderpass_get)(const char* name);
 
-    void (*draw_geometry)(geometry_render_data data);
+    void (*draw_geometry)(geometry_render_data* data);
 
     void (*texture_create)(const u8* pixels, struct texture* texture);
     void (*texture_destroy)(struct texture* texture);
@@ -148,13 +148,93 @@ typedef struct renderer_backend
     u8 (*window_attachment_index_get)();
 } renderer_backend;
 
+typedef enum render_view_known_type
+{
+    RENDERER_VIEW_KNOWN_TYPE_WORLD = 0x01,
+    RENDERER_VIEW_KNOWN_TYPE_UI = 0x02
+} render_view_known_type;
+
+typedef enum render_view_view_matrix_source
+{
+    RENDER_VIEW_VIEW_MATRIX_SOURCE_SCENE_CAMERA = 0x01,
+    RENDER_VIEW_VIEW_MATRIX_SOURCE_UI_CAMERA = 0x02,
+    RENDER_VIEW_VIEW_MATRIX_SOURCE_LIGHT_CAMERA = 0x03,
+} render_view_view_matrix_source;
+
+typedef enum render_view_projection_matrix_source
+{
+    RENDER_VIEW_PROJECTION_MATRIX_SOURCE_DEFAULT_PERSPECTIVE = 0x01,
+    RENDER_VIEW_PROJECTION_MATRIX_SOURCE_DEFAULT_ORTHOGRAPHIC = 0x02,
+} render_view_projection_matrix_source;
+
+typedef struct render_view_pass_config
+{
+    const char* name;
+} render_view_pass_config;
+
+typedef struct render_view_config
+{
+    const char* name;
+
+    const char* custom_shader_name;
+    u16 width;
+    u16 height;
+    render_view_known_type type;
+    render_view_view_matrix_source view_matrix_source;
+    render_view_projection_matrix_source projection_matrix_source;
+    u8 pass_count;
+    render_view_pass_config* passes;
+} render_view_config;
+
+struct render_view_packet;
+
+typedef struct render_view
+{
+    u16 id;
+    const char* name;
+    u16 width;
+    u16 height;
+    render_view_known_type type;
+
+    u8 renderpass_count;
+    renderpass** passes;
+
+    const char* custom_shader_name;
+    void* internal_data;
+
+    b8 (*on_create)(struct render_view* self);
+    void (*on_destroy)(struct render_view* self);
+
+    void (*on_resize)(struct render_view* self, u32 width, u32 height);
+
+    b8 (*on_build_packet)(const struct render_view* self, void* data, struct render_view_packet* out_packet);
+
+    b8 (*on_render)(const struct render_view* self, const struct render_view_packet* packet, u64 frame_number, u64 render_target_index);
+} render_view;
+
+typedef struct render_view_packet
+{
+    const render_view* view;
+    mat4 view_matrix;
+    mat4 projection_matrix;
+    vec3 view_position;
+    vec4 ambient_color;
+    u32 geometry_count;
+    geometry_render_data* geometries;
+    const char* custom_shader_name;
+    void* extended_data;
+} render_view_packet;
+
+typedef struct mesh_packet_data
+{
+    u32 mesh_count;
+    mesh* meshes;
+} mesh_packet_data;
+
 typedef struct render_packet
 {
     f32 delta_time;
 
-    u32 geometry_count;
-    geometry_render_data* geometries;
-
-    u32 ui_geometry_count;
-    geometry_render_data* ui_geometries;
+    u16 view_count;
+    render_view_packet* views;
 } render_packet;

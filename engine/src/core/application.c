@@ -17,6 +17,7 @@
 #include "systems/resource_system.h"
 #include "systems/shader_system.h"
 #include "systems/camera_system.h"
+#include "systems/render_view_system.h"
 
 // TODO: temp
 #include "math/bmath.h"
@@ -56,6 +57,9 @@ typedef struct application_state
     u64 renderer_system_memory_requirement;
     void* renderer_system_state;
 
+    u64 renderer_view_system_memory_requirement;
+    void* renderer_view_system_state;
+
     u64 texture_system_memory_requirement;
     void* texture_system_state;
 
@@ -71,8 +75,10 @@ typedef struct application_state
     // TODO: temp
     mesh meshes[10];
     u32 mesh_count;
-    
-    geometry* test_ui_geometry;
+
+    mesh ui_meshes[10];
+    u32 ui_mesh_count;
+    // TODO: end temp
 } application_state;
 
 static application_state* app_state;
@@ -272,6 +278,49 @@ b8 application_create(game* game_inst)
         return false;
     }
 
+    render_view_system_config render_view_sys_config = {};
+    render_view_sys_config.max_view_count = 251;
+    render_view_system_initialize(&app_state->renderer_view_system_memory_requirement, 0, render_view_sys_config);
+    app_state->renderer_view_system_state = linear_allocator_allocate(&app_state->systems_allocator, app_state->renderer_view_system_memory_requirement);
+    if (!render_view_system_initialize(&app_state->renderer_view_system_memory_requirement, app_state->renderer_view_system_state, render_view_sys_config))
+    {
+        BFATAL("Failed to initialize render view system. Aborting application...");
+        return false;
+    }
+
+    // Load render views
+    render_view_config opaque_world_config = {};
+    opaque_world_config.type = RENDERER_VIEW_KNOWN_TYPE_WORLD;
+    opaque_world_config.width = 0;
+    opaque_world_config.height = 0;
+    opaque_world_config.name = "world_opaque";
+    opaque_world_config.pass_count = 1;
+    render_view_pass_config passes[1];
+    passes[0].name = "Renderpass.Builtin.World";
+    opaque_world_config.passes = passes;
+    opaque_world_config.view_matrix_source = RENDER_VIEW_VIEW_MATRIX_SOURCE_SCENE_CAMERA;
+    if (!render_view_system_create(&opaque_world_config))
+    {
+        BFATAL("Failed to create view. Aborting application...");
+        return false;
+    }
+
+    render_view_config ui_view_config = {};
+    ui_view_config.type = RENDERER_VIEW_KNOWN_TYPE_UI;
+    ui_view_config.width = 0;
+    ui_view_config.height = 0;
+    ui_view_config.name = "ui";
+    ui_view_config.pass_count = 1;
+    render_view_pass_config ui_passes[1];
+    ui_passes[0].name = "Renderpass.Builtin.UI";
+    ui_view_config.passes = ui_passes;
+    ui_view_config.view_matrix_source = RENDER_VIEW_VIEW_MATRIX_SOURCE_SCENE_CAMERA;
+    if (!render_view_system_create(&ui_view_config))
+    {
+        BFATAL("Failed to create view. Aborting application...");
+        return false;
+    }
+
     // TODO: temp
     app_state->mesh_count = 0;
 
@@ -392,7 +441,11 @@ b8 application_create(game* game_inst)
     ui_config.indices = uiindices;
 
     // Get UI geometry from config
-    app_state->test_ui_geometry = geometry_system_acquire_from_config(ui_config, true);
+    app_state->ui_mesh_count = 1;
+    app_state->ui_meshes[0].geometry_count = 1;
+    app_state->ui_meshes[0].geometries = ballocate(sizeof(geometry*), MEMORY_TAG_ARRAY);
+    app_state->ui_meshes[0].geometries[0] = geometry_system_acquire_from_config(ui_config, true);
+    app_state->ui_meshes[0].transform = transform_create();
 
     // Load default geometry
     //app_state->test_geometry = geometry_system_get_default();
@@ -450,13 +503,6 @@ b8 application_run()
                 break;
             }
 
-            // TODO: refactor packet creation
-            render_packet packet = {};
-            packet.delta_time = delta;
-            packet.geometry_count = 0;
-
-            packet.geometries = darray_create(geometry_render_data);
-
             if (app_state->mesh_count > 0)
             {
                 // Perform small rotation on the first mesh
@@ -469,38 +515,42 @@ b8 application_run()
 
                 // Perform similar rotation on the third mesh, if it exists
                 if (app_state->mesh_count > 2)
-                    transform_rotate(&app_state->meshes[2].transform, rotation);
-
-                // Iterate all meshes and add them to packet's geometries collection
-                for (u32 i = 0; i < app_state->mesh_count; ++i)
-                {
-                    mesh* m = &app_state->meshes[i];
-                    for (u32 j = 0; j < m->geometry_count; ++j)
-                    {
-                        geometry_render_data data;
-                        data.geometry = m->geometries[j];
-                        data.model = transform_get_world(&m->transform);
-                        darray_push(packet.geometries, data);
-                        packet.geometry_count++;
-                    }
-                }
+                    transform_rotate(&app_state->meshes[2].transform, rotation);                
             }
 
-            geometry_render_data test_ui_renderer;
-            test_ui_renderer.geometry = app_state->test_ui_geometry;
-            test_ui_renderer.model = mat4_translation((vec3){0, 0, 0});
-            packet.ui_geometry_count = 1;
-            packet.ui_geometries = &test_ui_renderer;
+            // TODO: refactor packet creation
+            render_packet packet = {};
+            packet.delta_time = delta;
+
+            // TODO: read from file config
+            packet.view_count = 2;
+            render_view_packet views[2];
+            bzero_memory(views, sizeof(render_view_packet) * packet.view_count);
+            packet.views = views;
+
+            // World 
+            mesh_packet_data world_mesh_data = {};
+            world_mesh_data.mesh_count = app_state->mesh_count;
+            world_mesh_data.meshes = app_state->meshes;
+            // TODO: performs lookup on every frame
+            if (!render_view_system_build_packet(render_view_system_get("world_opaque"), &world_mesh_data, &packet.views[0]))
+            {
+                BERROR("Failed to build packet for view 'world_opaque'");
+                return false;
+            }
+
+            // UI
+            mesh_packet_data ui_mesh_data = {};
+            ui_mesh_data.mesh_count = app_state->ui_mesh_count;
+            ui_mesh_data.meshes = app_state->ui_meshes;
+            if (!render_view_system_build_packet(render_view_system_get("ui"), &ui_mesh_data, &packet.views[1]))
+            {
+                BERROR("Failed to build packet for view 'ui'");
+                return false;
+            }
             // TODO: end temp
 
             renderer_draw_frame(&packet);
-
-            // Clean-up
-            if (packet.geometries)
-            {
-                darray_destroy(packet.geometries);
-                packet.geometries = 0;
-            }
 
             // Calculate how long the frame took
             f64 frame_end_time = platform_get_absolute_time();

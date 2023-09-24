@@ -25,6 +25,11 @@ void renderer_texture_write_data(texture* t, u32 offset, u32 size, const u8* pix
 b8 renderer_create_geometry(geometry* geometry, u32 vertex_size, u32 vertex_count, const void* vertices, u32 index_size, u32 index_count, const void* indices);
 void renderer_destroy_geometry(geometry* geometry);
 
+void renderer_draw_geometry(geometry_render_data* data);
+
+b8 renderer_renderpass_begin(renderpass* pass, render_target* target);
+b8 renderer_renderpass_end(renderpass* pass);
+
 renderpass* renderer_renderpass_get(const char* name);
 
 b8 renderer_shader_create(struct shader* s, renderpass* pass, u8 stage_count, const char** stage_filenames, shader_stage* stages);
