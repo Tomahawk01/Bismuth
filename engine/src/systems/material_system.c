@@ -340,8 +340,14 @@ material* material_system_get_default()
         return false;                                 \
     }
 
-b8 material_system_apply_global(u32 shader_id, const mat4* projection, const mat4* view, const vec4* ambient_color, const vec3* view_position, u32 render_mode)
+b8 material_system_apply_global(u32 shader_id, u64 renderer_frame_number, const mat4* projection, const mat4* view, const vec4* ambient_color, const vec3* view_position, u32 render_mode)
 {
+    shader* s = shader_system_get_by_id(shader_id);
+    if (!s)
+        return false;
+    if (s->render_frame_number == renderer_frame_number)
+        return true;
+    
     if (shader_id == state_ptr->material_shader_id)
     {
         MATERIAL_APPLY_OR_FAIL(shader_system_uniform_set_by_index(state_ptr->material_locations.projection, projection));
@@ -361,6 +367,8 @@ b8 material_system_apply_global(u32 shader_id, const mat4* projection, const mat
         return false;
     }
     MATERIAL_APPLY_OR_FAIL(shader_system_apply_global());
+    // Sync frame number
+    s->render_frame_number = renderer_frame_number;
     return true;
 }
 

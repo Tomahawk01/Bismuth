@@ -22,6 +22,14 @@ typedef struct render_view_world_internal_data
     u32 render_mode;
 } render_view_world_internal_data;
 
+typedef struct geometry_distance
+{
+    geometry_render_data g;
+    f32 distance;
+} geometry_distance;
+
+static void quick_sort(geometry_distance arr[], i32 low_index, i32 high_index, b8 ascending);
+
 static b8 render_view_on_event(u16 code, void* sender, void* listener_inst, event_context context)
 {
     render_view* self = (render_view*)listener_inst;
@@ -145,23 +153,51 @@ b8 render_view_world_on_build_packet(const struct render_view* self, void* data,
     out_packet->view_position = camera_position_get(internal_data->world_camera);
     out_packet->ambient_color = internal_data->ambient_colour;
 
-    // Obtain all geometries from the current scene.
-    // Iterate all meshes and add them to packet's geometries collection
+    // Obtain all geometries from the current scene
+    geometry_distance* geometry_distances = darray_create(geometry_distance);
+
     for (u32 i = 0; i < mesh_data->mesh_count; ++i)
     {
         mesh* m = &mesh_data->meshes[i];
+        mat4 model = transform_get_world(&m->transform);
+
         for (u32 j = 0; j < m->geometry_count; ++j)
         {
-            // Only add meshes with no transparency
+            geometry_render_data render_data;
+            render_data.geometry = m->geometries[j];
+            render_data.model = model;
+
             if ((m->geometries[j]->material->diffuse_map.texture->flags & TEXTURE_FLAG_HAS_TRANSPARENCY) == 0)
             {
-                geometry_render_data render_data;
-                render_data.geometry = m->geometries[j];
-                render_data.model = transform_get_world(&m->transform);
+                // Only add meshes with no transparency
                 darray_push(out_packet->geometries, render_data);
                 out_packet->geometry_count++;
             }
+            else
+            {
+                // For meshes with transparency, add them to a separate list to be sorted by distance
+                // NOTE: This isn't perfect for translucent meshes that intersect, but is enough for now
+                vec3 center = vec3_transform(render_data.geometry->center, model);
+                f32 distance = vec3_distance(center, internal_data->world_camera->position);
+
+                geometry_distance gdist;
+                gdist.distance = babs(distance);
+                gdist.g = render_data;
+
+                darray_push(geometry_distances, gdist);
+            }
         }
+    }
+
+    // Sort distances
+    u32 geometry_count = darray_length(geometry_distances);
+    quick_sort(geometry_distances, 0, geometry_count - 1, false);
+
+    // Add them to the packet geometry
+    for (u32 i = 0; i < geometry_count; ++i)
+    {
+        darray_push(out_packet->geometries, geometry_distances[i].g);
+        out_packet->geometry_count++;
     }
 
     return true;
@@ -187,7 +223,7 @@ b8 render_view_world_on_render(const struct render_view* self, const struct rend
         }
 
         // Apply globals
-        if (!material_system_apply_global(shader_id, &packet->projection_matrix, &packet->view_matrix, &packet->ambient_color, &packet->view_position, data->render_mode))
+        if (!material_system_apply_global(shader_id, frame_number, &packet->projection_matrix, &packet->view_matrix, &packet->ambient_color, &packet->view_position, data->render_mode))
         {
             BERROR("Failed to use apply globals for material shader. Render frame failed");
             return false;
@@ -231,4 +267,53 @@ b8 render_view_world_on_render(const struct render_view* self, const struct rend
     }
 
     return true;
+}
+
+// Quicksort for geometry_distance
+
+static void swap(geometry_distance* a, geometry_distance* b)
+{
+    geometry_distance temp = *a;
+    *a = *b;
+    *b = temp;
+}
+
+static i32 partition(geometry_distance arr[], i32 low_index, i32 high_index, b8 ascending)
+{
+    geometry_distance pivot = arr[high_index];
+    i32 i = (low_index - 1);
+
+    for (i32 j = low_index; j <= high_index - 1; ++j)
+    {
+        if (ascending)
+        {
+            if (arr[j].distance < pivot.distance)
+            {
+                ++i;
+                swap(&arr[i], &arr[j]);
+            }
+        }
+        else
+        {
+            if (arr[j].distance > pivot.distance)
+            {
+                ++i;
+                swap(&arr[i], &arr[j]);
+            }
+        }
+    }
+    swap(&arr[i + 1], &arr[high_index]);
+    return i + 1;
+}
+
+static void quick_sort(geometry_distance arr[], i32 low_index, i32 high_index, b8 ascending)
+{
+    if (low_index < high_index)
+    {
+        i32 partition_index = partition(arr, low_index, high_index, ascending);
+
+        // Independently sort elements before and after the partition index
+        quick_sort(arr, low_index, partition_index - 1, ascending);
+        quick_sort(arr, partition_index + 1, high_index, ascending);
+    }
 }

@@ -19,7 +19,7 @@ void material_system_release(const char* name);
 
 material* material_system_get_default();
 
-b8 material_system_apply_global(u32 shader_id, const mat4* projection, const mat4* view, const vec4* ambient_color, const vec3* view_position, u32 render_mode);
+b8 material_system_apply_global(u32 shader_id, u64 renderer_frame_number, const mat4* projection, const mat4* view, const vec4* ambient_color, const vec3* view_position, u32 render_mode);
 
 b8 material_system_apply_instance(material* m, b8 needs_update);
 

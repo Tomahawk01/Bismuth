@@ -554,6 +554,22 @@ BINLINE f32 vec3_distance(vec3 vector_0, vec3 vector_1)
     return vec3_length(d);
 }
 
+/**
+ * @brief Transform v by m. NOTE: It is assumed by this function that the vector v is a point, not a direction.
+ *
+ * @param v The vector to transform.
+ * @param m The matrix to transform by.
+ * @return A transformed copy of v.
+ */
+BINLINE vec3 vec3_transform(vec3 v, mat4 m)
+{
+    vec3 out;
+    out.x = v.x * m.data[0 + 0] + v.y * m.data[4 + 0] + v.z * m.data[8 + 0] + 1.0f * m.data[12 + 0];
+    out.y = v.x * m.data[0 + 1] + v.y * m.data[4 + 1] + v.z * m.data[8 + 1] + 1.0f * m.data[12 + 1];
+    out.z = v.x * m.data[0 + 2] + v.y * m.data[4 + 2] + v.z * m.data[8 + 2] + 1.0f * m.data[12 + 2];
+    return out;
+}
+
 // --------------------------------------------------------------------------------
 // ----------------------------------- Vector 4 -----------------------------------
 // --------------------------------------------------------------------------------

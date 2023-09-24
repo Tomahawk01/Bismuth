@@ -35,6 +35,7 @@
         "vulkan_material_shader.h": "c",
         "freelist.h": "c",
         "bmath.h": "c",
-        "camera.h": "c"
+        "camera.h": "c",
+        "renderer_frontend.h": "c"
     },
 }

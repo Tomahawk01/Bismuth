@@ -129,7 +129,9 @@ typedef struct geometry
 {
     u32 id;
     u32 internal_id;
-    u32 generation;
+    u16 generation;
+    vec3 center;
+    extents_3d extents;
     char name[GEOMETRY_NAME_MAX_LENGTH];
     material* material;
 } geometry;

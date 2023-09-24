@@ -84,6 +84,18 @@ typedef union mat4_u
     f32 data[16];
 } mat4;
 
+typedef struct extents_2d
+{
+    vec2 min;
+    vec2 max;
+} extents_2d;
+
+typedef struct extents_3d
+{
+    vec3 min;
+    vec3 max;
+} extents_3d;
+
 typedef struct vertex_3d
 {
     vec3 position;
