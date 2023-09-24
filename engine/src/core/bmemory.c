@@ -1,6 +1,7 @@
 #include "bmemory.h"
 #include "core/logger.h"
 #include "core/bstring.h"
+#include "core/bmutex.h"
 #include "platform/platform.h"
 #include "memory/dynamic_allocator.h"
 
@@ -45,6 +46,7 @@ typedef struct memory_system_state
     u64 allocator_memory_requirement;
     dynamic_allocator allocator;
     void* allocator_block;
+    bmutex allocation_mutex;
 } memory_system_state;
 
 // Pointer to system state
@@ -87,6 +89,13 @@ b8 memory_system_initialize(memory_system_configuration config)
         return false;
     }
 
+    // Create allocation mutex
+    if (!bmutex_create(&state_ptr->allocation_mutex))
+    {
+        BFATAL("Unable to create allocation mutex");
+        return false;
+    }
+
     BDEBUG("Memory system successfully allocated %llu bytes", config.total_alloc_size);
     return true;
 }
@@ -95,6 +104,9 @@ void memory_system_shutdown()
 {
     if (state_ptr)
     {
+        // Destroy allocation mutex
+        bmutex_destroy(&state_ptr->allocation_mutex);
+
         dynamic_allocator_destroy(&state_ptr->allocator);
         // Free entire block
         platform_free(state_ptr, state_ptr->allocator_memory_requirement + sizeof(memory_system_state));
@@ -111,11 +123,19 @@ void* ballocate(u64 size, memory_tag tag)
     void* block = 0;
     if (state_ptr)
     {
+        // Make sure multithreaded requests don't violate each other
+        if (!bmutex_lock(&state_ptr->allocation_mutex))
+        {
+            BFATAL("Error obtaining mutex lock during allocation");
+            return 0;
+        }
+
         state_ptr->stats.total_allocated += size;
         state_ptr->stats.tagged_allocations[tag] += size;
         state_ptr->alloc_count++;
 
         block = dynamic_allocator_allocate(&state_ptr->allocator, size);
+        bmutex_unlock(&state_ptr->allocation_mutex);
     }
     else
     {
@@ -141,10 +161,19 @@ void bfree(void* block, u64 size, memory_tag tag)
         BWARN("bfree called using MEMORY_TAG_UNKNOWN. Re-class this allocation");
 
     if (state_ptr)
-    { 
+    {
+        // Make sure multithreaded requests don't violate each other
+        if (!bmutex_lock(&state_ptr->allocation_mutex))
+        {
+            BFATAL("Unable to obtain mutex lock for free operation");
+            return;
+        }
+
         state_ptr->stats.total_allocated -= size;
         state_ptr->stats.tagged_allocations[tag] -= size;
         b8 result = dynamic_allocator_free(&state_ptr->allocator, block, size);
+
+        bmutex_unlock(&state_ptr->allocation_mutex);
 
         if (!result)
         {

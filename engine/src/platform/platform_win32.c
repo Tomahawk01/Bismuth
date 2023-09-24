@@ -6,6 +6,8 @@
 #include "core/logger.h"
 #include "core/input.h"
 #include "core/event.h"
+#include "core/bthread.h"
+#include "core/bmutex.h"
 #include "containers/darray.h"
 
 #include <Windows.h>
@@ -218,6 +220,141 @@ void platform_sleep(u64 ms)
 {
     Sleep(ms);
 }
+
+i32 platform_get_processor_count()
+{
+    SYSTEM_INFO sysinfo;
+    GetSystemInfo(&sysinfo);
+    BINFO("%i processor cores detected", sysinfo.dwNumberOfProcessors);
+    return sysinfo.dwNumberOfProcessors;
+}
+
+// NOTE: Begin threads
+b8 bthread_create(pfn_thread_start start_function_ptr, void *params, b8 auto_detach, bthread *out_thread)
+{
+    if (!start_function_ptr)
+        return false;
+
+    out_thread->internal_data = CreateThread(
+        0,
+        0,                                           // Default stack size
+        (LPTHREAD_START_ROUTINE)start_function_ptr,  // function ptr
+        params,                                      // param to pass to thread
+        0,
+        (DWORD *)&out_thread->thread_id);
+    BDEBUG("Starting process on thread id: %#x", out_thread->thread_id);
+    if (!out_thread->internal_data)
+        return false;
+    if (auto_detach)
+        CloseHandle(out_thread->internal_data);
+    return true;
+}
+
+void bthread_destroy(bthread *thread)
+{
+    if (thread && thread->internal_data)
+    {
+        DWORD exit_code;
+        GetExitCodeThread(thread->internal_data, &exit_code);
+        CloseHandle((HANDLE)thread->internal_data);
+        thread->internal_data = 0;
+        thread->thread_id = 0;
+    }
+}
+
+void bthread_detach(bthread *thread)
+{
+    if (thread && thread->internal_data)
+    {
+        CloseHandle(thread->internal_data);
+        thread->internal_data = 0;
+    }
+}
+
+void bthread_cancel(bthread *thread)
+{
+    if (thread && thread->internal_data)
+    {
+        TerminateThread(thread->internal_data, 0);
+        thread->internal_data = 0;
+    }
+}
+
+b8 bthread_is_active(bthread *thread)
+{
+    if (thread && thread->internal_data)
+    {
+        DWORD exit_code = WaitForSingleObject(thread->internal_data, 0);
+        if (exit_code == WAIT_TIMEOUT)
+            return true;
+    }
+    return false;
+}
+
+void bthread_sleep(bthread *thread, u64 ms)
+{
+    platform_sleep(ms);
+}
+
+u64 get_thread_id()
+{
+    return (u64)GetCurrentThreadId();
+}
+// NOTE: End threads
+
+// NOTE: Begin mutexes
+b8 bmutex_create(bmutex *out_mutex)
+{
+    if (!out_mutex)
+        return false;
+
+    out_mutex->internal_data = CreateMutex(0, 0, 0);
+    if (!out_mutex->internal_data)
+    {
+        BERROR("Unable to create mutex");
+        return false;
+    }
+    return true;
+}
+
+void bmutex_destroy(bmutex *mutex)
+{
+    if (mutex && mutex->internal_data)
+    {
+        CloseHandle(mutex->internal_data);
+        mutex->internal_data = 0;
+    }
+}
+
+b8 bmutex_lock(bmutex *mutex)
+{
+    if (!mutex)
+        return false;
+
+    DWORD result = WaitForSingleObject(mutex->internal_data, INFINITE);
+    switch (result)
+    {
+        // Thread got ownership of the mutex
+        case WAIT_OBJECT_0:
+            return true;
+
+            // Thread got ownership of an abandoned mutex
+        case WAIT_ABANDONED:
+            BERROR("Mutex lock failed");
+            return false;
+    }
+    return true;
+}
+
+b8 bmutex_unlock(bmutex *mutex)
+{
+    if (!mutex || !mutex->internal_data)
+        return false;
+    i32 result = ReleaseMutex(mutex->internal_data);
+    return result != 0; // 0 is failure
+}
+
+// NOTE: End mutexes
 
 void platform_get_required_extension_names(const char*** names_darray)
 {

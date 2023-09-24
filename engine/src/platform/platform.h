@@ -28,3 +28,5 @@ f64 platform_get_absolute_time();
 
 // Sleep on the thread for the provided ms. This blocks the main thread.
 void platform_sleep(u64 ms);
+
+i32 platform_get_processor_count();

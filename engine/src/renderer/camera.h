@@ -12,22 +12,22 @@ typedef struct camera
     mat4 view_matrix;
 } camera;
 
-camera camera_create();
+BAPI camera camera_create();
 
-void camera_reset(camera* c);
+BAPI void camera_reset(camera* c);
 
-vec3 camera_position_get(const camera* c);
+BAPI vec3 camera_position_get(const camera* c);
 BAPI void camera_position_set(camera* c, vec3 position);
 
-vec3 camera_rotation_euler_get(const camera* c);
-void camera_rotation_euler_set(camera* c, vec3 rotation);
+BAPI vec3 camera_rotation_euler_get(const camera* c);
+BAPI void camera_rotation_euler_set(camera* c, vec3 rotation);
 
-mat4 camera_view_get(camera* c);
+BAPI mat4 camera_view_get(camera* c);
 
-vec3 camera_forward(camera* c);
-vec3 camera_backward(camera* c);
-vec3 camera_left(camera* c);
-vec3 camera_right(camera* c);
+BAPI vec3 camera_forward(camera* c);
+BAPI vec3 camera_backward(camera* c);
+BAPI vec3 camera_left(camera* c);
+BAPI vec3 camera_right(camera* c);
 
 BAPI void camera_move_forward(camera* c, f32 amount);
 BAPI void camera_move_backward(camera* c, f32 amount);
