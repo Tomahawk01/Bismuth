@@ -16,6 +16,7 @@ b8 texture_system_initialize(u64* memory_requirement, void* state, texture_syste
 void texture_system_shutdown(void* state);
 
 texture* texture_system_acquire(const char* name, b8 auto_release);
+texture* texture_system_acquire_cube(const char* name, b8 auto_release);
 texture* texture_system_aquire_writeable(const char* name, u32 width, u32 height, u8 channel_count, b8 has_transparency);
 void texture_system_release(const char* name);
 

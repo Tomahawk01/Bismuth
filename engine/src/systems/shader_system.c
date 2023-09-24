@@ -123,8 +123,6 @@ b8 shader_system_create(const shader_config* config)
     }
     out_shader->state = SHADER_STATE_NOT_CREATED;
     out_shader->name = string_duplicate(config->name);
-    out_shader->use_instances = config->use_instances;
-    out_shader->use_locals = config->use_local;
     out_shader->push_constant_range_count = 0;
     bzero_memory(out_shader->push_constant_ranges, sizeof(range) * 32);
     out_shader->bound_instance_id = INVALID_ID;
@@ -164,7 +162,7 @@ b8 shader_system_create(const shader_config* config)
         return false;
     }
 
-    if (!renderer_shader_create(out_shader, pass, config->stage_count, (const char**)config->stage_filenames, config->stages))
+    if (!renderer_shader_create(out_shader, config, pass, config->stage_count, (const char**)config->stage_filenames, config->stages))
     {
         BERROR("Error creating shader");
         return false;
@@ -414,12 +412,6 @@ b8 add_attribute(shader* shader, const shader_attribute_config* config)
 
 b8 add_sampler(shader* shader, shader_uniform_config* config)
 {
-    if (config->scope == SHADER_SCOPE_INSTANCE && !shader->use_instances)
-    {
-        BERROR("add_sampler cannot add an instance sampler for a shader that does not use instances");
-        return false;
-    }
-
     // Samples can't be used for push constants
     if (config->scope == SHADER_SCOPE_LOCAL)
     {
@@ -456,7 +448,7 @@ b8 add_sampler(shader* shader, shader_uniform_config* config)
         }
 
         // Allocate pointer, assign texture and push into global texture maps
-        // NOTE: This allocation is onlu done for global texture maps
+        // NOTE: This allocation is only done for global texture maps
         texture_map* map = ballocate(sizeof(texture_map), MEMORY_TAG_RENDERER);
         *map = default_map;
         map->texture = texture_system_get_default_texture();
@@ -545,11 +537,6 @@ b8 uniform_add(shader* shader, const char* uniform_name, u32 size, shader_unifor
     }
     else
     {
-        if (entry.scope == SHADER_SCOPE_LOCAL && !shader->use_locals)
-        {
-            BERROR("Cannot add a locally-scoped uniform for a shader that does not support locals");
-            return false;
-        }
         // Push a new aligned range (align to 4, as required by Vulkan spec)
         entry.set_index = INVALID_ID_U8;
         range r = get_aligned_range(shader->push_constant_size, size, 4);

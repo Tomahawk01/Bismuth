@@ -185,6 +185,7 @@ typedef struct vulkan_descriptor_set_config
 {
     u8 binding_count;
     VkDescriptorSetLayoutBinding bindings[VULKAN_SHADER_MAX_BINDINGS];
+    u8 sampler_binding_index;
 } vulkan_descriptor_set_config;
 
 typedef struct vulkan_shader_config
@@ -198,6 +199,8 @@ typedef struct vulkan_shader_config
     vulkan_descriptor_set_config descriptor_sets[2];
 
     VkVertexInputAttributeDescription attributes[VULKAN_SHADER_MAX_ATTRIBUTES];
+
+    face_cull_mode cull_mode;
 } vulkan_shader_config;
 
 typedef struct vulkan_descriptor_state
@@ -247,6 +250,12 @@ typedef struct vulkan_shader
     // TODO: make dynamic
     u32 instance_count;
     vulkan_shader_instance_state instance_states[VULKAN_MAX_MATERIAL_COUNT];
+
+    u8 global_uniform_count;
+    u8 global_uniform_sampler_count;
+    u8 instance_uniform_count;
+    u8 instance_uniform_sampler_count;
+    u8 local_uniform_count;
 } vulkan_shader;
 
 #define VULKAN_MAX_REGISTERED_RENDERPASSES 31

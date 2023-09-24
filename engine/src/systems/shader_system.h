@@ -64,10 +64,6 @@ typedef struct shader {
     u32 id;
 
     char* name;
-    // Indicates if the shader uses instances
-    b8 use_instances;
-    // Indicates if locals are used (typically for model matrices, etc.)
-    b8 use_locals;
 
     u64 required_ubo_alignment;
 

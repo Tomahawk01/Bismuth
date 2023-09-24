@@ -31,6 +31,19 @@ typedef struct image_resource_data
     u8* pixels;
 } image_resource_data;
 
+typedef struct image_resource_params
+{
+    b8 flip_y;
+} image_resource_params;
+
+typedef enum face_cull_mode
+{
+    FACE_CULL_MODE_NONE = 0x0,
+    FACE_CULL_MODE_FRONT = 0x1,
+    FACE_CULL_MODE_BACK = 0x2,
+    FACE_CULL_MODE_FRONT_AND_BACK = 0x3
+} face_cull_mode;
+
 typedef enum texture_flag
 {
     TEXTURE_FLAG_HAS_TRANSPARENCY = 0x1,
@@ -40,10 +53,17 @@ typedef enum texture_flag
 
 typedef u8 texture_flag_bits;
 
+typedef enum texture_type
+{
+    TEXTURE_TYPE_2D,
+    TEXTURE_TYPE_CUBE
+} texture_type;
+
 #define TEXTURE_NAME_MAX_LENGTH 512
 typedef struct texture
 {
     u32 id;
+    texture_type type;
     u32 width;
     u32 height;
     u8 channel_count;
@@ -58,7 +78,8 @@ typedef enum texture_use
     TEXTURE_USE_UNKNOWN = 0x00,
     TEXTURE_USE_MAP_DIFFUSE = 0x01,
     TEXTURE_USE_MAP_SPECULAR = 0x02,
-    TEXTURE_USE_MAP_NORMAL = 0x03
+    TEXTURE_USE_MAP_NORMAL = 0x03,
+    TEXTURE_USE_MAP_CUBEMAP = 0x04
 } texture_use;
 
 typedef enum texture_filter
@@ -142,6 +163,14 @@ typedef struct mesh
     geometry** geometries;
     transform transform;
 } mesh;
+
+typedef struct skybox
+{
+    texture_map cubemap;
+    geometry* g;
+    u32 instance_id;
+    u64 render_frame_number;
+} skybox;
 
 // Shader stages available in the system
 typedef enum shader_stage
@@ -233,10 +262,8 @@ typedef struct shader_config
     // The name of the shader to be created
     char* name;
 
-    // Indicates if the shader uses instance-level uniforms
-    b8 use_instances;
-    // Indicates if the shader uses local-level uniforms
-    b8 use_local;
+    // The face cull mode to be used. NOTE: default is BACK if not supplied
+    face_cull_mode cull_mode;
 
     // The count of attributes
     u8 attribute_count;

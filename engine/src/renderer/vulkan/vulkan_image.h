@@ -4,7 +4,7 @@
 
 void vulkan_image_create(
     vulkan_context* context,
-    VkImageType image_type,
+    texture_type type,
     u32 width,
     u32 height,
     VkFormat format,
@@ -17,6 +17,7 @@ void vulkan_image_create(
 
 void vulkan_image_view_create(
     vulkan_context* context,
+    texture_type type,
     VkFormat format,
     vulkan_image* image,
     VkImageAspectFlags aspect_flags);
@@ -26,6 +27,7 @@ void vulkan_image_view_create(
  */
 void vulkan_image_transition_layout(
     vulkan_context* context,
+    texture_type type,
     vulkan_command_buffer* command_buffer,
     vulkan_image* image,
     VkFormat format,
@@ -40,6 +42,7 @@ void vulkan_image_transition_layout(
  */
 void vulkan_image_copy_from_buffer(
     vulkan_context* context,
+    texture_type type,
     vulkan_image* image,
     VkBuffer buffer,
     vulkan_command_buffer* command_buffer);

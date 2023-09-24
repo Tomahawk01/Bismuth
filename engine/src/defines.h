@@ -87,7 +87,7 @@ STATIC_ASSERT(sizeof(f64) == 8, "Expected f64 to be 8 bytes.");
 #endif
 #endif
 
-#define BCLAMP(value, min, max) (value <= min) ? min : (value >= max) ? max : value
+#define BCLAMP(value, min, max) ((value <= min) ? min : (value >= max) ? max : value)
 
 // Inlining
 #if defined(__clang__) || defined(__gcc__)

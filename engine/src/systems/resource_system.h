@@ -15,7 +15,7 @@ typedef struct resource_loader
     resource_type type;
     const char* custom_type;
     const char* type_path;
-    b8 (*load)(struct resource_loader* self, const char* name, resource* out_resource);
+    b8 (*load)(struct resource_loader* self, const char* name, void* params, resource* out_resource);
     void (*unload)(struct resource_loader* self, resource* resource);
 } resource_loader;
 
@@ -24,8 +24,8 @@ void resource_system_shutdown(void* state);
 
 BAPI b8 resource_system_register_loader(resource_loader loader);
 
-BAPI b8 resource_system_load(const char* name, resource_type type, resource* out_resource);
-BAPI b8 resource_system_load_custom(const char* name, const char* custom_type, resource* out_resource);
+BAPI b8 resource_system_load(const char* name, resource_type type, void* params, resource* out_resource);
+BAPI b8 resource_system_load_custom(const char* name, const char* custom_type, void* params, resource* out_resource);
 
 BAPI void resource_system_unload(resource* resource);
 

@@ -14,6 +14,7 @@ b8 vulkan_graphics_pipeline_create(
     VkPipelineShaderStageCreateInfo* stages,
     VkViewport viewport,
     VkRect2D scissor,
+    face_cull_mode cull_mode,
     b8 is_wireframe,
     b8 depth_test_enabled,
     u32 push_constant_range_count,

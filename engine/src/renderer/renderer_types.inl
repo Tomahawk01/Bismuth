@@ -4,6 +4,7 @@
 #include "math/math_types.h"
 #include "resources/resource_types.h"
 
+#define BUILTIN_SHADER_NAME_SKYBOX "Shader.Builtin.Skybox"
 #define BUILTIN_SHADER_NAME_MATERIAL "Shader.Builtin.Material"
 #define BUILTIN_SHADER_NAME_UI "Shader.Builtin.UI"
 
@@ -110,7 +111,7 @@ typedef struct renderer_backend
     b8 (*create_geometry)(geometry* geometry, u32 vertex_size, u32 vertex_count, const void* vertices, u32 index_size, u32 index_count, const void* indices);
     void (*destroy_geometry)(geometry* geometry);
 
-    b8 (*shader_create)(struct shader* shader, renderpass* pass, u8 stage_count, const char** stage_filenames, shader_stage* stages);
+    b8 (*shader_create)(struct shader* shader, const shader_config* config, renderpass* pass, u8 stage_count, const char** stage_filenames, shader_stage* stages);
     void (*shader_destroy)(struct shader* shader);
 
     b8 (*shader_initialize)(struct shader* shader);
@@ -151,7 +152,8 @@ typedef struct renderer_backend
 typedef enum render_view_known_type
 {
     RENDERER_VIEW_KNOWN_TYPE_WORLD = 0x01,
-    RENDERER_VIEW_KNOWN_TYPE_UI = 0x02
+    RENDERER_VIEW_KNOWN_TYPE_UI = 0x02,
+    RENDERER_VIEW_KNOWN_TYPE_SKYBOX = 0x03
 } render_view_known_type;
 
 typedef enum render_view_view_matrix_source
@@ -230,6 +232,11 @@ typedef struct mesh_packet_data
     u32 mesh_count;
     mesh* meshes;
 } mesh_packet_data;
+
+typedef struct skybox_packet_data
+{
+    skybox* sb;
+} skybox_packet_data;
 
 typedef struct render_packet
 {

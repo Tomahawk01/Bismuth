@@ -32,7 +32,7 @@ b8 renderer_renderpass_end(renderpass* pass);
 
 renderpass* renderer_renderpass_get(const char* name);
 
-b8 renderer_shader_create(struct shader* s, renderpass* pass, u8 stage_count, const char** stage_filenames, shader_stage* stages);
+b8 renderer_shader_create(struct shader* s, const shader_config* config, renderpass* pass, u8 stage_count, const char** stage_filenames, shader_stage* stages);
 void renderer_shader_destroy(struct shader* s);
 
 b8 renderer_shader_initialize(struct shader* s);
