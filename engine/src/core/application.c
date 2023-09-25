@@ -18,6 +18,7 @@
 #include "systems/shader_system.h"
 #include "systems/camera_system.h"
 #include "systems/render_view_system.h"
+#include "systems/job_system.h"
 
 // TODO: temp
 #include "math/bmath.h"
@@ -38,6 +39,9 @@ typedef struct application_state
 
     u64 event_system_memory_requirement;
     void* event_system_state;
+
+    u64 job_system_memory_requirement;
+    void* job_system_state;
 
     u64 logging_system_memory_requirement;
     void* logging_system_state;
@@ -252,6 +256,39 @@ b8 application_create(game* game_inst)
     if (!renderer_system_initialize(&app_state->renderer_system_memory_requirement, app_state->renderer_system_state, game_inst->app_config.name))
     {
         BFATAL("Failed to initialize renderer. Application shutting down...");
+        return false;
+    }
+
+    b8 renderer_multithreaded = renderer_is_multithreaded();
+
+    // Initialize job system
+    u32 job_thread_types[15];
+    for (u32 i = 0; i < 15; ++i)
+        job_thread_types[i] = JOB_TYPE_GENERAL;
+
+    if (max_thread_count == 1 || !renderer_multithreaded)
+    {
+        // Everything on one job thread
+        job_thread_types[0] |= (JOB_TYPE_GPU_RESOURCE | JOB_TYPE_RESOURCE_LOAD);
+    }
+    else if (max_thread_count == 2)
+    {
+        // Split things between the 2 threads
+        job_thread_types[0] |= JOB_TYPE_GPU_RESOURCE;
+        job_thread_types[1] |= JOB_TYPE_RESOURCE_LOAD;
+    }
+    else
+    {
+        // Dedicate first 2 threads to these things, pass off general tasks to other threads
+        job_thread_types[0] = JOB_TYPE_GPU_RESOURCE;
+        job_thread_types[1] = JOB_TYPE_RESOURCE_LOAD;
+    }
+
+    job_system_initialize(&app_state->job_system_memory_requirement, 0, 0, 0);
+    app_state->job_system_state = linear_allocator_allocate(&app_state->systems_allocator, app_state->job_system_memory_requirement);
+    if (!job_system_initialize(&app_state->job_system_memory_requirement, app_state->job_system_state, thread_count, job_thread_types))
+    {
+        BFATAL("Failed to initialize job system. Aborting application...");
         return false;
     }
 
@@ -552,6 +589,9 @@ b8 application_run()
             f64 delta = (current_time - app_state->last_time);
             f64 frame_start_time = platform_get_absolute_time();
 
+            // Update job system
+            job_system_update();
+
             if (!app_state->game_inst->update(app_state->game_inst, (f32)delta))
             {
                 BFATAL("Game update failed, shutting down");
@@ -675,6 +715,8 @@ b8 application_run()
     renderer_system_shutdown(app_state->renderer_system_state);
 
     resource_system_shutdown(app_state->resource_system_state);
+
+    job_system_shutdown(app_state->job_system_state);
 
     platform_system_shutdown(app_state->platform_system_state);
 

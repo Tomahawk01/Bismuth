@@ -393,6 +393,11 @@ void renderer_renderpass_destroy(renderpass* pass)
     state_ptr->backend.renderpass_destroy(pass);
 }
 
+b8 renderer_is_multithreaded()
+{
+    return state_ptr->backend.is_multithreaded();
+}
+
 void regenerate_render_targets()
 {
     // Create render targets for each

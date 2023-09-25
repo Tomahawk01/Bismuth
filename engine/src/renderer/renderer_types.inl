@@ -147,6 +147,8 @@ typedef struct renderer_backend
     texture* (*depth_attachment_get)();
 
     u8 (*window_attachment_index_get)();
+
+    b8 (*is_multithreaded)();
 } renderer_backend;
 
 typedef enum render_view_known_type

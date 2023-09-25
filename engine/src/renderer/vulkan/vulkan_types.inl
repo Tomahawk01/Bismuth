@@ -315,6 +315,8 @@ typedef struct vulkan_context
 
     render_target world_render_targets[3];
 
+    b8 multithreading_enabled;
+
     i32 (*find_memory_index)(u32 type_filter, u32 property_flags);
 
     void (*on_rendertarget_refresh_required)();

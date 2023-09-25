@@ -62,3 +62,5 @@ void renderer_render_target_destroy(render_target* target, b8 free_internal_memo
 
 void renderer_renderpass_create(renderpass* out_renderpass, f32 depth, u32 stencil, b8 has_prev_pass, b8 has_next_pass);
 void renderer_renderpass_destroy(renderpass* pass);
+
+b8 renderer_is_multithreaded();
