@@ -25,6 +25,8 @@
 #include "math/transform.h"
 #include "math/geometry_utils.h"
 #include "containers/darray.h"
+#include "resources/mesh.h"
+// TODO: end temp
 
 typedef struct application_state
 {
@@ -80,10 +82,11 @@ typedef struct application_state
     skybox sb;
 
     mesh meshes[10];
-    u32 mesh_count;
+    mesh* car_mesh;
+    mesh* sponza_mesh;
+    b8 models_loaded;
 
     mesh ui_meshes[10];
-    u32 ui_mesh_count;
     // TODO: end temp
 } application_state;
 
@@ -97,36 +100,53 @@ b8 application_on_resized(u16 code, void* sender, void* listener_inst, event_con
 // TODO: temp
 b8 event_on_debug_event(u16 code, void* sender, void* listener_inst, event_context data)
 {
-    const char* names[3] = {
-        "rocks",
-        "stone",
-        "wood"
-    };
-    static i8 choice = 2;
-
-    // Save the old names
-    const char* old_name = names[choice];
-
-    choice++;
-    choice %= 3;
-
-    // Just swap out material on the first mesh if it exists
-    geometry* g = app_state->meshes[0].geometries[0];
-    if (g)
+    if (code == EVENT_CODE_DEBUG0)
     {
-        // Acquire new material
-        g->material = material_system_acquire(names[choice]);
-        if (!g->material)
-        {
-            BWARN("event_on_debug_event no material found! Using default material");
-            g->material = material_system_get_default();
-        }
+        const char* names[3] = {
+            "rocks",
+            "stone",
+            "wood"
+        };
+        static i8 choice = 2;
 
-        // Release old diffuse material
-        material_system_release(old_name);
+        // Save the old names
+        const char* old_name = names[choice];
+
+        choice++;
+        choice %= 3;
+
+        // Just swap out material on the first mesh if it exists
+        geometry* g = app_state->meshes[0].geometries[0];
+        if (g)
+        {
+            // Acquire new material
+            g->material = material_system_acquire(names[choice]);
+            if (!g->material)
+            {
+                BWARN("event_on_debug_event no material found! Using default material");
+                g->material = material_system_get_default();
+            }
+
+            // Release old diffuse material
+            material_system_release(old_name);
+        }
+        return true;
+    }
+    else if (code == EVENT_CODE_DEBUG1)
+    {
+        if (!app_state->models_loaded)
+        {
+            BDEBUG("Load models...");
+            app_state->models_loaded = true;
+            if (!mesh_load_from_resource("falcon", app_state->car_mesh))
+                BERROR("Failed to load falcon mesh!");
+            if (!mesh_load_from_resource("sponza", app_state->sponza_mesh))
+                BERROR("Failed to load sponza mesh!");
+        }
+        return true;
     }
 
-    return true;
+    return false;
 }
 // TODO: end temp
 
@@ -156,6 +176,9 @@ b8 application_create(game* game_inst)
     app_state->game_inst = game_inst;
     app_state->is_running = false;
     app_state->is_suspended = false;
+
+    // TODO: temp debug
+    app_state->models_loaded = false;
 
     // Create a linear allocator for all systems (except memory)
     u64 systems_allocator_total_size = 64 * 1024 * 1024; // 64Mb
@@ -188,6 +211,7 @@ b8 application_create(game* game_inst)
     event_register(EVENT_CODE_RESIZED, 0, application_on_resized);
     // TODO: temp
     event_register(EVENT_CODE_DEBUG0, 0, event_on_debug_event);
+    event_register(EVENT_CODE_DEBUG1, 0, event_on_debug_event);
     // TODO: end temp
 
     // Platform
@@ -421,21 +445,29 @@ b8 application_create(game* game_inst)
     }
 
     // World meshes
-    app_state->mesh_count = 0;
+    // Invalidate all meshes
+    for (u32 i = 0; i < 10; ++i)
+    {
+        app_state->meshes[i].generation = INVALID_ID_U8;
+        app_state->ui_meshes[i].generation = INVALID_ID_U8;
+    }
+
+    u8 mesh_count = 0;
 
     // Load up a cube configuration and load geometry from it
-    mesh* cube_mesh = &app_state->meshes[app_state->mesh_count];
+    mesh* cube_mesh = &app_state->meshes[mesh_count];
     cube_mesh->geometry_count = 1;
     cube_mesh->geometries = ballocate(sizeof(mesh*) * cube_mesh->geometry_count, MEMORY_TAG_ARRAY);
     geometry_config g_config = geometry_system_generate_cube_config(10.0f, 10.0f, 10.0f, 1.0f, 1.0f, "test_cube", "test_material");
     cube_mesh->geometries[0] = geometry_system_acquire_from_config(g_config, true);
     cube_mesh->transform = transform_create();
-    app_state->mesh_count++;
+    mesh_count++;
+    cube_mesh->generation = 0;
     // Clean up the allocations for the geometry config
     geometry_system_config_dispose(&g_config);
 
     // Second cube
-    mesh* cube_mesh_2 = &app_state->meshes[app_state->mesh_count];
+    mesh* cube_mesh_2 = &app_state->meshes[mesh_count];
     cube_mesh_2->geometry_count = 1;
     cube_mesh_2->geometries = ballocate(sizeof(mesh*) * cube_mesh_2->geometry_count, MEMORY_TAG_ARRAY);
     g_config = geometry_system_generate_cube_config(5.0f, 5.0f, 5.0f, 1.0f, 1.0f, "test_cube_2", "test_material");
@@ -443,12 +475,13 @@ b8 application_create(game* game_inst)
     cube_mesh_2->transform = transform_from_position((vec3){10.0f, 0.0f, 1.0f});
     // Set first cube as a parent to the second
     transform_set_parent(&cube_mesh_2->transform, &cube_mesh->transform);
-    app_state->mesh_count++;
+    mesh_count++;
+    cube_mesh_2->generation = 0;
     // Clean up allocations for geometry config
     geometry_system_config_dispose(&g_config);
 
     // A third cube!
-    mesh* cube_mesh_3 = &app_state->meshes[app_state->mesh_count];
+    mesh* cube_mesh_3 = &app_state->meshes[mesh_count];
     cube_mesh_3->geometry_count = 1;
     cube_mesh_3->geometries = ballocate(sizeof(mesh*) * cube_mesh_3->geometry_count, MEMORY_TAG_ARRAY);
     g_config = geometry_system_generate_cube_config(2.0f, 2.0f, 2.0f, 1.0f, 1.0f, "test_cube_2", "test_material");
@@ -456,51 +489,18 @@ b8 application_create(game* game_inst)
     cube_mesh_3->transform = transform_from_position((vec3){5.0f, 0.0f, 1.0f});
     // Set second cube as a parent to the third
     transform_set_parent(&cube_mesh_3->transform, &cube_mesh_2->transform);
-    app_state->mesh_count++;
+    mesh_count++;
+    cube_mesh_3->generation = 0;
     // Clean up allocations for the geometry config
     geometry_system_config_dispose(&g_config);
 
-    // NOTE: Test car mesh loaded from file
-    mesh* car_mesh = &app_state->meshes[app_state->mesh_count];
-    resource car_mesh_resource = {};
-    if (!resource_system_load("falcon", RESOURCE_TYPE_MESH, 0, &car_mesh_resource))
-    {
-        BERROR("Failed to load falcon test mesh");
-    }
-    else
-    {
-        geometry_config* configs = (geometry_config*)car_mesh_resource.data;
-        car_mesh->geometry_count = car_mesh_resource.data_size;
-        car_mesh->geometries = ballocate(sizeof(geometry*) * car_mesh->geometry_count, MEMORY_TAG_ARRAY);
-        for (u32 i = 0; i < car_mesh->geometry_count; ++i)
-        {
-            car_mesh->geometries[i] = geometry_system_acquire_from_config(configs[i], true);
-        }
-        car_mesh->transform = transform_from_position((vec3){15.0f, 0.0f, 1.0f});
-        resource_system_unload(&car_mesh_resource);
-        app_state->mesh_count++;
-    }
+    app_state->car_mesh = &app_state->meshes[mesh_count];
+    app_state->car_mesh->transform = transform_from_position((vec3){15.0f, 0.0f, 1.0f});
+    mesh_count++;
 
-    // NOTE: Test sponza mesh loaded from file
-    mesh* sponza_mesh = &app_state->meshes[app_state->mesh_count];
-    resource sponza_mesh_resource = {};
-    if (!resource_system_load("sponza", RESOURCE_TYPE_MESH, 0, &sponza_mesh_resource))
-    {
-        BERROR("Failed to load sponza test mesh");
-    }
-    else
-    {
-        geometry_config* configs = (geometry_config*)sponza_mesh_resource.data;
-        sponza_mesh->geometry_count = sponza_mesh_resource.data_size;
-        sponza_mesh->geometries = ballocate(sizeof(geometry*) * sponza_mesh->geometry_count, MEMORY_TAG_ARRAY);
-        for (u32 i = 0; i < sponza_mesh->geometry_count; ++i)
-        {
-            sponza_mesh->geometries[i] = geometry_system_acquire_from_config(configs[i], true);
-        }
-        sponza_mesh->transform = transform_from_position_rotation_scale(vec3_zero(), quat_identity(), vec3_create(0.05f, 0.05f, 0.05f));
-        resource_system_unload(&sponza_mesh_resource);
-        app_state->mesh_count++;
-    }
+    app_state->sponza_mesh = &app_state->meshes[mesh_count];
+    app_state->sponza_mesh->transform = transform_from_position_rotation_scale((vec3){15.0f, 0.0f, 1.0f}, quat_identity(), (vec3){0.05f, 0.05f, 0.05f});
+    mesh_count++;
 
     // Load test UI geometry
     geometry_config ui_config;
@@ -540,11 +540,11 @@ b8 application_create(game* game_inst)
     ui_config.indices = uiindices;
 
     // Get UI geometry from config
-    app_state->ui_mesh_count = 1;
     app_state->ui_meshes[0].geometry_count = 1;
     app_state->ui_meshes[0].geometries = ballocate(sizeof(geometry*), MEMORY_TAG_ARRAY);
     app_state->ui_meshes[0].geometries[0] = geometry_system_acquire_from_config(ui_config, true);
     app_state->ui_meshes[0].transform = transform_create();
+    app_state->ui_meshes[0].generation = 0;
 
     // Load default geometry
     //app_state->test_geometry = geometry_system_get_default();
@@ -606,20 +606,13 @@ b8 application_run()
                 break;
             }
 
-            if (app_state->mesh_count > 0)
-            {
-                // Perform small rotation on the first mesh
-                quat rotation = quat_from_axis_angle((vec3){0, 1, 0}, 0.5f * delta, false);
-                transform_rotate(&app_state->meshes[0].transform, rotation);
-
-                // Perform similar rotation on the second mesh, if it exists
-                if (app_state->mesh_count > 1)
-                    transform_rotate(&app_state->meshes[1].transform, rotation);
-
-                // Perform similar rotation on the third mesh, if it exists
-                if (app_state->mesh_count > 2)
-                    transform_rotate(&app_state->meshes[2].transform, rotation);                
-            }
+            // Perform small rotation on first mesh
+            quat rotation = quat_from_axis_angle((vec3){0, 1, 0}, 0.5f * delta, false);
+            transform_rotate(&app_state->meshes[0].transform, rotation);
+            // Perform similar rotation on second mesh
+            transform_rotate(&app_state->meshes[1].transform, rotation);
+            // Perform similar rotation on third mesh
+            transform_rotate(&app_state->meshes[2].transform, rotation);                
 
             // TODO: refactor packet creation
             render_packet packet = {};
@@ -642,8 +635,21 @@ b8 application_run()
 
             // World 
             mesh_packet_data world_mesh_data = {};
-            world_mesh_data.mesh_count = app_state->mesh_count;
-            world_mesh_data.meshes = app_state->meshes;
+
+            u32 mesh_count = 0;
+            mesh* meshes[10];
+            // TODO: flexible size array
+            for (u32 i = 0; i < 10; ++i)
+            {
+                if (app_state->meshes[i].generation != INVALID_ID_U8)
+                {
+                    meshes[mesh_count] = &app_state->meshes[i];
+                    mesh_count++;
+                }
+            }
+            world_mesh_data.mesh_count = mesh_count;
+            world_mesh_data.meshes = meshes;
+
             // TODO: performs lookup on every frame
             if (!render_view_system_build_packet(render_view_system_get("world_opaque"), &world_mesh_data, &packet.views[1]))
             {
@@ -653,8 +659,23 @@ b8 application_run()
 
             // UI
             mesh_packet_data ui_mesh_data = {};
-            ui_mesh_data.mesh_count = app_state->ui_mesh_count;
-            ui_mesh_data.meshes = app_state->ui_meshes;
+
+            u32 ui_mesh_count = 0;
+            mesh* ui_meshes[10];
+
+            // TODO: flexible size array
+            for (u32 i = 0; i < 10; ++i)
+            {
+                if (app_state->ui_meshes[i].generation != INVALID_ID_U8)
+                {
+                    ui_meshes[ui_mesh_count] = &app_state->ui_meshes[i];
+                    ui_mesh_count++;
+                }
+            }
+
+            ui_mesh_data.mesh_count = ui_mesh_count;
+            ui_mesh_data.meshes = ui_meshes;
+
             if (!render_view_system_build_packet(render_view_system_get("ui"), &ui_mesh_data, &packet.views[2]))
             {
                 BERROR("Failed to build packet for view 'ui'");

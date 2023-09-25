@@ -93,15 +93,6 @@ b8 game_update(game* game_inst, f32 delta_time)
     }
 
     // TODO: temporary
-    if (input_is_key_up('P') && input_was_key_down('P'))
-    {
-        BDEBUG(
-            "Pos:[%.2f, %.2f, %.2f]",
-            state->world_camera->position.x,
-            state->world_camera->position.y,
-            state->world_camera->position.z);
-    }
-
     // RENDERER DEBUG FUNCTIONS
     if (input_is_key_up('1') && input_was_key_down('1'))
     {
@@ -123,6 +114,14 @@ b8 game_update(game* game_inst, f32 delta_time)
         data.data.i32[0] = RENDERER_VIEW_MODE_DEFAULT;
         event_fire(EVENT_CODE_SET_RENDER_MODE, game_inst, data);
     }
+
+    // Bind key to load up some data
+    if (input_is_key_up('L') && input_was_key_down('L'))
+    {
+        event_context context = {};
+        event_fire(EVENT_CODE_DEBUG1, game_inst, context);
+    }
+    // TODO: end temporary
 
     return true;
 }
