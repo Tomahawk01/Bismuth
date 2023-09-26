@@ -2,7 +2,8 @@
 
 #include "defines.h"
 
-typedef enum memory_tag {
+typedef enum memory_tag
+{
     // For temporary use. Should be assigned one of the below or have a new tag created
     MEMORY_TAG_UNKNOWN,
     MEMORY_TAG_ARRAY,
@@ -23,6 +24,13 @@ typedef enum memory_tag {
     MEMORY_TAG_ENTITY_NODE,
     MEMORY_TAG_SCENE,
     MEMORY_TAG_RESOURCE,
+    MEMORY_TAG_VULKAN,
+    // "External" vulkan allocations, for reporting purposes only
+    MEMORY_TAG_VULKAN_EXT,
+    MEMORY_TAG_DIRECT3D,
+    MEMORY_TAG_OPENGL,
+    // Representation of GPU-local/vram
+    MEMORY_TAG_GPU_LOCAL,
 
     MEMORY_TAG_MAX_TAGS
 } memory_tag;
@@ -39,7 +47,17 @@ BAPI void memory_system_shutdown();
 
 BAPI void* ballocate(u64 size, memory_tag tag);
 
+BAPI void* ballocate_aligned(u64 size, u16 alignment, memory_tag tag);
+
+BAPI void ballocate_report(u64 size, memory_tag tag);
+
 BAPI void bfree(void* block, u64 size, memory_tag tag);
+
+BAPI void bfree_aligned(void* block, u64 size, u16 alignment, memory_tag tag);
+
+BAPI void bfree_report(u64 size, memory_tag tag);
+
+BAPI b8 bmemory_get_size_alignment(void* block, u64* out_size, u16* out_alignment);
 
 BAPI void* bzero_memory(void* block, u64 size);
 

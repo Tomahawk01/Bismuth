@@ -84,7 +84,7 @@ b8 freelist_allocate_block(freelist* list, u64 size, u64* out_offset)
     {
         if (node->size == size)
         {
-            // Exact match. Return the node
+            // Exact match. Return node
             *out_offset = node->offset;
             freelist_node* node_to_return = 0;
             if (previous)
@@ -94,8 +94,7 @@ b8 freelist_allocate_block(freelist* list, u64 size, u64* out_offset)
             }
             else
             {
-                // This node is the head of the list. Reassign head
-                // and return the previous head node
+                // This node is the head of the list. Reassign head and return previous head node
                 node_to_return = state->head;
                 state->head = node->next;
             }
@@ -104,7 +103,7 @@ b8 freelist_allocate_block(freelist* list, u64 size, u64* out_offset)
         }
         else if (node->size > size)
         {
-            // Node is larger. Deduct memory from it and move the offset by that amount
+            // Node is larger. Deduct memory from it and move offset by that amount
             *out_offset = node->offset;
             node->size -= size;
             node->offset += size;
@@ -116,7 +115,7 @@ b8 freelist_allocate_block(freelist* list, u64 size, u64* out_offset)
     }
 
     u64 free_space = freelist_free_space(list);
-    BWARN("freelist_find_block, no block with enough free space found (requested: %uB, available: %lluB)", size, free_space);
+    BWARN("freelist_allocate_block_aligned, no block with enough free space found (requested: %uB, available: %lluB)", size, free_space);
     return false;
 }
 
@@ -127,6 +126,7 @@ b8 freelist_free_block(freelist* list, u64 size, u64 offset)
     internal_state* state = list->memory;
     freelist_node* node = state->head;
     freelist_node* previous = 0;
+
     if (!node)
     {
         // Check for the case where entire thing is allocated

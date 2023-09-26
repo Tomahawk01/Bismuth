@@ -133,24 +133,27 @@ b8 render_view_system_create(const render_view_config* config)
     // TODO: Assign these function pointers to known functions based on view type
     if (config->type == RENDERER_VIEW_KNOWN_TYPE_WORLD)
     {
-        view->on_build_packet = render_view_world_on_build_packet;   // For building packet
-        view->on_render = render_view_world_on_render;               // For rendering packet
+        view->on_build_packet = render_view_world_on_build_packet;      // For building packet
+        view->on_destroy_packet = render_view_world_on_destroy_packet;  // For destroying packet
+        view->on_render = render_view_world_on_render;                  // For rendering packet
         view->on_create = render_view_world_on_create;
         view->on_destroy = render_view_world_on_destroy;
         view->on_resize = render_view_world_on_resize;
     }
     else if (config->type == RENDERER_VIEW_KNOWN_TYPE_UI)
     {
-        view->on_build_packet = render_view_ui_on_build_packet;      // For building packet
-        view->on_render = render_view_ui_on_render;                  // For rendering packet
+        view->on_build_packet = render_view_ui_on_build_packet;         // For building packet
+        view->on_destroy_packet = render_view_ui_on_destroy_packet;     // For destroying packet
+        view->on_render = render_view_ui_on_render;                     // For rendering packet
         view->on_create = render_view_ui_on_create;
         view->on_destroy = render_view_ui_on_destroy;
         view->on_resize = render_view_ui_on_resize;
     }
     else if (config->type == RENDERER_VIEW_KNOWN_TYPE_SKYBOX)
     {
-        view->on_build_packet = render_view_skybox_on_build_packet;  // For building the packet
-        view->on_render = render_view_skybox_on_render;              // For rendering the packet
+        view->on_build_packet = render_view_skybox_on_build_packet;     // For building packet
+        view->on_destroy_packet = render_view_skybox_on_destroy_packet; // For destroying packet
+        view->on_render = render_view_skybox_on_render;                 // For rendering packet
         view->on_create = render_view_skybox_on_create;
         view->on_destroy = render_view_skybox_on_destroy;
         view->on_resize = render_view_skybox_on_resize;

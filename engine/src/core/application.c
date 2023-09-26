@@ -685,6 +685,10 @@ b8 application_run()
 
             renderer_draw_frame(&packet);
 
+            // Clean up the packet
+            for (u32 i = 0; i < packet.view_count; ++i)
+                packet.views[i].view->on_destroy_packet(packet.views[i].view, &packet.views[i]);
+
             // Calculate how long the frame took
             f64 frame_end_time = platform_get_absolute_time();
             f64 frame_elapsed_time = frame_end_time - frame_start_time;
