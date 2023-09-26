@@ -149,6 +149,10 @@ b8 vulkan_renderer_backend_initialize(renderer_backend* backend, const renderer_
             return false;
         }
     }
+
+    // Clean up
+    darray_destroy(available_layers);
+
     BINFO("All required validation layers are present");
 #endif
 
@@ -157,6 +161,9 @@ b8 vulkan_renderer_backend_initialize(renderer_backend* backend, const renderer_
 
     VK_CHECK(vkCreateInstance(&create_info, context.allocator, &context.instance));
     BINFO("Vulkan instance created");
+
+    // Clean up
+    darray_destroy(required_validation_layer_names);
 
     // TODO: implement multithreading
     context.multithreading_enabled = false;
@@ -527,7 +534,6 @@ b8 vulkan_renderer_backend_end_frame(renderer_backend* backend, f32 delta_time)
     vulkan_swapchain_present(
         &context,
         &context.swapchain,
-        context.device.graphics_queue,
         context.device.present_queue,
         context.queue_complete_semaphores[context.current_frame],
         context.image_index);
@@ -1626,6 +1632,8 @@ b8 vulkan_renderer_shader_apply_instance(shader* s, b8 needs_update)
         bzero_memory(descriptor_writes, sizeof(VkWriteDescriptorSet) * 2);
         u32 descriptor_count = 0;
         u32 descriptor_index = 0;
+        
+        VkDescriptorBufferInfo buffer_info;
 
         // Descriptor 0 - Uniform buffer
         if (internal->instance_uniform_count > 0)
@@ -1635,7 +1643,6 @@ b8 vulkan_renderer_shader_apply_instance(shader* s, b8 needs_update)
             // TODO: determine if update is required
             if (*instance_ubo_generation == INVALID_ID_U8)
             {
-                VkDescriptorBufferInfo buffer_info;
                 buffer_info.buffer = internal->uniform_buffer.handle;
                 buffer_info.offset = object_state->offset;
                 buffer_info.range = s->ubo_stride;

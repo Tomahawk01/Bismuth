@@ -52,7 +52,8 @@ void geometry_generate_tangents(u32 vertex_count, vertex_3d* vertices, u32 index
         f32 sx = deltaU1, sy = deltaU2;
         f32 tx = deltaV1, ty = deltaV2;
         f32 handedness = ((tx * sy - ty * sx) < 0.0f) ? -1.0f : 1.0f;
-        vec4 t4 = vec4_from_vec3(tangent, handedness);
+
+        vec3 t4 = vec3_mul_scalar(tangent, handedness);
         vertices[i0].tangent = t4;
         vertices[i1].tangent = t4;
         vertices[i2].tangent = t4;
@@ -65,7 +66,7 @@ b8 vertex3d_equal(vertex_3d vert_0, vertex_3d vert_1)
            vec3_compare(vert_0.normal, vert_1.normal, B_FLOAT_EPSILON) &&
            vec2_compare(vert_0.texcoord, vert_1.texcoord, B_FLOAT_EPSILON) &&
            vec4_compare(vert_0.color, vert_1.color, B_FLOAT_EPSILON) &&
-           vec4_compare(vert_0.tangent, vert_1.tangent, B_FLOAT_EPSILON);
+           vec3_compare(vert_0.tangent, vert_1.tangent, B_FLOAT_EPSILON);
 }
 
 void reassign_index(u32 index_count, u32* indices, u32 from, u32 to)
