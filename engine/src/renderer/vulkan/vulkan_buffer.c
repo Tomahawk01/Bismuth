@@ -49,9 +49,8 @@ b8 vulkan_buffer_create(
     VK_CHECK(vkCreateBuffer(context->device.logical_device, &buffer_info, context->allocator, &out_buffer->handle));
 
     // Gather memory requirements
-    VkMemoryRequirements requirements;
-    vkGetBufferMemoryRequirements(context->device.logical_device, out_buffer->handle, &requirements);
-    out_buffer->memory_index = context->find_memory_index(requirements.memoryTypeBits, out_buffer->memory_property_flags);
+    vkGetBufferMemoryRequirements(context->device.logical_device, out_buffer->handle, &out_buffer->memory_requirements);
+    out_buffer->memory_index = context->find_memory_index(out_buffer->memory_requirements.memoryTypeBits, out_buffer->memory_property_flags);
     if (out_buffer->memory_index == -1)
     {
         BERROR("Unable to create vulkan buffer because the required memory type index was not found");
@@ -63,7 +62,7 @@ b8 vulkan_buffer_create(
 
     // Allocate memory info
     VkMemoryAllocateInfo allocate_info = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
-    allocate_info.allocationSize = requirements.size;
+    allocate_info.allocationSize = out_buffer->memory_requirements.size;
     allocate_info.memoryTypeIndex = (u32)out_buffer->memory_index;
 
     // Allocate the memory
@@ -72,6 +71,12 @@ b8 vulkan_buffer_create(
         &allocate_info,
         context->allocator,
         &out_buffer->memory);
+    
+    // Determine if memory is on device heap
+    b8 is_device_memory = (out_buffer->memory_property_flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+
+    // Report memory as in-use
+    ballocate_report(out_buffer->memory_requirements.size, is_device_memory ? MEMORY_TAG_GPU_LOCAL : MEMORY_TAG_VULKAN);
 
     if (result != VK_SUCCESS)
     {
@@ -105,6 +110,12 @@ void vulkan_buffer_destroy(vulkan_context* context, vulkan_buffer* buffer)
         vkDestroyBuffer(context->device.logical_device, buffer->handle, context->allocator);
         buffer->handle = 0;
     }
+
+    // Report free memory
+    b8 is_device_memory = (buffer->memory_property_flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    bfree_report(buffer->memory_requirements.size, is_device_memory ? MEMORY_TAG_GPU_LOCAL : MEMORY_TAG_VULKAN);
+    bzero_memory(&buffer->memory_requirements, sizeof(VkMemoryRequirements));
+
     buffer->total_size = 0;
     buffer->usage = 0;
     buffer->is_locked = false;
@@ -192,6 +203,13 @@ b8 vulkan_buffer_resize(
         vkDestroyBuffer(context->device.logical_device, buffer->handle, context->allocator);
         buffer->handle = 0;
     }
+
+    // Report free of the old, allocate of the new
+    b8 is_device_memory = (buffer->memory_property_flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+
+    bfree_report(buffer->memory_requirements.size, is_device_memory ? MEMORY_TAG_GPU_LOCAL : MEMORY_TAG_VULKAN);
+    buffer->memory_requirements = requirements;
+    ballocate_report(buffer->memory_requirements.size, is_device_memory ? MEMORY_TAG_GPU_LOCAL : MEMORY_TAG_VULKAN);
 
     // Set new properties
     buffer->total_size = new_size;

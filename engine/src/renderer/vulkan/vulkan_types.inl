@@ -20,6 +20,7 @@ typedef struct vulkan_buffer
     VkBufferUsageFlagBits usage;
     b8 is_locked;
     VkDeviceMemory memory;
+    VkMemoryRequirements memory_requirements;
     i32 memory_index;
     u32 memory_property_flags;
     u64 freelist_memory_requirement;
@@ -67,6 +68,8 @@ typedef struct vulkan_image
     VkImage handle;
     VkDeviceMemory memory;
     VkImageView view;
+    VkMemoryRequirements memory_requirements;
+    VkMemoryPropertyFlags memory_flags;
     u32 width;
     u32 height;
 } vulkan_image;
