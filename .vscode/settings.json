@@ -36,6 +36,7 @@
         "freelist.h": "c",
         "bmath.h": "c",
         "camera.h": "c",
-        "renderer_frontend.h": "c"
+        "renderer_frontend.h": "c",
+        "vulkan_pipeline.h": "c"
     },
 }

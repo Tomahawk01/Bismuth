@@ -64,3 +64,27 @@ void renderer_renderpass_create(renderpass* out_renderpass, f32 depth, u32 stenc
 void renderer_renderpass_destroy(renderpass* pass);
 
 b8 renderer_is_multithreaded();
+
+b8 renderer_renderbuffer_create(renderbuffer_type type, u64 total_size, b8 use_freelist, renderbuffer* out_buffer);
+void renderer_renderbuffer_destroy(renderbuffer* buffer);
+
+b8 renderer_renderbuffer_bind(renderbuffer* buffer, u64 offset);
+b8 renderer_renderbuffer_unbind(renderbuffer* buffer);
+
+void* renderer_renderbuffer_map_memory(renderbuffer* buffer, u64 offset, u64 size);
+void renderer_renderbuffer_unmap_memory(renderbuffer* buffer, u64 offset, u64 size);
+
+b8 renderer_renderbuffer_flush(renderbuffer* buffer, u64 offset, u64 size);
+
+b8 renderer_renderbuffer_read(renderbuffer* buffer, u64 offset, u64 size, void** out_memory);
+
+b8 renderer_renderbuffer_resize(renderbuffer* buffer, u64 new_total_size);
+
+b8 renderer_renderbuffer_allocate(renderbuffer* buffer, u64 size, u64* out_offset);
+b8 renderer_renderbuffer_free(renderbuffer* buffer, u64 size, u64 offset);
+
+b8 renderer_renderbuffer_load_range(renderbuffer* buffer, u64 offset, u64 size, const void* data);
+
+b8 renderer_renderbuffer_copy_range(renderbuffer* source, u64 source_offset, renderbuffer* dest, u64 dest_offset, u64 size);
+
+b8 renderer_renderbuffer_draw(renderbuffer* buffer, u64 offset, u32 element_count, b8 bind_only);

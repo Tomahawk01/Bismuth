@@ -3,6 +3,7 @@
 #include "defines.h"
 #include "math/math_types.h"
 #include "resources/resource_types.h"
+#include "containers/freelist.h"
 
 #define BUILTIN_SHADER_NAME_SKYBOX "Shader.Builtin.Skybox"
 #define BUILTIN_SHADER_NAME_MATERIAL "Shader.Builtin.Material"
@@ -71,6 +72,27 @@ typedef struct renderpass
 
     void* internal_data;
 } renderpass;
+
+typedef enum renderbuffer_type
+{
+    RENDERBUFFER_TYPE_UNKNOWN,
+    RENDERBUFFER_TYPE_VERTEX,
+    RENDERBUFFER_TYPE_INDEX,
+    RENDERBUFFER_TYPE_UNIFORM,
+    RENDERBUFFER_TYPE_STAGING,
+    RENDERBUFFER_TYPE_READ,
+    RENDERBUFFER_TYPE_STORAGE
+} renderbuffer_type;
+
+typedef struct renderbuffer
+{
+    renderbuffer_type type;
+    u64 total_size;
+    u64 freelist_memory_requirement;
+    freelist buffer_freelist;
+    void* freelist_block;
+    void* internal_data;
+} renderbuffer;
 
 typedef struct renderer_backend_config
 {
@@ -149,6 +171,27 @@ typedef struct renderer_backend
     u8 (*window_attachment_index_get)();
 
     b8 (*is_multithreaded)();
+
+    b8 (*renderbuffer_create_internal)(renderbuffer* buffer);
+    void (*renderbuffer_destroy_internal)(renderbuffer* buffer);
+
+    b8 (*renderbuffer_bind)(renderbuffer* buffer, u64 offset);
+    b8 (*renderbuffer_unbind)(renderbuffer* buffer);
+
+    void* (*renderbuffer_map_memory)(renderbuffer* buffer, u64 offset, u64 size);
+    void (*renderbuffer_unmap_memory)(renderbuffer* buffer, u64 offset, u64 size);
+
+    b8 (*renderbuffer_flush)(renderbuffer* buffer, u64 offset, u64 size);
+
+    b8 (*renderbuffer_read)(renderbuffer* buffer, u64 offset, u64 size, void** out_memory);
+
+    b8 (*renderbuffer_resize)(renderbuffer* buffer, u64 new_total_size);
+
+    b8 (*renderbuffer_load_range)(renderbuffer* buffer, u64 offset, u64 size, const void* data);
+
+    b8 (*renderbuffer_copy_range)(renderbuffer* source, u64 source_offset, renderbuffer* dest, u64 dest_offset, u64 size);
+
+    b8 (*renderbuffer_draw)(renderbuffer* buffer, u64 offset, u32 element_count, b8 bind_only);
 } renderer_backend;
 
 typedef enum render_view_known_type
