@@ -627,7 +627,7 @@ BINLINE vec4 vec4_from_vec3(vec3 vector, f32 w)
 }
 
 /**
- * @brief Creates and returns a 3-component vector with all components set to 0.0f.
+ * @brief Creates and returns a 4-component vector with all components set to 0.0f.
  */
 BINLINE vec4 vec4_zero()
 {
@@ -635,7 +635,7 @@ BINLINE vec4 vec4_zero()
 }
 
 /**
- * @brief Creates and returns a 3-component vector with all components set to 1.0f.
+ * @brief Creates and returns a 4-component vector with all components set to 1.0f.
  */
 BINLINE vec4 vec4_one()
 {

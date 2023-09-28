@@ -40,7 +40,9 @@ static const char* memory_tag_strings[MEMORY_TAG_MAX_TAGS] =
     "VULKAN_EXT  ",
     "DIRECT3D    ",
     "OPENGL      ",
-    "GPU_LOCAL   "
+    "GPU_LOCAL   ",
+    "BITMAP_FONT ",
+    "SYSTEM_FONT "
 };
 
 typedef struct memory_system_state

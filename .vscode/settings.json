@@ -37,6 +37,10 @@
         "bmath.h": "c",
         "camera.h": "c",
         "renderer_frontend.h": "c",
-        "vulkan_pipeline.h": "c"
+        "vulkan_pipeline.h": "c",
+        "loader_utils.h": "c",
+        "bitmap_font_loader.h": "c",
+        "stdio.h": "c",
+        "render_view_system.h": "c"
     },
 }

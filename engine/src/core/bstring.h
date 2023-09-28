@@ -5,6 +5,10 @@
 
 BAPI u64 string_length(const char* str);
 
+BAPI u32 string_utf8_length(const char* str);
+
+BAPI b8 bytes_to_codepoint(const char* bytes, u32 offset, i32* out_codepoint, u8* out_advance);
+
 BAPI char* string_duplicate(const char* str);
 
 BAPI void string_free(char* str);
