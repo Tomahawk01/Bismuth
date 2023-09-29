@@ -1,8 +1,9 @@
 #include "application.h"
 #include "game_types.h"
-#include "logger.h"
+#include "version.h"
 #include "platform/platform.h"
 #include "core/bmemory.h"
+#include "core/logger.h"
 #include "core/bstring.h"
 #include "core/event.h"
 #include "core/input.h"
@@ -164,6 +165,9 @@ b8 application_create(game* game_inst)
         BERROR("application_create called more than once");
         return false;
     }
+
+    // Report engine version
+    BINFO("Bismuth Engine v. %s", BVERSION);
 
     // Memory system must be the first thing to be stood up
     memory_system_configuration memory_system_config = {};
@@ -869,7 +873,7 @@ b8 application_on_key(u16 code, void* sender, void* listener_inst, event_context
         }
         else
         {
-            BDEBUG("'%c' key pressed in window", key_code);
+            BDEBUG("'%s' key pressed in window", input_keycode_str(key_code));
         }
     }
     else if (code == EVENT_CODE_KEY_RELEASED)
@@ -882,7 +886,7 @@ b8 application_on_key(u16 code, void* sender, void* listener_inst, event_context
         }
         else
         {
-            BDEBUG("'%c' key released in window", key_code);
+            BDEBUG("'%s' key released in window", input_keycode_str(key_code));
         }
     }
     return false;    

@@ -212,11 +212,12 @@ b8 vulkan_renderer_backend_initialize(renderer_backend* backend, const renderer_
     const char** required_extensions = darray_create(const char*);
     darray_push(required_extensions, &VK_KHR_SURFACE_EXTENSION_NAME);
     platform_get_required_extension_names(&required_extensions);
+    u32 required_extension_count = 0;
 #if defined(_DEBUG)
     darray_push(required_extensions, &VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 
     BDEBUG("Required extensions:");
-    u32 required_extension_count = darray_length(required_extensions);
+    required_extension_count = darray_length(required_extensions);
     for (u32 i = 0; i < required_extension_count; ++i)
     {
         BDEBUG(required_extensions[i]);
