@@ -62,6 +62,7 @@ typedef enum texture_flag
     TEXTURE_FLAG_HAS_TRANSPARENCY = 0x1,
     TEXTURE_FLAG_IS_WRITEABLE = 0x2,
     TEXTURE_FLAG_IS_WRAPPED = 0x4,
+    TEXTURE_FLAG_DEPTH = 0x8
 } texture_flag;
 
 typedef u8 texture_flag_bits;
@@ -243,6 +244,7 @@ typedef struct geometry
 
 typedef struct mesh
 {
+    u32 unique_id;
     u8 generation;
     u16 geometry_count;
     geometry** geometries;
@@ -360,9 +362,6 @@ typedef struct shader_config
     // The collection of uniforms. Darray
     shader_uniform_config* uniforms;
 
-    // The name of the renderpass used by this shader
-    char* renderpass_name;
-
     // The number of stages present in the shader
     u8 stage_count;
     // The collection of stages. Darray
@@ -371,4 +370,7 @@ typedef struct shader_config
     char** stage_names;
     // The collection of stage file names to be loaded (one per stage). Must align with stages array. Darray
     char** stage_filenames;
+
+    b8 depth_test;
+    b8 depth_write;
 } shader_config;

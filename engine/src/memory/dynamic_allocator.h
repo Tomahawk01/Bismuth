@@ -21,3 +21,5 @@ BAPI b8 dynamic_allocator_get_size_alignment(void* block, u64* out_size, u16* ou
 BAPI u64 dynamic_allocator_free_space(dynamic_allocator* allocator);
 
 BAPI u64 dynamic_allocator_total_space(dynamic_allocator* allocator);
+
+BAPI u64 dynamic_allocator_header_size();

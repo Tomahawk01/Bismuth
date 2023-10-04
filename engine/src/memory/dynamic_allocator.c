@@ -89,7 +89,9 @@ void* dynamic_allocator_allocate_aligned(dynamic_allocator* allocator, u64 size,
         dynamic_allocator_state* state = allocator->memory;
 
         // Size required is based on requested size plus alignment, header and u32 to hold the size for quick lookups
-        u64 required_size = alignment + sizeof(alloc_header) + BSIZE_STORAGE + size;
+        u64 header_size = sizeof(alloc_header);
+        u64 storage_size = BSIZE_STORAGE;
+        u64 required_size = alignment + header_size + storage_size + size;
         // NOTE: This cast will only be an issue on allocations over ~4GiB
         BASSERT_MSG(required_size < 4294967295U, "dynamic_allocator_allocate_aligned called with required size > 4 GiB");
 
@@ -99,7 +101,7 @@ void* dynamic_allocator_allocate_aligned(dynamic_allocator* allocator, u64 size,
             // Get base pointer, or the unaligned memory block
             void* ptr = (void*)((u64)state->memory_block + base_offset);
             // Start the alignment after enough space to hold u32
-            u64 aligned_block_offset = get_aligned((u64)ptr + base_offset + BSIZE_STORAGE, alignment);
+            u64 aligned_block_offset = get_aligned((u64)ptr + BSIZE_STORAGE, alignment);
             // Store size just before user data block
             u32* block_size = (u32*)(aligned_block_offset - BSIZE_STORAGE);
             *block_size = (u32)size;
@@ -176,4 +178,9 @@ u64 dynamic_allocator_total_space(dynamic_allocator* allocator)
 {
     dynamic_allocator_state* state = allocator->memory;
     return state->total_size;
+}
+
+u64 dynamic_allocator_header_size()
+{
+    return sizeof(alloc_header) + BSIZE_STORAGE;
 }

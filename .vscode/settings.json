@@ -41,6 +41,9 @@
         "loader_utils.h": "c",
         "bitmap_font_loader.h": "c",
         "stdio.h": "c",
-        "render_view_system.h": "c"
+        "render_view_system.h": "c",
+        "material_system.h": "c",
+        "freelist_tests.h": "c",
+        "test_manager.h": "c"
     },
 }

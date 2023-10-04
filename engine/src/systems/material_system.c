@@ -231,7 +231,7 @@ material* material_system_acquire_from_config(material_config config)
             // Get uniform indices
             shader* s = shader_system_get_by_id(m->shader_id);
             // Save off locations for known types for quick lookups
-            if (state_ptr->material_shader_id == INVALID_ID && strings_equal(config.shader_name, BUILTIN_SHADER_NAME_MATERIAL))
+            if (state_ptr->material_shader_id == INVALID_ID && strings_equal(config.shader_name, "Shader.Builtin.Material"))
             {
                 state_ptr->material_shader_id = s->id;
                 state_ptr->material_locations.projection = shader_system_uniform_index(s, "projection");
@@ -246,7 +246,7 @@ material* material_system_acquire_from_config(material_config config)
                 state_ptr->material_locations.model = shader_system_uniform_index(s, "model");
                 state_ptr->material_locations.render_mode = shader_system_uniform_index(s, "mode");
             }
-            else if (state_ptr->ui_shader_id == INVALID_ID && strings_equal(config.shader_name, BUILTIN_SHADER_NAME_UI))
+            else if (state_ptr->ui_shader_id == INVALID_ID && strings_equal(config.shader_name, "Shader.Builtin.UI"))
             {
                 state_ptr->ui_shader_id = s->id;
                 state_ptr->ui_locations.projection = shader_system_uniform_index(s, "projection");
@@ -580,7 +580,7 @@ b8 create_default_material(material_system_state* state)
     state->default_material.normal_map.texture = texture_system_get_default_normal_texture();
 
     texture_map* maps[3] = {&state->default_material.diffuse_map, &state->default_material.specular_map, &state->default_material.normal_map};
-    shader* s = shader_system_get(BUILTIN_SHADER_NAME_MATERIAL);
+    shader* s = shader_system_get("Shader.Builtin.Material");
     if (!renderer_shader_acquire_instance_resources(s, maps, &state->default_material.internal_id))
     {
         BFATAL("Failed to acquire renderer resources for default material. Application cannot continue");

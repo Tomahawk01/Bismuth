@@ -117,5 +117,11 @@ typedef enum system_event_code {
     EVENT_CODE_DEBUG3 = 0x13,
     EVENT_CODE_DEBUG4 = 0x14,
 
+    // Hovered-over object id, if there is one
+    EVENT_CODE_OBJECT_HOVER_ID_CHANGED = 0x15,
+
+    // An event fired by renderer backend to indicate when any render targets associated with default window resources need to be refreshed
+    EVENT_CODE_DEFAULT_RENDERTARGET_REFRESH_REQUIRED = 0x16,
+
     MAX_EVENT_CODE = 0xFF
 } system_event_code;

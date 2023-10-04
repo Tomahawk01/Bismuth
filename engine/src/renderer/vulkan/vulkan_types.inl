@@ -86,9 +86,6 @@ typedef struct vulkan_renderpass
     f32 depth;
     u32 stencil;
 
-    b8 has_prev_pass;
-    b8 has_next_pass;
-
     vulkan_render_pass_state state;
 } vulkan_renderpass;
 
@@ -100,9 +97,9 @@ typedef struct vulkan_swapchain
 
     VkSwapchainKHR handle;
     u32 image_count;
-    texture** render_textures;
+    texture* render_textures;
 
-    texture* depth_texture;
+    texture* depth_textures;
 
     render_target render_targets[3];
 } vulkan_swapchain;
@@ -131,6 +128,25 @@ typedef struct vulkan_shader_stage
     VkShaderModule handle;
     VkPipelineShaderStageCreateInfo shader_stage_create_info;
 } vulkan_shader_stage;
+
+typedef struct vulkan_pipeline_config
+{
+    vulkan_renderpass* renderpass;
+    u32 stride;
+    u32 attribute_count;
+    VkVertexInputAttributeDescription* attributes;
+    u32 descriptor_set_layout_count;
+    VkDescriptorSetLayout* descriptor_set_layouts;
+    u32 stage_count;
+    VkPipelineShaderStageCreateInfo* stages;
+    VkViewport viewport;
+    VkRect2D scissor;
+    face_cull_mode cull_mode;
+    b8 is_wireframe;
+    u32 shader_flags;
+    u32 push_constant_range_count;
+    range* push_constant_ranges;
+} vulkan_pipeline_config;
 
 typedef struct vulkan_pipeline
 {
@@ -256,8 +272,6 @@ typedef struct vulkan_shader
     u8 local_uniform_count;
 } vulkan_shader;
 
-#define VULKAN_MAX_REGISTERED_RENDERPASSES 31
-
 typedef struct vulkan_context
 {
     f32 frame_delta_time;
@@ -267,6 +281,9 @@ typedef struct vulkan_context
 
     u64 framebuffer_size_generation;
     u64 framebuffer_size_last_generation;
+
+    vec4 viewport_rect;
+    vec4 scissor_rect;
 
     VkInstance instance;
     VkAllocationCallbacks* allocator;
@@ -279,11 +296,6 @@ typedef struct vulkan_context
     vulkan_device device;
 
     vulkan_swapchain swapchain;
-
-    void* renderpass_table_block;
-    hashtable renderpass_table;
-
-    renderpass registered_passes[VULKAN_MAX_REGISTERED_RENDERPASSES];
 
     renderbuffer object_vertex_buffer;
     renderbuffer object_index_buffer;
@@ -316,6 +328,4 @@ typedef struct vulkan_context
     b8 multithreading_enabled;
 
     i32 (*find_memory_index)(u32 type_filter, u32 property_flags);
-
-    void (*on_rendertarget_refresh_required)();
 } vulkan_context;

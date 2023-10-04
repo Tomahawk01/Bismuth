@@ -1409,3 +1409,34 @@ BINLINE f32 rad_to_deg(f32 radians)
 {
     return radians * B_RAD2DEG_MULTIPLIER;
 }
+
+BINLINE f32 range_convert_f32(f32 value, f32 old_min, f32 old_max, f32 new_min, f32 new_max)
+{
+    return (((value - old_min) * (new_max - new_min)) / (old_max - old_min)) + new_min;
+}
+
+BINLINE void rgbu_to_u32(u32 r, u32 g, u32 b, u32* out_u32)
+{
+    *out_u32 = (((r & 0x0FF) << 16) | ((g & 0x0FF) << 8) | (b & 0x0FF));
+}
+
+BINLINE void u32_to_rgb(u32 rgbu, u32* out_r, u32* out_g, u32* out_b)
+{
+    *out_r = (rgbu >> 16) & 0x0FF;
+    *out_g = (rgbu >> 8) & 0x0FF;
+    *out_b = (rgbu)&0x0FF;
+}
+
+BINLINE void rgb_u32_to_vec3(u32 r, u32 g, u32 b, vec3* out_v)
+{
+    out_v->r = r / 255.0f;
+    out_v->g = g / 255.0f;
+    out_v->b = b / 255.0f;
+}
+
+BINLINE void vec3_to_rgb_u32(vec3 v, u32* out_r, u32* out_g, u32* out_b)
+{
+    *out_r = v.r * 255;
+    *out_g = v.g * 255;
+    *out_b = v.b * 255;
+}

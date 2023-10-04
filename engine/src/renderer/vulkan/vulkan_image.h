@@ -22,9 +22,7 @@ void vulkan_image_view_create(
     vulkan_image* image,
     VkImageAspectFlags aspect_flags);
 
-/**
- * Transitions the provided image from old_layout to new_layout.
- */
+// Transitions provided image from old_layout to new_layout
 void vulkan_image_transition_layout(
     vulkan_context* context,
     texture_type type,
@@ -45,6 +43,22 @@ void vulkan_image_copy_from_buffer(
     texture_type type,
     vulkan_image* image,
     VkBuffer buffer,
+    vulkan_command_buffer* command_buffer);
+
+void vulkan_image_copy_to_buffer(
+    vulkan_context* context,
+    texture_type type,
+    vulkan_image* image,
+    VkBuffer buffer,
+    vulkan_command_buffer* command_buffer);
+
+void vulkan_image_copy_pixel_to_buffer(
+    vulkan_context* context,
+    texture_type type,
+    vulkan_image* image,
+    VkBuffer buffer,
+    u32 x,
+    u32 y,
     vulkan_command_buffer* command_buffer);
 
 void vulkan_image_destroy(vulkan_context* context, vulkan_image* image);
