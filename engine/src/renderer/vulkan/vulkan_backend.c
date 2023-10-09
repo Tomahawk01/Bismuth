@@ -2055,17 +2055,6 @@ b8 vulkan_renderer_shader_acquire_instance_resources(shader* s, texture_map** ma
         }
     }
 
-    // Wipe out memory for the entire array, even if it isn't all used
-    instance_state->instance_texture_maps = ballocate(sizeof(texture_map*) * s->instance_texture_count, MEMORY_TAG_ARRAY);
-    texture* default_texture = texture_system_get_default_texture();
-    bcopy_memory(instance_state->instance_texture_maps, maps, sizeof(texture_map*) * s->instance_texture_count);
-    // Set unassigned texture pointers to default until assigned
-    for (u32 i = 0; i < instance_texture_count; ++i)
-    {
-        if (!maps[i]->texture)
-            instance_state->instance_texture_maps[i]->texture = default_texture;
-    }
-
     // Allocate some space in the UBO
     u64 size = s->ubo_stride;
     if (size > 0)

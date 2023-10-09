@@ -276,6 +276,17 @@ b8 application_create(game* game_inst)
         return false;
     }
 
+    // Renderer system
+    renderer_system_initialize(&app_state->renderer_system_memory_requirement, 0, 0);
+    app_state->renderer_system_state = linear_allocator_allocate(&app_state->systems_allocator, app_state->renderer_system_memory_requirement);
+    if (!renderer_system_initialize(&app_state->renderer_system_memory_requirement, app_state->renderer_system_state, game_inst->app_config.name))
+    {
+        BFATAL("Failed to initialize renderer. Aborting application...");
+        return false;
+    }
+
+    b8 renderer_multithreaded = renderer_is_multithreaded();
+
     i32 thread_count = platform_get_processor_count() - 1;
     if (thread_count < 1)
     {
@@ -294,17 +305,6 @@ b8 application_create(game* game_inst)
         BTRACE("Available threads on the system is %i, but will be capped at %i", thread_count, max_thread_count);
         thread_count = max_thread_count;
     }
-
-    // Renderer system
-    renderer_system_initialize(&app_state->renderer_system_memory_requirement, 0, 0);
-    app_state->renderer_system_state = linear_allocator_allocate(&app_state->systems_allocator, app_state->renderer_system_memory_requirement);
-    if (!renderer_system_initialize(&app_state->renderer_system_memory_requirement, app_state->renderer_system_state, game_inst->app_config.name))
-    {
-        BFATAL("Failed to initialize renderer. Application shutting down...");
-        return false;
-    }
-
-    b8 renderer_multithreaded = renderer_is_multithreaded();
 
     // Initialize job system
     u32 job_thread_types[15];
@@ -517,6 +517,69 @@ b8 application_create(game* game_inst)
     if (!render_view_system_create(&ui_view_config))
     {
         BFATAL("Failed to create ui view. Aborting application...");
+        return false;
+    }
+
+    // Pick pass
+    render_view_config pick_view_config = {};
+    pick_view_config.type = RENDERER_VIEW_KNOWN_TYPE_PICK;
+    pick_view_config.width = 0;
+    pick_view_config.height = 0;
+    pick_view_config.name = "pick";
+    pick_view_config.view_matrix_source = RENDER_VIEW_VIEW_MATRIX_SOURCE_SCENE_CAMERA;
+
+    pick_view_config.pass_count = 2;
+    renderpass_config pick_passes[2] = {0};
+
+    // World pass
+    pick_passes[0].name = "Renderpass.Builtin.WorldPick";
+    pick_passes[0].render_area = (vec4){0, 0, 1280, 720};
+    pick_passes[0].clear_color = (vec4){1.0f, 1.0f, 1.0f, 1.0f}; // TODO: Clear to black, as 0 is invalid id
+    pick_passes[0].clear_flags = RENDERPASS_CLEAR_COLOR_BUFFER_FLAG | RENDERPASS_CLEAR_DEPTH_BUFFER_FLAG;
+    pick_passes[0].depth = 1.0f;
+    pick_passes[0].stencil = 0;
+
+    render_target_attachment_config world_pick_target_attachments[2];
+    world_pick_target_attachments[0].type = RENDER_TARGET_ATTACHMENT_TYPE_COLOR;
+    world_pick_target_attachments[0].source = RENDER_TARGET_ATTACHMENT_SOURCE_VIEW;  // Obtain attachment from the view
+    world_pick_target_attachments[0].load_operation = RENDER_TARGET_ATTACHMENT_LOAD_OPERATION_DONT_CARE;
+    world_pick_target_attachments[0].store_operation = RENDER_TARGET_ATTACHMENT_STORE_OPERATION_STORE;
+    world_pick_target_attachments[0].present_after = false;
+
+    world_pick_target_attachments[1].type = RENDER_TARGET_ATTACHMENT_TYPE_DEPTH;
+    world_pick_target_attachments[1].source = RENDER_TARGET_ATTACHMENT_SOURCE_VIEW;  // Obtain attachment from the view
+    world_pick_target_attachments[1].load_operation = RENDER_TARGET_ATTACHMENT_LOAD_OPERATION_DONT_CARE;
+    world_pick_target_attachments[1].store_operation = RENDER_TARGET_ATTACHMENT_STORE_OPERATION_STORE;
+    world_pick_target_attachments[1].present_after = false;
+
+    pick_passes[0].target.attachment_count = 2;
+    pick_passes[0].target.attachments = world_pick_target_attachments;
+    pick_passes[0].render_target_count = 1;
+
+    pick_passes[1].name = "Renderpass.Builtin.UIPick";
+    pick_passes[1].render_area = (vec4){0, 0, 1280, 720};
+    pick_passes[1].clear_color = (vec4){1.0f, 1.0f, 1.0f, 1.0f};
+    pick_passes[1].clear_flags = RENDERPASS_CLEAR_NONE_FLAG;
+    pick_passes[1].depth = 1.0f;
+    pick_passes[1].stencil = 0;
+
+    render_target_attachment_config ui_pick_target_attachments[1];
+    ui_pick_target_attachments[0].type = RENDER_TARGET_ATTACHMENT_TYPE_COLOR;
+    // Obtain attachment from the view
+    ui_pick_target_attachments[0].source = RENDER_TARGET_ATTACHMENT_SOURCE_VIEW;
+    ui_pick_target_attachments[0].load_operation = RENDER_TARGET_ATTACHMENT_LOAD_OPERATION_LOAD;
+    // Need to store it so it can be sampled afterward
+    ui_pick_target_attachments[0].store_operation = RENDER_TARGET_ATTACHMENT_STORE_OPERATION_STORE;
+    ui_pick_target_attachments[0].present_after = false;
+
+    pick_passes[1].target.attachment_count = 1;
+    pick_passes[1].target.attachments = ui_pick_target_attachments;
+    pick_passes[1].render_target_count = 1;
+
+    pick_view_config.passes = pick_passes;
+    if (!render_view_system_create(&pick_view_config))
+    {
+        BFATAL("Failed to create pick view. Aborting application...");
         return false;
     }
 
@@ -780,8 +843,8 @@ b8 application_run()
             packet.delta_time = delta;
 
             // TODO: read from file config
-            packet.view_count = 3;
-            render_view_packet views[3];
+            packet.view_count = 4;
+            render_view_packet views[4];
             bzero_memory(views, sizeof(render_view_packet) * packet.view_count);
             packet.views = views;
 
@@ -861,7 +924,7 @@ b8 application_run()
                 text_buffer,
                 "\
 FPS: %5.1f(%4.1fms)        Pos=[%7.3f %7.3f %7.3f] Rot=[%7.3f, %7.3f, %7.3f]\n\
-Mouse: X=%-5d Y=%-5d   L=%s R=%s   NDC: X=%.6f, Y=%.6f\n\
+Mouse: X=%-5d Y=%-5d   LMB=%s RMB=%s   NDC: X=%.6f, Y=%.6f\n\
 Hovered: %s%u",
                 fps,
                 ms_avg,
@@ -899,6 +962,19 @@ Hovered: %s%u",
             texts[1] = &app_state->test_sys_text;
             ui_packet.texts = texts;
             if (!render_view_system_build_packet(render_view_system_get("ui"), &ui_packet, &packet.views[2]))
+            {
+                BERROR("Failed to build packet for view 'ui'");
+                return false;
+            }
+
+            // Pick uses both world and ui packet data
+            pick_packet_data pick_packet = {};
+            pick_packet.ui_mesh_data = ui_packet.mesh_data;
+            pick_packet.world_mesh_data = world_mesh_data;
+            pick_packet.texts = ui_packet.texts;
+            pick_packet.text_count = ui_packet.text_count;
+
+            if (!render_view_system_build_packet(render_view_system_get("pick"), &pick_packet, &packet.views[3]))
             {
                 BERROR("Failed to build packet for view 'ui'");
                 return false;
@@ -961,6 +1037,8 @@ Hovered: %s%u",
     input_system_shutdown(app_state->input_system_state);
 
     font_system_shutdown(app_state->font_system_state);
+
+    render_view_system_shutdown(app_state->renderer_view_system_state);
 
     geometry_system_shutdown(app_state->geometry_system_state);
 

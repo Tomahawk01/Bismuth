@@ -249,7 +249,8 @@ typedef enum render_view_known_type
 {
     RENDERER_VIEW_KNOWN_TYPE_WORLD = 0x01,
     RENDERER_VIEW_KNOWN_TYPE_UI = 0x02,
-    RENDERER_VIEW_KNOWN_TYPE_SKYBOX = 0x03
+    RENDERER_VIEW_KNOWN_TYPE_SKYBOX = 0x03,
+    RENDERER_VIEW_KNOWN_TYPE_PICK = 0x04
 } render_view_known_type;
 
 typedef enum render_view_view_matrix_source
@@ -335,6 +336,17 @@ typedef struct ui_packet_data
     u32 text_count;
     struct ui_text** texts;
 } ui_packet_data;
+
+typedef struct pick_packet_data
+{
+    mesh_packet_data world_mesh_data;
+    u32 world_geometry_count;
+    mesh_packet_data ui_mesh_data;
+    u32 ui_geometry_count;
+    // TODO: temp
+    u32 text_count;
+    struct ui_text** texts;
+} pick_packet_data;
 
 typedef struct skybox_packet_data
 {
