@@ -228,10 +228,10 @@ render_view* render_view_system_get(const char* name)
     return 0;
 }
 
-b8 render_view_system_build_packet(const render_view* view, void* data, struct render_view_packet* out_packet)
+b8 render_view_system_build_packet(const render_view* view, struct linear_allocator* frame_allocator, void* data, struct render_view_packet* out_packet)
 {
     if (view && out_packet)
-        return view->on_build_packet(view, data, out_packet);
+        return view->on_build_packet(view, frame_allocator, data, out_packet);
 
     BERROR("render_view_system_build_packet requires valid pointers to a view and a packet");
     return false;

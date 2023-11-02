@@ -1,6 +1,8 @@
 #pragma once
 
 #include "defines.h"
+#include "systems/font_system.h"
+#include "renderer/renderer_types.inl"
 
 struct game;
 
@@ -12,6 +14,8 @@ typedef struct application_config
     i16 start_width;
     i16 start_height;
     char* name;
+    font_system_config font_config;
+    render_view_config* render_views;
 } application_config;
 
 BAPI b8 application_create(struct game* game_inst);

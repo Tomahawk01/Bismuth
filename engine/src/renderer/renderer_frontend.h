@@ -65,8 +65,8 @@ void renderer_render_target_destroy(render_target* target, b8 free_internal_memo
 texture* renderer_window_attachment_get(u8 index);
 texture* renderer_depth_attachment_get(u8 index);
 
-u8 renderer_window_attachment_index_get();
-u8 renderer_window_attachment_count_get();
+BAPI u8 renderer_window_attachment_index_get();
+BAPI u8 renderer_window_attachment_count_get();
 
 b8 renderer_renderpass_create(const renderpass_config* config, renderpass* out_renderpass);
 void renderer_renderpass_destroy(renderpass* pass);

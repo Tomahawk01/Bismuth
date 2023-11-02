@@ -44,6 +44,8 @@
         "render_view_system.h": "c",
         "material_system.h": "c",
         "freelist_tests.h": "c",
-        "test_manager.h": "c"
+        "test_manager.h": "c",
+        "shader_system.h": "c",
+        "job_system.h": "c"
     },
 }

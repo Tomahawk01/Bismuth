@@ -251,14 +251,6 @@ typedef struct mesh
     transform transform;
 } mesh;
 
-typedef struct skybox
-{
-    texture_map cubemap;
-    geometry* g;
-    u32 instance_id;
-    u64 render_frame_number;
-} skybox;
-
 // Shader stages available in the system
 typedef enum shader_stage
 {
