@@ -120,3 +120,15 @@ typedef struct transform
     mat4 local;
     struct transform* parent;
 } transform;
+
+typedef struct plane_3d
+{
+    vec3 normal;
+    f32 distance;
+} plane_3d;
+
+typedef struct frustum
+{
+    // Top, bottom, right, left, far, near
+    plane_3d sides[6];
+} frustum;

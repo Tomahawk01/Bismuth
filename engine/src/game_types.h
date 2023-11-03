@@ -5,6 +5,12 @@
 
 struct render_packet;
 
+typedef struct game_frame_data
+{
+    // darray of world geometries to be rendered this frame
+    geometry_render_data* world_geometries;
+} game_frame_data;
+
 typedef struct game
 {
     // The application configuration
@@ -39,4 +45,7 @@ typedef struct game
 
     // Allocator used for allocations needing to be made every frame. Contents are wiped at the beginning of the frame
     linear_allocator frame_allocator;
+
+    // Data which is built up, used and discarded every frame
+    game_frame_data frame_data;
 } game;

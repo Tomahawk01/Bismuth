@@ -28,6 +28,7 @@ BAPI vec3 camera_forward(camera* c);
 BAPI vec3 camera_backward(camera* c);
 BAPI vec3 camera_left(camera* c);
 BAPI vec3 camera_right(camera* c);
+BAPI vec3 camera_up(camera* c);
 
 BAPI void camera_move_forward(camera* c, f32 amount);
 BAPI void camera_move_backward(camera* c, f32 amount);

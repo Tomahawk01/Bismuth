@@ -287,8 +287,8 @@ b8 game_initialize(game* game_inst)
     string_ncopy(ui_config.material_name, "test_ui_material", MATERIAL_NAME_MAX_LENGTH);
     string_ncopy(ui_config.name, "test_ui_geometry", GEOMETRY_NAME_MAX_LENGTH);
 
-    const f32 w = 128.0f;
-    const f32 h = 32.0f;
+    const f32 w = 192.0f;
+    const f32 h = 48.0f;
     vertex_2d uiverts[4];
     uiverts[0].position.x = 0.0f;  // 0    3
     uiverts[0].position.y = 0.0f;  //
@@ -337,6 +337,8 @@ b8 game_initialize(game* game_inst)
     event_register(EVENT_CODE_KEY_PRESSED, game_inst, game_on_key);
     event_register(EVENT_CODE_KEY_RELEASED, game_inst, game_on_key);
 
+    bzero_memory(&game_inst->frame_data, sizeof(game_frame_data));
+
     return true;
 }
 
@@ -362,8 +364,17 @@ void game_shutdown(game* game_inst)
 
 b8 game_update(game* game_inst, f32 delta_time)
 {
+    if (game_inst->frame_data.world_geometries)
+    {
+        darray_destroy(game_inst->frame_data.world_geometries);
+        game_inst->frame_data.world_geometries = 0;
+    }
+
     // Reset frame allocator
     linear_allocator_free_all(&game_inst->frame_allocator);
+
+    // Clear frame data
+    bzero_memory(&game_inst->frame_data, sizeof(game_frame_data));
 
     static u64 alloc_count = 0;
     u64 prev_alloc_count = alloc_count;
@@ -500,13 +511,61 @@ b8 game_update(game* game_inst, f32 delta_time)
     f64 fps, frame_time;
     metrics_frame(&fps, &frame_time);
 
+    // Update frustum
+    vec3 forward = camera_forward(state->world_camera);
+    vec3 right = camera_right(state->world_camera);
+    vec3 up = camera_up(state->world_camera);
+    // TODO: get camera fov, aspect, etc
+    state->camera_frustum = frustum_create(&state->world_camera->position, &forward, &right, &up, (f32)state->width / state->height, deg_to_rad(45.0f), 0.1f, 1000.0f);
+
+    game_inst->frame_data.world_geometries = darray_reserve(geometry_render_data, 512);
+    u32 draw_count = 0;
+    for (u32 i = 0; i < 10; ++i)
+    {
+        mesh* m = &state->meshes[i];
+        if (m->generation != INVALID_ID_U8)
+        {
+            mat4 model = transform_get_world(&m->transform);
+
+            for (u32 j = 0; j < m->geometry_count; ++j)
+            {
+                geometry* g = m->geometries[j];
+
+                // AABB calculation
+                {
+                    // Translate/scale the extents
+                    vec3 extents_max = vec3_mul_mat4(g->extents.max, model);
+
+                    // Translate/scale the center
+                    vec3 center = vec3_mul_mat4(g->center, model);
+                    vec3 half_extents = {
+                        babs(extents_max.x - center.x),
+                        babs(extents_max.y - center.y),
+                        babs(extents_max.z - center.z),
+                    };
+
+                    if (frustum_intersects_aabb(&state->camera_frustum, &center, &half_extents))
+                    {
+                        geometry_render_data data = {0};
+                        data.model = model;
+                        data.geometry = g;
+                        data.unique_id = m->unique_id;
+                        darray_push(game_inst->frame_data.world_geometries, data);
+
+                        draw_count++;
+                    }
+                }
+            }
+        }
+    }
+
     char text_buffer[256];
     string_format(
         text_buffer,
         "\
 FPS: %5.1f(%4.1fms)        Pos=[%7.3f %7.3f %7.3f] Rot=[%7.3f, %7.3f, %7.3f]\n\
 Mouse: X=%-5d Y=%-5d   LMB=%s RMB=%s   NDC: X=%.6f, Y=%.6f\n\
-Hovered: %s%u",
+Drawn: %-5u Hovered: %s%u",
         fps,
         frame_time,
         pos.x, pos.y, pos.z,
@@ -516,6 +575,7 @@ Hovered: %s%u",
         right_down ? "Y" : "N",
         mouse_x_ndc,
         mouse_y_ndc,
+        draw_count,
         state->hovered_object_id == INVALID_ID ? "none" : "",
         state->hovered_object_id == INVALID_ID ? 0 : state->hovered_object_id);
     ui_text_set_text(&state->test_text, text_buffer);
@@ -543,24 +603,8 @@ b8 game_render(game* game_inst, struct render_packet* packet, f32 delta_time)
     }
 
     // World
-    mesh_packet_data world_mesh_data = {};
-
-    u32 mesh_count = 0;
-    u32 max_meshes = 10;
-    mesh** meshes = linear_allocator_allocate(&game_inst->frame_allocator, sizeof(mesh*) * max_meshes);
-    for (u32 i = 0; i < max_meshes; ++i)
-    {
-        if (state->meshes[i].generation != INVALID_ID_U8)
-        {
-            meshes[mesh_count] = &state->meshes[i];
-            mesh_count++;
-        }
-    }
-    world_mesh_data.mesh_count = mesh_count;
-    world_mesh_data.meshes = meshes;
-
     // TODO: performs lookup on every frame
-    if (!render_view_system_build_packet(render_view_system_get("world"), &game_inst->frame_allocator, &world_mesh_data, &packet->views[1]))
+    if (!render_view_system_build_packet(render_view_system_get("world"), &game_inst->frame_allocator, game_inst->frame_data.world_geometries, &packet->views[1]))
     {
         BERROR("Failed to build packet for view 'world_opaque'");
         return false;
@@ -598,7 +642,7 @@ b8 game_render(game* game_inst, struct render_packet* packet, f32 delta_time)
     // Pick uses both world and ui packet data
     pick_packet_data pick_packet = {};
     pick_packet.ui_mesh_data = ui_packet.mesh_data;
-    pick_packet.world_mesh_data = world_mesh_data;
+    pick_packet.world_mesh_data = game_inst->frame_data.world_geometries;
     pick_packet.texts = ui_packet.texts;
     pick_packet.text_count = ui_packet.text_count;
 

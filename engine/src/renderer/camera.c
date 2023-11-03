@@ -110,6 +110,16 @@ vec3 camera_right(camera* c)
     return vec3_zero();
 }
 
+vec3 camera_up(camera* c)
+{
+    if (c)
+    {
+        mat4 view = camera_view_get(c);
+        return mat4_up(view);
+    }
+    return vec3_zero();
+}
+
 void camera_move_forward(camera* c, f32 amount)
 {
     if (c)

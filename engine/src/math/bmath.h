@@ -1198,6 +1198,40 @@ BINLINE vec3 mat4_right(mat4 matrix)
     return right;
 }
 
+BINLINE vec3 mat4_mul_vec3(mat4 m, vec3 v)
+{
+    return (vec3) {
+        v.x * m.data[0] + v.y * m.data[1] + v.z * m.data[2] + m.data[3],
+        v.x * m.data[4] + v.y * m.data[5] + v.z * m.data[6] + m.data[7],
+        v.x * m.data[8] + v.y * m.data[9] + v.z * m.data[10] + m.data[11]};
+}
+
+BINLINE vec3 vec3_mul_mat4(vec3 v, mat4 m)
+{
+    return (vec3) {
+        v.x * m.data[0] + v.y * m.data[4] + v.z * m.data[8] + m.data[12],
+        v.x * m.data[1] + v.y * m.data[5] + v.z * m.data[9] + m.data[13],
+        v.x * m.data[2] + v.y * m.data[6] + v.z * m.data[10] + m.data[14]};
+}
+
+BINLINE vec4 mat4_mul_vec4(mat4 m, vec4 v)
+{
+    return (vec4) {
+        v.x * m.data[0] + v.y * m.data[1] + v.z * m.data[2] + v.w * m.data[3],
+        v.x * m.data[4] + v.y * m.data[5] + v.z * m.data[6] + v.w * m.data[7],
+        v.x * m.data[8] + v.y * m.data[9] + v.z * m.data[10] + v.w * m.data[11],
+        v.x * m.data[12] + v.y * m.data[13] + v.z * m.data[14] + v.w * m.data[15]};
+}
+
+BINLINE vec4 vec4_mul_mat4(vec4 v, mat4 m)
+{
+    return (vec4) {
+        v.x * m.data[0] + v.y * m.data[4] + v.z * m.data[8] + v.w * m.data[12],
+        v.x * m.data[1] + v.y * m.data[5] + v.z * m.data[9] + v.w * m.data[13],
+        v.x * m.data[2] + v.y * m.data[6] + v.z * m.data[10] + v.w * m.data[14],
+        v.x * m.data[3] + v.y * m.data[7] + v.z * m.data[11] + v.w * m.data[15]};
+}
+
 // --------------------------------------------------------------------------------
 // ---------------------------------- Quaternion ----------------------------------
 // --------------------------------------------------------------------------------
@@ -1440,3 +1474,17 @@ BINLINE void vec3_to_rgb_u32(vec3 v, u32* out_r, u32* out_g, u32* out_b)
     *out_g = v.g * 255;
     *out_b = v.b * 255;
 }
+
+BAPI plane_3d plane_3d_create(vec3 p1, vec3 norm);
+
+BAPI frustum frustum_create(const vec3* position, const vec3* forward, const vec3* right, const vec3* up, f32 aspect, f32 fov, f32 near, f32 far);
+
+BAPI f32 plane_signed_distance(const plane_3d* p, const vec3* position);
+
+BAPI b8 plane_intersects_sphere(const plane_3d* p, const vec3* center, f32 radius);
+
+BAPI b8 frustum_intersects_sphere(const frustum* f, const vec3* center, f32 radius);
+
+BAPI b8 plane_intersects_aabb(const plane_3d* p, const vec3* center, const vec3* extents);
+
+BAPI b8 frustum_intersects_aabb(const frustum* f, const vec3* center, const vec3* extents);

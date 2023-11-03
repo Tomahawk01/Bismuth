@@ -124,3 +124,6 @@ BINLINE range get_aligned_range(offset, size, granularity)
 {
     return (range){get_aligned(offset, granularity), get_aligned(size, granularity)};
 }
+
+#define BMIN(x, y) (x < y ? x : y)
+#define BMAX(x, y) (x > y ? x : y)
