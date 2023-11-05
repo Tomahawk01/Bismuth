@@ -2,6 +2,8 @@
 
 #include "defines.h"
 
+struct keymap;
+
 typedef enum buttons
 {
     BUTTON_LEFT,
@@ -188,3 +190,7 @@ void input_process_mouse_move(i16 x, i16 y);
 void input_process_mouse_wheel(i8 z_delta);
 
 BAPI const char* input_keycode_str(keys key);
+
+BAPI void input_keymap_push(const struct keymap* map);
+
+BAPI void input_keymap_pop();

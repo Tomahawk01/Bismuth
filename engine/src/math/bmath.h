@@ -17,6 +17,9 @@
 #define B_DEG2RAD_MULTIPLIER B_PI / 180.0f
 #define B_RAD2DEG_MULTIPLIER 180.0f / B_PI
 
+// Multiplier to convert seconds to microseconds
+#define B_SEC_TO_US_MULTIPLIER (1000.0f * 1000.0f)
+
 // Multiplier to convert seconds to milliseconds
 #define B_SEC_TO_MS_MULTIPLIER 1000.0f
 

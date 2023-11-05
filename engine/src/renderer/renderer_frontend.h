@@ -73,6 +73,9 @@ void renderer_renderpass_destroy(renderpass* pass);
 
 b8 renderer_is_multithreaded();
 
+BAPI b8 renderer_flag_enabled(renderer_config_flags flag);
+BAPI void renderer_flag_set_enabled(renderer_config_flags flag, b8 enabled);
+
 b8 renderer_renderbuffer_create(renderbuffer_type type, u64 total_size, b8 use_freelist, renderbuffer* out_buffer);
 void renderer_renderbuffer_destroy(renderbuffer* buffer);
 

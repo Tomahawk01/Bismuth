@@ -225,3 +225,27 @@ BAPI void string_directory_from_path(char* dest, const char* path);
 BAPI void string_filename_from_path(char* dest, const char* path);
 
 BAPI void string_filename_no_extension_from_path(char* dest, const char* path);
+
+// -----------------------------
+// ========== BString ==========
+// -----------------------------
+
+typedef struct bstring
+{
+    // Current length of the string in bytes
+    u32 length;
+    // Amount of currently allocated memory
+    u32 allocated;
+    // TRaw string data
+    char* data;
+} bstring;
+
+BAPI void bstring_create(bstring* out_string);
+BAPI void bstring_from_cstring(const char* source, bstring* out_string);
+BAPI void bstring_destroy(bstring* string);
+
+BAPI u32 bstring_length(const bstring* string);
+BAPI u32 bstring_utf8_length(const bstring* string);
+
+BAPI void bstring_append_str(bstring* string, const char* s);
+BAPI void bstring_append_bstring(bstring* string, const bstring* other);

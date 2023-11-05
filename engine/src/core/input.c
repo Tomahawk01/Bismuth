@@ -2,6 +2,8 @@
 #include "core/event.h"
 #include "core/bmemory.h"
 #include "core/logger.h"
+#include "core/keymap.h"
+#include "containers/stack.h"
 
 typedef struct keyboard_state
 {
@@ -21,10 +23,14 @@ typedef struct input_state
     keyboard_state keyboard_previous;
     mouse_state mouse_current;
     mouse_state mouse_previous;
+
+    stack keymap_stack;
 } input_state;
 
 // Internal input state_ptr
 static input_state* state_ptr;
+
+b8 check_modifiers(keymap_modifier modifiers);
 
 void input_system_initialize(u64* memory_requirement, void* state)
 {
@@ -33,6 +39,10 @@ void input_system_initialize(u64* memory_requirement, void* state)
         return;
     bzero_memory(state, sizeof(input_state));
     state_ptr = state;
+
+    // Create keymap stack
+    stack_create(&state_ptr->keymap_stack, sizeof(keymap));
+
     BINFO("Input subsystem initialized");
 }
 
@@ -47,9 +57,68 @@ void input_update(f64 delta_time)
     if (!state_ptr)
         return;
     
+    // Handle hold bindings
+    for (u32 k = 0; k < KEYS_MAX_KEYS; ++k)
+    {
+        keys key = (keys)k;
+        if (input_is_key_down(key) && input_was_key_down(key))
+        {
+            u32 map_count = state_ptr->keymap_stack.element_count;
+            keymap* maps = (keymap*)state_ptr->keymap_stack.memory;
+            for (i32 m = map_count - 1; m >= 0; --m)
+            {
+                keymap* map = &maps[m];
+                keymap_binding* binding = &map->entries[key].bindings[0];
+                b8 unset = false;
+                while (binding)
+                {
+                    // If unset is detected, stop processing
+                    if (binding->type == KEYMAP_BIND_TYPE_UNSET)
+                    {
+                        unset = true;
+                        break;
+                    }
+                    else if (binding->type == KEYMAP_BIND_TYPE_HOLD)
+                    {
+                        if (binding->callback && check_modifiers(binding->modifiers))
+                        {
+                            binding->callback(key, binding->type, binding->modifiers, binding->user_data);
+                        }
+                    }
+
+                    binding = binding->next;
+                }
+                // If unset is detected or map is marked to override all, stop processing
+                if (unset || map->overrides_all)
+                    break;
+            }
+        }
+    }
+    
     // Copy current states to previous states
     bcopy_memory(&state_ptr->keyboard_previous, &state_ptr->keyboard_current, sizeof(keyboard_state));
     bcopy_memory(&state_ptr->mouse_previous, &state_ptr->mouse_current, sizeof(mouse_state));
+}
+
+b8 check_modifiers(keymap_modifier modifiers)
+{
+    if (modifiers & KEYMAP_MODIFIER_SHIFT_BIT)
+    {
+        if (!input_is_key_down(KEY_SHIFT) && !input_is_key_down(KEY_LSHIFT) && !input_is_key_down(KEY_RSHIFT))
+            return false;
+    }
+    if (modifiers & KEYMAP_MODIFIER_CONTROL_BIT)
+    {
+        if (!input_is_key_down(KEY_CONTROL) && !input_is_key_down(KEY_LCONTROL) && !input_is_key_down(KEY_RCONTROL))
+            return false;
+    }
+    if (modifiers & KEYMAP_MODIFIER_ALT_BIT)
+    {
+        if (!input_is_key_down(KEY_LALT) && !input_is_key_down(KEY_RALT))
+            return false;
+    }
+
+    return true;
 }
 
 void input_process_key(keys key, b8 pressed)
@@ -84,6 +153,40 @@ void input_process_key(keys key, b8 pressed)
         else if (key == KEY_RSHIFT)
         {
             BINFO("Right shift %s.", pressed ? "pressed" : "released");
+        }
+
+        // Check for key bindings
+        // Iterate keymaps top-down on the stack
+        u32 map_count = state_ptr->keymap_stack.element_count;
+        keymap* maps = (keymap*)state_ptr->keymap_stack.memory;
+        for (i32 m = map_count - 1; m >= 0; --m)
+        {
+            keymap* map = &maps[m];
+            keymap_binding* binding = &map->entries[key].bindings[0];
+            b8 unset = false;
+            while (binding)
+            {
+                // If unset is detected, stop processing
+                if (binding->type == KEYMAP_BIND_TYPE_UNSET)
+                {
+                    unset = true;
+                    break;
+                }
+                else if (pressed && binding->type == KEYMAP_BIND_TYPE_PRESS)
+                {
+                    if (binding->callback && check_modifiers(binding->modifiers))
+                        binding->callback(key, binding->type, binding->modifiers, binding->user_data);
+                } else if (!pressed && binding->type == KEYMAP_BIND_TYPE_RELEASE)
+                {
+                    if (binding->callback && check_modifiers(binding->modifiers))
+                        binding->callback(key, binding->type, binding->modifiers, binding->user_data);
+                }
+
+                binding = binding->next;
+            }
+            // If unset is detected or map is marked to override all, stop processing
+            if (unset || map->overrides_all)
+                break;
         }
 
         // Fire off an event for immediate processing
@@ -495,5 +598,32 @@ const char* input_keycode_str(keys key)
 
         default:
             return "undefined";
+    }
+}
+
+void input_keymap_push(const keymap* map)
+{
+    if (state_ptr && map)
+    {
+        // Add keymap to the stack, then apply it
+        if (!stack_push(&state_ptr->keymap_stack, (void*)map))
+        {
+            BERROR("Failed to push keymap!");
+            return;
+        }
+    }
+}
+
+void input_keymap_pop()
+{
+    if (state_ptr)
+    {
+        // Pop keymap from the stack, then re-apply the stack
+        keymap popped;
+        if (!stack_pop(&state_ptr->keymap_stack, &popped))
+        {
+            BERROR("Failed to pop keymap!");
+            return;
+        }
     }
 }

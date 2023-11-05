@@ -4,6 +4,7 @@
 #include "platform/filesystem.h"
 #include "core/bstring.h"
 #include "core/bmemory.h"
+#include "console.h"
 
 // TODO: TEMPORARY
 #include <stdarg.h>
@@ -66,6 +67,9 @@ void log_output(log_level level, const char* message, ...)
 
     // Prepend log level to message
     string_format(out_message, "%s%s\n", level_strings[level], out_message);
+
+    // Pass to console
+    console_write_line(level, out_message);
 
     if (is_error)
         platform_console_write_error(out_message, level);

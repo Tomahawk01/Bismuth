@@ -5,17 +5,18 @@
 #include "vulkan_image.h"
 #include "systems/texture_system.h"
 
-void create(vulkan_context* context, u32 width, u32 height, vulkan_swapchain* swapchain);
+void create(vulkan_context* context, u32 width, u32 height, renderer_config_flags flags, vulkan_swapchain* swapchain);
 void destroy(vulkan_context* context, vulkan_swapchain* swapchain);
 
 void vulkan_swapchain_create(
     vulkan_context* context,
     u32 width,
     u32 height,
+    renderer_config_flags flags,
     vulkan_swapchain* out_swapchain)
 {
     // Create a new one
-    create(context, width, height, out_swapchain);
+    create(context, width, height, flags, out_swapchain);
 }
 
 void vulkan_swapchain_recreate(
@@ -26,7 +27,7 @@ void vulkan_swapchain_recreate(
 {
     // Destroy old and create a new one
     destroy(context, swapchain);
-    create(context, width, height, swapchain);
+    create(context, width, height, swapchain->flags, swapchain);
 }
 
 void vulkan_swapchain_destroy(
@@ -99,7 +100,7 @@ void vulkan_swapchain_present(
     context->current_frame = (context->current_frame + 1) % swapchain->max_frames_in_flight;
 }
 
-void create(vulkan_context* context, u32 width, u32 height, vulkan_swapchain* swapchain)
+void create(vulkan_context* context, u32 width, u32 height, renderer_config_flags flags, vulkan_swapchain* swapchain)
 {
     VkExtent2D swapchain_extent = {width, height};
 
@@ -120,15 +121,28 @@ void create(vulkan_context* context, u32 width, u32 height, vulkan_swapchain* sw
     if (!found)
         swapchain->image_format = context->device.swapchain_support.formats[0];
 
-    VkPresentModeKHR present_mode = VK_PRESENT_MODE_FIFO_KHR;
-    for (u32 i = 0; i < context->device.swapchain_support.present_mode_count; ++i)
+    swapchain->flags = flags;
+    VkPresentModeKHR present_mode;
+    if (flags & RENDERER_CONFIG_FLAG_VSYNC_ENABLED_BIT)
     {
-        VkPresentModeKHR mode = context->device.swapchain_support.present_modes[i];
-        if (mode == VK_PRESENT_MODE_MAILBOX_KHR)
+        present_mode = VK_PRESENT_MODE_FIFO_KHR;
+
+        if ((flags & RENDERER_CONFIG_FLAG_POWER_SAVING_BIT) == 0)
         {
-            present_mode = mode;
-            break;
-        } 
+            for (u32 i = 0; i < context->device.swapchain_support.present_mode_count; ++i)
+            {
+                VkPresentModeKHR mode = context->device.swapchain_support.present_modes[i];
+                if (mode == VK_PRESENT_MODE_MAILBOX_KHR)
+                {
+                    present_mode = mode;
+                    break;
+                }
+            }
+        }
+    }
+    else
+    {
+        present_mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
     }
     
     // Requery swapchain support

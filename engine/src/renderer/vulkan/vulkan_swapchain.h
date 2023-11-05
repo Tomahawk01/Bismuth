@@ -6,6 +6,7 @@ void vulkan_swapchain_create(
     vulkan_context* context,
     u32 width,
     u32 height,
+    renderer_config_flags flags,
     vulkan_swapchain* out_swapchain);
 
 void vulkan_swapchain_recreate(

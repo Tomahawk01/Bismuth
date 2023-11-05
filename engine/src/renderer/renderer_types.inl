@@ -144,9 +144,19 @@ typedef struct renderbuffer
     void* internal_data;
 } renderbuffer;
 
+typedef enum renderer_config_flag_bits
+{
+    RENDERER_CONFIG_FLAG_VSYNC_ENABLED_BIT = 0x1,
+    // Configures the renderer backend in a way that conserves power where possible. (Usefull for mobile)
+    RENDERER_CONFIG_FLAG_POWER_SAVING_BIT = 0x2,
+} renderer_config_flag_bits;
+
+typedef u32 renderer_config_flags;
+
 typedef struct renderer_backend_config
 {
     const char* application_name;
+    renderer_config_flags flags;
 } renderer_backend_config;
 
 typedef struct renderer_backend
@@ -222,6 +232,9 @@ typedef struct renderer_backend
     u8 (*window_attachment_count_get)();
 
     b8 (*is_multithreaded)();
+
+    b8 (*flag_enabled)(renderer_config_flags flag);
+    void (*flag_set_enabled)(renderer_config_flags flag, b8 enabled);
 
     b8 (*renderbuffer_create_internal)(renderbuffer* buffer);
     void (*renderbuffer_destroy_internal)(renderbuffer* buffer);
