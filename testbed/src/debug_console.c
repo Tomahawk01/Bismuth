@@ -183,6 +183,15 @@ b8 debug_console_load()
     return true;
 }
 
+void debug_console_unload()
+{
+    if (state_ptr)
+    {
+        ui_text_destroy(&state_ptr->text_control);
+        ui_text_destroy(&state_ptr->entry_control);
+    }
+}
+
 void debug_console_update()
 {
     if (state_ptr && state_ptr->dirty)

@@ -18,7 +18,7 @@ static metrics_state* state_ptr = 0;
 void metrics_initialize()
 {
     if (!state_ptr)
-        state_ptr = ballocate(sizeof(metrics_state), MEMORY_TAG_APPLICATION);
+        state_ptr = ballocate(sizeof(metrics_state), MEMORY_TAG_ENGINE);
 }
 
 void metrics_update(f64 frame_elapsed_time)

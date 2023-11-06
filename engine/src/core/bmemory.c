@@ -25,7 +25,7 @@ static const char* memory_tag_strings[MEMORY_TAG_MAX_TAGS] =
     "RING_QUEUE  ",
     "BST         ",
     "STRING      ",
-    "APPLICATION ",
+    "ENGINE      ",
     "JOB         ",
     "TEXTURE     ",
     "MAT_INST    ",

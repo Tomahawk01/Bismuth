@@ -4,7 +4,7 @@
 #include "systems/font_system.h"
 #include "renderer/renderer_types.inl"
 
-struct game;
+struct application;
 
 // Application configuration
 typedef struct application_config
@@ -18,8 +18,6 @@ typedef struct application_config
     render_view_config* render_views;
 } application_config;
 
-BAPI b8 application_create(struct game* game_inst);
+BAPI b8 engine_create(struct application* game_inst);
 
-BAPI b8 application_run();
-
-void application_get_framebuffer_size(u32* width, u32* height);
+BAPI b8 engine_run();

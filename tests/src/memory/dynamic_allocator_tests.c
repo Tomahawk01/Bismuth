@@ -15,7 +15,7 @@ u8 dynamic_allocator_should_create_and_destroy()
     expect_to_be_true(result);
 
     // Actually create allocator
-    void* memory = ballocate(memory_requirement, MEMORY_TAG_APPLICATION);
+    void* memory = ballocate(memory_requirement, MEMORY_TAG_ENGINE);
     result = dynamic_allocator_create(1024, &memory_requirement, memory, &alloc);
     expect_to_be_true(result);
     expect_should_not_be(0, alloc.memory);
@@ -25,7 +25,7 @@ u8 dynamic_allocator_should_create_and_destroy()
     // Destroy allocator
     dynamic_allocator_destroy(&alloc);
     expect_should_be(0, alloc.memory);
-    bfree(memory, memory_requirement, MEMORY_TAG_APPLICATION);
+    bfree(memory, memory_requirement, MEMORY_TAG_ENGINE);
     return true;
 }
 
@@ -42,7 +42,7 @@ u8 dynamic_allocator_single_allocation_all_space()
     expect_to_be_true(result);
 
     // Actually create allocator
-    void* memory = ballocate(memory_requirement, MEMORY_TAG_APPLICATION);
+    void* memory = ballocate(memory_requirement, MEMORY_TAG_ENGINE);
     result = dynamic_allocator_create(total_allocator_size, &memory_requirement, memory, &alloc);
     expect_to_be_true(result);
     expect_should_not_be(0, alloc.memory);
@@ -67,7 +67,7 @@ u8 dynamic_allocator_single_allocation_all_space()
     // Destroy allocator
     dynamic_allocator_destroy(&alloc);
     expect_should_be(0, alloc.memory);
-    bfree(memory, memory_requirement, MEMORY_TAG_APPLICATION);
+    bfree(memory, memory_requirement, MEMORY_TAG_ENGINE);
     return true;
 }
 
@@ -87,7 +87,7 @@ u8 dynamic_allocator_multi_allocation_all_space()
     expect_to_be_true(result);
 
     // Actually create allocator
-    void* memory = ballocate(memory_requirement, MEMORY_TAG_APPLICATION);
+    void* memory = ballocate(memory_requirement, MEMORY_TAG_ENGINE);
     result = dynamic_allocator_create(total_allocator_size, &memory_requirement, memory, &alloc);
     expect_to_be_true(result);
     expect_should_not_be(0, alloc.memory);
@@ -142,7 +142,7 @@ u8 dynamic_allocator_multi_allocation_all_space()
     // Destroy allocator
     dynamic_allocator_destroy(&alloc);
     expect_should_be(0, alloc.memory);
-    bfree(memory, memory_requirement, MEMORY_TAG_APPLICATION);
+    bfree(memory, memory_requirement, MEMORY_TAG_ENGINE);
     return true;
 }
 
@@ -162,7 +162,7 @@ u8 dynamic_allocator_multi_allocation_over_allocate()
     expect_to_be_true(result);
 
     // Actually create allocator
-    void* memory = ballocate(memory_requirement, MEMORY_TAG_APPLICATION);
+    void* memory = ballocate(memory_requirement, MEMORY_TAG_ENGINE);
     result = dynamic_allocator_create(total_allocator_size, &memory_requirement, memory, &alloc);
     expect_to_be_true(result);
     expect_should_not_be(0, alloc.memory);
@@ -205,7 +205,7 @@ u8 dynamic_allocator_multi_allocation_over_allocate()
     // Destroy allocator
     dynamic_allocator_destroy(&alloc);
     expect_should_be(0, alloc.memory);
-    bfree(memory, memory_requirement, MEMORY_TAG_APPLICATION);
+    bfree(memory, memory_requirement, MEMORY_TAG_ENGINE);
     return true;
 }
 
@@ -225,7 +225,7 @@ u8 dynamic_allocator_multi_allocation_most_space_request_too_big()
     expect_to_be_true(result);
 
     // Actually create allocator
-    void* memory = ballocate(memory_requirement, MEMORY_TAG_APPLICATION);
+    void* memory = ballocate(memory_requirement, MEMORY_TAG_ENGINE);
     result = dynamic_allocator_create(total_allocator_size, &memory_requirement, memory, &alloc);
     expect_to_be_true(result);
     expect_should_not_be(0, alloc.memory);
@@ -268,7 +268,7 @@ u8 dynamic_allocator_multi_allocation_most_space_request_too_big()
     // Destroy allocator
     dynamic_allocator_destroy(&alloc);
     expect_should_be(0, alloc.memory);
-    bfree(memory, memory_requirement, MEMORY_TAG_APPLICATION);
+    bfree(memory, memory_requirement, MEMORY_TAG_ENGINE);
     return true;
 }
 
@@ -285,7 +285,7 @@ u8 dynamic_allocator_single_alloc_aligned()
     expect_to_be_true(result);
 
     // Create allocator
-    void* memory = ballocate(memory_requirement, MEMORY_TAG_APPLICATION);
+    void* memory = ballocate(memory_requirement, MEMORY_TAG_ENGINE);
     result = dynamic_allocator_create(total_allocator_size, &memory_requirement, memory, &alloc);
     expect_to_be_true(result);
     expect_should_not_be(0, alloc.memory);
@@ -317,7 +317,7 @@ u8 dynamic_allocator_single_alloc_aligned()
     // Destroy allocator
     dynamic_allocator_destroy(&alloc);
     expect_should_be(0, alloc.memory);
-    bfree(memory, memory_requirement, MEMORY_TAG_APPLICATION);
+    bfree(memory, memory_requirement, MEMORY_TAG_ENGINE);
     return true;
 }
 
@@ -351,7 +351,7 @@ u8 dynamic_allocator_multiple_alloc_aligned_different_alignments()
     expect_to_be_true(result);
 
     // Create allocator
-    void* memory = ballocate(memory_requirement, MEMORY_TAG_APPLICATION);
+    void* memory = ballocate(memory_requirement, MEMORY_TAG_ENGINE);
     result = dynamic_allocator_create(total_allocator_size, &memory_requirement, memory, &alloc);
     expect_to_be_true(result);
     expect_should_not_be(0, alloc.memory);
@@ -498,7 +498,7 @@ u8 dynamic_allocator_multiple_alloc_aligned_different_alignments()
     // Destroy allocator
     dynamic_allocator_destroy(&alloc);
     expect_should_be(0, alloc.memory);
-    bfree(memory, memory_requirement, MEMORY_TAG_APPLICATION);
+    bfree(memory, memory_requirement, MEMORY_TAG_ENGINE);
     return true;
 }
 
@@ -570,7 +570,7 @@ u8 dynamic_allocator_multiple_alloc_aligned_different_alignments_random()
     expect_to_be_true(result);
 
     // Create allocator
-    void* memory = ballocate(memory_requirement, MEMORY_TAG_APPLICATION);
+    void* memory = ballocate(memory_requirement, MEMORY_TAG_ENGINE);
     result = dynamic_allocator_create(total_allocator_size, &memory_requirement, memory, &alloc);
     expect_to_be_true(result);
     expect_should_not_be(0, alloc.memory);
@@ -613,7 +613,7 @@ u8 dynamic_allocator_multiple_alloc_aligned_different_alignments_random()
     // Destroy allocator
     dynamic_allocator_destroy(&alloc);
     expect_should_be(0, alloc.memory);
-    bfree(memory, memory_requirement, MEMORY_TAG_APPLICATION);
+    bfree(memory, memory_requirement, MEMORY_TAG_ENGINE);
     return true;
 }
 
@@ -645,7 +645,7 @@ u8 dynamic_allocator_multiple_alloc_and_free_aligned_different_alignments_random
     expect_to_be_true(result);
 
     // Create allocator
-    void* memory = ballocate(memory_requirement, MEMORY_TAG_APPLICATION);
+    void* memory = ballocate(memory_requirement, MEMORY_TAG_ENGINE);
     result = dynamic_allocator_create(total_allocator_size, &memory_requirement, memory, &alloc);
     expect_to_be_true(result);
     expect_should_not_be(0, alloc.memory);
@@ -712,7 +712,7 @@ u8 dynamic_allocator_multiple_alloc_and_free_aligned_different_alignments_random
     // Destroy allocator
     dynamic_allocator_destroy(&alloc);
     expect_should_be(0, alloc.memory);
-    bfree(memory, memory_requirement, MEMORY_TAG_APPLICATION);
+    bfree(memory, memory_requirement, MEMORY_TAG_ENGINE);
     return true;
 }
 
