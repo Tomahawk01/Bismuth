@@ -46,6 +46,16 @@ b8 bvar_create_int(const char* name, i32 value)
 {
     if (!state_ptr || !name)
         return false;
+    
+    for (u32 i = 0; i < BVAR_INT_MAX_COUNT; ++i)
+    {
+        bvar_int_entry* entry = &state_ptr->ints[i];
+        if (entry->name && strings_equali(entry->name, name))
+        {
+            BERROR("A int kvar named '%s' already exists", name);
+            return false;
+        }
+    }
 
     for (u32 i = 0; i < BVAR_INT_MAX_COUNT; ++i)
     {
