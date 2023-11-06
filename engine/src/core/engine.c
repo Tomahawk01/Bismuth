@@ -16,6 +16,7 @@
 
 // Systems
 #include "core/console.h"
+#include "core/bvar.h"
 #include "systems/texture_system.h"
 #include "systems/material_system.h"
 #include "systems/geometry_system.h"
@@ -39,6 +40,9 @@ typedef struct engine_state_t
 
     u64 console_memory_requirement;
     void* console_state;
+
+    u64 bvar_memory_requirement;
+    void* bvar_state;
 
     u64 event_system_memory_requirement;
     void* event_system_state;
@@ -133,6 +137,11 @@ b8 engine_create(application* game_inst)
     console_initialize(&engine_state->console_memory_requirement, 0);
     engine_state->console_state = linear_allocator_allocate(&engine_state->systems_allocator, engine_state->console_memory_requirement);
     console_initialize(&engine_state->console_memory_requirement, engine_state->console_state);
+
+    // BVars
+    bvar_initialize(&engine_state->bvar_memory_requirement, 0);
+    engine_state->bvar_state = linear_allocator_allocate(&engine_state->systems_allocator, engine_state->bvar_memory_requirement);
+    bvar_initialize(&engine_state->bvar_memory_requirement, engine_state->bvar_state);
 
     // Events
     event_system_initialize(&engine_state->event_system_memory_requirement, 0);

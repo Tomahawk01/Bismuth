@@ -32,7 +32,7 @@ b8 debug_console_consumer_write(void* inst, log_level level, const char* message
     if (state_ptr)
     {
         // Create new copy of the string, and try splitting it by new lines to make each one count as new line
-        char** split_message = darray_create(split_message);
+        char** split_message = darray_create(char*);
         u32 count = string_split(message, '\n', &split_message, true, false);
         // Push each to array as new line
         for (u32 i = 0; i < count; ++i)
@@ -113,6 +113,12 @@ static b8 debug_console_on_key(u16 code, void* sender, void* listener_inst, even
                 {
                     case KEY_SPACE:
                         char_code = key_code;
+                        break;
+                    case KEY_MINUS:
+                        char_code = shift_held ? '_' : '-';
+                        break;
+                    case KEY_EQUAL:
+                        char_code = shift_held ? '+' : '=';
                         break;
                     default:
                         // Not valid for entry, use 0
