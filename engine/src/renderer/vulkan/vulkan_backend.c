@@ -310,10 +310,13 @@ b8 vulkan_renderer_backend_initialize(renderer_backend* backend, const renderer_
         return false;
     }
 
+    darray_destroy(required_extensions);
+
     BINFO("Vulkan instance created");
 
     // Clean up
-    darray_destroy(required_validation_layer_names);
+    if (required_validation_layer_names)
+        darray_destroy(required_validation_layer_names);
 
     // TODO: implement multithreading
     context.multithreading_enabled = false;
