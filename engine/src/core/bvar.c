@@ -21,7 +21,7 @@ static bvar_system_state* state_ptr;
 
 void bvar_register_console_commands();
 
-b8 bvar_initialize(u64* memory_requirement, void* memory)
+b8 bvar_initialize(u64* memory_requirement, void* memory, void* config)
 {
     *memory_requirement = sizeof(bvar_system_state);
 

@@ -19,7 +19,7 @@ typedef struct resource_loader
     void (*unload)(struct resource_loader* self, resource* resource);
 } resource_loader;
 
-b8 resource_system_initialize(u64* memory_requirement, void* state, resource_system_config config);
+b8 resource_system_initialize(u64* memory_requirement, void* state, void* config);
 void resource_system_shutdown(void* state);
 
 BAPI b8 resource_system_register_loader(resource_loader loader);

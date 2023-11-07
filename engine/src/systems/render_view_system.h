@@ -9,7 +9,7 @@ typedef struct render_view_system_config
     u16 max_view_count;
 } render_view_system_config;
 
-b8 render_view_system_initialize(u64* memory_requirement, void* state, render_view_system_config config);
+b8 render_view_system_initialize(u64* memory_requirement, void* state, void* config);
 void render_view_system_shutdown(void* state);
 
 BAPI b8 render_view_system_create(const render_view_config* config);

@@ -44,8 +44,8 @@ typedef struct memory_system_configuration
     u64 total_alloc_size;
 } memory_system_configuration;
 
-BAPI b8 memory_system_initialize(memory_system_configuration config);
-BAPI void memory_system_shutdown();
+b8 memory_system_initialize(memory_system_configuration config);
+void memory_system_shutdown(void* state);
 
 BAPI void* ballocate(u64 size, memory_tag tag);
 

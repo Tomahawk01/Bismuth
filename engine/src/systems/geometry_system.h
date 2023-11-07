@@ -30,7 +30,7 @@ typedef struct geometry_config
 
 #define DEFAULT_GEOMETRY_NAME "default"
 
-b8 geometry_system_initialize(u64* memory_requirement, void* state, geometry_system_config config);
+b8 geometry_system_initialize(u64* memory_requirement, void* state, void* config);
 void geometry_system_shutdown(void* state);
 
 /**

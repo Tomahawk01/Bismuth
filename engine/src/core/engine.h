@@ -21,3 +21,5 @@ typedef struct application_config
 BAPI b8 engine_create(struct application* game_inst);
 
 BAPI b8 engine_run();
+
+void engine_on_event_system_initialized();

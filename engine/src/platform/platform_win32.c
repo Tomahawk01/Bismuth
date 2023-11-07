@@ -42,15 +42,9 @@ void clock_setup()
     QueryPerformanceCounter(&start_time);
 }
 
-b8 platform_system_startup(
-    u64 *memory_requirement,
-    void *state,
-    const char* application_name,
-    i32 x,
-    i32 y,
-    i32 width,
-    i32 height)
+b8 platform_system_startup(u64 *memory_requirement, void *state, void *config)
 {
+    platform_system_config* typed_config = (platform_system_config*)config;
     *memory_requirement = sizeof(platform_state);
     if (state == 0)
         return true;
@@ -78,10 +72,10 @@ b8 platform_system_startup(
     }
 
     // Create window
-    u32 client_x = x;
-    u32 client_y = y;
-    u32 client_width = width;
-    u32 client_height = height;
+    u32 client_x = typed_config->x;
+    u32 client_y = typed_config->y;
+    u32 client_width = typed_config->width;
+    u32 client_height = typed_config->height;
 
     u32 window_x = client_x;
     u32 window_y = client_y;
@@ -108,7 +102,7 @@ b8 platform_system_startup(
     window_height += border_rect.bottom - border_rect.top;
 
     HWND handle = CreateWindowExA(
-        window_ex_style, "bismuth_window_class", application_name,
+        window_ex_style, "bismuth_window_class", typed_config->application_name,
         window_style, window_x, window_y, window_width, window_height,
         0, 0, state_ptr->h_instance, 0);
     

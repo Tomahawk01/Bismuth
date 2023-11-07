@@ -10,7 +10,7 @@ typedef struct material_system_config
     u32 max_material_count;
 } material_system_config;
 
-b8 material_system_initialize(u64* memory_requirement, void* state, material_system_config config);
+b8 material_system_initialize(u64* memory_requirement, void* state, void* config);
 void material_system_shutdown(void* state);
 
 BAPI material* material_system_acquire(const char* name);

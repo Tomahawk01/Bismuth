@@ -149,7 +149,7 @@ typedef struct shader
  * @param config The configuration to be used when initializing the system.
  * @return b8 True on success; otherwise false.
  */
-b8 shader_system_initialize(u64* memory_requirement, void* memory, shader_system_config config);
+b8 shader_system_initialize(u64* memory_requirement, void* memory, void* config);
 
 /**
  * @brief Shuts down the shader system.

@@ -2,14 +2,20 @@
 
 #include "defines.h"
 
-b8 platform_system_startup(
-    u64* memory_requirement,
-    void* state,
-    const char* application_name,
-    i32 x,
-    i32 y,
-    i32 width,
-    i32 height);
+typedef struct platform_system_config
+{
+    const char* application_name;
+    // Initial x position of the main window
+    i32 x;
+    // Initial y position of the main window
+    i32 y;
+    // Initial width of the main window
+    i32 width;
+    // Initial height of the main window
+    i32 height;
+} platform_system_config;
+
+b8 platform_system_startup(u64* memory_requirement, void* state, void* config);
 
 void platform_system_shutdown(void* plat_state);
 

@@ -23,8 +23,8 @@ typedef enum log_level
     LOG_LEVEL_TRACE = 5
 } log_level;
 
-b8 initialize_logging(u64* memory_requirment, void* state);
-void shutdown_logging(void* state);
+b8 logging_initialize(u64* memory_requirment, void* state, void* config);
+void logging_shutdown(void* state);
 
 BAPI void log_output(log_level level, const char* message, ...);
 

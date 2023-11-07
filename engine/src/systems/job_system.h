@@ -41,10 +41,16 @@ typedef struct job_info
     u32 result_data_size;
 } job_info;
 
-b8 job_system_initialize(u64* job_system_memory_requirement, void* state, u8 max_job_thread_count, u32 type_masks[]);
+typedef struct job_system_config
+{
+    u8 max_job_thread_count;
+    u32* type_masks;
+} job_system_config;
+
+b8 job_system_initialize(u64* job_system_memory_requirement, void* state, void* config);
 void job_system_shutdown(void* state);
 
-void job_system_update();
+b8 job_system_update(void* state, f32 delta_time);
 
 BAPI void job_system_submit(job_info info);
 
