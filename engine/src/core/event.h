@@ -123,5 +123,7 @@ typedef enum system_event_code {
     // An event fired by renderer backend to indicate when any render targets associated with default window resources need to be refreshed
     EVENT_CODE_DEFAULT_RENDERTARGET_REFRESH_REQUIRED = 0x16,
 
+    EVENT_CODE_BVAR_CHANGED = 0x17,
+
     MAX_EVENT_CODE = 0xFF
 } system_event_code;

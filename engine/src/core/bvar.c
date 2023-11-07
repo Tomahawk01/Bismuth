@@ -2,6 +2,7 @@
 #include "core/bmemory.h"
 #include "core/logger.h"
 #include "core/bstring.h"
+#include "core/event.h"
 #include "core/console.h"
 
 typedef struct bvar_int_entry
@@ -102,6 +103,9 @@ b8 bvar_set_int(const char* name, i32 value)
         if (entry->name && strings_equali(name, entry->name))
         {
             entry->value = value;
+            event_context context = {0};
+            string_ncopy(context.data.c, name, 16);
+            event_fire(EVENT_CODE_BVAR_CHANGED, 0, context);
             return true;
         }
     }

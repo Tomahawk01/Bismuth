@@ -2,6 +2,7 @@
 #include "renderer_backend.h"
 #include "core/logger.h"
 #include "core/bmemory.h"
+#include "core/bvar.h"
 #include "containers/freelist.h"
 #include "math/bmath.h"
 #include "resources/resource_types.h"
@@ -52,6 +53,9 @@ b8 renderer_system_initialize(u64* memory_requirement, void* state, void* config
     renderer_config.application_name = typed_config->application_name;
     // TODO: expose to application to configure
     renderer_config.flags = RENDERER_CONFIG_FLAG_VSYNC_ENABLED_BIT | RENDERER_CONFIG_FLAG_POWER_SAVING_BIT;
+
+    // Create vsync bvar
+    bvar_create_int("vsync", (renderer_config.flags & RENDERER_CONFIG_FLAG_VSYNC_ENABLED_BIT) ? 1 : 0);
 
     // Initialize backend
     if (!state_ptr->backend.initialize(&state_ptr->backend, &renderer_config, &state_ptr->window_render_target_count))

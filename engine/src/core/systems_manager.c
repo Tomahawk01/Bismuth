@@ -103,7 +103,7 @@ b8 systems_manager_register(
 
 b8 register_known_systems_pre_boot(systems_manager_state* state, application_config* app_config)
 {
-    // Console
+    // Memory
     if (!systems_manager_register(state, B_SYSTEM_TYPE_MEMORY, 0, memory_system_shutdown, 0, 0))
     {
         BERROR("Failed to register memory system");
