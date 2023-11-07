@@ -1,7 +1,7 @@
 BUILD_DIR := bin
 OBJ_DIR := obj
 
-ASSEMBLY := engine
+# ASSEMBLY := engine
 
 DEFINES := -DBEXPORT
 
@@ -11,8 +11,8 @@ ifeq ($(OS),Windows_NT)
 	BUILD_PLATFORM := windows
 	EXTENSION := .dll
 	COMPILER_FLAGS := -Wall -Werror -Wvla -Wgnu-folding-constant -Wno-missing-braces -fdeclspec
-	INCLUDE_FLAGS := -Iengine\src -I$(VULKAN_SDK)\include
-	LINKER_FLAGS := -shared -luser32 -lvulkan-1 -L$(VULKAN_SDK)\Lib -L$(OBJ_DIR)\engine
+	INCLUDE_FLAGS := -I$(ASSEMBLY)\src $(ADDL_INC_FLAGS)
+	LINKER_FLAGS := -shared -luser32 -L$(OBJ_DIR)\$(ASSEMBLY) -L.\$(BUILD_DIR) $(ADDL_LINK_FLAGS)
 	DEFINES += -D_CRT_SECURE_NO_WARNINGS
 
 # Make does not offer a recursive wildcard function, and Windows needs one, so here it is:
@@ -69,18 +69,19 @@ else
 	@mkdir -p $(addprefix $(OBJ_DIR)/,$(DIRECTORIES))
 endif
 
-# Generate version file
-ifeq ($(BUILD_PLATFORM),windows)
-	@if exist $(VERFILE) del $(VERFILE)
-# Write out the version file
-	@echo $(VER_COMMENT)\n > $(VERFILE)
-	@echo #define BVERSION "$(BVERSION)" >> $(VERFILE)
-else
-	@rm -rf $(VERFILE)
-# Write out the version file
-	@echo $(VER_COMMENT)\n > $(VERFILE)
-	@echo "#define BVERSION \"$(BVERSION)\"" >> $(VERFILE)
-endif
+# TODO: reenable this
+# # Generate version file
+# ifeq ($(BUILD_PLATFORM),windows)
+# 	@if exist $(VERFILE) del $(VERFILE)
+# # Write out the version file
+# 	@echo $(VER_COMMENT)\n > $(VERFILE)
+# 	@echo #define BVERSION "$(BVERSION)" >> $(VERFILE)
+# else
+# 	@rm -rf $(VERFILE)
+# # Write out the version file
+# 	@echo $(VER_COMMENT)\n > $(VERFILE)
+# 	@echo "#define BVERSION \"$(BVERSION)\"" >> $(VERFILE)
+# endif
 
 .PHONY: link
 link: scaffold $(OBJ_FILES) # link

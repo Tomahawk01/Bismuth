@@ -36,3 +36,5 @@ f64 platform_get_absolute_time();
 void platform_sleep(u64 ms);
 
 i32 platform_get_processor_count();
+
+BAPI void platform_get_handle_info(u64* out_size, void* memory);

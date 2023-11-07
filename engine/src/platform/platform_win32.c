@@ -8,22 +8,23 @@
 #include "core/event.h"
 #include "core/bthread.h"
 #include "core/bmutex.h"
+#include "core/bmemory.h"
 #include "containers/darray.h"
 
-#include <Windows.h>
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
 #include <windowsx.h>
 #include <stdlib.h>
 
-// For surface creation
-#include <vulkan/vulkan.h>
-#include <vulkan/vulkan_win32.h>
-#include "renderer/vulkan/vulkan_types.inl"
-
-typedef struct platform_state
+typedef struct win32_handle_info
 {
     HINSTANCE h_instance;
     HWND hwnd;
-    VkSurfaceKHR surface;
+} win32_handle_info;
+
+typedef struct platform_state
+{
+    win32_handle_info handle;
 } platform_state;
 
 static platform_state* state_ptr;
@@ -44,22 +45,22 @@ void clock_setup()
 
 b8 platform_system_startup(u64 *memory_requirement, void *state, void *config)
 {
-    platform_system_config* typed_config = (platform_system_config*)config;
+    platform_system_config *typed_config = (platform_system_config*)config;
     *memory_requirement = sizeof(platform_state);
     if (state == 0)
         return true;
     state_ptr = state;
-    state_ptr->h_instance = GetModuleHandleA(0);
+    state_ptr->handle.h_instance = GetModuleHandleA(0);
 
     // Setup and register window class
-    HICON icon = LoadIcon(state_ptr->h_instance, IDI_APPLICATION);
+    HICON icon = LoadIcon(state_ptr->handle.h_instance, IDI_APPLICATION);
     WNDCLASSA wc;
     memset(&wc, 0, sizeof(wc));
     wc.style = CS_DBLCLKS;                     // Get double-clicks
     wc.lpfnWndProc = win32_process_message;
     wc.cbClsExtra = 0;
     wc.cbWndExtra = 0;
-    wc.hInstance = state_ptr->h_instance;
+    wc.hInstance = state_ptr->handle.h_instance;
     wc.hIcon = icon;
     wc.hCursor = LoadCursor(NULL, IDC_ARROW);  // NULL; // Manage the cursor manually
     wc.hbrBackground = NULL;                   // Transparent
@@ -104,7 +105,7 @@ b8 platform_system_startup(u64 *memory_requirement, void *state, void *config)
     HWND handle = CreateWindowExA(
         window_ex_style, "bismuth_window_class", typed_config->application_name,
         window_style, window_x, window_y, window_width, window_height,
-        0, 0, state_ptr->h_instance, 0);
+        0, 0, state_ptr->handle.h_instance, 0);
     
     if (handle == 0)
     {
@@ -114,14 +115,14 @@ b8 platform_system_startup(u64 *memory_requirement, void *state, void *config)
     }
     else
     {
-        state_ptr->hwnd = handle;
+        state_ptr->handle.hwnd = handle;
     }
 
     // Show the window
     b32 should_activate = 1; // TODO: if window should not accept input, this should be false
     i32 show_window_command_flags = should_activate ? SW_SHOW : SW_SHOWNOACTIVATE;
 
-    ShowWindow(state_ptr->hwnd, show_window_command_flags);
+    ShowWindow(state_ptr->handle.hwnd, show_window_command_flags);
 
     // Clock setup
     clock_setup();
@@ -131,10 +132,10 @@ b8 platform_system_startup(u64 *memory_requirement, void *state, void *config)
 
 void platform_system_shutdown(void *plat_state)
 {
-    if (state_ptr && state_ptr->hwnd)
+    if (state_ptr && state_ptr->handle.hwnd)
     {
-        DestroyWindow(state_ptr->hwnd);
-        state_ptr->hwnd = 0;
+        DestroyWindow(state_ptr->handle.hwnd);
+        state_ptr->handle.hwnd = 0;
     }
 }
 
@@ -221,6 +222,15 @@ i32 platform_get_processor_count()
     GetSystemInfo(&sysinfo);
     BINFO("%i processor cores detected", sysinfo.dwNumberOfProcessors);
     return sysinfo.dwNumberOfProcessors;
+}
+
+void platform_get_handle_info(u64 *out_size, void *memory)
+{
+    *out_size = sizeof(win32_handle_info);
+    if (!memory)
+        return;
+
+    bcopy_memory(memory, &state_ptr->handle, *out_size);
 }
 
 // NOTE: Begin threads
@@ -349,32 +359,6 @@ b8 bmutex_unlock(bmutex *mutex)
 }
 
 // NOTE: End mutexes
-
-void platform_get_required_extension_names(const char*** names_darray)
-{
-    darray_push(*names_darray, &"VK_KHR_win32_surface");
-}
-
-// Surface creation for Vulkan
-b8 platform_create_vulkan_surface(vulkan_context* context)
-{
-    if (!state_ptr)
-        return false;
-
-    VkWin32SurfaceCreateInfoKHR create_info = {VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR};
-    create_info.hinstance = state_ptr->h_instance;
-    create_info.hwnd = state_ptr->hwnd;
-
-    VkResult result = vkCreateWin32SurfaceKHR(context->instance, &create_info, context->allocator, &state_ptr->surface);
-    if (result != VK_SUCCESS)
-    {
-        BFATAL("Vulkan surface creation failed");
-        return false;
-    }
-
-    context->surface = state_ptr->surface;
-    return true;
-}
 
 LRESULT CALLBACK win32_process_message(HWND hwnd, u32 msg, WPARAM w_param, LPARAM l_param)
 {

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "defines.h"
+#include <defines.h>
 
 struct platform_state;
 struct vulkan_context;

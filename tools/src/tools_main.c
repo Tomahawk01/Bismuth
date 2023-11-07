@@ -50,6 +50,7 @@ i32 process_shaders(i32 argc, char** argv)
             BERROR("Environment variable VULKAN_SDK not found. Check your Vulkan installation");
             return -4;
         }
+        const char* bin_folder = "/bin/";
 
         char end_path[10];
         i32 length = string_length(argv[i]);
@@ -77,7 +78,7 @@ i32 process_shaders(i32 argc, char** argv)
 
         // Construct command and execute it
         char command[4096];
-        string_format(command, "%s/bin/glslc -fshader-stage=%s %s -o %s", sdk_path, stage, argv[i], out_filename);
+        string_format(command, "%s%sglslc -g --target-env=vulkan1.3 -fshader-stage=%s %s -o %s", sdk_path, bin_folder, stage, argv[i], out_filename);
         // Vulkan shader compilation
         i32 retcode = system(command);
         if (retcode != 0)

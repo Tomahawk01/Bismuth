@@ -48,4 +48,6 @@ typedef struct application
 
     // Data which is built up, used and discarded every frame
     app_frame_data frame_data;
+
+    renderer_plugin render_plugin;
 } application;

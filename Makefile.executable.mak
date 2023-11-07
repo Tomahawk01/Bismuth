@@ -5,24 +5,14 @@ OBJ_DIR := obj
 
 DEFINES := -DBIMPORT
 
-ENGINE_LINK := -lengine
-
-ifeq ($(ASSEMBLY),versiongen)
-	ENGINE_LINK =
-endif
-
 # Detect OS and architecture
 ifeq ($(OS),Windows_NT)
     # WIN32
 	BUILD_PLATFORM := windows
 	EXTENSION := .exe
 	COMPILER_FLAGS := -Wall -Werror -Wvla -Werror=vla -Wgnu-folding-constant -Wno-missing-braces -fdeclspec
-	INCLUDE_FLAGS := -Iengine\src -I$(ASSEMBLY)\src 
-# Because Windows requires the .lib extension...
-	ifneq ($(ENGINE_LINK),)
-		ENGINE_LINK :=$(ENGINE_LINK).lib
-	endif
-	LINKER_FLAGS := $(ENGINE_LINK) -L$(OBJ_DIR)\engine -L$(BUILD_DIR)
+	INCLUDE_FLAGS := -I$(ASSEMBLY)\src $(ADDL_INC_FLAGS)
+	LINKER_FLAGS := -L$(BUILD_DIR) $(ADDL_LINK_FLAGS)
 	DEFINES += -D_CRT_SECURE_NO_WARNINGS
 
 # Make does not offer a recursive wildcard function, and Windows needs one, so here it is:

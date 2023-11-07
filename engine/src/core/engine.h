@@ -16,6 +16,8 @@ typedef struct application_config
     char* name;
     font_system_config font_config;
     render_view_config* render_views;
+
+    renderer_plugin renderer_plugin;
 } application_config;
 
 BAPI b8 engine_create(struct application* game_inst);

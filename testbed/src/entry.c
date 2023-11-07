@@ -1,8 +1,9 @@
 #include "game.h"
 
 #include <entry.h>
-
 #include <core/bmemory.h>
+
+#include "vulkan_renderer_plugin_main.h"
 
 // Function definition to create a game
 b8 create_application(application* out_game)
@@ -25,6 +26,9 @@ b8 create_application(application* out_game)
     out_game->state = 0;
 
     out_game->engine_state = 0;
+
+    if (!vulkan_renderer_plugin_create(&out_game->render_plugin))
+        return false;
 
     return true;
 }

@@ -8,13 +8,6 @@
 struct shader;
 struct shader_uniform;
 
-typedef enum renderer_backend_type
-{
-    RENDERER_BACKEND_TYPE_VULKAN,
-    RENDERER_BACKEND_TYPE_OPENGL,
-    RENDERER_BACKEND_TYPE_DIRECTX
-} renderer_backend_type;
-
 typedef struct geometry_render_data
 {
     mat4 model;
@@ -159,17 +152,17 @@ typedef struct renderer_backend_config
     renderer_config_flags flags;
 } renderer_backend_config;
 
-typedef struct renderer_backend
+typedef struct renderer_plugin
 {
     u64 frame_number;
 
-    b8 (*initialize)(struct renderer_backend* backend, const renderer_backend_config* config, u8* out_window_render_target_count);
-    void (*shutdown)(struct renderer_backend* backend);
+    b8 (*initialize)(struct renderer_plugin* backend, const renderer_backend_config* config, u8* out_window_render_target_count);
+    void (*shutdown)(struct renderer_plugin* backend);
 
-    void (*resized)(struct renderer_backend* backend, u16 width, u16 height);
+    void (*resized)(struct renderer_plugin* backend, u16 width, u16 height);
 
-    b8 (*begin_frame)(struct renderer_backend* backend, f32 delta_time);
-    b8 (*end_frame)(struct renderer_backend* backend, f32 delta_time);
+    b8 (*begin_frame)(struct renderer_plugin* backend, f32 delta_time);
+    b8 (*end_frame)(struct renderer_plugin* backend, f32 delta_time);
 
     void (*viewport_set)(vec4 rect);
     void (*viewport_reset)();
@@ -256,7 +249,7 @@ typedef struct renderer_backend
     b8 (*renderbuffer_copy_range)(renderbuffer* source, u64 source_offset, renderbuffer* dest, u64 dest_offset, u64 size);
 
     b8 (*renderbuffer_draw)(renderbuffer* buffer, u64 offset, u32 element_count, b8 bind_only);
-} renderer_backend;
+} renderer_plugin;
 
 typedef enum render_view_known_type
 {
