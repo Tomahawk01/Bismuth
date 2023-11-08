@@ -156,99 +156,98 @@ typedef struct renderer_plugin
 {
     u64 frame_number;
 
-    b8 (*initialize)(struct renderer_plugin* backend, const renderer_backend_config* config, u8* out_window_render_target_count);
-    void (*shutdown)(struct renderer_plugin* backend);
+    u64 internal_context_size;
+    void* internal_context;
 
-    void (*resized)(struct renderer_plugin* backend, u16 width, u16 height);
+    b8 (*initialize)(struct renderer_plugin* plugin, const renderer_backend_config* config, u8* out_window_render_target_count);
+    void (*shutdown)(struct renderer_plugin* plugin);
 
-    b8 (*begin_frame)(struct renderer_plugin* backend, f32 delta_time);
-    b8 (*end_frame)(struct renderer_plugin* backend, f32 delta_time);
+    void (*resized)(struct renderer_plugin* plugin, u16 width, u16 height);
 
-    void (*viewport_set)(vec4 rect);
-    void (*viewport_reset)();
+    b8 (*begin_frame)(struct renderer_plugin* plugin, f32 delta_time);
+    b8 (*end_frame)(struct renderer_plugin* plugin, f32 delta_time);
 
-    void (*scissor_set)(vec4 rect);
-    void (*scissor_reset)();
+    void (*viewport_set)(struct renderer_plugin* plugin, vec4 rect);
+    void (*viewport_reset)(struct renderer_plugin* plugin);
 
-    b8 (*renderpass_begin)(renderpass* pass, render_target* target);
-    b8 (*renderpass_end)(renderpass* pass);
+    void (*scissor_set)(struct renderer_plugin* plugin, vec4 rect);
+    void (*scissor_reset)(struct renderer_plugin* plugin);
 
-    void (*draw_geometry)(geometry_render_data* data);
+    b8 (*renderpass_begin)(struct renderer_plugin* plugin, renderpass* pass, render_target* target);
+    b8 (*renderpass_end)(struct renderer_plugin* plugin, renderpass* pass);
 
-    void (*texture_create)(const u8* pixels, struct texture* texture);
-    void (*texture_destroy)(struct texture* texture);
+    void (*draw_geometry)(struct renderer_plugin* plugin, geometry_render_data* data);
 
-    void (*texture_create_writeable)(texture* t);
-    
-    void (*texture_resize)(texture* t, u32 new_width, u32 new_height);
+    void (*texture_create)(struct renderer_plugin* plugin, const u8* pixels, struct texture* texture);
+    void (*texture_destroy)(struct renderer_plugin* plugin, struct texture* texture);
 
-    void (*texture_write_data)(texture* t, u32 offset, u32 size, const u8* pixels);
+    void (*texture_create_writeable)(struct renderer_plugin* plugin, texture* t);
+    void (*texture_resize)(struct renderer_plugin* plugin, texture* t, u32 new_width, u32 new_height);
+    void (*texture_write_data)(struct renderer_plugin* plugin, texture* t, u32 offset, u32 size, const u8* pixels);
+    void (*texture_read_data)(struct renderer_plugin* plugin, texture* t, u32 offset, u32 size, void** out_memory);
+    void (*texture_read_pixel)(struct renderer_plugin* plugin, texture* t, u32 x, u32 y, u8** out_rgba);
 
-    void (*texture_read_data)(texture* t, u32 offset, u32 size, void** out_memory);
+    b8 (*create_geometry)(struct renderer_plugin* plugin, geometry* geometry, u32 vertex_size, u32 vertex_count, const void* vertices, u32 index_size, u32 index_count, const void* indices);
+    void (*destroy_geometry)(struct renderer_plugin* plugin, geometry* geometry);
 
-    void (*texture_read_pixel)(texture* t, u32 x, u32 y, u8** out_rgba);
+    b8 (*shader_create)(struct renderer_plugin* plugin, struct shader* shader, const shader_config* config, renderpass* pass, u8 stage_count, const char** stage_filenames, shader_stage* stages);
+    void (*shader_destroy)(struct renderer_plugin* plugin, struct shader* shader);
 
-    b8 (*create_geometry)(geometry* geometry, u32 vertex_size, u32 vertex_count, const void* vertices, u32 index_size, u32 index_count, const void* indices);
-    void (*destroy_geometry)(geometry* geometry);
+    b8 (*shader_initialize)(struct renderer_plugin* plugin, struct shader* shader);
 
-    b8 (*shader_create)(struct shader* shader, const shader_config* config, renderpass* pass, u8 stage_count, const char** stage_filenames, shader_stage* stages);
-    void (*shader_destroy)(struct shader* shader);
+    b8 (*shader_use)(struct renderer_plugin* plugin, struct shader* shader);
 
-    b8 (*shader_initialize)(struct shader* shader);
+    b8 (*shader_bind_globals)(struct renderer_plugin* plugin, struct shader* s);
+    b8 (*shader_bind_instance)(struct renderer_plugin* plugin, struct shader* s, u32 instance_id);
 
-    b8 (*shader_use)(struct shader* shader);
+    b8 (*shader_apply_globals)(struct renderer_plugin* plugin, struct shader* s);
+    b8 (*shader_apply_instance)(struct renderer_plugin* plugin, struct shader* s, b8 needs_update);
 
-    b8 (*shader_bind_globals)(struct shader* s);
-    b8 (*shader_bind_instance)(struct shader* s, u32 instance_id);
+    b8 (*shader_acquire_instance_resources)(struct renderer_plugin* plugin, struct shader* s, texture_map** maps, u32* out_instance_id);
+    b8 (*shader_release_instance_resources)(struct renderer_plugin* plugin, struct shader* s, u32 instance_id);
 
-    b8 (*shader_apply_globals)(struct shader* s);
-    b8 (*shader_apply_instance)(struct shader* s, b8 needs_update);
+    b8 (*shader_set_uniform)(struct renderer_plugin* plugin, struct shader* frontend_shader, struct shader_uniform* uniform, const void* value);
 
-    b8 (*shader_acquire_instance_resources)(struct shader* s, texture_map** maps, u32* out_instance_id);
-    b8 (*shader_release_instance_resources)(struct shader* s, u32 instance_id);
+    b8 (*texture_map_acquire_resources)(struct renderer_plugin* plugin, struct texture_map* map);
+    void (*texture_map_release_resources)(struct renderer_plugin* plugin, struct texture_map* map);
 
-    b8 (*shader_set_uniform)(struct shader* frontend_shader, struct shader_uniform* uniform, const void* value);
+    b8 (*render_target_create)(struct renderer_plugin* plugin, u8 attachment_count, render_target_attachment* attachments, renderpass* pass, u32 width, u32 height, render_target* out_target);
+    void (*render_target_destroy)(struct renderer_plugin* plugin, render_target* target, b8 free_internal_memory);
 
-    b8 (*texture_map_acquire_resources)(struct texture_map* map);
-    void (*texture_map_release_resources)(struct texture_map* map);
+    b8 (*renderpass_create)(struct renderer_plugin* plugin, const renderpass_config* config, renderpass* out_renderpass);
+    void (*renderpass_destroy)(struct renderer_plugin* plugin, renderpass* pass);
 
-    b8 (*render_target_create)(u8 attachment_count, render_target_attachment* attachments, renderpass* pass, u32 width, u32 height, render_target* out_target);
-    void (*render_target_destroy)(render_target* target, b8 free_internal_memory);
+    texture* (*window_attachment_get)(struct renderer_plugin* plugin, u8 index);
+    texture* (*depth_attachment_get)(struct renderer_plugin* plugin, u8 index);
 
-    b8 (*renderpass_create)(const renderpass_config* config, renderpass* out_renderpass);
-    void (*renderpass_destroy)(renderpass* pass);
+    u8 (*window_attachment_index_get)(struct renderer_plugin* plugin);
+    u8 (*window_attachment_count_get)(struct renderer_plugin* plugin);
 
-    texture* (*window_attachment_get)(u8 index);
-    texture* (*depth_attachment_get)(u8 index);
+    b8 (*is_multithreaded)(struct renderer_plugin* plugin);
 
-    u8 (*window_attachment_index_get)();
-    u8 (*window_attachment_count_get)();
+    b8 (*flag_enabled)(struct renderer_plugin* plugin, renderer_config_flags flag);
+    void (*flag_set_enabled)(struct renderer_plugin* plugin, renderer_config_flags flag, b8 enabled);
 
-    b8 (*is_multithreaded)();
+    b8 (*renderbuffer_create_internal)(struct renderer_plugin* plugin, renderbuffer* buffer);
+    void (*renderbuffer_destroy_internal)(struct renderer_plugin* plugin, renderbuffer* buffer);
 
-    b8 (*flag_enabled)(renderer_config_flags flag);
-    void (*flag_set_enabled)(renderer_config_flags flag, b8 enabled);
+    b8 (*renderbuffer_bind)(struct renderer_plugin* plugin, renderbuffer* buffer, u64 offset);
+    b8 (*renderbuffer_unbind)(struct renderer_plugin* plugin, renderbuffer* buffer);
 
-    b8 (*renderbuffer_create_internal)(renderbuffer* buffer);
-    void (*renderbuffer_destroy_internal)(renderbuffer* buffer);
+    void* (*renderbuffer_map_memory)(struct renderer_plugin* plugin, renderbuffer* buffer, u64 offset, u64 size);
+    void (*renderbuffer_unmap_memory)(struct renderer_plugin* plugin, renderbuffer* buffer, u64 offset, u64 size);
 
-    b8 (*renderbuffer_bind)(renderbuffer* buffer, u64 offset);
-    b8 (*renderbuffer_unbind)(renderbuffer* buffer);
+    b8 (*renderbuffer_flush)(struct renderer_plugin* plugin, renderbuffer* buffer, u64 offset, u64 size);
 
-    void* (*renderbuffer_map_memory)(renderbuffer* buffer, u64 offset, u64 size);
-    void (*renderbuffer_unmap_memory)(renderbuffer* buffer, u64 offset, u64 size);
+    b8 (*renderbuffer_read)(struct renderer_plugin* plugin, renderbuffer* buffer, u64 offset, u64 size, void** out_memory);
 
-    b8 (*renderbuffer_flush)(renderbuffer* buffer, u64 offset, u64 size);
+    b8 (*renderbuffer_resize)(struct renderer_plugin* plugin, renderbuffer* buffer, u64 new_total_size);
 
-    b8 (*renderbuffer_read)(renderbuffer* buffer, u64 offset, u64 size, void** out_memory);
+    b8 (*renderbuffer_load_range)(struct renderer_plugin* plugin, renderbuffer* buffer, u64 offset, u64 size, const void* data);
 
-    b8 (*renderbuffer_resize)(renderbuffer* buffer, u64 new_total_size);
+    b8 (*renderbuffer_copy_range)(struct renderer_plugin* plugin, renderbuffer* source, u64 source_offset, renderbuffer* dest, u64 dest_offset, u64 size);
 
-    b8 (*renderbuffer_load_range)(renderbuffer* buffer, u64 offset, u64 size, const void* data);
-
-    b8 (*renderbuffer_copy_range)(renderbuffer* source, u64 source_offset, renderbuffer* dest, u64 dest_offset, u64 size);
-
-    b8 (*renderbuffer_draw)(renderbuffer* buffer, u64 offset, u32 element_count, b8 bind_only);
+    b8 (*renderbuffer_draw)(struct renderer_plugin* plugin, renderbuffer* buffer, u64 offset, u32 element_count, b8 bind_only);
 } renderer_plugin;
 
 typedef enum render_view_known_type
