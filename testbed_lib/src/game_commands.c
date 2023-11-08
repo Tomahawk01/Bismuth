@@ -1,6 +1,6 @@
-#include "game.h"
 #include <core/console.h>
 #include <core/event.h>
+#include <application_types.h>
 
 void game_command_exit(console_command_context context)
 {

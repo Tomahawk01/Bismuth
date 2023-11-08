@@ -1,4 +1,5 @@
-#include "game.h"
+#include "testbed_main.h"
+#include "game_state.h"
 
 #include <core/logger.h>
 #include <core/bmemory.h>
@@ -22,6 +23,7 @@
 #include <systems/geometry_system.h>
 #include <systems/material_system.h>
 #include <systems/render_view_system.h>
+
 #include "debug_console.h"
 #include "game_commands.h"
 #include "game_keybinds.h"
@@ -144,7 +146,12 @@ b8 game_on_key(u16 code, void* sender, void* listener_inst, event_context contex
     return false;
 }
 
-b8 game_boot(struct application* game_inst)
+u64 application_state_size()
+{
+    return sizeof(game_state);
+}
+
+b8 application_boot(struct application* game_inst)
 {
     BINFO("Booting sandbox...");
 
@@ -194,9 +201,9 @@ b8 game_boot(struct application* game_inst)
     return true;
 }
 
-b8 game_initialize(application* game_inst)
+b8 application_initialize(struct application* game_inst)
 {
-    BDEBUG("game_initialize() called!");
+    BDEBUG("application_initialize() called!");
 
     debug_console_load();
 
@@ -359,29 +366,7 @@ b8 game_initialize(application* game_inst)
     return true;
 }
 
-void game_shutdown(application* game_inst)
-{
-    game_state* state = (game_state*)game_inst->state;
-
-    // TODO: Temp
-    skybox_destroy(&state->sb);
-
-    // Destroy ui texts
-    ui_text_destroy(&state->test_text);
-    ui_text_destroy(&state->test_sys_text);
-
-    debug_console_unload();
-
-    event_unregister(EVENT_CODE_DEBUG0, game_inst, game_on_debug_event);
-    event_unregister(EVENT_CODE_DEBUG1, game_inst, game_on_debug_event);
-    event_unregister(EVENT_CODE_OBJECT_HOVER_ID_CHANGED, game_inst, game_on_event);
-    // TODO: end temp
-
-    event_unregister(EVENT_CODE_KEY_PRESSED, game_inst, game_on_key);
-    event_unregister(EVENT_CODE_KEY_RELEASED, game_inst, game_on_key);
-}
-
-b8 game_update(application* game_inst, f32 delta_time)
+b8 application_update(struct application* game_inst, f32 delta_time)
 {
     if (game_inst->frame_data.world_geometries)
     {
@@ -513,7 +498,7 @@ VSync: %s Drawn: %-5u Hovered: %s%u",
     return true;
 }
 
-b8 game_render(application* game_inst, struct render_packet* packet, f32 delta_time)
+b8 application_render(struct application* game_inst, struct render_packet* packet, f32 delta_time)
 {
     game_state* state = (game_state*)game_inst->state;
 
@@ -601,7 +586,7 @@ b8 game_render(application* game_inst, struct render_packet* packet, f32 delta_t
     return true;
 }
 
-void game_on_resize(application* game_inst, u32 width, u32 height)
+void application_on_resize(struct application* game_inst, u32 width, u32 height)
 {
     game_state* state = (game_state*)game_inst->state;
 
@@ -612,6 +597,28 @@ void game_on_resize(application* game_inst, u32 width, u32 height)
     // Move debug text to new bottom of screen
     ui_text_set_position(&state->test_text, vec3_create(20, state->height - 75, 0));
     // TODO: end temp
+}
+
+void application_shutdown(struct application* game_inst)
+{
+    game_state* state = (game_state*)game_inst->state;
+
+    // TODO: temp
+    skybox_destroy(&state->sb);
+
+    // Destroy ui texts
+    ui_text_destroy(&state->test_text);
+    ui_text_destroy(&state->test_sys_text);
+
+    debug_console_unload();
+
+    event_unregister(EVENT_CODE_DEBUG0, game_inst, game_on_debug_event);
+    event_unregister(EVENT_CODE_DEBUG1, game_inst, game_on_debug_event);
+    event_unregister(EVENT_CODE_OBJECT_HOVER_ID_CHANGED, game_inst, game_on_event);
+    // TODO: end temp
+
+    event_unregister(EVENT_CODE_KEY_PRESSED, game_inst, game_on_key);
+    event_unregister(EVENT_CODE_KEY_RELEASED, game_inst, game_on_key);
 }
 
 b8 configure_render_views(application_config* config)

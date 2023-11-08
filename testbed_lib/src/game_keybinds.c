@@ -1,5 +1,12 @@
 #include "game_keybinds.h"
 
+#include "game_state.h"
+#include "debug_console.h"
+
+#include <defines.h>
+#include <application_types.h>
+#include <core/input.h>
+#include <core/keymap.h>
 #include <core/event.h>
 #include <core/logger.h>
 #include <core/bmemory.h>
@@ -7,7 +14,6 @@
 #include <core/bvar.h>
 #include <core/console.h>
 #include <renderer/renderer_frontend.h>
-#include "debug_console.h"
 
 void game_on_escape_callback(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data)
 {
