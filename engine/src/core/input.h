@@ -162,7 +162,7 @@ typedef enum keys
     KEY_BACKSLASH = KEY_PIPE,
     KEY_RBRACKET = 0xDD,
 
-    KEYS_MAX_KEYS
+    KEYS_MAX_KEYS = 0xFF
 } keys;
 
 b8 input_system_initialize(u64* memory_requirement, void* state, void* config);

@@ -30,7 +30,7 @@ void keymap_binding_add(keymap* map, keys key, keymap_entry_bind_type type, keym
             node = node->next;
         }
 
-        keymap_binding* new_entry = ballocate(sizeof(keymap_binding), MEMORY_TAG_UNKNOWN);
+        keymap_binding* new_entry = ballocate(sizeof(keymap_binding), MEMORY_TAG_KEYMAP);
         new_entry->callback = callback;
         new_entry->modifiers = modifiers;
         new_entry->type = type;
@@ -57,7 +57,7 @@ void keymap_binding_remove(keymap* map, keys key, keymap_entry_bind_type type, k
             {
                 // Remove it
                 previous->next = node->next;
-                bfree(node, sizeof(keymap_binding), MEMORY_TAG_UNKNOWN);
+                bfree(node, sizeof(keymap_binding), MEMORY_TAG_KEYMAP);
                 return;
             }
             previous = node;

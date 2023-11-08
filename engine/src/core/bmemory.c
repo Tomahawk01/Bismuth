@@ -42,7 +42,9 @@ static const char* memory_tag_strings[MEMORY_TAG_MAX_TAGS] =
     "OPENGL      ",
     "GPU_LOCAL   ",
     "BITMAP_FONT ",
-    "SYSTEM_FONT "
+    "SYSTEM_FONT ",
+    "KEYMAP      ",
+    "HASHTABLE   "
 };
 
 typedef struct memory_system_state
@@ -129,7 +131,7 @@ void* ballocate(u64 size, memory_tag tag)
 void* ballocate_aligned(u64 size, u16 alignment, memory_tag tag)
 {
     if (tag == MEMORY_TAG_UNKNOWN)
-        BWARN("ballocate_aligned called using MEMORY_TAG_UNKNOWN. Re-class this allocation");
+        BTRACE("Warning: ballocate_aligned called using MEMORY_TAG_UNKNOWN. Re-class this allocation");
 
     // Either allocate from the system's allocator or the OS
     void* block = 0;

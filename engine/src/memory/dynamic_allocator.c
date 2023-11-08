@@ -142,7 +142,7 @@ b8 dynamic_allocator_free_aligned(dynamic_allocator* allocator, void* block)
     if (block < state->memory_block || block > state->memory_block + state->total_size)
     {
         void* end_of_block = (void*)(state->memory_block + state->total_size);
-        BERROR("dynamic_allocator_free_aligned trying to release block (0x%p) outside of allocator range (0x%p)-(0x%p)", block, state->memory_block, end_of_block);
+        BWARN("dynamic_allocator_free_aligned trying to release block (0x%p) outside of allocator range (0x%p)-(0x%p)", block, state->memory_block, end_of_block);
         return false;
     }
 
