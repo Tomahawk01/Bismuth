@@ -193,4 +193,4 @@ BAPI const char* input_keycode_str(keys key);
 
 BAPI void input_keymap_push(const struct keymap* map);
 
-BAPI void input_keymap_pop();
+BAPI b8 input_keymap_pop();

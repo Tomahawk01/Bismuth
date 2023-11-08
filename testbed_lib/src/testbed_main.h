@@ -18,3 +18,6 @@ BAPI b8 application_render(struct application* game_inst, struct render_packet* 
 BAPI void application_on_resize(struct application* game_inst, u32 width, u32 height);
 
 BAPI void application_shutdown(struct application* game_inst);
+
+BAPI void application_lib_on_unload(struct application* game_inst);
+BAPI void application_lib_on_load(struct application* game_inst);

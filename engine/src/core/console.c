@@ -59,7 +59,7 @@ void console_shutdown(void* state)
     state_ptr = 0;
 }
 
-void console_register_consumer(void* inst, PFN_console_consumer_write callback)
+void console_register_consumer(void* inst, PFN_console_consumer_write callback, u8* out_consumer_id)
 {
     if (state_ptr)
     {
@@ -68,7 +68,20 @@ void console_register_consumer(void* inst, PFN_console_consumer_write callback)
         console_consumer* consumer = &state_ptr->consumers[state_ptr->consumer_count];
         consumer->instance = inst;
         consumer->callback = callback;
+        *out_consumer_id = state_ptr->consumer_count;
         state_ptr->consumer_count++;
+    }
+}
+
+void console_update_consumer(u8 consumer_id, void* inst, PFN_console_consumer_write callback)
+{
+    if (state_ptr)
+    {
+        BASSERT_MSG(consumer_id < state_ptr->consumer_count, "Consumer id is invalid");
+
+        console_consumer* consumer = &state_ptr->consumers[consumer_id];
+        consumer->instance = inst;
+        consumer->callback = callback;
     }
 }
 
@@ -80,7 +93,8 @@ void console_write_line(log_level level, const char* message)
         for (u8 i = 0; i < state_ptr->consumer_count; ++i)
         {
             console_consumer* consumer = &state_ptr->consumers[i];
-            consumer->callback(consumer->instance, level, message);
+            if (consumer->callback)
+                consumer->callback(consumer->instance, level, message);
         }
     }
 }
@@ -107,6 +121,26 @@ b8 console_register_command(const char* command, u8 arg_count, PFN_console_comma
     darray_push(state_ptr->registered_commands, new_command);
 
     return true;
+}
+
+b8 console_unregister_command(const char* command)
+{
+    BASSERT_MSG(state_ptr && command, "console_update_command requires state and valid command");
+
+    // Make sure it doesn't already exist
+    u32 command_count = darray_length(state_ptr->registered_commands);
+    for (u32 i = 0; i < command_count; ++i)
+    {
+        if (strings_equali(state_ptr->registered_commands[i].name, command))
+        {
+            // Command found, remove it
+            console_command popped_command;
+            darray_pop_at(state_ptr->registered_commands, i, &popped_command);
+            return true;
+        }
+    }
+
+    return false;
 }
 
 b8 console_execute_command(const char* command)

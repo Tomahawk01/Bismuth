@@ -55,3 +55,5 @@ BAPI keymap keymap_create();
 
 BAPI void keymap_binding_add(keymap* map, keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data, PFN_keybind_callback callback);
 BAPI void keymap_binding_remove(keymap* map, keys key, keymap_entry_bind_type type, keymap_modifier modifiers, PFN_keybind_callback callback);
+
+BAPI void keymap_clear(keymap* map);

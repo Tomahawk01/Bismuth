@@ -12,6 +12,18 @@ typedef struct app_frame_data
     geometry_render_data* world_geometries;
 } app_frame_data;
 
+// Represents various stages of application lifecycle
+typedef enum application_stage
+{
+    APPLICATION_STAGE_UNINITIALIZED,
+    APPLICATION_STAGE_BOOTING,
+    APPLICATION_STAGE_BOOT_COMPLETE,
+    APPLICATION_STAGE_INITIALIZING,
+    APPLICATION_STAGE_INITIALIZED,
+    APPLICATION_STAGE_RUNNING,
+    APPLICATION_STAGE_SHUTTING_DOWN
+} application_stage;
+
 typedef struct application
 {
     // The application configuration
@@ -35,8 +47,10 @@ typedef struct application
     // Shuts down the application, prompting release of resources
     void (*shutdown)(struct application* app_inst);
 
-    // Required size for the application state
-    u64 state_memory_requirement;
+    void (*lib_on_unload)(struct application* game_inst);
+    void (*lib_on_load)(struct application* game_inst);
+
+    application_stage stage;
 
     // application-specific state. Created and managed by the application
     void* state;

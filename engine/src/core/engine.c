@@ -59,9 +59,6 @@ b8 engine_create(application* game_inst)
     // Metrics
     metrics_initialize();
 
-    // Allocate game state
-    game_inst->state = ballocate(game_inst->state_memory_requirement, MEMORY_TAG_GAME);
-
     // Stand up the engine state
     game_inst->engine_state = ballocate(sizeof(engine_state_t), MEMORY_TAG_ENGINE);
     engine_state = game_inst->engine_state;
@@ -78,11 +75,13 @@ b8 engine_create(application* game_inst)
     }
 
     // Perform game's boot sequence
+    game_inst->stage = APPLICATION_STAGE_BOOTING;
     if (!game_inst->boot(game_inst))
     {
         BFATAL("Game boot sequence failed. Aborting application...");
         return false;
     }
+    game_inst->stage = APPLICATION_STAGE_BOOT_COMPLETE;
 
     if (!systems_manager_post_boot_initialize(&engine_state->sys_manager_state, &game_inst->app_config))
     {
@@ -94,11 +93,13 @@ b8 engine_create(application* game_inst)
     BINFO("Bismuth Engine v. %s", BVERSION);
 
     // Initialize the game
+    game_inst->stage = APPLICATION_STAGE_INITIALIZING;
     if (!engine_state->game_inst->initialize(engine_state->game_inst))
     {
         BFATAL("Game failed to initialize");
         return false;
     }
+    game_inst->stage = APPLICATION_STAGE_INITIALIZED;
     
     // Call resize once to ensure the proper size has been set
     renderer_on_resized(engine_state->width, engine_state->height);
@@ -107,8 +108,9 @@ b8 engine_create(application* game_inst)
     return true;
 }
 
-b8 engine_run()
+b8 engine_run(application* game_inst)
 {
+    game_inst->stage = APPLICATION_STAGE_RUNNING;
     engine_state->is_running = true;
     clock_start(&engine_state->clock);
     clock_update(&engine_state->clock);
@@ -190,6 +192,7 @@ b8 engine_run()
     }
 
     engine_state->is_running = false;
+    game_inst->stage = APPLICATION_STAGE_SHUTTING_DOWN;
 
     // Shutdown the game
     engine_state->game_inst->shutdown(engine_state->game_inst);
@@ -199,6 +202,8 @@ b8 engine_run()
 
     // Shut down all systems
     systems_manager_shutdown(&engine_state->sys_manager_state);
+
+    game_inst->stage = APPLICATION_STAGE_UNINITIALIZED;
 
     return true;
 }

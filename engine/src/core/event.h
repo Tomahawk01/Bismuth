@@ -125,5 +125,8 @@ typedef enum system_event_code {
 
     EVENT_CODE_BVAR_CHANGED = 0x17,
 
+    EVENT_CODE_WATCHED_FILE_WRITTEN = 0X18,
+    EVENT_CODE_WATCHED_FILE_DELETED = 0x19,
+
     MAX_EVENT_CODE = 0xFF
 } system_event_code;

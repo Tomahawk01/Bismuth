@@ -7,13 +7,15 @@
 // Externally-defined function to create application
 extern b8 create_application(application* out_app);
 
+extern b8 initialize_application(application* app);
+
 /**
  * The main entry point of the application
  */
 int main(void)
 {
     // Request application instance from the application
-    application app_inst;
+    application app_inst = {0};
     if (!create_application(&app_inst))
     {
         BFATAL("Could not create application!");
@@ -30,12 +32,18 @@ int main(void)
     // Initialization
     if (!engine_create(&app_inst))
     {
-        BFATAL("Application failed to create!");
+        BFATAL("Engine failed to create!");
         return 1;
     }
 
+    if (!initialize_application(&app_inst))
+    {
+        BFATAL("Could not initialize application");
+        return -1;
+    }
+
     // Begin engine loop
-    if (!engine_run())
+    if (!engine_run(&app_inst))
     {
         BINFO("Application did not shutdown correctly");
         return 2;
