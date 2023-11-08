@@ -72,7 +72,7 @@ b8 memory_system_initialize(memory_system_configuration config)
 
     // Call platform allocator to get memory for the whole system, including state
     // TODO: memory alignment
-    void* block = platform_allocate(state_memory_requirement + alloc_requirement, false);
+    void* block = platform_allocate(state_memory_requirement + alloc_requirement, true);
     if (!block)
     {
         BFATAL("Memory system allocation failed and the system cannot continue");

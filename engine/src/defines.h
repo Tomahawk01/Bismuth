@@ -102,25 +102,25 @@ STATIC_ASSERT(sizeof(f64) == 8, "Expected f64 to be 8 bytes.");
 #endif
 
 // Gets the number of bytes from amount of gibibytes (GiB) (1024*1024*1024)
-#define GIBIBYTES(amount) (amount * 1024 * 1024 * 1024)
+#define GIBIBYTES(amount) (amount * 1024ULL * 1024ULL * 1024ULL)
 // Gets the number of bytes from amount of mebibytes (MiB) (1024*1024)
-#define MEBIBYTES(amount) (amount * 1024 * 1024)
+#define MEBIBYTES(amount) (amount * 1024ULL * 1024ULL)
 // Gets the number of bytes from amount of kibibytes (KiB) (1024)
-#define KIBIBYTES(amount) (amount * 1024)
+#define KIBIBYTES(amount) (amount * 1024ULL)
 
 // Gets the number of bytes from amount of gigabytes (GB) (1000*1000*1000)
-#define GIGABYTES(amount) (amount * 1000 * 1000 * 1000)
+#define GIGABYTES(amount) (amount * 1000ULL * 1000ULL * 1000ULL)
 // Gets the number of bytes from amount of megabytes (MB) (1000*1000)
-#define MEGABYTES(amount) (amount * 1000 * 1000)
+#define MEGABYTES(amount) (amount * 1000ULL * 1000ULL)
 // Gets the number of bytes from amount of kilobytes (KB) (1000)
-#define KILOBYTES(amount) (amount * 1000)
+#define KILOBYTES(amount) (amount * 1000ULL)
 
 BINLINE u64 get_aligned(u64 operand, u64 granularity)
 {
     return ((operand + (granularity - 1)) & ~(granularity - 1));
 }
 
-BINLINE range get_aligned_range(offset, size, granularity)
+BINLINE range get_aligned_range(u64 offset, u64 size, u64 granularity)
 {
     return (range){get_aligned(offset, granularity), get_aligned(size, granularity)};
 }

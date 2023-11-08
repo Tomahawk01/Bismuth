@@ -79,7 +79,7 @@ void keymap_clear(keymap* map)
             {
                 // Remove all nodes
                 previous->next = node->next;
-                bfree(node, sizeof(keymap_binding), MEMORY_TAG_UNKNOWN);
+                bfree(node, sizeof(keymap_binding), MEMORY_TAG_KEYMAP);
                 previous = node;
                 node = node->next;
             }
