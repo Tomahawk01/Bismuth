@@ -326,7 +326,7 @@ typedef struct shader_uniform_config
     // The name of the uniform
     char* name;
     // The size of the uniform
-    u8 size;
+    u16 size;
     // The location of the uniform
     u32 location;
     // The type of the uniform

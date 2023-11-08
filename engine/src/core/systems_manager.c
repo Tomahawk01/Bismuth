@@ -19,6 +19,7 @@
 #include "systems/render_view_system.h"
 #include "systems/material_system.h"
 #include "systems/geometry_system.h"
+#include "systems/light_system.h"
 
 static b8 register_known_systems_pre_boot(systems_manager_state* state, application_config* app_config);
 static b8 register_known_systems_post_boot(systems_manager_state* state, application_config* app_config);
@@ -347,6 +348,13 @@ b8 register_known_systems_post_boot(systems_manager_state* state, application_co
     if (!systems_manager_register(state, B_SYSTEM_TYPE_GEOMETRY, geometry_system_initialize, geometry_system_shutdown, 0, &geometry_sys_config))
     {
         BERROR("Failed to register geometry system");
+        return false;
+    }
+
+    // Light system
+    if (!systems_manager_register(state, B_SYSTEM_TYPE_LIGHT, light_system_initialize, light_system_shutdown, 0, 0))
+    {
+        BERROR("Failed to register light system");
         return false;
     }
 

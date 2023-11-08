@@ -38,6 +38,7 @@ typedef enum b_system_type
     B_SYSTEM_TYPE_RENDER_VIEW,
     B_SYSTEM_TYPE_MATERIAL,
     B_SYSTEM_TYPE_GEOMETRY,
+    B_SYSTEM_TYPE_LIGHT,
 
     // NOTE: Anything beyond this is in user space
     B_SYSTEM_TYPE_KNOWN_MAX = 255,
