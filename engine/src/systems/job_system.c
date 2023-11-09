@@ -3,6 +3,7 @@
 #include "core/bmutex.h"
 #include "core/bmemory.h"
 #include "core/logger.h"
+#include "core/frame_data.h"
 #include "containers/ring_queue.h"
 
 typedef struct job_thread
@@ -283,7 +284,7 @@ void process_queue(ring_queue* queue, bmutex* queue_mutex)
     }
 }
 
-b8 job_system_update(void* state, f32 delta_time)
+b8 job_system_update(void* state, const struct frame_data* p_frame_data)
 {
     if (!state_ptr || !state_ptr->running)
         return false;

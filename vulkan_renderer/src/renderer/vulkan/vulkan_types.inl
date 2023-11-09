@@ -276,8 +276,6 @@ typedef struct vulkan_shader
 
 typedef struct vulkan_context
 {
-    f32 frame_delta_time;
-
     u32 framebuffer_width;
     u32 framebuffer_height;
 

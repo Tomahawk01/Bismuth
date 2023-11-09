@@ -3,6 +3,7 @@
 #include "defines.h"
 
 struct keymap;
+struct frame_data;
 
 typedef enum buttons
 {
@@ -167,7 +168,7 @@ typedef enum keys
 
 b8 input_system_initialize(u64* memory_requirement, void* state, void* config);
 void input_system_shutdown(void* state);
-void input_update(f64 delta_time);
+void input_update(const struct frame_data* p_frame_data);
 
 // Keyboard input
 BAPI b8 input_is_key_down(keys key);

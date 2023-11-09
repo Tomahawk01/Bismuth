@@ -3,9 +3,11 @@
 #include "defines.h"
 #include "memory/linear_allocator.h"
 
+struct frame_data;
+
 typedef b8 (*PFN_system_initialize)(u64* memory_requirement, void* memory, void* config);
 typedef void (*PFN_system_shutdown)(void* state);
-typedef b8 (*PFN_system_update)(void* state, f32 delta_time);
+typedef b8 (*PFN_system_update)(void* state, const struct frame_data* p_frame_data);
 
 typedef struct b_system
 {
@@ -61,7 +63,7 @@ b8 systems_manager_initialize(systems_manager_state* state, struct application_c
 b8 systems_manager_post_boot_initialize(systems_manager_state* state, struct application_config* app_config);
 void systems_manager_shutdown(systems_manager_state* state);
 
-b8 systems_manager_update(systems_manager_state* state, u32 delta_time);
+b8 systems_manager_update(systems_manager_state* state, const struct frame_data* p_frame_data);
 
 b8 systems_manager_register(
     systems_manager_state* state,

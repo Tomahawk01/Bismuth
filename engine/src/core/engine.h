@@ -5,6 +5,7 @@
 #include "renderer/renderer_types.inl"
 
 struct application;
+struct frame_data;
 
 // Application configuration
 typedef struct application_config
@@ -18,6 +19,10 @@ typedef struct application_config
     render_view_config* render_views;
 
     renderer_plugin renderer_plugin;
+
+    u64 frame_allocator_size;
+
+    u64 app_frame_data_size;
 } application_config;
 
 BAPI b8 engine_create(struct application* game_inst);
@@ -25,3 +30,5 @@ BAPI b8 engine_create(struct application* game_inst);
 BAPI b8 engine_run(struct application* game_inst);
 
 void engine_on_event_system_initialized();
+
+BAPI const struct frame_data* engine_frame_data_get(struct application* game_inst);

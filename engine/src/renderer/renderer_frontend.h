@@ -4,6 +4,7 @@
 
 struct shader;
 struct shader_uniform;
+struct frame_data;
 
 typedef struct renderer_system_config
 {
@@ -16,7 +17,7 @@ BAPI void renderer_system_shutdown(void* state);
 
 BAPI void renderer_on_resized(u16 width, u16 height);
 
-BAPI b8 renderer_draw_frame(render_packet* packet);
+BAPI b8 renderer_draw_frame(render_packet* packet, const struct frame_data* p_frame_data);
 
 BAPI void renderer_viewport_set(vec4 rect);
 BAPI void renderer_viewport_reset();

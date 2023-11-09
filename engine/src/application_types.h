@@ -1,16 +1,10 @@
 #pragma once
 
 #include "core/engine.h"
-#include "memory/linear_allocator.h"
 #include "platform/platform.h"
 
 struct render_packet;
-
-typedef struct app_frame_data
-{
-    // darray of world geometries to be rendered this frame
-    geometry_render_data* world_geometries;
-} app_frame_data;
+struct frame_data;
 
 // Represents various stages of application lifecycle
 typedef enum application_stage
@@ -36,10 +30,10 @@ typedef struct application
     b8 (*initialize)(struct application* app_inst);
 
     // Function pointer to application's update function
-    b8 (*update)(struct application* app_inst, f32 delta_time);
+    b8 (*update)(struct application* app_inst, const struct frame_data* p_frame_data);
 
     // Function pointer to application's render function
-    b8 (*render)(struct application* app_inst, struct render_packet* packet, f32 delta_time);
+    b8 (*render)(struct application* app_inst, struct render_packet* packet, const struct frame_data* p_frame_data);
 
     // Function pointer to handle resizes, if applicable
     void (*on_resize)(struct application* app_inst, u32 width, u32 height);
@@ -57,12 +51,6 @@ typedef struct application
 
     // Application state
     void* engine_state;
-
-    // Allocator used for allocations needing to be made every frame. Contents are wiped at the beginning of the frame
-    linear_allocator frame_allocator;
-
-    // Data which is built up, used and discarded every frame
-    app_frame_data frame_data;
 
     dynamic_library renderer_library;
     renderer_plugin render_plugin;

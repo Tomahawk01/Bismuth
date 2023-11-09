@@ -6,6 +6,8 @@ typedef b8 (*pfn_job_start)(void*, void*);
 
 typedef void (*pfn_job_on_complete)(void*);
 
+struct frame_data;
+
 typedef enum job_type
 {
     JOB_TYPE_GENERAL = 0x02,
@@ -50,7 +52,7 @@ typedef struct job_system_config
 b8 job_system_initialize(u64* job_system_memory_requirement, void* state, void* config);
 void job_system_shutdown(void* state);
 
-b8 job_system_update(void* state, f32 delta_time);
+b8 job_system_update(void* state, const struct frame_data* p_frame_data);
 
 BAPI void job_system_submit(job_info info);
 

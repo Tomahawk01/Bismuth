@@ -7,6 +7,7 @@
 
 struct shader;
 struct shader_uniform;
+struct frame_data;
 
 typedef struct geometry_render_data
 {
@@ -164,8 +165,8 @@ typedef struct renderer_plugin
 
     void (*resized)(struct renderer_plugin* plugin, u16 width, u16 height);
 
-    b8 (*begin_frame)(struct renderer_plugin* plugin, f32 delta_time);
-    b8 (*end_frame)(struct renderer_plugin* plugin, f32 delta_time);
+    b8 (*begin_frame)(struct renderer_plugin* plugin, const struct frame_data* p_frame_data);
+    b8 (*end_frame)(struct renderer_plugin* plugin, const struct frame_data* p_frame_data);
 
     void (*viewport_set)(struct renderer_plugin* plugin, vec4 rect);
     void (*viewport_reset)(struct renderer_plugin* plugin);
@@ -363,8 +364,6 @@ typedef struct skybox_packet_data
 
 typedef struct render_packet
 {
-    f32 delta_time;
-
     u16 view_count;
     render_view_packet* views;
 } render_packet;

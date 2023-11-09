@@ -10,8 +10,10 @@
 #include "core/clock.h"
 #include "core/uuid.h"
 #include "core/metrics.h"
+#include "core/frame_data.h"
 #include "containers/darray.h"
 #include "renderer/renderer_frontend.h"
+#include "memory/linear_allocator.h"
 
 // Systems
 #include "core/systems_manager.h"
@@ -27,6 +29,10 @@ typedef struct engine_state_t
     f64 last_time;
 
     systems_manager_state sys_manager_state;
+
+    linear_allocator frame_allocator;
+
+    frame_data p_frame_data;
 } engine_state_t;
 
 static engine_state_t* engine_state;
@@ -81,6 +87,15 @@ b8 engine_create(application* game_inst)
         BFATAL("Game boot sequence failed. Aborting application...");
         return false;
     }
+
+    // Setup frame allocator
+    linear_allocator_create(game_inst->app_config.frame_allocator_size, 0, &engine_state->frame_allocator);
+    engine_state->p_frame_data.frame_allocator = &engine_state->frame_allocator;
+    if (game_inst->app_config.app_frame_data_size > 0)
+        engine_state->p_frame_data.application_frame_data = ballocate(game_inst->app_config.app_frame_data_size, MEMORY_TAG_GAME);
+    else
+        engine_state->p_frame_data.application_frame_data = 0;
+
     game_inst->stage = APPLICATION_STAGE_BOOT_COMPLETE;
 
     if (!systems_manager_post_boot_initialize(&engine_state->sys_manager_state, &game_inst->app_config))
@@ -135,13 +150,19 @@ b8 engine_run(application* game_inst)
             f64 delta = (current_time - engine_state->last_time);
             f64 frame_start_time = platform_get_absolute_time();
 
+            engine_state->p_frame_data.total_time = current_time;
+            engine_state->p_frame_data.delta_time = (f32)delta;
+
+            // Reset frame allocator
+            linear_allocator_free_all(&engine_state->frame_allocator);
+
             // Update systems
-            systems_manager_update(&engine_state->sys_manager_state, delta);
+            systems_manager_update(&engine_state->sys_manager_state, &engine_state->p_frame_data);
 
             // Update metrics
             metrics_update(frame_elapsed_time);
 
-            if (!engine_state->game_inst->update(engine_state->game_inst, (f32)delta))
+            if (!engine_state->game_inst->update(engine_state->game_inst, &engine_state->p_frame_data))
             {
                 BFATAL("Game update failed, shutting down");
                 engine_state->is_running = false;
@@ -150,17 +171,16 @@ b8 engine_run(application* game_inst)
 
             // TODO: refactor packet creation
             render_packet packet = {};
-            packet.delta_time = delta;
 
             // Call game's render
-            if (!engine_state->game_inst->render(engine_state->game_inst, &packet, (f32)delta))
+            if (!engine_state->game_inst->render(engine_state->game_inst, &packet, &engine_state->p_frame_data))
             {
                 BFATAL("Game render failed, shutting down...");
                 engine_state->is_running = false;
                 break;
             }
 
-            renderer_draw_frame(&packet);
+            renderer_draw_frame(&packet, &engine_state->p_frame_data);
 
             // Clean up the packet
             for (u32 i = 0; i < packet.view_count; ++i)
@@ -184,7 +204,7 @@ b8 engine_run(application* game_inst)
                 frame_count++;
             }
 
-            input_update(delta);
+            input_update(&engine_state->p_frame_data);
 
             // Update last time
             engine_state->last_time = current_time;
@@ -213,6 +233,11 @@ void engine_on_event_system_initialized()
     // Register for engine-level events
     event_register(EVENT_CODE_APPLICATION_QUIT, 0, engine_on_event);
     event_register(EVENT_CODE_RESIZED, 0, engine_on_resized);
+}
+
+const struct frame_data* engine_frame_data_get(struct application* game_inst)
+{
+    return &((engine_state_t*)game_inst->engine_state)->p_frame_data;
 }
 
 b8 engine_on_event(u16 code, void* sender, void* listener_inst, event_context context)
