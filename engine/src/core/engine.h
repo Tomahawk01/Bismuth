@@ -29,6 +29,6 @@ BAPI b8 engine_create(struct application* game_inst);
 
 BAPI b8 engine_run(struct application* game_inst);
 
-void engine_on_event_system_initialized();
+void engine_on_event_system_initialized(void);
 
 BAPI const struct frame_data* engine_frame_data_get(struct application* game_inst);

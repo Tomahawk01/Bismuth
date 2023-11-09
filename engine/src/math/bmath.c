@@ -36,7 +36,7 @@ f32 babs(f32 x)
     return fabsf(x);
 }
 
-i32 brandom()
+i32 brandom(void)
 {
     if (!rand_seeded)
     {
@@ -56,7 +56,7 @@ i32 brandom_in_range(i32 min, i32 max)
     return (rand() % (max - min + 1)) + min;
 }
 
-f32 fbrandom()
+f32 fbrandom(void)
 {
     return (float)brandom() / (f32)RAND_MAX;
 }

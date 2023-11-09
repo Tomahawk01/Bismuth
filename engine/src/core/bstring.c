@@ -230,7 +230,7 @@ void string_mid(char* dest, const char* source, i32 start, i32 length)
 {
     if (length == 0)
         return;
-    u64 src_length = string_length(source);
+    i32 src_length = (i32)string_length(source);
     if (start >= src_length)
     {
         dest[0] = 0;
@@ -238,7 +238,7 @@ void string_mid(char* dest, const char* source, i32 start, i32 length)
     }
     if (length > 0)
     {
-        for (u64 i = start, j = 0; j < length && source[i]; ++i, ++j)
+        for (i32 i = start, j = 0; j < length && source[i]; ++i, ++j)
             dest[j] = source[i];
         dest[start + length] = 0;
     }

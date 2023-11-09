@@ -21,4 +21,4 @@ b8 bthread_is_active(bthread *thread);
 
 void bthread_sleep(bthread *thread, u64 ms);
 
-u64 get_thread_id();
+u64 platform_current_thread_id(void);

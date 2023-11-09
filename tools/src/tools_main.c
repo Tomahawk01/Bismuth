@@ -5,7 +5,7 @@
 // For executing shell commands
 #include <stdlib.h>
 
-void print_help();
+void print_help(void);
 i32 process_shaders(i32 argc, char** argv);
 
 i32 main(i32 argc, char** argv)
@@ -92,7 +92,7 @@ i32 process_shaders(i32 argc, char** argv)
     return 0;
 }
 
-void print_help()
+void print_help(void)
 {
 #ifdef BPLATFORM_WINDOWS
     const char* extension = ".exe";

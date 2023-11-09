@@ -32,7 +32,7 @@ BAPI b8 light_system_add_point(point_light* light);
 BAPI b8 light_system_remove_directional(directional_light* light);
 BAPI b8 light_system_remove_point(point_light* light);
 
-BAPI directional_light* light_system_directional_light_get();
+BAPI directional_light* light_system_directional_light_get(void);
 
-BAPI i32 light_system_point_light_count();
+BAPI i32 light_system_point_light_count(void);
 BAPI b8 light_system_point_lights_get(point_light* p_lights);

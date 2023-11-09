@@ -291,6 +291,9 @@ void debug_console_move_down(debug_console_state* state)
 {
     if (state)
     {
+        if(state->line_offset == 0)
+            return;
+
         state->dirty = true;
         u32 line_count = darray_length(state->lines);
         if (line_count <= state->line_display_count)

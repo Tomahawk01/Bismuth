@@ -1,7 +1,7 @@
 #include "transform.h"
 #include "bmath.h"
 
-transform transform_create()
+transform transform_create(void)
 {
     transform t;
     transform_set_position_rotation_scale(&t, vec3_zero(), quat_identity(), vec3_one());

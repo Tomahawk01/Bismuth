@@ -50,10 +50,10 @@ BINLINE b8 is_power_of_2(u64 value)
     return (value != 0) && ((value & (value - 1)) == 0);
 }
 
-BAPI i32 brandom();
+BAPI i32 brandom(void);
 BAPI i32 brandom_in_range(i32 min, i32 max);
 
-BAPI f32 fbrandom();
+BAPI f32 fbrandom(void);
 BAPI f32 fbrandom_in_range(f32 min, f32 max);
 
 // --------------------------------------------------------------------------------
@@ -77,7 +77,7 @@ BINLINE vec2 vec2_create(f32 x, f32 y)
 /**
  * @brief Creates and returns a 2-component vector with all components set to 0.0f.
  */
-BINLINE vec2 vec2_zero()
+BINLINE vec2 vec2_zero(void)
 {
     return (vec2){0.0f, 0.0f};
 }
@@ -85,7 +85,7 @@ BINLINE vec2 vec2_zero()
 /**
  * @brief Creates and returns a 2-component vector with all components set to 1.0f.
  */
-BINLINE vec2 vec2_one()
+BINLINE vec2 vec2_one(void)
 {
     return (vec2){1.0f, 1.0f};
 }
@@ -93,7 +93,7 @@ BINLINE vec2 vec2_one()
 /**
  * @brief Creates and returns a 2-component vector pointing up (0, 1).
  */
-BINLINE vec2 vec2_up()
+BINLINE vec2 vec2_up(void)
 {
     return (vec2){0.0f, 1.0f};
 }
@@ -101,7 +101,7 @@ BINLINE vec2 vec2_up()
 /**
  * @brief Creates and returns a 2-component vector pointing down (0, -1).
  */
-BINLINE vec2 vec2_down()
+BINLINE vec2 vec2_down(void)
 {
     return (vec2){0.0f, -1.0f};
 }
@@ -109,7 +109,7 @@ BINLINE vec2 vec2_down()
 /**
  * @brief Creates and returns a 2-component vector pointing left (-1, 0).
  */
-BINLINE vec2 vec2_left()
+BINLINE vec2 vec2_left(void)
 {
     return (vec2){-1.0f, 0.0f};
 }
@@ -117,7 +117,7 @@ BINLINE vec2 vec2_left()
 /**
  * @brief Creates and returns a 2-component vector pointing right (1, 0).
  */
-BINLINE vec2 vec2_right()
+BINLINE vec2 vec2_right(void)
 {
     return (vec2){1.0f, 0.0f};
 }
@@ -302,7 +302,7 @@ BINLINE vec4 vec3_to_vec4(vec3 vector, f32 w)
 /**
  * @brief Creates and returns a 3-component vector with all components set to 0.0f.
  */
-BINLINE vec3 vec3_zero()
+BINLINE vec3 vec3_zero(void)
 {
     return (vec3){0.0f, 0.0f, 0.0f};
 }
@@ -310,7 +310,7 @@ BINLINE vec3 vec3_zero()
 /**
  * @brief Creates and returns a 3-component vector with all components set to 1.0f.
  */
-BINLINE vec3 vec3_one()
+BINLINE vec3 vec3_one(void)
 {
     return (vec3){1.0f, 1.0f, 1.0f};
 }
@@ -318,7 +318,7 @@ BINLINE vec3 vec3_one()
 /**
  * @brief Creates and returns a 3-component vector pointing up (0, 1, 0).
  */
-BINLINE vec3 vec3_up()
+BINLINE vec3 vec3_up(void)
 {
     return (vec3){0.0f, 1.0f, 0.0f};
 }
@@ -326,7 +326,7 @@ BINLINE vec3 vec3_up()
 /**
  * @brief Creates and returns a 3-component vector pointing down (0, -1, 0).
  */
-BINLINE vec3 vec3_down()
+BINLINE vec3 vec3_down(void)
 {
     return (vec3){0.0f, -1.0f, 0.0f};
 }
@@ -334,7 +334,7 @@ BINLINE vec3 vec3_down()
 /**
  * @brief Creates and returns a 3-component vector pointing left (-1, 0, 0).
  */
-BINLINE vec3 vec3_left()
+BINLINE vec3 vec3_left(void)
 {
     return (vec3){-1.0f, 0.0f, 0.0f};
 }
@@ -342,7 +342,7 @@ BINLINE vec3 vec3_left()
 /**
  * @brief Creates and returns a 3-component vector pointing right (1, 0, 0).
  */
-BINLINE vec3 vec3_right()
+BINLINE vec3 vec3_right(void)
 {
     return (vec3){1.0f, 0.0f, 0.0f};
 }
@@ -350,7 +350,7 @@ BINLINE vec3 vec3_right()
 /**
  * @brief Creates and returns a 3-component vector pointing forward (0, 0, -1).
  */
-BINLINE vec3 vec3_forward()
+BINLINE vec3 vec3_forward(void)
 {
     return (vec3){0.0f, 0.0f, -1.0f};
 }
@@ -358,7 +358,7 @@ BINLINE vec3 vec3_forward()
 /**
  * @brief Creates and returns a 3-component vector pointing backward (0, 0, 1).
  */
-BINLINE vec3 vec3_back()
+BINLINE vec3 vec3_back(void)
 {
     return (vec3){0.0f, 0.0f, 1.0f};
 }
@@ -527,7 +527,7 @@ BINLINE vec3 vec3_cross(vec3 vector_0, vec3 vector_1)
  * @param tolerance The difference tolerance. Typically B_FLOAT_EPSILON or similar.
  * @return True if within tolerance; otherwise false. 
  */
-BINLINE const b8 vec3_compare(vec3 vector_0, vec3 vector_1, f32 tolerance)
+BINLINE b8 vec3_compare(vec3 vector_0, vec3 vector_1, f32 tolerance)
 {
     if (babs(vector_0.x - vector_1.x) > tolerance)
         return false;
@@ -632,7 +632,7 @@ BINLINE vec4 vec4_from_vec3(vec3 vector, f32 w)
 /**
  * @brief Creates and returns a 4-component vector with all components set to 0.0f.
  */
-BINLINE vec4 vec4_zero()
+BINLINE vec4 vec4_zero(void)
 {
     return (vec4){0.0f, 0.0f, 0.0f, 0.0f};
 }
@@ -640,7 +640,7 @@ BINLINE vec4 vec4_zero()
 /**
  * @brief Creates and returns a 4-component vector with all components set to 1.0f.
  */
-BINLINE vec4 vec4_one()
+BINLINE vec4 vec4_one(void)
 {
     return (vec4){1.0f, 1.0f, 1.0f, 1.0f};
 }
@@ -774,7 +774,7 @@ BINLINE f32 vec4_dot_f32(
  * @param tolerance The difference tolerance. Typically B_FLOAT_EPSILON or similar.
  * @return True if within tolerance; otherwise false. 
  */
-BINLINE const b8 vec4_compare(vec4 vector_0, vec4 vector_1, f32 tolerance)
+BINLINE b8 vec4_compare(vec4 vector_0, vec4 vector_1, f32 tolerance)
 {
     if (babs(vector_0.x - vector_1.x) > tolerance)
         return false;
@@ -803,7 +803,7 @@ BINLINE const b8 vec4_compare(vec4 vector_0, vec4 vector_1, f32 tolerance)
  * 
  * @return A new identity matrix 
  */
-BINLINE mat4 mat4_identity()
+BINLINE mat4 mat4_identity(void)
 {
     mat4 out_matrix;
     bzero_memory(out_matrix.data, sizeof(f32) * 16);
@@ -1238,7 +1238,7 @@ BINLINE vec4 vec4_mul_mat4(vec4 v, mat4 m)
 // --------------------------------------------------------------------------------
 // ---------------------------------- Quaternion ----------------------------------
 // --------------------------------------------------------------------------------
-BINLINE quat quat_identity()
+BINLINE quat quat_identity(void)
 {
     return (quat){0, 0, 0, 1.0f};
 }

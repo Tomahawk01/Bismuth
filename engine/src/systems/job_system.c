@@ -170,7 +170,7 @@ b8 job_system_initialize(u64* job_system_memory_requirement, void* state, void* 
     for (u16 i = 0; i < MAX_JOB_RESULTS; ++i)
         state_ptr->pending_results[i].id = INVALID_ID_U16;
 
-    BDEBUG("Main thread id is: %#x", get_thread_id());
+    BDEBUG("Main thread id is: %#x", platform_current_thread_id());
 
     BDEBUG("Spawning %i job threads", state_ptr->thread_count);
 

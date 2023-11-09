@@ -1,7 +1,7 @@
 #include "camera.h"
 #include "math/bmath.h"
 
-camera camera_create()
+camera camera_create(void)
 {
     camera c;
     camera_reset(&c);

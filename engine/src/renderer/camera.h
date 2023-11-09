@@ -12,7 +12,7 @@ typedef struct camera
     mat4 view_matrix;
 } camera;
 
-BAPI camera camera_create();
+BAPI camera camera_create(void);
 
 BAPI void camera_reset(camera* c);
 

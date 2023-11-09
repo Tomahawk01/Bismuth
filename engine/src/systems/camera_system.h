@@ -16,4 +16,4 @@ void camera_system_shutdown(void* state);
 BAPI camera* camera_system_acquire(const char* name);
 BAPI void camera_system_release(const char* name);
 
-BAPI camera* camera_system_get_default();
+BAPI camera* camera_system_get_default(void);

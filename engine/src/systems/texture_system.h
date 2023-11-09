@@ -25,7 +25,7 @@ BAPI b8 texture_system_set_internal(texture* t, void* internal_data);
 BAPI b8 texture_system_resize(texture* t, u32 width, u32 height, b8 regenerate_internal_data);
 BAPI b8 texture_system_write_data(texture* t, u32 offset, u32 size, void* data);
 
-BAPI texture* texture_system_get_default_texture();
-BAPI texture* texture_system_get_default_diffuse_texture();
-BAPI texture* texture_system_get_default_specular_texture();
-BAPI texture* texture_system_get_default_normal_texture();
+BAPI texture* texture_system_get_default_texture(void);
+BAPI texture* texture_system_get_default_diffuse_texture(void);
+BAPI texture* texture_system_get_default_specular_texture(void);
+BAPI texture* texture_system_get_default_normal_texture(void);

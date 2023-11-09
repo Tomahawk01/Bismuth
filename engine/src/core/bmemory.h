@@ -69,6 +69,6 @@ BAPI void* bcopy_memory(void* dest, const void* source, u64 size);
 
 BAPI void* bset_memory(void* dest, i32 value, u64 size);
 
-BAPI char* get_memory_usage_str();
+BAPI char* get_memory_usage_str(void);
 
-BAPI u64 get_memory_alloc_count();
+BAPI u64 get_memory_alloc_count(void);

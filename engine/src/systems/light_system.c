@@ -92,13 +92,13 @@ b8 light_system_remove_point(point_light* light)
     return false;
 }
 
-directional_light* light_system_directional_light_get()
+directional_light* light_system_directional_light_get(void)
 {
     light_system_state* state = systems_manager_get_state(B_SYSTEM_TYPE_LIGHT);
     return state->dir_light;
 }
 
-i32 light_system_point_light_count()
+i32 light_system_point_light_count(void)
 {
     light_system_state* state = systems_manager_get_state(B_SYSTEM_TYPE_LIGHT);
     i32 count = 0;

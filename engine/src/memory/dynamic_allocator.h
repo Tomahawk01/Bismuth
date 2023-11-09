@@ -22,4 +22,4 @@ BAPI u64 dynamic_allocator_free_space(dynamic_allocator* allocator);
 
 BAPI u64 dynamic_allocator_total_space(dynamic_allocator* allocator);
 
-BAPI u64 dynamic_allocator_header_size();
+BAPI u64 dynamic_allocator_header_size(void);

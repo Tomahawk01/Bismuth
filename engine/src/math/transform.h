@@ -1,6 +1,6 @@
 #include "math_types.h"
 
-BAPI transform transform_create();
+BAPI transform transform_create(void);
 
 BAPI transform transform_from_position(vec3 position);
 

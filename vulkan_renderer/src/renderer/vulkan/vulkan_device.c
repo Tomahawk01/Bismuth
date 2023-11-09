@@ -18,10 +18,10 @@ typedef struct vulkan_physical_device_requirements
 
 typedef struct vulkan_physical_device_queue_family_info
 {
-    u32 graphics_family_index;
-    u32 present_family_index;
-    u32 compute_family_index;
-    u32 transfer_family_index;
+    i32 graphics_family_index;
+    i32 present_family_index;
+    i32 compute_family_index;
+    i32 transfer_family_index;
 } vulkan_physical_device_queue_family_info;
 
 b8 select_physical_device(vulkan_context* context);
@@ -57,16 +57,17 @@ b8 vulkan_device_create(vulkan_context* context)
         indices[index++] = context->device.transfer_queue_index;
 
     VkDeviceQueueCreateInfo queue_create_infos[32];
+    f32 queue_priority = 1.0f;
     for (u32 i = 0; i < index_count; ++i)
     {
         queue_create_infos[i].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
         queue_create_infos[i].queueFamilyIndex = indices[i];
         queue_create_infos[i].queueCount = 1;
-        if (indices[i] == context->device.graphics_queue_index)
-            queue_create_infos[i].queueCount = 2;
+        // TODO: Enhance it in future
+        // if (indices[i] == context->device.graphics_queue_index)
+        //     queue_create_infos[i].queueCount = 2;
         queue_create_infos[i].flags = 0;
         queue_create_infos[i].pNext = 0;
-        f32 queue_priority = 1.0f;
         queue_create_infos[i].pQueuePriorities = &queue_priority;
     }
     

@@ -6,7 +6,7 @@
 
 #include <core/logger.h>
 
-int main()
+int main(void)
 {
     // Always initalize the test manager first
     test_manager_init();

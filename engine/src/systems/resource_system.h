@@ -29,4 +29,4 @@ BAPI b8 resource_system_load_custom(const char* name, const char* custom_type, v
 
 BAPI void resource_system_unload(resource* resource);
 
-BAPI const char* resource_system_base_path();
+BAPI const char* resource_system_base_path(void);

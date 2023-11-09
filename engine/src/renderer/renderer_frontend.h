@@ -20,10 +20,10 @@ BAPI void renderer_on_resized(u16 width, u16 height);
 BAPI b8 renderer_draw_frame(render_packet* packet, const struct frame_data* p_frame_data);
 
 BAPI void renderer_viewport_set(vec4 rect);
-BAPI void renderer_viewport_reset();
+BAPI void renderer_viewport_reset(void);
 
 BAPI void renderer_scissor_set(vec4 rect);
-BAPI void renderer_scissor_reset();
+BAPI void renderer_scissor_reset(void);
 
 BAPI void renderer_texture_create(const u8* pixels, struct texture* texture);
 BAPI void renderer_texture_destroy(struct texture* texture);
@@ -72,13 +72,13 @@ BAPI void renderer_render_target_destroy(render_target* target, b8 free_internal
 BAPI texture* renderer_window_attachment_get(u8 index);
 BAPI texture* renderer_depth_attachment_get(u8 index);
 
-BAPI u8 renderer_window_attachment_index_get();
-BAPI u8 renderer_window_attachment_count_get();
+BAPI u8 renderer_window_attachment_index_get(void);
+BAPI u8 renderer_window_attachment_count_get(void);
 
 BAPI b8 renderer_renderpass_create(const renderpass_config* config, renderpass* out_renderpass);
 BAPI void renderer_renderpass_destroy(renderpass* pass);
 
-BAPI b8 renderer_is_multithreaded();
+BAPI b8 renderer_is_multithreaded(void);
 
 BAPI b8 renderer_flag_enabled(renderer_config_flags flag);
 BAPI void renderer_flag_set_enabled(renderer_config_flags flag, b8 enabled);

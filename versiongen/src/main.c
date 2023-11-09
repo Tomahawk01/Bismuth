@@ -2,7 +2,7 @@
 #include <time.h>
 #include <stdlib.h>
 
-void print_use()
+void print_use(void)
 {
     printf("Bismuth Version Generator Utility\n    usage: 'versiongen -n|<major> <minor>'\n    example: 'versiongen 1 3' generates something like '1.3.23478.12345', while 'versiongen -n' generates something like '2227812345'.");
 }

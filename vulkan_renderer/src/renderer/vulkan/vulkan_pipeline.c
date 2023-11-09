@@ -115,6 +115,7 @@ b8 vulkan_graphics_pipeline_create(vulkan_context* context, const vulkan_pipelin
     VkPipelineLayoutCreateInfo pipeline_layout_create_info = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
 
     // Push constants
+    VkPushConstantRange ranges[32];
     if (config->push_constant_range_count > 0)
     {
         if (config->push_constant_range_count > 32)
@@ -124,7 +125,6 @@ b8 vulkan_graphics_pipeline_create(vulkan_context* context, const vulkan_pipelin
         }
 
         // NOTE: 32 is the max number of ranges we can ever have, since spec only guarantees 128 bytes
-        VkPushConstantRange ranges[32];
         bzero_memory(ranges, sizeof(VkPushConstantRange) * 32);
         for (u32 i = 0; i < config->push_constant_range_count; ++i)
         {

@@ -579,7 +579,7 @@ b8 rebuild_system_font_variant_atlas(system_font_lookup* lookup, font_data* vari
 
     // Convert from single-channel to RGBA, or pack_image_size * 4
     u8* rgba_pixels = ballocate(pack_image_size * 4, MEMORY_TAG_ARRAY);
-    for (i32 j = 0; j < pack_image_size; ++j)
+    for (u32 j = 0; j < pack_image_size; ++j)
     {
         rgba_pixels[(j * 4) + 0] = pixels[j];
         rgba_pixels[(j * 4) + 1] = pixels[j];
@@ -623,10 +623,10 @@ b8 rebuild_system_font_variant_atlas(system_font_lookup* lookup, font_data* vari
         variant->kernings = ballocate(sizeof(font_kerning) * variant->kerning_count, MEMORY_TAG_ARRAY);
         // Get kerning table for current font
         stbtt_kerningentry* kerning_table = ballocate(sizeof(stbtt_kerningentry) * variant->kerning_count, MEMORY_TAG_ARRAY);
-        i32 entry_count = stbtt_GetKerningTable(&lookup->info, kerning_table, variant->kerning_count);
+        u32 entry_count = stbtt_GetKerningTable(&lookup->info, kerning_table, variant->kerning_count);
         if (entry_count != variant->kerning_count)
         {
-            BERROR("Kerning entry count mismatch: %i->%i", entry_count, variant->kerning_count);
+            BERROR("Kerning entry count mismatch: %u->%u", entry_count, variant->kerning_count);
             return false;
         }
 

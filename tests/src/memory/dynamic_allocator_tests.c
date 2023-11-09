@@ -6,7 +6,7 @@
 #include <core/bmemory.h>
 #include <memory/dynamic_allocator.h>
 
-u8 dynamic_allocator_should_create_and_destroy()
+u8 dynamic_allocator_should_create_and_destroy(void)
 {
     dynamic_allocator alloc;
     u64 memory_requirement = 0;
@@ -29,7 +29,7 @@ u8 dynamic_allocator_should_create_and_destroy()
     return true;
 }
 
-u8 dynamic_allocator_single_allocation_all_space()
+u8 dynamic_allocator_single_allocation_all_space(void)
 {
     dynamic_allocator alloc;
     u64 memory_requirement = 0;
@@ -71,7 +71,7 @@ u8 dynamic_allocator_single_allocation_all_space()
     return true;
 }
 
-u8 dynamic_allocator_multi_allocation_all_space()
+u8 dynamic_allocator_multi_allocation_all_space(void)
 {
     dynamic_allocator alloc;
     u64 memory_requirement = 0;
@@ -146,7 +146,7 @@ u8 dynamic_allocator_multi_allocation_all_space()
     return true;
 }
 
-u8 dynamic_allocator_multi_allocation_over_allocate()
+u8 dynamic_allocator_multi_allocation_over_allocate(void)
 {
     dynamic_allocator alloc;
     u64 memory_requirement = 0;
@@ -209,7 +209,7 @@ u8 dynamic_allocator_multi_allocation_over_allocate()
     return true;
 }
 
-u8 dynamic_allocator_multi_allocation_most_space_request_too_big()
+u8 dynamic_allocator_multi_allocation_most_space_request_too_big(void)
 {
     dynamic_allocator alloc;
     u64 memory_requirement = 0;
@@ -272,7 +272,7 @@ u8 dynamic_allocator_multi_allocation_most_space_request_too_big()
     return true;
 }
 
-u8 dynamic_allocator_single_alloc_aligned()
+u8 dynamic_allocator_single_alloc_aligned(void)
 {
     dynamic_allocator alloc;
     u64 memory_requirement = 0;
@@ -328,7 +328,7 @@ typedef struct alloc_data
     u64 size;
 } alloc_data;
 
-u8 dynamic_allocator_multiple_alloc_aligned_different_alignments()
+u8 dynamic_allocator_multiple_alloc_aligned_different_alignments(void)
 {
     dynamic_allocator alloc;
     u64 memory_requirement = 0;
@@ -542,7 +542,7 @@ u8 util_free(dynamic_allocator* allocator, alloc_data* data, u64* currently_allo
     return true;
 }
 
-u8 dynamic_allocator_multiple_alloc_aligned_different_alignments_random()
+u8 dynamic_allocator_multiple_alloc_aligned_different_alignments_random(void)
 {
     dynamic_allocator alloc;
     u64 memory_requirement = 0;
@@ -617,7 +617,7 @@ u8 dynamic_allocator_multiple_alloc_aligned_different_alignments_random()
     return true;
 }
 
-u8 dynamic_allocator_multiple_alloc_and_free_aligned_different_alignments_random()
+u8 dynamic_allocator_multiple_alloc_and_free_aligned_different_alignments_random(void)
 {
     dynamic_allocator alloc;
     u64 memory_requirement = 0;
@@ -716,7 +716,7 @@ u8 dynamic_allocator_multiple_alloc_and_free_aligned_different_alignments_random
     return true;
 }
 
-void dynamic_allocator_register_tests()
+void dynamic_allocator_register_tests(void)
 {
     test_manager_register_test(dynamic_allocator_should_create_and_destroy, "Dynamic allocator should create and destroy");
     test_manager_register_test(dynamic_allocator_single_allocation_all_space, "Dynamic allocator single alloc for all space");

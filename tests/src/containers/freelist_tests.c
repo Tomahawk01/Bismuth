@@ -6,7 +6,7 @@
 #include <containers/freelist.h>
 #include <core/bmemory.h>
 
-u8 freelist_should_create_and_destroy()
+u8 freelist_should_create_and_destroy(void)
 {
     // creating a small size list, which will trigger a warning
     BDEBUG("The following warning message is intentional");
@@ -36,7 +36,7 @@ u8 freelist_should_create_and_destroy()
     return true;
 }
 
-u8 freelist_should_allocate_one_and_free_one()
+u8 freelist_should_allocate_one_and_free_one(void)
 {
     freelist list;
 
@@ -77,7 +77,7 @@ u8 freelist_should_allocate_one_and_free_one()
     return true;
 }
 
-u8 freelist_should_allocate_one_and_free_multi()
+u8 freelist_should_allocate_one_and_free_multi(void)
 {
     freelist list;
 
@@ -161,7 +161,7 @@ u8 freelist_should_allocate_one_and_free_multi()
     return true;
 }
 
-u8 freelist_should_allocate_one_and_free_multi_varying_sizes()
+u8 freelist_should_allocate_one_and_free_multi_varying_sizes(void)
 {
     freelist list;
 
@@ -245,7 +245,7 @@ u8 freelist_should_allocate_one_and_free_multi_varying_sizes()
     return true;
 }
 
-u8 freelist_should_allocate_to_full_and_fail_to_allocate_more()
+u8 freelist_should_allocate_to_full_and_fail_to_allocate_more(void)
 {
     freelist list;
 
@@ -332,7 +332,7 @@ u8 util_freelist_free(freelist* list, alloc_data* data, u64* currently_allocated
     return true;
 }
 
-u8 freelist_multiple_alloc_and_free_random()
+u8 freelist_multiple_alloc_and_free_random(void)
 {
     freelist list;
 
@@ -430,7 +430,7 @@ u8 freelist_multiple_alloc_and_free_random()
     return true;
 }
 
-void freelist_register_tests()
+void freelist_register_tests(void)
 {
     test_manager_register_test(freelist_should_create_and_destroy, "Freelist should create and destroy");
     test_manager_register_test(freelist_should_allocate_one_and_free_one, "Freelist allocate and free one entry");

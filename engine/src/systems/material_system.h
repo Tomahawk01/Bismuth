@@ -17,7 +17,7 @@ BAPI material* material_system_acquire(const char* name);
 BAPI material* material_system_acquire_from_config(material_config config);
 BAPI void material_system_release(const char* name);
 
-BAPI material* material_system_get_default();
+BAPI material* material_system_get_default(void);
 
 BAPI b8 material_system_apply_global(u32 shader_id, u64 renderer_frame_number, const mat4* projection, const mat4* view, const vec4* ambient_color, const vec3* view_position, u32 render_mode);
 

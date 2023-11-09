@@ -59,7 +59,7 @@ void text_loader_unload(struct resource_loader* self, resource* resource)
         BWARN("text_loader_unload called with nullptr for self or resource");
 }
 
-resource_loader text_resource_loader_create()
+resource_loader text_resource_loader_create(void)
 {
     resource_loader loader;
     loader.type = RESOURCE_TYPE_TEXT;

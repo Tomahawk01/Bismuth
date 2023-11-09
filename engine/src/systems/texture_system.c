@@ -289,22 +289,22 @@ b8 texture_system_write_data(texture* t, u32 offset, u32 size, void* data)
     BERROR("%s called before texture system initialization! Null pointer returned", func_name); \
     return 0;
 
-texture* texture_system_get_default_texture()
+texture* texture_system_get_default_texture(void)
 {
     RETURN_TEXT_PTR_OR_NULL(state_ptr->default_texture, "texture_system_get_default_texture");
 }
 
-texture* texture_system_get_default_diffuse_texture()
+texture* texture_system_get_default_diffuse_texture(void)
 {
     RETURN_TEXT_PTR_OR_NULL(state_ptr->default_diffuse_texture, "texture_system_get_default_diffuse_texture");
 }
 
-texture* texture_system_get_default_specular_texture()
+texture* texture_system_get_default_specular_texture(void)
 {
     RETURN_TEXT_PTR_OR_NULL(state_ptr->default_specular_texture, "texture_system_get_default_specular_texture");
 }
 
-texture* texture_system_get_default_normal_texture()
+texture* texture_system_get_default_normal_texture(void)
 {
     RETURN_TEXT_PTR_OR_NULL(state_ptr->default_normal_texture, "texture_system_get_default_normal_texture");
 }

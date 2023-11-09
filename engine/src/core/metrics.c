@@ -15,7 +15,7 @@ typedef struct metrics_state
 
 static metrics_state* state_ptr = 0;
 
-void metrics_initialize()
+void metrics_initialize(void)
 {
     if (!state_ptr)
         state_ptr = ballocate(sizeof(metrics_state), MEMORY_TAG_ENGINE);
@@ -52,7 +52,7 @@ void metrics_update(f64 frame_elapsed_time)
     state_ptr->frames++;
 }
 
-f64 metrics_fps()
+f64 metrics_fps(void)
 {
     if (!state_ptr)
         return 0;
@@ -60,7 +60,7 @@ f64 metrics_fps()
     return state_ptr->fps;
 }
 
-f64 metrics_frame_time()
+f64 metrics_frame_time(void)
 {
     if (!state_ptr)
         return 0;

@@ -180,7 +180,7 @@ u64 dynamic_allocator_total_space(dynamic_allocator* allocator)
     return state->total_size;
 }
 
-u64 dynamic_allocator_header_size()
+u64 dynamic_allocator_header_size(void)
 {
     return sizeof(alloc_header) + BSIZE_STORAGE;
 }

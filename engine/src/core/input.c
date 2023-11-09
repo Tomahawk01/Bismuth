@@ -591,7 +591,7 @@ void input_keymap_push(const keymap* map)
     }
 }
 
-b8 input_keymap_pop()
+b8 input_keymap_pop(void)
 {
     if (state_ptr)
     {

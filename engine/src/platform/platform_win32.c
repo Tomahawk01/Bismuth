@@ -45,10 +45,10 @@ static platform_state* state_ptr;
 static f64 clock_frequency;
 static LARGE_INTEGER start_time;
 
-void platform_update_watches();
+void platform_update_watches(void);
 LRESULT CALLBACK win32_process_message(HWND hwnd, u32 msg, WPARAM w_param, LPARAM l_param);
 
-void clock_setup()
+void clock_setup(void)
 {
     LARGE_INTEGER frequency;
     QueryPerformanceFrequency(&frequency);
@@ -155,7 +155,7 @@ void platform_system_shutdown(void *plat_state)
     }
 }
 
-b8 platform_pump_messages()
+b8 platform_pump_messages(void)
 {
     if (state_ptr)
     {
@@ -234,7 +234,7 @@ void platform_console_write_error(const char* message, u8 color)
     SetConsoleTextAttribute(console_handle, csbi.wAttributes);
 }
 
-f64 platform_get_absolute_time()
+f64 platform_get_absolute_time(void)
 {
     if (!clock_frequency)
         clock_setup();
@@ -248,7 +248,7 @@ void platform_sleep(u64 ms)
     Sleep(ms);
 }
 
-i32 platform_get_processor_count()
+i32 platform_get_processor_count(void)
 {
     SYSTEM_INFO sysinfo;
     GetSystemInfo(&sysinfo);
@@ -332,7 +332,7 @@ void bthread_sleep(bthread *thread, u64 ms)
     platform_sleep(ms);
 }
 
-u64 get_thread_id()
+u64 platform_current_thread_id(void)
 {
     return (u64)GetCurrentThreadId();
 }
@@ -486,12 +486,12 @@ b8 platform_dynamic_library_load_function(const char *name, dynamic_library *lib
     return true;
 }
 
-const char *platform_dynamic_library_extension()
+const char *platform_dynamic_library_extension(void)
 {
     return ".dll";
 }
 
-const char* platform_dynamic_library_prefix()
+const char* platform_dynamic_library_prefix(void)
 {
     return "";
 }
@@ -594,7 +594,7 @@ b8 platform_unwatch_file(u32 watch_id)
     return unregister_watch(watch_id);
 }
 
-void platform_update_watches()
+void platform_update_watches(void)
 {
     if (!state_ptr || !state_ptr->watches)
         return;

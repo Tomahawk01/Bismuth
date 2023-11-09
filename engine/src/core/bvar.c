@@ -20,7 +20,7 @@ typedef struct bvar_system_state
 
 static bvar_system_state* state_ptr;
 
-void bvar_register_console_commands();
+void bvar_register_console_commands(void);
 
 b8 bvar_initialize(u64* memory_requirement, void* memory, void* config)
 {
@@ -199,7 +199,7 @@ void bvar_console_command_print_all(console_command_context context)
     // TODO: Other variable types
 }
 
-void bvar_register_console_commands()
+void bvar_register_console_commands(void)
 {
     console_register_command("bvar_create_int", 2, bvar_console_command_create_int);
     console_register_command("bvar_print_int", 1, bvar_console_command_print_int);

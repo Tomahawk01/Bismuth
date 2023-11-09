@@ -262,7 +262,7 @@ BAPI b8 shader_system_sampler_set_by_index(u16 index, const struct texture* t);
  * 
  * @return True on success; otherwise false.
  */
-BAPI b8 shader_system_apply_global();
+BAPI b8 shader_system_apply_global(void);
 
 /**
  * @brief Applies instance-scoped uniforms.
