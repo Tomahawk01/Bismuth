@@ -15,3 +15,24 @@ const char* vulkan_result_string(VkResult result, b8 get_extended);
  * @returns True if success; otherwise false. Defaults to true for unknown result types.
  */
 b8 vulkan_result_is_success(VkResult result);
+
+#if defined(_DEBUG)
+b8 vulkan_set_debug_object_name(vulkan_context* context, VkObjectType object_type, void* object_handle, const char* object_name);
+b8 vulkan_set_debug_object_tag(vulkan_context* context, VkObjectType object_type, void* object_handle, u64 tag_size, const void* tag_data);
+b8 vulkan_begin_label(vulkan_context* context, VkCommandBuffer buffer, const char* label_name, vec4 color);
+b8 vulkan_end_label(vulkan_context* context, VkCommandBuffer buffer);
+
+#define VK_SET_DEBUG_OBJECT_NAME(context, object_type, object_handle, object_name) vulkan_set_debug_object_name(context, object_type, object_handle, object_name)
+#define VK_SET_DEBUG_OBJECT_TAG(context, object_type, object_handle, tag_size, tag_data) vulkan_set_debug_object_tag(context, object_type, object_handle, tag_size, tag_data)
+#define VK_BEGIN_DEBUG_LABEL(context, command_buffer, label_name, color) vulkan_begin_label(context, command_buffer, label_name, color)
+#define VK_END_DEBUG_LABEL(context, command_buffer) vulkan_end_label(context, command_buffer)
+#else
+// Does nothing in non-debug builds
+#define VK_SET_DEBUG_OBJECT_NAME(context, object_type, object_handle, object_name)
+// Does nothing in non-debug builds
+#define VK_SET_DEBUG_OBJECT_TAG(context, object_type, object_handle, tag_size, tag_data)
+// Does nothing in non-debug builds
+#define VK_BEGIN_DEBUG_LABEL(context, command_buffer, label_name, color)
+// Does nothing in non-debug builds
+#define VK_END_DEBUG_LABEL(context, command_buffer)
+#endif

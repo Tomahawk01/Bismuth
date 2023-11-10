@@ -107,6 +107,8 @@ typedef struct renderpass
 {
     u16 id;
 
+    char* name;
+
     vec4 render_area;
     vec4 clear_color;
 

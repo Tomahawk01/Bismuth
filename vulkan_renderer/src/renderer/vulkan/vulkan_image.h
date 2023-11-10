@@ -13,6 +13,7 @@ void vulkan_image_create(
     VkMemoryPropertyFlags memory_flags,
     b32 create_view,
     VkImageAspectFlags view_aspect_flags,
+    const char* name,
     vulkan_image* out_image);
 
 void vulkan_image_view_create(

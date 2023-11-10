@@ -23,6 +23,7 @@
 #include <resources/ui_text.h>
 #include <resources/mesh.h>
 #include <resources/simple_scene.h>
+#include <systems/resource_system.h>
 #include <systems/geometry_system.h>
 #include <systems/material_system.h>
 #include <systems/render_view_system.h>
@@ -108,7 +109,7 @@ b8 game_on_debug_event(u16 code, void* sender, void* listener_inst, event_contex
         if (state->main_scene.state == SIMPLE_SCENE_STATE_LOADED)
         {
             BDEBUG("Unloading scene...");
-            simple_scene_unload(&state->main_scene);
+            simple_scene_unload(&state->main_scene, false);
             BDEBUG("Done");
         }
         return true;
@@ -321,18 +322,26 @@ b8 application_update(struct application* game_inst, struct frame_data* p_frame_
         if (!simple_scene_update(&state->main_scene, p_frame_data))
             BWARN("Failed to update main scene");
 
-        // Perform small rotation on first mesh
-        quat rotation = quat_from_axis_angle((vec3){0, 1, 0}, -0.5f * p_frame_data->delta_time, false);
-        transform_rotate(&state->meshes[0].transform, rotation);
+        // // Perform small rotation on first mesh
+        // quat rotation = quat_from_axis_angle((vec3){0, 1, 0}, -0.5f * p_frame_data->delta_time, false);
+        // transform_rotate(&state->meshes[0].transform, rotation);
 
-        // Perform similar rotation on second mesh, if it exists
-        transform_rotate(&state->meshes[1].transform, rotation);
+        // // Perform similar rotation on second mesh, if it exists
+        // transform_rotate(&state->meshes[1].transform, rotation);
 
-        // Perform similar rotation on third mesh, if it exists
-        transform_rotate(&state->meshes[2].transform, rotation);
+        // // Perform similar rotation on third mesh, if it exists
+        // transform_rotate(&state->meshes[2].transform, rotation);
 
-        state->p_lights[1].color = (vec4){0.0f, 1.0f, 1.0f, 1.0f};
-        state->p_lights[1].position.x -= 0.005f;
+        if (state->p_light_1)
+        {
+            state->p_light_1->data.color = (vec4){
+                (bsin(p_frame_data->total_time + 0.0f) + 1.0f) * 0.5f,
+                (bsin(p_frame_data->total_time + 0.3f) + 1.0f) * 0.5f,
+                (bsin(p_frame_data->total_time + 0.6f) + 1.0f) * 0.5f,
+                1.0f
+            };
+            state->p_light_1->data.position.x = bsin(p_frame_data->total_time);
+        }
     }
 
     // Track allocation differences
@@ -497,8 +506,14 @@ void application_shutdown(struct application* game_inst)
 {
     testbed_game_state* state = (testbed_game_state*)game_inst->state;
 
-    // TODO: temp
-    skybox_destroy(&state->sb);
+    if (state->main_scene.state == SIMPLE_SCENE_STATE_LOADED)
+    {
+        BDEBUG("Unloading scene...");
+
+        simple_scene_unload(&state->main_scene, true);
+
+        BDEBUG("Done");
+    }
 
     // Destroy ui texts
     ui_text_destroy(&state->test_text);
@@ -770,137 +785,23 @@ static b8 load_main_scene(struct application* game_inst)
 {
     testbed_game_state* state = (testbed_game_state*)game_inst->state;
 
+    // Load config file
+    // TODO: clean up resource
+    resource simple_scene_resource;
+    if (!resource_system_load("test_scene", RESOURCE_TYPE_SIMPLE_SCENE, 0, &simple_scene_resource))
+    {
+        BERROR("Failed to load scene file, check logs");
+        return false;
+    }
+
+    simple_scene_config* scene_config = (simple_scene_config*)simple_scene_resource.data;
+
     // TODO: temp load/prepare stuff
-    if (!simple_scene_create(0, &state->main_scene))
+    if (!simple_scene_create(scene_config, &state->main_scene))
     {
         BERROR("Failed to create main scene");
         return false;
     }
-
-    // Add objects to scene
-    skybox_config sb_config = {0};
-    sb_config.cubemap_name = "skybox";
-    if (!skybox_create(sb_config, &state->sb))
-    {
-        BERROR("Failed to create skybox, aborting game");
-        return false;
-    }
-
-    if (!simple_scene_add_skybox(&state->main_scene, &state->sb))
-    {
-        BERROR("Failed to add skybox to main scene, aborting game");
-        return false;
-    }
-
-    // Load a cube configuration, and load geometry from it
-    mesh_config cube_0_config = {0};
-    cube_0_config.geometry_count = 1;
-    cube_0_config.g_configs = ballocate(sizeof(geometry_config), MEMORY_TAG_ARRAY);
-    cube_0_config.g_configs[0] = geometry_system_generate_cube_config(10.0f, 10.0f, 10.0f, 1.0f, 1.0f, "test_cube", "test_material");
-
-    if (!mesh_create(cube_0_config, &state->meshes[0]))
-    {
-        BERROR("Failed to create mesh for cube 0");
-        return false;
-    }
-    state->meshes[0].transform = transform_create();
-    simple_scene_add_mesh(&state->main_scene, &state->meshes[0]);
-
-    // Second cube
-    mesh_config cube_1_config = {0};
-    cube_1_config.geometry_count = 1;
-    cube_1_config.g_configs = ballocate(sizeof(geometry_config), MEMORY_TAG_ARRAY);
-    cube_1_config.g_configs[0] = geometry_system_generate_cube_config(5.0f, 5.0f, 5.0f, 1.0f, 1.0f, "test_cube_2", "test_material");
-
-    if (!mesh_create(cube_1_config, &state->meshes[1]))
-    {
-        BERROR("Failed to create mesh for cube 0");
-        return false;
-    }
-    state->meshes[1].transform = transform_from_position((vec3){10.0f, 0.0f, 1.0f});
-    transform_set_parent(&state->meshes[1].transform, &state->meshes[0].transform);
-
-    simple_scene_add_mesh(&state->main_scene, &state->meshes[1]);
-
-    // Third cube
-    mesh_config cube_2_config = {0};
-    cube_2_config.geometry_count = 1;
-    cube_2_config.g_configs = ballocate(sizeof(geometry_config), MEMORY_TAG_ARRAY);
-    cube_2_config.g_configs[0] = geometry_system_generate_cube_config(2.0f, 2.0f, 2.0f, 1.0f, 1.0f, "test_cube_2", "test_material");
-
-    if (!mesh_create(cube_2_config, &state->meshes[2]))
-    {
-        BERROR("Failed to create mesh for cube 0");
-        return false;
-    }
-    state->meshes[2].transform = transform_from_position((vec3){5.0f, 0.0f, 1.0f});
-    transform_set_parent(&state->meshes[2].transform, &state->meshes[1].transform);
-
-    simple_scene_add_mesh(&state->main_scene, &state->meshes[2]);
-
-    // Falcon
-    mesh_config falcon_config = {0};
-    falcon_config.resource_name = "falcon";
-    if (!mesh_create(falcon_config, &state->meshes[3]))
-    {
-        BERROR("Failed to create falcon mesh");
-    }
-    else
-    {
-        if (!simple_scene_add_mesh(&state->main_scene, &state->meshes[3]))
-            BERROR("Failed to load falcon mesh");
-        state->meshes[3].transform = transform_from_position((vec3){15.0f, 0.0f, 1.0f});
-    }
-
-    // Sponza
-    mesh_config sponza_config = {0};
-    sponza_config.resource_name = "sponza";
-    if (!mesh_create(sponza_config, &state->meshes[4]))
-    {
-        BERROR("Failed to create sponza mesh");
-    }
-    else
-    {
-        if (!simple_scene_add_mesh(&state->main_scene, &state->meshes[4]))
-            BERROR("Failed to load sponza mesh");
-        state->meshes[4].transform = transform_from_position_rotation_scale((vec3){15.0f, 0.0f, 1.0f}, quat_identity(), (vec3){0.05f, 0.05f, 0.05f});
-    }
-
-    // Lights
-    state->dir_light = (directional_light){
-        (vec4){0.6f, 0.6f, 0.6f, 1.0f},
-        (vec4){-0.57735f, -0.57735f, -0.57735f, 0.0f}
-    };
-
-    if (!simple_scene_add_directional_light(&state->main_scene, &state->dir_light))
-        BERROR("Failed to add directional light to main scene");
-
-    state->p_lights[0].color = (vec4){1.0f, 0.0f, 0.0f, 1.0f};
-    state->p_lights[0].position = (vec4){-5.5f, 0.0f, -5.5f, 0.0f};
-    state->p_lights[0].constant_f = 1.0f;
-    state->p_lights[0].linear = 0.35f;
-    state->p_lights[0].quadratic = 0.44f;
-    state->p_lights[0].padding = 0;
-    if (!simple_scene_add_point_light(&state->main_scene, &state->p_lights[0]))
-        BERROR("Failed to add point light to main scene");
-
-    state->p_lights[1].color = (vec4){0.0f, 1.0f, 0.0f, 1.0f};
-    state->p_lights[1].position = (vec4){5.5f, 0.0f, -5.5f, 0.0f};
-    state->p_lights[1].constant_f = 1.0f;
-    state->p_lights[1].linear = 0.35f;
-    state->p_lights[1].quadratic = 0.44f;
-    state->p_lights[1].padding = 0;
-    if (!simple_scene_add_point_light(&state->main_scene, &state->p_lights[1]))
-        BERROR("Failed to add point light to main scene");
-
-    state->p_lights[2].color = (vec4){0.0f, 0.0f, 1.0f, 1.0f};
-    state->p_lights[2].position = (vec4){5.5f, 0.0f, 5.5f, 0.0f};
-    state->p_lights[2].constant_f = 1.0f;
-    state->p_lights[2].linear = 0.35f;
-    state->p_lights[2].quadratic = 0.44f;
-    state->p_lights[2].padding = 0;
-    if (!simple_scene_add_point_light(&state->main_scene, &state->p_lights[2]))
-        BERROR("Failed to add point light to main scene");
 
     // Initialize
     if (!simple_scene_initialize(&state->main_scene))
@@ -908,6 +809,8 @@ static b8 load_main_scene(struct application* game_inst)
         BERROR("Failed initialize main scene, aborting game");
         return false;
     }
+
+    state->p_light_1 = simple_scene_point_light_get(&state->main_scene, "point_light_1");
 
     return simple_scene_load(&state->main_scene);
 }

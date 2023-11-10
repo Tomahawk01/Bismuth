@@ -1,0 +1,57 @@
+# This is a scene file
+
+!version=1
+[Scene]
+name=test_scene
+description=A simple test scene
+[/Scene]
+
+[Skybox]
+name=skybox_01
+cubemap_name=skybox
+[/Skybox]
+
+[DirectionalLight]
+name=sun
+color=0.6 0.6 0.6 1.0
+direction=-0.57735 -0.57735 -0.57735 0.0
+[/DirectionalLight]
+
+[Mesh]
+name=sponza
+resource_name=sponza
+transform=15.0 0.0 1.0 0.0 0.0 0.0 1.0 0.05 0.05 0.05
+[/Mesh]
+
+[Mesh]
+name=falcon
+resource_name=falcon
+transform=25.0 0.0 1.0 0.0 0.0 0.0 1.0 1.0 1.0 1.0
+[/Mesh]
+
+[PointLight]
+name=point_light_0
+color=1.0 0.0 0.0 1.0
+position=-5.5 0.0 -5.5 0.0
+constant_f=1.0
+linear=0.35
+quadratic=0.44
+[/PointLight]
+
+[PointLight]
+name=point_light_1
+color=0.0 1.0 0.0 1.0
+position=5.5 0.0 -5.5 0.0
+constant_f=1.0
+linear=0.35
+quadratic=0.44
+[/PointLight]
+
+[PointLight]
+name=point_light_2
+color=0.0 0.0 1.0 1.0
+position=-5.5 0.0 5.5 0.0
+constant_f=1.0
+linear=0.35
+quadratic=0.44
+[/PointLight]

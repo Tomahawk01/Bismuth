@@ -13,6 +13,7 @@
 #include "core/event.h"
 #include "containers/darray.h"
 #include "math/math_types.h"
+#include "math/bmath.h"
 #include "renderer/renderer_frontend.h"
 #include "platform/platform.h"
 #include "systems/shader_system.h"
@@ -342,6 +343,23 @@ b8 vulkan_renderer_backend_initialize(renderer_plugin* plugin, const renderer_ba
     BASSERT_MSG(func, "Failed to create debug messenger!");
     VK_CHECK(func(context->instance, &debug_create_info, context->allocator, &context->debug_messenger));
     BDEBUG("Vulkan debugger created");
+
+    // Load up debug function pointers
+    context->pfnSetDebugUtilsObjectNameEXT = (PFN_vkSetDebugUtilsObjectNameEXT)vkGetInstanceProcAddr(context->instance, "vkSetDebugUtilsObjectNameEXT");
+    if (!context->pfnSetDebugUtilsObjectNameEXT)
+        BWARN("Unable to load function pointer for vkSetDebugUtilsObjectNameEXT. Debug functions associated with this will not work");
+
+    context->pfnSetDebugUtilsObjectTagEXT = (PFN_vkSetDebugUtilsObjectTagEXT)vkGetInstanceProcAddr(context->instance, "vkSetDebugUtilsObjectTagEXT");
+    if (!context->pfnSetDebugUtilsObjectTagEXT)
+        BWARN("Unable to load function pointer for vkSetDebugUtilsObjectTagEXT. Debug functions associated with this will not work");
+
+    context->pfnCmdBeginDebugUtilsLabelEXT = (PFN_vkCmdBeginDebugUtilsLabelEXT)vkGetInstanceProcAddr(context->instance, "vkCmdBeginDebugUtilsLabelEXT");
+    if (!context->pfnCmdBeginDebugUtilsLabelEXT)
+        BWARN("Unable to load function pointer for vkCmdBeginDebugUtilsLabelEXT. Debug functions associated with this will not work");
+
+    context->pfnCmdEndDebugUtilsLabelEXT = (PFN_vkCmdEndDebugUtilsLabelEXT)vkGetInstanceProcAddr(context->instance, "vkCmdEndDebugUtilsLabelEXT");
+    if (!context->pfnCmdEndDebugUtilsLabelEXT)
+        BWARN("Unable to load function pointer for vkCmdEndDebugUtilsLabelEXT. Debug functions associated with this will not work");
 #endif
 
     // Surface
@@ -769,6 +787,12 @@ b8 vulkan_renderer_renderpass_begin(renderer_plugin* plugin, renderpass* pass, r
     vkCmdBeginRenderPass(command_buffer->handle, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
     command_buffer->state = COMMAND_BUFFER_STATE_IN_RENDER_PASS;
 
+    f32 r = fbrandom_in_range(0.0f, 1.0f);
+    f32 g = fbrandom_in_range(0.0f, 1.0f);
+    f32 b = fbrandom_in_range(0.0f, 1.0f);
+    vec4 colour = (vec4){r, g, b, 1.0f};
+    VK_BEGIN_DEBUG_LABEL(context, command_buffer->handle, pass->name, colour);
+
     return true;
 }
 
@@ -778,6 +802,8 @@ b8 vulkan_renderer_renderpass_end(renderer_plugin* plugin, renderpass* pass)
     vulkan_command_buffer* command_buffer = &context->graphics_command_buffers[context->image_index];
     // End renderpass
     vkCmdEndRenderPass(command_buffer->handle);
+    VK_END_DEBUG_LABEL(context, command_buffer->handle);
+
     command_buffer->state = COMMAND_BUFFER_STATE_RECORDING;
     return true;
 }
@@ -933,6 +959,7 @@ void vulkan_renderer_texture_create(renderer_plugin* plugin, const u8* pixels, t
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
         true,
         VK_IMAGE_ASPECT_COLOR_BIT,
+        t->name,
         image);
 
     // Load data
@@ -998,7 +1025,7 @@ void vulkan_renderer_texture_create_writeable(renderer_plugin* plugin, texture* 
     }
 
     vulkan_image_create(context, t->type, t->width, t->height, image_format, VK_IMAGE_TILING_OPTIMAL, usage,
-                        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, true, aspect, image);
+                        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, true, aspect, t->name, image);
     
     t->generation++;
 }
@@ -1026,6 +1053,7 @@ void vulkan_renderer_texture_resize(renderer_plugin* plugin, texture* t, u32 new
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             true,
             VK_IMAGE_ASPECT_COLOR_BIT,
+            t->name,
             image);
 
         t->generation++;
@@ -2046,6 +2074,10 @@ b8 vulkan_renderer_texture_map_acquire_resources(renderer_plugin* plugin, textur
         BERROR("Error creating texture sampler: %s", vulkan_result_string(result, true));
         return false;
     }
+
+    char formatted_name[TEXTURE_NAME_MAX_LENGTH] = {0};
+    string_format(formatted_name, "%s_texmap_sampler", map->texture->name);
+    VK_SET_DEBUG_OBJECT_NAME(context, VK_OBJECT_TYPE_SAMPLER, (VkSampler)map->internal_data, formatted_name);
 
     return true;
 }

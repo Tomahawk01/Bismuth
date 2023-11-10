@@ -3,6 +3,7 @@
 #include "core/bmemory.h"
 #include "core/bvar.h"
 #include "core/frame_data.h"
+#include "core/bstring.h"
 #include "containers/freelist.h"
 #include "math/bmath.h"
 #include "resources/resource_types.h"
@@ -383,6 +384,7 @@ b8 renderer_renderpass_create(const renderpass_config* config, renderpass* out_r
     out_renderpass->clear_flags = config->clear_flags;
     out_renderpass->clear_color = config->clear_color;
     out_renderpass->render_area = config->render_area;
+    out_renderpass->name = string_duplicate(config->name);
 
     // Copy over config for each target
     for (u32 t = 0; t < out_renderpass->render_target_count; ++t)
@@ -414,7 +416,13 @@ void renderer_renderpass_destroy(renderpass* pass)
     // Destroy rendertargets
     for (u32 i = 0; i < pass->render_target_count; ++i)
         renderer_render_target_destroy(&pass->targets[i], true);
-    
+
+    if (pass->name)
+    {
+        bfree(pass->name, string_length(pass->name) + 1, MEMORY_TAG_STRING);
+        pass->name = 0;
+    }
+
     state_ptr->plugin.renderpass_destroy(&state_ptr->plugin, pass);
 }
 

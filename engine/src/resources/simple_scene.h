@@ -11,6 +11,7 @@ struct mesh;
 struct skybox;
 struct geometry_config;
 struct camera;
+struct simple_scene_config;
 
 typedef enum simple_scene_state
 {
@@ -44,22 +45,28 @@ typedef struct simple_scene
     simple_scene_state state;
     b8 enabled;
 
+    char* name;
+    char* description;
+
     transform scene_transform;
 
     // Singlular pointer to a directional light
     struct directional_light* dir_light;
 
-    // darray of pointers to point lights
-    struct point_light** point_lights;
+    // darray of point lights
+    struct point_light* point_lights;
 
-    // darray of pointers to meshes
-    struct mesh** meshes;
+    // darray of meshes
+    struct mesh* meshes;
 
     // darray of meshes to be loaded
     pending_mesh* pending_meshes;
 
     // Singlular pointer to a skybox
     struct skybox* sb;
+
+    // Pointer to scene configuration, if provided
+    struct simple_scene_config* config;
 } simple_scene;
 
 /**
@@ -91,9 +98,10 @@ BAPI b8 simple_scene_load(simple_scene* scene);
  * @brief Performs unloading routines and resource de-allocation on the given scene.
  * 
  * @param scene A pointer to the scene to be unloaded.
+ * @param immediate Unload immediately instead of the next frame.
  * @return True on success; otherwise false
  */
-BAPI b8 simple_scene_unload(simple_scene* scene);
+BAPI b8 simple_scene_unload(simple_scene* scene, b8 immediate);
 
 /**
  * @brief Performs any required scene updates for the given frame.
@@ -116,18 +124,26 @@ BAPI b8 simple_scene_update(simple_scene* scene, const struct frame_data* p_fram
  */
 BAPI b8 simple_scene_populate_render_packet(simple_scene* scene, struct camera* current_camera, f32 aspect, struct frame_data* p_frame_data, struct render_packet* packet);
 
-BAPI b8 simple_scene_add_directional_light(simple_scene* scene, struct directional_light* light);
+BAPI b8 simple_scene_add_directional_light(simple_scene* scene, const char* name, struct directional_light* light);
 
-BAPI b8 simple_scene_add_point_light(simple_scene* scene, struct point_light* light);
+BAPI b8 simple_scene_add_point_light(simple_scene* scene, const char* name, struct point_light* light);
 
-BAPI b8 simple_scene_add_mesh(simple_scene* scene, struct mesh* m);
+BAPI b8 simple_scene_add_mesh(simple_scene* scene, const char* name, struct mesh* m);
 
-BAPI b8 simple_scene_add_skybox(simple_scene* scene, struct skybox* sb);
+BAPI b8 simple_scene_add_skybox(simple_scene* scene, const char* name, struct skybox* sb);
 
-BAPI b8 simple_scene_remove_directional_light(simple_scene* scene, struct directional_light* light);
+BAPI b8 simple_scene_remove_directional_light(simple_scene* scene, const char* name);
 
-BAPI b8 simple_scene_remove_point_light(simple_scene* scene, struct point_light* light);
+BAPI b8 simple_scene_remove_point_light(simple_scene* scene, const char* name);
 
-BAPI b8 simple_scene_remove_mesh(simple_scene* scene, struct mesh* m);
+BAPI b8 simple_scene_remove_mesh(simple_scene* scene, const char* name);
 
-BAPI b8 simple_scene_remove_skybox(simple_scene* scene, struct skybox* sb);
+BAPI b8 simple_scene_remove_skybox(simple_scene* scene, const char* name);
+
+BAPI struct directional_light* simple_scene_directional_light_get(simple_scene* scene, const char* name);
+
+BAPI struct point_light* simple_scene_point_light_get(simple_scene* scene, const char* name);
+
+BAPI struct mesh* simple_scene_mesh_get(simple_scene* scene, const char* name);
+
+BAPI struct skybox* simple_scene_skybox_get(simple_scene* scene, const char* name);

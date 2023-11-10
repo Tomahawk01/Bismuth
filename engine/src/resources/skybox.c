@@ -48,12 +48,13 @@ b8 skybox_load(skybox* sb)
         BERROR("skybox_load requires a valid pointer to sb");
         return false;
     }
+
+    sb->cubemap.texture = texture_system_acquire_cube(sb->config.cubemap_name, true);
     if (!renderer_texture_map_acquire_resources(&sb->cubemap))
     {
         BFATAL("Unable to acquire resources for cube map texture");
         return false;
     }
-    sb->cubemap.texture = texture_system_acquire_cube(sb->config.cubemap_name, true);
 
     sb->g = geometry_system_acquire_from_config(sb->config.g_config, true);
     sb->render_frame_number = INVALID_ID_U64;

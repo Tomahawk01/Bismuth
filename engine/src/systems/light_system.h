@@ -4,13 +4,19 @@
 
 #include "math/math_types.h"
 
-typedef struct directional_light
+typedef struct directional_light_data
 {
     vec4 color;
     vec4 direction;
+} directional_light_data;
+
+typedef struct directional_light
+{
+    char* name;
+    directional_light_data data;
 } directional_light;
 
-typedef struct point_light
+typedef struct point_light_data
 {
     vec4 color;
     vec4 position;
@@ -21,6 +27,12 @@ typedef struct point_light
     // Makes the light fall off slower at longer distances
     f32 quadratic;
     f32 padding;
+} point_light_data;
+
+typedef struct point_light
+{
+    char* name;
+    point_light_data data;
 } point_light;
 
 b8 light_system_initialize(u64* memory_requirement, void* memory, void* config);
@@ -34,5 +46,5 @@ BAPI b8 light_system_remove_point(point_light* light);
 
 BAPI directional_light* light_system_directional_light_get(void);
 
-BAPI i32 light_system_point_light_count(void);
+BAPI u32 light_system_point_light_count(void);
 BAPI b8 light_system_point_lights_get(point_light* p_lights);

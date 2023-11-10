@@ -13,6 +13,7 @@ typedef enum resource_type
     RESOURCE_TYPE_MESH,
     RESOURCE_TYPE_BITMAP_FONT,
     RESOURCE_TYPE_SYSTEM_FONT,
+    RESOURCE_TYPE_SIMPLE_SCENE,
     RESOURCE_TYPE_CUSTOM
 } resource_type;
 
@@ -245,13 +246,16 @@ typedef struct geometry
 struct geometry_config;
 typedef struct mesh_config
 {
-    const char* resource_name;
+    char* name;
+    char* parent_name;
+    char* resource_name;
     u16 geometry_count;
     struct geometry_config* g_configs;
 } mesh_config;
 
 typedef struct mesh
 {
+    char* name;
     mesh_config config;
     u32 unique_id;
     u8 generation;
@@ -375,3 +379,48 @@ typedef struct shader_config
     b8 depth_test;
     b8 depth_write;
 } shader_config;
+
+typedef struct skybox_simple_scene_config
+{
+    char* name;
+    char* cubemap_name;
+} skybox_simple_scene_config;
+
+typedef struct directional_light_simple_scene_config
+{
+    char* name;
+    vec4 color;
+    vec4 direction;
+} directional_light_simple_scene_config;
+
+typedef struct point_light_simple_scene_config
+{
+    char* name;
+    vec4 color;
+    vec4 position;
+    f32 constant_f;
+    f32 linear;
+    f32 quadratic;
+} point_light_simple_scene_config;
+
+typedef struct mesh_simple_scene_config
+{
+    char* name;
+    char* resource_name;
+    transform transform;
+    char* parent_name;  // optional
+} mesh_simple_scene_config;
+
+typedef struct simple_scene_config
+{
+    char* name;
+    char* description;
+    skybox_simple_scene_config skybox_config;
+    directional_light_simple_scene_config directional_light_config;
+
+    // darray
+    point_light_simple_scene_config* point_lights;
+
+    // darray
+    mesh_simple_scene_config* meshes;
+} simple_scene_config;

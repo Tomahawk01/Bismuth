@@ -1,8 +1,10 @@
 #include "vulkan_swapchain.h"
 #include "core/logger.h"
 #include "core/bmemory.h"
+#include "core/bstring.h"
 #include "vulkan_device.h"
 #include "vulkan_image.h"
+#include "vulkan_utils.h"
 #include "systems/texture_system.h"
 
 void create(vulkan_context* context, u32 width, u32 height, renderer_config_flags flags, vulkan_swapchain* swapchain);
@@ -286,6 +288,9 @@ void create(vulkan_context* context, u32 width, u32 height, renderer_config_flag
     for (u32 i = 0; i < context->swapchain.image_count; ++i)
     {
         // Create depth image and its view
+        char formatted_name[TEXTURE_NAME_MAX_LENGTH] = {0};
+        string_format(formatted_name, "swapchain_image_%u", i);
+
         vulkan_image* image = ballocate(sizeof(vulkan_image), MEMORY_TAG_TEXTURE);
         vulkan_image_create(
             context,
@@ -298,6 +303,7 @@ void create(vulkan_context* context, u32 width, u32 height, renderer_config_flag
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             true,
             VK_IMAGE_ASPECT_DEPTH_BIT,
+            formatted_name,
             image);
 
         // Wrap it in texture
