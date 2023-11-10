@@ -15,7 +15,7 @@ typedef struct mesh_load_params
     resource mesh_resource;
 } mesh_load_params;
 
-void mesh_load_job_success(void* params)
+static void mesh_load_job_success(void* params)
 {
     mesh_load_params* mesh_params = (mesh_load_params*)params;
 
@@ -32,7 +32,7 @@ void mesh_load_job_success(void* params)
     resource_system_unload(&mesh_params->mesh_resource);
 }
 
-void mesh_load_job_fail(void* params)
+static void mesh_load_job_fail(void* params)
 {
     mesh_load_params* mesh_params = (mesh_load_params*)params;
 
@@ -41,7 +41,7 @@ void mesh_load_job_fail(void* params)
     resource_system_unload(&mesh_params->mesh_resource);
 }
 
-b8 mesh_load_job_start(void* params, void* result_data)
+static b8 mesh_load_job_start(void* params, void* result_data)
 {
     mesh_load_params* load_params = (mesh_load_params*)params;
     b8 result = resource_system_load(load_params->resource_name, RESOURCE_TYPE_MESH, 0, &load_params->mesh_resource);

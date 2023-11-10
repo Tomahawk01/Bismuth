@@ -45,15 +45,15 @@ typedef struct mesh_group_data
     mesh_face_data* faces;
 } mesh_group_data;
 
-b8 import_obj_file(file_handle* obj_file, const char* out_bsm_filename, geometry_config** out_geometries_darray);
-void process_subobject(vec3* positions, vec3* normals, vec2* tex_coords, mesh_face_data* faces, geometry_config* out_data);
-b8 import_obj_material_library_file(const char* mtl_file_path);
+static b8 import_obj_file(file_handle* obj_file, const char* out_bsm_filename, geometry_config** out_geometries_darray);
+static void process_subobject(vec3* positions, vec3* normals, vec2* tex_coords, mesh_face_data* faces, geometry_config* out_data);
+static b8 import_obj_material_library_file(const char* mtl_file_path);
 
-b8 load_bsm_file(file_handle* bsm_file, geometry_config** out_geometries_darray);
-b8 write_bsm_file(const char* path, const char* name, u32 geometry_count, geometry_config* geometries);
-b8 write_bmt_file(const char* directory, material_config* config);
+static b8 load_bsm_file(file_handle* bsm_file, geometry_config** out_geometries_darray);
+static b8 write_bsm_file(const char* path, const char* name, u32 geometry_count, geometry_config* geometries);
+static b8 write_bmt_file(const char* directory, material_config* config);
 
-b8 mesh_loader_load(struct resource_loader* self, const char* name, void* params, resource* out_resource)
+static b8 mesh_loader_load(struct resource_loader* self, const char* name, void* params, resource* out_resource)
 {
     if (!self || !name || !out_resource)
         return false;
@@ -132,7 +132,7 @@ b8 mesh_loader_load(struct resource_loader* self, const char* name, void* params
     return true;
 }
 
-void mesh_loader_unload(struct resource_loader* self, resource* resource)
+static void mesh_loader_unload(struct resource_loader* self, resource* resource)
 {
     u32 count = darray_length(resource->data);
     for (u32 i = 0; i < count; ++i)
@@ -145,7 +145,7 @@ void mesh_loader_unload(struct resource_loader* self, resource* resource)
     resource->data_size = 0;
 }
 
-b8 load_bsm_file(file_handle* bsm_file, geometry_config** out_geometries_darray)
+static b8 load_bsm_file(file_handle* bsm_file, geometry_config** out_geometries_darray)
 {
     // Version
     u64 bytes_read = 0;
@@ -206,7 +206,7 @@ b8 load_bsm_file(file_handle* bsm_file, geometry_config** out_geometries_darray)
     return true;
 }
 
-b8 write_bsm_file(const char* path, const char* name, u32 geometry_count, geometry_config* geometries)
+static b8 write_bsm_file(const char* path, const char* name, u32 geometry_count, geometry_config* geometries)
 {
     if (filesystem_exists(path))
         BINFO("File '%s' already exists and will be overwritten", path);
@@ -271,7 +271,7 @@ b8 write_bsm_file(const char* path, const char* name, u32 geometry_count, geomet
     return true;
 }
 
-b8 import_obj_file(file_handle* obj_file, const char* out_bsm_filename, geometry_config** out_geometries_darray)
+static b8 import_obj_file(file_handle* obj_file, const char* out_bsm_filename, geometry_config** out_geometries_darray)
 {
     // Positions
     vec3* positions = darray_reserve(vec3, 16384);
@@ -556,7 +556,7 @@ b8 import_obj_file(file_handle* obj_file, const char* out_bsm_filename, geometry
     return write_bsm_file(out_bsm_filename, name, count, *out_geometries_darray);
 }
 
-void process_subobject(vec3* positions, vec3* normals, vec2* tex_coords, mesh_face_data* faces, geometry_config* out_data)
+static void process_subobject(vec3* positions, vec3* normals, vec2* tex_coords, mesh_face_data* faces, geometry_config* out_data)
 {
     out_data->indices = darray_create(u32);
     out_data->vertices = darray_create(vertex_3d);
@@ -636,7 +636,7 @@ void process_subobject(vec3* positions, vec3* normals, vec2* tex_coords, mesh_fa
         out_data->center.elements[i] = (out_data->min_extents.elements[i] + out_data->max_extents.elements[i]) / 2.0f;
 }
 
-b8 import_obj_material_library_file(const char* mtl_file_path)
+static b8 import_obj_material_library_file(const char* mtl_file_path)
 {
     BDEBUG("Importing obj .mtl file '%s'...", mtl_file_path);
     // Grab the .mtl file, if it exists, and read the material information.
@@ -826,7 +826,7 @@ b8 import_obj_material_library_file(const char* mtl_file_path)
     return true;
 }
 
-b8 write_bmt_file(const char* mtl_file_path, material_config* config)
+static b8 write_bmt_file(const char* mtl_file_path, material_config* config)
 {
     // NOTE: The .obj file this came from (and resulting .mtl file) sit in the models directory.
     // This moves up a level and back into the materials folder

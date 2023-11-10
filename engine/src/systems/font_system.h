@@ -33,8 +33,8 @@ struct ui_text;
 b8 font_system_initialize(u64* memory_requirement, void* memory, void* config);
 void font_system_shutdown(void* memory);
 
-b8 font_system_load_system_font(system_font_config* config);
-b8 font_system_load_bitmap_font(bitmap_font_config* config);
+b8 font_system_system_font_load(system_font_config* config);
+b8 font_system_bitmap_font_load(bitmap_font_config* config);
 
 b8 font_system_acquire(const char* font_name, u16 font_size, struct ui_text* text);
 b8 font_system_release(struct ui_text* text);

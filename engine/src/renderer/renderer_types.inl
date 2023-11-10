@@ -167,8 +167,8 @@ typedef struct renderer_plugin
 
     void (*resized)(struct renderer_plugin* plugin, u16 width, u16 height);
 
-    b8 (*begin_frame)(struct renderer_plugin* plugin, const struct frame_data* p_frame_data);
-    b8 (*end_frame)(struct renderer_plugin* plugin, const struct frame_data* p_frame_data);
+    b8 (*frame_begin)(struct renderer_plugin* plugin, const struct frame_data* p_frame_data);
+    b8 (*frame_end)(struct renderer_plugin* plugin, const struct frame_data* p_frame_data);
 
     void (*viewport_set)(struct renderer_plugin* plugin, vec4 rect);
     void (*viewport_reset)(struct renderer_plugin* plugin);
@@ -179,7 +179,7 @@ typedef struct renderer_plugin
     b8 (*renderpass_begin)(struct renderer_plugin* plugin, renderpass* pass, render_target* target);
     b8 (*renderpass_end)(struct renderer_plugin* plugin, renderpass* pass);
 
-    void (*draw_geometry)(struct renderer_plugin* plugin, geometry_render_data* data);
+    void (*geometry_draw)(struct renderer_plugin* plugin, geometry_render_data* data);
 
     void (*texture_create)(struct renderer_plugin* plugin, const u8* pixels, struct texture* texture);
     void (*texture_destroy)(struct renderer_plugin* plugin, struct texture* texture);
@@ -190,8 +190,8 @@ typedef struct renderer_plugin
     void (*texture_read_data)(struct renderer_plugin* plugin, texture* t, u32 offset, u32 size, void** out_memory);
     void (*texture_read_pixel)(struct renderer_plugin* plugin, texture* t, u32 x, u32 y, u8** out_rgba);
 
-    b8 (*create_geometry)(struct renderer_plugin* plugin, geometry* geometry, u32 vertex_size, u32 vertex_count, const void* vertices, u32 index_size, u32 index_count, const void* indices);
-    void (*destroy_geometry)(struct renderer_plugin* plugin, geometry* geometry);
+    b8 (*geometry_create)(struct renderer_plugin* plugin, geometry* geometry, u32 vertex_size, u32 vertex_count, const void* vertices, u32 index_size, u32 index_count, const void* indices);
+    void (*geometry_destroy)(struct renderer_plugin* plugin, geometry* geometry);
 
     b8 (*shader_create)(struct renderer_plugin* plugin, struct shader* shader, const shader_config* config, renderpass* pass, u8 stage_count, const char** stage_filenames, shader_stage* stages);
     void (*shader_destroy)(struct renderer_plugin* plugin, struct shader* shader);
@@ -206,13 +206,13 @@ typedef struct renderer_plugin
     b8 (*shader_apply_globals)(struct renderer_plugin* plugin, struct shader* s);
     b8 (*shader_apply_instance)(struct renderer_plugin* plugin, struct shader* s, b8 needs_update);
 
-    b8 (*shader_acquire_instance_resources)(struct renderer_plugin* plugin, struct shader* s, texture_map** maps, u32* out_instance_id);
-    b8 (*shader_release_instance_resources)(struct renderer_plugin* plugin, struct shader* s, u32 instance_id);
+    b8 (*shader_instance_resources_acquire)(struct renderer_plugin* plugin, struct shader* s, texture_map** maps, u32* out_instance_id);
+    b8 (*shader_instance_resources_release)(struct renderer_plugin* plugin, struct shader* s, u32 instance_id);
 
-    b8 (*shader_set_uniform)(struct renderer_plugin* plugin, struct shader* frontend_shader, struct shader_uniform* uniform, const void* value);
+    b8 (*shader_uniform_set)(struct renderer_plugin* plugin, struct shader* frontend_shader, struct shader_uniform* uniform, const void* value);
 
-    b8 (*texture_map_acquire_resources)(struct renderer_plugin* plugin, struct texture_map* map);
-    void (*texture_map_release_resources)(struct renderer_plugin* plugin, struct texture_map* map);
+    b8 (*texture_map_resources_acquire)(struct renderer_plugin* plugin, struct texture_map* map);
+    void (*texture_map_resources_release)(struct renderer_plugin* plugin, struct texture_map* map);
 
     b8 (*render_target_create)(struct renderer_plugin* plugin, u8 attachment_count, render_target_attachment* attachments, renderpass* pass, u32 width, u32 height, render_target* out_target);
     void (*render_target_destroy)(struct renderer_plugin* plugin, render_target* target, b8 free_internal_memory);
@@ -228,11 +228,11 @@ typedef struct renderer_plugin
 
     b8 (*is_multithreaded)(struct renderer_plugin* plugin);
 
-    b8 (*flag_enabled)(struct renderer_plugin* plugin, renderer_config_flags flag);
-    void (*flag_set_enabled)(struct renderer_plugin* plugin, renderer_config_flags flag, b8 enabled);
+    b8 (*flag_enabled_get)(struct renderer_plugin* plugin, renderer_config_flags flag);
+    void (*flag_enabled_set)(struct renderer_plugin* plugin, renderer_config_flags flag, b8 enabled);
 
-    b8 (*renderbuffer_create_internal)(struct renderer_plugin* plugin, renderbuffer* buffer);
-    void (*renderbuffer_destroy_internal)(struct renderer_plugin* plugin, renderbuffer* buffer);
+    b8 (*renderbuffer_internal_create)(struct renderer_plugin* plugin, renderbuffer* buffer);
+    void (*renderbuffer_internal_destroy)(struct renderer_plugin* plugin, renderbuffer* buffer);
 
     b8 (*renderbuffer_bind)(struct renderer_plugin* plugin, renderbuffer* buffer, u64 offset);
     b8 (*renderbuffer_unbind)(struct renderer_plugin* plugin, renderbuffer* buffer);
@@ -310,12 +310,12 @@ typedef struct render_view
 
     void (*on_resize)(struct render_view* self, u32 width, u32 height);
 
-    b8 (*on_build_packet)(const struct render_view* self, struct linear_allocator* frame_allocator, void* data, struct render_view_packet* out_packet);
-    void (*on_destroy_packet)(const struct render_view* self, struct render_view_packet* packet);
+    b8 (*on_packet_build)(const struct render_view* self, struct linear_allocator* frame_allocator, void* data, struct render_view_packet* out_packet);
+    void (*on_packet_destroy)(const struct render_view* self, struct render_view_packet* packet);
 
     b8 (*on_render)(const struct render_view* self, const struct render_view_packet* packet, u64 frame_number, u64 render_target_index);
 
-    b8 (*regenerate_attachment_target)(struct render_view* self, u32 pass_index, struct render_target_attachment* attachment);
+    b8 (*attachment_target_regenerate)(struct render_view* self, u32 pass_index, struct render_target_attachment* attachment);
 } render_view;
 
 typedef struct render_view_packet

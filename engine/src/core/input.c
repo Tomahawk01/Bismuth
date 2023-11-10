@@ -31,7 +31,7 @@ typedef struct input_state
 // Internal input state_ptr
 static input_state* state_ptr;
 
-b8 check_modifiers(keymap_modifier modifiers);
+static b8 check_modifiers(keymap_modifier modifiers);
 
 b8 input_system_initialize(u64* memory_requirement, void* state, void* config)
 {
@@ -103,7 +103,7 @@ void input_update(const struct frame_data* p_frame_data)
     bcopy_memory(&state_ptr->mouse_previous, &state_ptr->mouse_current, sizeof(mouse_state));
 }
 
-b8 check_modifiers(keymap_modifier modifiers)
+static b8 check_modifiers(keymap_modifier modifiers)
 {
     if (modifiers & KEYMAP_MODIFIER_SHIFT_BIT)
     {

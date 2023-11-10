@@ -37,7 +37,7 @@ static b8 render_view_on_event(u16 code, void* sender, void* listener_inst, even
     switch (code)
     {
         case EVENT_CODE_DEFAULT_RENDERTARGET_REFRESH_REQUIRED:
-            render_view_system_regenerate_render_targets(self);
+            render_view_system_render_targets_regenerate(self);
             // This needs to be consumed by other views, so consider it not handled
             return false;
     }
@@ -130,11 +130,11 @@ void render_view_skybox_on_resize(struct render_view* self, u32 width, u32 heigh
     }
 }
 
-b8 render_view_skybox_on_build_packet(const struct render_view* self, struct linear_allocator* frame_allocator, void* data, struct render_view_packet* out_packet)
+b8 render_view_skybox_on_packet_build(const struct render_view* self, struct linear_allocator* frame_allocator, void* data, struct render_view_packet* out_packet)
 {
     if (!self || !data || !out_packet)
     {
-        BWARN("render_view_skybox_on_build_packet requires valid pointer to view, packet, and data");
+        BWARN("render_view_skybox_on_packet_build requires valid pointer to view, packet, and data");
         return false;
     }
 
@@ -155,7 +155,7 @@ b8 render_view_skybox_on_build_packet(const struct render_view* self, struct lin
     return true;
 }
 
-void render_view_skybox_on_destroy_packet(const struct render_view* self, struct render_view_packet* packet)
+void render_view_skybox_on_packet_destroy(const struct render_view* self, struct render_view_packet* packet)
 {
     bzero_memory(packet, sizeof(render_view_packet));
 }
@@ -220,7 +220,7 @@ b8 render_view_skybox_on_render(const struct render_view* self, const struct ren
             // Draw it
             geometry_render_data render_data = {};
             render_data.geometry = skybox_data->sb->g;
-            renderer_draw_geometry(&render_data);
+            renderer_geometry_draw(&render_data);
         }
 
         if (!renderer_renderpass_end(pass))

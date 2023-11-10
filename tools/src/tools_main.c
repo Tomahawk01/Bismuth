@@ -56,6 +56,8 @@ i32 process_shaders(i32 argc, char** argv)
         i32 length = string_length(argv[i]);
         string_ncopy(end_path, argv[i] + length - 9, 9);
 
+        end_path[9] = 0;
+
         // Parse stage from file name
         char stage[5];
         if (strings_equali(end_path, "frag.glsl"))
@@ -66,6 +68,11 @@ i32 process_shaders(i32 argc, char** argv)
             string_ncopy(stage, "geom", 4);
         else if (strings_equali(end_path, "comp.glsl"))
             string_ncopy(stage, "comp", 4);
+        else
+        {
+            BERROR("Unrecognized stage '%s'", end_path);
+            return -5;
+        }
         stage[4] = 0;
 
         // Output filename, just has different extension of spv

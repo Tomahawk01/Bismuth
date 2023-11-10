@@ -16,7 +16,7 @@ typedef struct logger_system_state
 
 static logger_system_state* state_ptr;
 
-void append_to_log_file(const char* message)
+static void append_to_log_file(const char* message)
 {
     if (state_ptr && state_ptr->log_file_handle.is_valid)
     {

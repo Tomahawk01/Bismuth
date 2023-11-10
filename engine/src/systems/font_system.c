@@ -59,11 +59,11 @@ typedef struct font_system_state
     void* system_hashtable_block;
 } font_system_state;
 
-b8 setup_font_data(font_data* font);
-void cleanup_font_data(font_data* font);
-b8 create_system_font_variant(system_font_lookup* lookup, u16 size, const char* font_name, font_data* out_variant);
-b8 rebuild_system_font_variant_atlas(system_font_lookup* lookup, font_data* variant);
-b8 verify_system_font_size_variant(system_font_lookup* lookup, font_data* variant, const char* text);
+static b8 setup_font_data(font_data* font);
+static void cleanup_font_data(font_data* font);
+static b8 create_system_font_variant(system_font_lookup* lookup, u16 size, const char* font_name, font_data* out_variant);
+static b8 rebuild_system_font_variant_atlas(system_font_lookup* lookup, font_data* variant);
+static b8 verify_system_font_size_variant(system_font_lookup* lookup, font_data* variant, const char* text);
 
 static font_system_state* state_ptr;
 
@@ -128,13 +128,13 @@ b8 font_system_initialize(u64* memory_requirement, void* memory, void* config)
     // Bitmap fonts
     for (u32 i = 0; i < state_ptr->config.default_bitmap_font_count; ++i)
     {
-        if (!font_system_load_bitmap_font(&state_ptr->config.bitmap_font_configs[i]))
+        if (!font_system_bitmap_font_load(&state_ptr->config.bitmap_font_configs[i]))
             BERROR("Failed to load bitmap font: %s", state_ptr->config.bitmap_font_configs[i].name);
     }
     // System fonts
     for (u32 i = 0; i < state_ptr->config.default_system_font_count; ++i)
     {
-        if (!font_system_load_system_font(&state_ptr->config.system_font_configs[i]))
+        if (!font_system_system_font_load(&state_ptr->config.system_font_configs[i]))
             BERROR("Failed to load system font: %s", state_ptr->config.system_font_configs[i].name);
     }
 
@@ -177,7 +177,7 @@ void font_system_shutdown(void* memory)
     }
 }
 
-b8 font_system_load_system_font(system_font_config* config)
+b8 font_system_system_font_load(system_font_config* config)
 {
     resource loaded_resource;
     if (!resource_system_load(config->resource_name, RESOURCE_TYPE_SYSTEM_FONT, 0, &loaded_resource))
@@ -272,7 +272,7 @@ b8 font_system_load_system_font(system_font_config* config)
     return true;
 }
 
-b8 font_system_load_bitmap_font(bitmap_font_config* config)
+b8 font_system_bitmap_font_load(bitmap_font_config* config)
 {
     // Make sure font with this name doesn't already exist
     u16 id = INVALID_ID_U16;
@@ -452,13 +452,13 @@ b8 font_system_verify_atlas(font_data* font, const char* text)
     return false;
 }
 
-b8 setup_font_data(font_data* font)
+static b8 setup_font_data(font_data* font)
 {
     // Create map resources
     font->atlas.filter_magnify = font->atlas.filter_minify = TEXTURE_FILTER_MODE_LINEAR;
     font->atlas.repeat_u = font->atlas.repeat_v = font->atlas.repeat_w = TEXTURE_REPEAT_CLAMP_TO_EDGE;
     font->atlas.use = TEXTURE_USE_MAP_DIFFUSE;
-    if (!renderer_texture_map_acquire_resources(&font->atlas))
+    if (!renderer_texture_map_resources_acquire(&font->atlas))
     {
         BERROR("Unable to acquire resources for font atlas texture map");
         return false;
@@ -499,10 +499,10 @@ b8 setup_font_data(font_data* font)
     return true;
 }
 
-void cleanup_font_data(font_data* font)
+static void cleanup_font_data(font_data* font)
 {
     // Release texture map resources
-    renderer_texture_map_release_resources(&font->atlas);
+    renderer_texture_map_resources_release(&font->atlas);
 
     // If bitmap font, release reference to the texture
     if (font->type == FONT_TYPE_BITMAP && font->atlas.texture)
@@ -510,7 +510,7 @@ void cleanup_font_data(font_data* font)
     font->atlas.texture = 0;
 }
 
-b8 create_system_font_variant(system_font_lookup* lookup, u16 size, const char* font_name, font_data* out_variant)
+static b8 create_system_font_variant(system_font_lookup* lookup, u16 size, const char* font_name, font_data* out_variant)
 {
     bzero_memory(out_variant, sizeof(font_data));
     out_variant->atlas_size_x = 1024;  // TODO: configurable size
@@ -544,7 +544,7 @@ b8 create_system_font_variant(system_font_lookup* lookup, u16 size, const char* 
     return rebuild_system_font_variant_atlas(lookup, out_variant);
 }
 
-b8 rebuild_system_font_variant_atlas(system_font_lookup* lookup, font_data* variant)
+static b8 rebuild_system_font_variant_atlas(system_font_lookup* lookup, font_data* variant)
 {
     system_font_variant_data* internal_data = (system_font_variant_data*)variant->internal_data;
 
@@ -646,7 +646,7 @@ b8 rebuild_system_font_variant_atlas(system_font_lookup* lookup, font_data* vari
     return true;
 }
 
-b8 verify_system_font_size_variant(system_font_lookup* lookup, font_data* variant, const char* text)
+static b8 verify_system_font_size_variant(system_font_lookup* lookup, font_data* variant, const char* text)
 {
     system_font_variant_data* internal_data = (system_font_variant_data*)variant->internal_data;
 

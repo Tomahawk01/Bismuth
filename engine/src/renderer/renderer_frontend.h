@@ -37,10 +37,10 @@ BAPI void renderer_texture_write_data(texture* t, u32 offset, u32 size, const u8
 BAPI void renderer_texture_read_data(texture* t, u32 offset, u32 size, void** out_memory);
 BAPI void renderer_texture_read_pixel(texture* t, u32 x, u32 y, u8** out_rgba);
 
-BAPI b8 renderer_create_geometry(geometry* geometry, u32 vertex_size, u32 vertex_count, const void* vertices, u32 index_size, u32 index_count, const void* indices);
-BAPI void renderer_destroy_geometry(geometry* geometry);
+BAPI b8 renderer_geometry_create(geometry* geometry, u32 vertex_size, u32 vertex_count, const void* vertices, u32 index_size, u32 index_count, const void* indices);
+BAPI void renderer_geometry_destroy(geometry* geometry);
 
-BAPI void renderer_draw_geometry(geometry_render_data* data);
+BAPI void renderer_geometry_draw(geometry_render_data* data);
 
 BAPI b8 renderer_renderpass_begin(renderpass* pass, render_target* target);
 BAPI b8 renderer_renderpass_end(renderpass* pass);
@@ -58,13 +58,13 @@ BAPI b8 renderer_shader_bind_instance(struct shader* s, u32 instance_id);
 BAPI b8 renderer_shader_apply_globals(struct shader* s);
 BAPI b8 renderer_shader_apply_instance(struct shader* s, b8 needs_update);
 
-BAPI b8 renderer_shader_acquire_instance_resources(struct shader* s, texture_map** maps, u32* out_instance_id);
-BAPI b8 renderer_shader_release_instance_resources(struct shader* s, u32 instance_id);
+BAPI b8 renderer_shader_instance_resources_acquire(struct shader* s, texture_map** maps, u32* out_instance_id);
+BAPI b8 renderer_shader_instance_resources_release(struct shader* s, u32 instance_id);
 
-BAPI b8 renderer_set_uniform(struct shader* s, struct shader_uniform* uniform, const void* value);
+BAPI b8 renderer_shader_uniform_set(struct shader* s, struct shader_uniform* uniform, const void* value);
 
-BAPI b8 renderer_texture_map_acquire_resources(struct texture_map* map);
-BAPI void renderer_texture_map_release_resources(struct texture_map* map);
+BAPI b8 renderer_texture_map_resources_acquire(struct texture_map* map);
+BAPI void renderer_texture_map_resources_release(struct texture_map* map);
 
 BAPI void renderer_render_target_create(u8 attachment_count, render_target_attachment* attachments, renderpass* pass, u32 width, u32 height, render_target* out_target);
 BAPI void renderer_render_target_destroy(render_target* target, b8 free_internal_memory);
@@ -80,8 +80,8 @@ BAPI void renderer_renderpass_destroy(renderpass* pass);
 
 BAPI b8 renderer_is_multithreaded(void);
 
-BAPI b8 renderer_flag_enabled(renderer_config_flags flag);
-BAPI void renderer_flag_set_enabled(renderer_config_flags flag, b8 enabled);
+BAPI b8 renderer_flag_enabled_get(renderer_config_flags flag);
+BAPI void renderer_flag_enabled_set(renderer_config_flags flag, b8 enabled);
 
 BAPI b8 renderer_renderbuffer_create(renderbuffer_type type, u64 total_size, b8 use_freelist, renderbuffer* out_buffer);
 BAPI void renderer_renderbuffer_destroy(renderbuffer* buffer);

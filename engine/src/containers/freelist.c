@@ -17,8 +17,8 @@ typedef struct internal_state
     freelist_node* nodes;
 } internal_state;
 
-freelist_node* get_node(freelist* list);
-void return_node(freelist_node* node);
+static freelist_node* get_node(freelist* list);
+static void return_node(freelist_node* node);
 
 void freelist_create(u64 total_size, u64* memory_requirement, void* memory, freelist* out_list)
 {
@@ -364,7 +364,7 @@ u64 freelist_free_space(freelist* list)
     return running_total;
 }
 
-freelist_node* get_node(freelist* list)
+static freelist_node* get_node(freelist* list)
 {
     internal_state* state = list->memory;
     for (u64 i = 1; i < state->max_entries; ++i)
@@ -377,7 +377,7 @@ freelist_node* get_node(freelist* list)
     return 0;
 }
 
-void return_node(freelist_node* node)
+static void return_node(freelist_node* node)
 {
     node->offset = INVALID_ID;
     node->size = INVALID_ID;

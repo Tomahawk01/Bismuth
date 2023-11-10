@@ -4,7 +4,7 @@
 transform transform_create(void)
 {
     transform t;
-    transform_set_position_rotation_scale(&t, vec3_zero(), quat_identity(), vec3_one());
+    transform_position_rotation_scale_set(&t, vec3_zero(), quat_identity(), vec3_one());
     t.local = mat4_identity();
     t.parent = 0;
     return t;
@@ -13,7 +13,7 @@ transform transform_create(void)
 transform transform_from_position(vec3 position)
 {
     transform t;
-    transform_set_position_rotation_scale(&t, position, quat_identity(), vec3_one());
+    transform_position_rotation_scale_set(&t, position, quat_identity(), vec3_one());
     t.local = mat4_identity();
     t.parent = 0;
     return t;
@@ -22,7 +22,7 @@ transform transform_from_position(vec3 position)
 transform transform_from_rotation(quat rotation)
 {
     transform t;
-    transform_set_position_rotation_scale(&t, vec3_zero(), rotation, vec3_one());
+    transform_position_rotation_scale_set(&t, vec3_zero(), rotation, vec3_one());
     t.local = mat4_identity();
     t.parent = 0;
     return t;
@@ -31,7 +31,7 @@ transform transform_from_rotation(quat rotation)
 transform transform_from_position_rotation(vec3 position, quat rotation)
 {
     transform t;
-    transform_set_position_rotation_scale(&t, position, rotation, vec3_one());
+    transform_position_rotation_scale_set(&t, position, rotation, vec3_one());
     t.local = mat4_identity();
     t.parent = 0;
     return t;
@@ -40,31 +40,31 @@ transform transform_from_position_rotation(vec3 position, quat rotation)
 transform transform_from_position_rotation_scale(vec3 position, quat rotation, vec3 scale)
 {
     transform t;
-    transform_set_position_rotation_scale(&t, position, rotation, scale);
+    transform_position_rotation_scale_set(&t, position, rotation, scale);
     t.local = mat4_identity();
     t.parent = 0;
     return t;
 }
 
-transform* transform_get_parent(transform* t)
+transform* transform_parent_get(transform* t)
 {
     if (!t)
         return 0;
     return t->parent;
 }
 
-void transform_set_parent(transform* t, transform* parent)
+void transform_parent_set(transform* t, transform* parent)
 {
     if (t)
         t->parent = parent;
 }
 
-vec3 transform_get_position(const transform* t)
+vec3 transform_position_get(const transform* t)
 {
     return t->position;
 }
 
-void transform_set_position(transform* t, vec3 position)
+void transform_position_set(transform* t, vec3 position)
 {
     t->position = position;
     t->is_dirty = true;
@@ -76,12 +76,12 @@ void transform_translate(transform* t, vec3 translation)
     t->is_dirty = true;
 }
 
-quat transform_get_rotation(const transform* t)
+quat transform_rotation_get(const transform* t)
 {
     return t->rotation;
 }
 
-void transform_set_rotation(transform* t, quat rotation)
+void transform_rotation_set(transform* t, quat rotation)
 {
     t->rotation = rotation;
     t->is_dirty = true;
@@ -93,12 +93,12 @@ void transform_rotate(transform* t, quat rotation)
     t->is_dirty = true;
 }
 
-vec3 transform_get_scale(const transform* t)
+vec3 transform_scale_get(const transform* t)
 {
     return t->scale;
 }
 
-void transform_set_scale(transform* t, vec3 scale)
+void transform_scale_set(transform* t, vec3 scale)
 {
     t->scale = scale;
     t->is_dirty = true;
@@ -110,14 +110,14 @@ void transform_scale(transform* t, vec3 scale)
     t->is_dirty = true;
 }
 
-void transform_set_position_rotation(transform* t, vec3 position, quat rotation)
+void transform_position_rotation_set(transform* t, vec3 position, quat rotation)
 {
     t->position = position;
     t->rotation = rotation;
     t->is_dirty = true;
 }
 
-void transform_set_position_rotation_scale(transform* t, vec3 position, quat rotation, vec3 scale)
+void transform_position_rotation_scale_set(transform* t, vec3 position, quat rotation, vec3 scale)
 {
     t->position = position;
     t->rotation = rotation;
@@ -132,7 +132,7 @@ void transform_translate_rotate(transform* t, vec3 translation, quat rotation)
     t->is_dirty = true;
 }
 
-mat4 transform_get_local(transform* t)
+mat4 transform_local_get(transform* t)
 {
     if (t)
     {
@@ -149,14 +149,14 @@ mat4 transform_get_local(transform* t)
     return mat4_identity();
 }
 
-mat4 transform_get_world(transform* t)
+mat4 transform_world_get(transform* t)
 {
     if (t)
     {
-        mat4 l = transform_get_local(t);
+        mat4 l = transform_local_get(t);
         if (t->parent)
         {
-            mat4 p = transform_get_world(t->parent);
+            mat4 p = transform_world_get(t->parent);
             return mat4_mul(l, p);
         }
         return l;

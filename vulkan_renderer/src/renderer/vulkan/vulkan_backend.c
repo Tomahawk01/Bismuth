@@ -37,12 +37,12 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(
     const VkDebugUtilsMessengerCallbackDataEXT* callback_data,
     void* user_data);
 
-i32 find_memory_index(vulkan_context* context, u32 type_filter, u32 property_flags);
+static i32 find_memory_index(vulkan_context* context, u32 type_filter, u32 property_flags);
 
-void create_command_buffers(vulkan_context* context);
-b8 recreate_swapchain(vulkan_context* context);
-b8 create_shader_module(vulkan_context* context, vulkan_shader* shader, vulkan_shader_stage_config config, vulkan_shader_stage* shader_stage);
-b8 vulkan_buffer_copy_range_internal(vulkan_context* context, VkBuffer source, u64 source_offset, VkBuffer dest, u64 dest_offset, u64 size);
+static void create_command_buffers(vulkan_context* context);
+static b8 recreate_swapchain(vulkan_context* context);
+static b8 create_shader_module(vulkan_context* context, vulkan_shader* shader, vulkan_shader_stage_config config, vulkan_shader_stage* shader_stage);
+static b8 vulkan_buffer_copy_range_internal(vulkan_context* context, VkBuffer source, u64 source_offset, VkBuffer dest, u64 dest_offset, u64 size);
 
 #if BVULKAN_USE_CUSTOM_ALLOCATOR == 1
 void* vulkan_alloc_allocation(void* user_data, size_t size, size_t alignment, VkSystemAllocationScope allocation_scope)
@@ -542,7 +542,7 @@ void vulkan_renderer_backend_on_resized(renderer_plugin* plugin, u16 width, u16 
     BINFO("Vulkan renderer plugin->resized: w/h/gen: %i/%i/%llu", width, height, context->framebuffer_size_generation);
 }
 
-b8 vulkan_renderer_backend_begin_frame(renderer_plugin* plugin, const struct frame_data* p_frame_data)
+b8 vulkan_renderer_backend_frame_begin(renderer_plugin* plugin, const struct frame_data* p_frame_data)
 {
     vulkan_context* context = (vulkan_context*)plugin->internal_context;
     vulkan_device* device = &context->device;
@@ -553,7 +553,7 @@ b8 vulkan_renderer_backend_begin_frame(renderer_plugin* plugin, const struct fra
         VkResult result = vkDeviceWaitIdle(device->logical_device);
         if (!vulkan_result_is_success(result))
         {
-            BERROR("vulkan_renderer_backend_begin_frame vkDeviceWaitIdle (1) failed: '%s'", vulkan_result_string(result, true));
+            BERROR("vulkan_renderer_backend_frame_begin vkDeviceWaitIdle (1) failed: '%s'", vulkan_result_string(result, true));
             return false;
         }
         BINFO("Recreating swapchain, booting.");
@@ -567,7 +567,7 @@ b8 vulkan_renderer_backend_begin_frame(renderer_plugin* plugin, const struct fra
         VkResult result = vkDeviceWaitIdle(device->logical_device);
         if (!vulkan_result_is_success(result))
         {
-            BERROR("vulkan_renderer_backend_begin_frame vkDeviceWaitIdle (2) failed: '%s'", vulkan_result_string(result, true));
+            BERROR("vulkan_renderer_backend_frame_begin vkDeviceWaitIdle (2) failed: '%s'", vulkan_result_string(result, true));
             return false;
         }
 
@@ -619,7 +619,7 @@ b8 vulkan_renderer_backend_begin_frame(renderer_plugin* plugin, const struct fra
     return true;
 }
 
-b8 vulkan_renderer_backend_end_frame(renderer_plugin* plugin, const struct frame_data* p_frame_data)
+b8 vulkan_renderer_backend_frame_end(renderer_plugin* plugin, const struct frame_data* p_frame_data)
 {
     vulkan_context* context = (vulkan_context*)plugin->internal_context;
     vulkan_command_buffer* command_buffer = &context->graphics_command_buffers[context->image_index];
@@ -833,7 +833,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(
     return VK_FALSE;
 }
 
-i32 find_memory_index(vulkan_context* context, u32 type_filter, u32 property_flags)
+static i32 find_memory_index(vulkan_context* context, u32 type_filter, u32 property_flags)
 {
     VkPhysicalDeviceMemoryProperties memory_properties;
     vkGetPhysicalDeviceMemoryProperties(context->device.physical_device, &memory_properties);
@@ -849,7 +849,7 @@ i32 find_memory_index(vulkan_context* context, u32 type_filter, u32 property_fla
     return -1;
 }
 
-void create_command_buffers(vulkan_context* context)
+static void create_command_buffers(vulkan_context* context)
 {
     if (!context->graphics_command_buffers)
     {
@@ -878,7 +878,7 @@ void create_command_buffers(vulkan_context* context)
     BINFO("Vulkan command buffers created");
 }
 
-b8 recreate_swapchain(vulkan_context* context)
+static b8 recreate_swapchain(vulkan_context* context)
 {
     // If already being recreated, do not try again
     if (context->recreating_swapchain)
@@ -984,7 +984,7 @@ void vulkan_renderer_texture_destroy(renderer_plugin* plugin, struct texture* te
     bzero_memory(texture, sizeof(struct texture));
 }
 
-VkFormat channel_count_to_format(u8 channel_count, VkFormat default_format)
+static VkFormat channel_count_to_format(u8 channel_count, VkFormat default_format)
 {
     switch (channel_count)
     {
@@ -1222,12 +1222,12 @@ void vulkan_renderer_texture_read_pixel(renderer_plugin* plugin, texture* t, u32
     renderer_renderbuffer_destroy(&staging);
 }
 
-b8 vulkan_renderer_create_geometry(renderer_plugin* plugin, geometry* geometry, u32 vertex_size, u32 vertex_count, const void* vertices, u32 index_size, u32 index_count, const void* indices)
+b8 vulkan_renderer_geometry_create(renderer_plugin* plugin, geometry* geometry, u32 vertex_size, u32 vertex_count, const void* vertices, u32 index_size, u32 index_count, const void* indices)
 {
     vulkan_context* context = (vulkan_context*)plugin->internal_context;
     if (!vertex_count || !vertices)
     {
-        BERROR("vulkan_renderer_create_geometry requires vertex data, and none was supplied. vertex_count=%d, vertices=%p", vertex_count, vertices);
+        BERROR("vulkan_renderer_geometry_create requires vertex data, and none was supplied. vertex_count=%d, vertices=%p", vertex_count, vertices);
         return false;
     }
 
@@ -1264,7 +1264,7 @@ b8 vulkan_renderer_create_geometry(renderer_plugin* plugin, geometry* geometry, 
     }
     if (!internal_data)
     {
-        BFATAL("vulkan_renderer_create_geometry failed to find a free index for a new geometry upload. Adjust config to allow more");
+        BFATAL("vulkan_renderer_geometry_create failed to find a free index for a new geometry upload. Adjust config to allow more");
         return false;
     }
 
@@ -1275,14 +1275,14 @@ b8 vulkan_renderer_create_geometry(renderer_plugin* plugin, geometry* geometry, 
     // Allocate space in the buffer
     if (!renderer_renderbuffer_allocate(&context->object_vertex_buffer, total_size, &internal_data->vertex_buffer_offset))
     {
-        BERROR("vulkan_renderer_create_geometry failed to allocate from the vertex buffer!");
+        BERROR("vulkan_renderer_geometry_create failed to allocate from the vertex buffer!");
         return false;
     }
 
     // Load data
     if (!renderer_renderbuffer_load_range(&context->object_vertex_buffer, internal_data->vertex_buffer_offset, total_size, vertices))
     {
-        BERROR("vulkan_renderer_create_geometry failed to upload to the vertex buffer!");
+        BERROR("vulkan_renderer_geometry_create failed to upload to the vertex buffer!");
         return false;
     }
 
@@ -1294,13 +1294,13 @@ b8 vulkan_renderer_create_geometry(renderer_plugin* plugin, geometry* geometry, 
         total_size = index_count * index_size;
         if (!renderer_renderbuffer_allocate(&context->object_index_buffer, total_size, &internal_data->index_buffer_offset))
         {
-            BERROR("vulkan_renderer_create_geometry failed to allocate from the index buffer!");
+            BERROR("vulkan_renderer_geometry_create failed to allocate from the index buffer!");
             return false;
         }
 
         if (!renderer_renderbuffer_load_range(&context->object_index_buffer, internal_data->index_buffer_offset, total_size, indices))
         {
-            BERROR("vulkan_renderer_create_geometry failed to upload to the index buffer!");
+            BERROR("vulkan_renderer_geometry_create failed to upload to the index buffer!");
             return false;
         }
     }
@@ -1319,7 +1319,7 @@ b8 vulkan_renderer_create_geometry(renderer_plugin* plugin, geometry* geometry, 
         // Free vertex data 
         if (!renderer_renderbuffer_free(&context->object_vertex_buffer, old_range.vertex_element_size * old_range.vertex_count, old_range.vertex_buffer_offset))
         {
-            BERROR("vulkan_renderer_create_geometry free operation failed during reupload of vertex data");
+            BERROR("vulkan_renderer_geometry_create free operation failed during reupload of vertex data");
             return false;
         }
 
@@ -1328,7 +1328,7 @@ b8 vulkan_renderer_create_geometry(renderer_plugin* plugin, geometry* geometry, 
         {
             if (!renderer_renderbuffer_free(&context->object_index_buffer, old_range.index_element_size * old_range.index_count, old_range.index_buffer_offset))
             {
-                BERROR("vulkan_renderer_create_geometry free operation failed during reupload of index data");
+                BERROR("vulkan_renderer_geometry_create free operation failed during reupload of index data");
                 return false;
             }
         }
@@ -1337,7 +1337,7 @@ b8 vulkan_renderer_create_geometry(renderer_plugin* plugin, geometry* geometry, 
     return true;
 }
 
-void vulkan_renderer_destroy_geometry(renderer_plugin* plugin, geometry* geometry)
+void vulkan_renderer_geometry_destroy(renderer_plugin* plugin, geometry* geometry)
 {
     vulkan_context* context = (vulkan_context*)plugin->internal_context;
     if (geometry && geometry->internal_id != INVALID_ID)
@@ -1347,13 +1347,13 @@ void vulkan_renderer_destroy_geometry(renderer_plugin* plugin, geometry* geometr
 
         // Free vertex data
         if (!renderer_renderbuffer_free(&context->object_vertex_buffer, internal_data->vertex_element_size * internal_data->vertex_count, internal_data->vertex_buffer_offset))
-            BERROR("vulkan_renderer_destroy_geometry failed to free vertex buffer range");
+            BERROR("vulkan_renderer_geometry_destroy failed to free vertex buffer range");
 
         // Free index data, if applicable
         if (internal_data->index_element_size > 0)
         {
             if (!renderer_renderbuffer_free(&context->object_index_buffer, internal_data->index_element_size * internal_data->index_count, internal_data->index_buffer_offset))
-                BERROR("vulkan_renderer_destroy_geometry failed to free index buffer range");
+                BERROR("vulkan_renderer_geometry_destroy failed to free index buffer range");
         }
 
         // Clean up data
@@ -1363,7 +1363,7 @@ void vulkan_renderer_destroy_geometry(renderer_plugin* plugin, geometry* geometr
     }
 }
 
-void vulkan_renderer_draw_geometry(renderer_plugin* plugin, geometry_render_data* data)
+void vulkan_renderer_geometry_draw(renderer_plugin* plugin, geometry_render_data* data)
 {
     vulkan_context* context = (vulkan_context*)plugin->internal_context;
     // Ignore non-uploaded geometries
@@ -1374,7 +1374,7 @@ void vulkan_renderer_draw_geometry(renderer_plugin* plugin, geometry_render_data
     b8 includes_index_data = buffer_data->index_count > 0;
     if (!vulkan_buffer_draw(plugin, &context->object_vertex_buffer, buffer_data->vertex_buffer_offset, buffer_data->vertex_count, includes_index_data))
     {
-        BERROR("vulkan_renderer_draw_geometry failed to draw vertex buffer");
+        BERROR("vulkan_renderer_geometry_draw failed to draw vertex buffer");
         return;
     }
 
@@ -1382,7 +1382,7 @@ void vulkan_renderer_draw_geometry(renderer_plugin* plugin, geometry_render_data
     {
         if (!vulkan_buffer_draw(plugin, &context->object_index_buffer, buffer_data->index_buffer_offset, buffer_data->index_count, !includes_index_data))
         {
-            BERROR("vulkan_renderer_draw_geometry failed to draw index buffer");
+            BERROR("vulkan_renderer_geometry_draw failed to draw index buffer");
             return;
         }
     }
@@ -2011,7 +2011,7 @@ b8 vulkan_renderer_shader_apply_instance(renderer_plugin* plugin, shader* s, b8 
     return true;
 }
 
-VkSamplerAddressMode convert_repeat_type(const char* axis, texture_repeat repeat)
+static VkSamplerAddressMode convert_repeat_type(const char* axis, texture_repeat repeat)
 {
     switch (repeat)
     {
@@ -2029,7 +2029,7 @@ VkSamplerAddressMode convert_repeat_type(const char* axis, texture_repeat repeat
     }
 }
 
-VkFilter convert_filter_type(const char* op, texture_filter filter)
+static VkFilter convert_filter_type(const char* op, texture_filter filter)
 {
     switch (filter)
     {
@@ -2043,7 +2043,7 @@ VkFilter convert_filter_type(const char* op, texture_filter filter)
     }
 }
 
-b8 vulkan_renderer_texture_map_acquire_resources(renderer_plugin* plugin, texture_map* map)
+b8 vulkan_renderer_texture_map_resources_acquire(renderer_plugin* plugin, texture_map* map)
 {
     vulkan_context* context = (vulkan_context*)plugin->internal_context;
     // Create sampler for the texture
@@ -2082,7 +2082,7 @@ b8 vulkan_renderer_texture_map_acquire_resources(renderer_plugin* plugin, textur
     return true;
 }
 
-void vulkan_renderer_texture_map_release_resources(renderer_plugin* plugin, texture_map* map)
+void vulkan_renderer_texture_map_resources_release(renderer_plugin* plugin, texture_map* map)
 {
     vulkan_context* context = (vulkan_context*)plugin->internal_context;
     if (map)
@@ -2093,7 +2093,7 @@ void vulkan_renderer_texture_map_release_resources(renderer_plugin* plugin, text
     }
 }
 
-b8 vulkan_renderer_shader_acquire_instance_resources(renderer_plugin* plugin, shader* s, texture_map** maps, u32* out_instance_id)
+b8 vulkan_renderer_shader_instance_resources_acquire(renderer_plugin* plugin, shader* s, texture_map** maps, u32* out_instance_id)
 {
     vulkan_context* context = (vulkan_context*)plugin->internal_context;
     vulkan_shader* internal = s->internal_data;
@@ -2180,7 +2180,7 @@ b8 vulkan_renderer_shader_acquire_instance_resources(renderer_plugin* plugin, sh
     return true;
 }
 
-b8 vulkan_renderer_shader_release_instance_resources(renderer_plugin* plugin, shader* s, u32 instance_id)
+b8 vulkan_renderer_shader_instance_resources_release(renderer_plugin* plugin, shader* s, u32 instance_id)
 {
     vulkan_context* context = (vulkan_context*)plugin->internal_context;
     vulkan_shader* internal = s->internal_data;
@@ -2210,7 +2210,7 @@ b8 vulkan_renderer_shader_release_instance_resources(renderer_plugin* plugin, sh
     if (s->ubo_stride != 0)
     {
         if (!renderer_renderbuffer_free(&internal->uniform_buffer, s->ubo_stride, instance_state->offset))
-            BERROR("vulkan_renderer_shader_release_instance_resources failed to free range from renderbuffer");
+            BERROR("vulkan_renderer_shader_instance_resources_release failed to free range from renderbuffer");
     }
     instance_state->offset = INVALID_ID;
     instance_state->id = INVALID_ID;
@@ -2218,7 +2218,7 @@ b8 vulkan_renderer_shader_release_instance_resources(renderer_plugin* plugin, sh
     return true;
 }
 
-b8 vulkan_renderer_set_uniform(renderer_plugin* plugin, shader* s, shader_uniform* uniform, const void* value)
+b8 vulkan_renderer_uniform_set(renderer_plugin* plugin, shader* s, shader_uniform* uniform, const void* value)
 {
     vulkan_context* context = (vulkan_context*)plugin->internal_context;
     vulkan_shader* internal = s->internal_data;
@@ -2250,7 +2250,7 @@ b8 vulkan_renderer_set_uniform(renderer_plugin* plugin, shader* s, shader_unifor
     return true;
 }
 
-b8 create_shader_module(vulkan_context* context, vulkan_shader* shader, vulkan_shader_stage_config config, vulkan_shader_stage* shader_stage)
+static b8 create_shader_module(vulkan_context* context, vulkan_shader* shader, vulkan_shader_stage_config config, vulkan_shader_stage* shader_stage)
 {
     // Read resource
     resource binary_resource;
@@ -2629,13 +2629,13 @@ b8 vulkan_renderer_is_multithreaded(renderer_plugin* plugin)
     return context->multithreading_enabled;
 }
 
-b8 vulkan_renderer_flag_enabled(renderer_plugin* plugin, renderer_config_flags flag)
+b8 vulkan_renderer_flag_enabled_get(renderer_plugin* plugin, renderer_config_flags flag)
 {
     vulkan_context* context = (vulkan_context*)plugin->internal_context;
     return (context->swapchain.flags & flag);
 }
 
-void vulkan_renderer_flag_set_enabled(renderer_plugin* plugin, renderer_config_flags flag, b8 enabled)
+void vulkan_renderer_flag_enabled_set(renderer_plugin* plugin, renderer_config_flags flag, b8 enabled)
 {
     vulkan_context* context = (vulkan_context*)plugin->internal_context;
     context->swapchain.flags = (enabled ? (context->swapchain.flags | flag) : (context->swapchain.flags & ~flag));
@@ -2643,17 +2643,17 @@ void vulkan_renderer_flag_set_enabled(renderer_plugin* plugin, renderer_config_f
 }
 
 // NOTE: Begin vulkan buffer
-b8 vulkan_buffer_is_device_local(renderer_plugin* plugin, vulkan_buffer* buffer)
+static b8 vulkan_buffer_is_device_local(renderer_plugin* plugin, vulkan_buffer* buffer)
 {
     return (buffer->memory_property_flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 }
 
-b8 vulkan_buffer_is_host_visible(renderer_plugin* plugin, vulkan_buffer* buffer)
+static b8 vulkan_buffer_is_host_visible(renderer_plugin* plugin, vulkan_buffer* buffer)
 {
     return (buffer->memory_property_flags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) == VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
 }
 
-b8 vulkan_buffer_is_host_coherent(renderer_plugin* plugin, vulkan_buffer* buffer)
+static b8 vulkan_buffer_is_host_coherent(renderer_plugin* plugin, vulkan_buffer* buffer)
 {
     return (buffer->memory_property_flags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) == VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 }
@@ -3010,7 +3010,7 @@ b8 vulkan_buffer_load_range(renderer_plugin* plugin, renderbuffer* buffer, u64 o
     return true;
 }
 
-b8 vulkan_buffer_copy_range_internal(vulkan_context* context, VkBuffer source, u64 source_offset, VkBuffer dest, u64 dest_offset, u64 size)
+static b8 vulkan_buffer_copy_range_internal(vulkan_context* context, VkBuffer source, u64 source_offset, VkBuffer dest, u64 dest_offset, u64 size)
 {
     VkQueue queue = context->device.graphics_queue;
     vkQueueWaitIdle(queue);

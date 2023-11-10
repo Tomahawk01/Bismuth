@@ -11,7 +11,7 @@
 #define STBI_NO_STDIO // use own filesystem
 #include "vendor/stb_image.h"
 
-b8 image_loader_load(struct resource_loader* self, const char* name, void* params, resource* out_resource)
+static b8 image_loader_load(struct resource_loader* self, const char* name, void* params, resource* out_resource)
 {
     if (!self || !name || !out_resource)
         return false;
@@ -111,7 +111,7 @@ b8 image_loader_load(struct resource_loader* self, const char* name, void* param
     return true;
 }
 
-void image_loader_unload(struct resource_loader* self, resource* resource)
+static void image_loader_unload(struct resource_loader* self, resource* resource)
 {
     stbi_image_free(((image_resource_data*)resource->data)->pixels);
     if (!resource_unload(self, resource, MEMORY_TAG_TEXTURE))

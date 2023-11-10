@@ -38,11 +38,11 @@ typedef struct point_light
 b8 light_system_initialize(u64* memory_requirement, void* memory, void* config);
 void light_system_shutdown(void* state);
 
-BAPI b8 light_system_add_directional(directional_light* light);
-BAPI b8 light_system_add_point(point_light* light);
+BAPI b8 light_system_directional_add(directional_light* light);
+BAPI b8 light_system_point_add(point_light* light);
 
-BAPI b8 light_system_remove_directional(directional_light* light);
-BAPI b8 light_system_remove_point(point_light* light);
+BAPI b8 light_system_directional_remove(directional_light* light);
+BAPI b8 light_system_point_remove(point_light* light);
 
 BAPI directional_light* light_system_directional_light_get(void);
 

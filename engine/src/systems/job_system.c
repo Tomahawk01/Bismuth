@@ -49,7 +49,7 @@ typedef struct job_system_state
 
 static job_system_state* state_ptr;
 
-void store_result(pfn_job_on_complete callback, u32 param_size, void* params)
+static void store_result(pfn_job_on_complete callback, u32 param_size, void* params)
 {
     // Create new entry
     job_result_entry entry;
@@ -83,7 +83,7 @@ void store_result(pfn_job_on_complete callback, u32 param_size, void* params)
         BERROR("Failed to release mutex lock for result storage, storage may be corrupted");
 }
 
-u32 job_thread_run(void* params)
+static u32 job_thread_run(void* params)
 {
     u32 index = *(u32*)params;
     job_thread* thread = &state_ptr->job_threads[index];
@@ -236,7 +236,7 @@ void job_system_shutdown(void* state)
     }
 }
 
-void process_queue(ring_queue* queue, bmutex* queue_mutex)
+static void process_queue(ring_queue* queue, bmutex* queue_mutex)
 {
     u64 thread_count = state_ptr->thread_count;
 

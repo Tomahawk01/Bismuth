@@ -38,8 +38,8 @@ typedef struct engine_state_t
 static engine_state_t* engine_state;
 
 // Event handlers
-b8 engine_on_event(u16 code, void* sender, void* listener_inst, event_context context);
-b8 engine_on_resized(u16 code, void* sender, void* listener_inst, event_context context);
+static b8 engine_on_event(u16 code, void* sender, void* listener_inst, event_context context);
+static b8 engine_on_resized(u16 code, void* sender, void* listener_inst, event_context context);
 
 b8 engine_create(application* game_inst)
 {
@@ -130,8 +130,8 @@ b8 engine_run(application* game_inst)
     clock_start(&engine_state->clock);
     clock_update(&engine_state->clock);
     engine_state->last_time = engine_state->clock.elapsed;
-    //f64 running_time = 0;
-    u8 frame_count = 0;
+    // f64 running_time = 0;
+    // u8 frame_count = 0;
     f64 target_frame_seconds = 1.0f / 60;
     f64 frame_elapsed_time = 0;
 
@@ -184,7 +184,7 @@ b8 engine_run(application* game_inst)
 
             // Clean up the packet
             for (u32 i = 0; i < packet.view_count; ++i)
-                packet.views[i].view->on_destroy_packet(packet.views[i].view, &packet.views[i]);
+                packet.views[i].view->on_packet_destroy(packet.views[i].view, &packet.views[i]);
 
             // Calculate how long the frame took
             f64 frame_end_time = platform_get_absolute_time();
@@ -201,7 +201,7 @@ b8 engine_run(application* game_inst)
                 if (remaining_ms > 0 && limit_frames)
                     platform_sleep(remaining_ms - 1);
 
-                frame_count++;
+                // frame_count++;
             }
 
             input_update(&engine_state->p_frame_data);
@@ -240,7 +240,7 @@ const struct frame_data* engine_frame_data_get(struct application* game_inst)
     return &((engine_state_t*)game_inst->engine_state)->p_frame_data;
 }
 
-b8 engine_on_event(u16 code, void* sender, void* listener_inst, event_context context)
+static b8 engine_on_event(u16 code, void* sender, void* listener_inst, event_context context)
 {
     switch (code)
     {
@@ -255,7 +255,7 @@ b8 engine_on_event(u16 code, void* sender, void* listener_inst, event_context co
     return false;
 }
 
-b8 engine_on_resized(u16 code, void* sender, void* listener_inst, event_context context)
+static b8 engine_on_resized(u16 code, void* sender, void* listener_inst, event_context context)
 {
     if (code == EVENT_CODE_RESIZED)
     {

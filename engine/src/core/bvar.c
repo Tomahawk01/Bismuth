@@ -20,7 +20,7 @@ typedef struct bvar_system_state
 
 static bvar_system_state* state_ptr;
 
-void bvar_register_console_commands(void);
+static void bvar_console_commands_register(void);
 
 b8 bvar_initialize(u64* memory_requirement, void* memory, void* config)
 {
@@ -33,7 +33,7 @@ b8 bvar_initialize(u64* memory_requirement, void* memory, void* config)
 
     bzero_memory(state_ptr, sizeof(bvar_system_state));
 
-    bvar_register_console_commands();
+    bvar_console_commands_register();
 
     return true;
 }
@@ -43,7 +43,7 @@ void bvar_shutdown(void* state)
         bzero_memory(state_ptr, sizeof(bvar_system_state));
 }
 
-b8 bvar_create_int(const char* name, i32 value)
+b8 bvar_int_create(const char* name, i32 value)
 {
     if (!state_ptr || !name)
         return false;
@@ -69,11 +69,11 @@ b8 bvar_create_int(const char* name, i32 value)
         }
     }
 
-    BERROR("bvar_create_int could not find a free slot to store an entry in");
+    BERROR("bvar_int_create could not find a free slot to store an entry in");
     return false;
 }
 
-b8 bvar_get_int(const char* name, i32* out_value)
+b8 bvar_int_get(const char* name, i32* out_value)
 {
     if (!state_ptr || !name)
         return false;
@@ -88,11 +88,11 @@ b8 bvar_get_int(const char* name, i32* out_value)
         }
     }
 
-    BERROR("bvar_get_int could not find a bvar named '%s'", name);
+    BERROR("bvar_int_get could not find a bvar named '%s'", name);
     return false;
 }
 
-b8 bvar_set_int(const char* name, i32 value)
+b8 bvar_int_set(const char* name, i32 value)
 {
     if (!state_ptr || !name)
         return false;
@@ -110,15 +110,15 @@ b8 bvar_set_int(const char* name, i32 value)
         }
     }
 
-    BERROR("bvar_set_int could not find a bvar named '%s'", name);
+    BERROR("bvar_int_set could not find a bvar named '%s'", name);
     return false;
 }
 
-void bvar_console_command_create_int(console_command_context context)
+static void kvar_console_command_int_create(console_command_context context)
 {
     if (context.argument_count != 2)
     {
-        BERROR("bvar_console_command_create_int requires a context arg count of 2");
+        BERROR("kvar_console_command_int_create requires a context arg count of 2");
         return;
     }
 
@@ -131,21 +131,21 @@ void bvar_console_command_create_int(console_command_context context)
         return;
     }
 
-    if (!bvar_create_int(name, value))
+    if (!bvar_int_create(name, value))
         BERROR("Failed to create int bvar");
 }
 
-void bvar_console_command_print_int(console_command_context context)
+static void kvar_console_command_int_print(console_command_context context)
 {
     if (context.argument_count != 1)
     {
-        BERROR("bvar_console_command_print_int requires a context arg count of 1");
+        BERROR("kvar_console_command_int_print requires a context arg count of 1");
         return;
     }
 
     const char* name = context.arguments[0].value;
     i32 value = 0;
-    if (!bvar_get_int(name, &value))
+    if (!bvar_int_get(name, &value))
     {
         BERROR("Failed to find bvar called '%s'", name);
         return;
@@ -157,11 +157,11 @@ void bvar_console_command_print_int(console_command_context context)
     console_write_line(LOG_LEVEL_INFO, val_str);
 }
 
-void bvar_console_command_set_int(console_command_context context)
+static void kvar_console_command_int_set(console_command_context context)
 {
     if (context.argument_count != 2)
     {
-        BERROR("bvar_console_command_set_int requires a context arg count of 2");
+        BERROR("kvar_console_command_int_set requires a context arg count of 2");
         return;
     }
 
@@ -174,7 +174,7 @@ void bvar_console_command_set_int(console_command_context context)
         return;
     }
 
-    if (!bvar_set_int(name, value))
+    if (!bvar_int_set(name, value))
         BERROR("Failed to set int bvar called '%s' because it doesn't exist", name);
 
     char out_str[500] = {0};
@@ -182,7 +182,7 @@ void bvar_console_command_set_int(console_command_context context)
     console_write_line(LOG_LEVEL_INFO, val_str);
 }
 
-void bvar_console_command_print_all(console_command_context context)
+static void bvar_console_command_print_all(console_command_context context)
 {
     // Int bvars
     for (u32 i = 0; i < BVAR_INT_MAX_COUNT; ++i)
@@ -199,10 +199,10 @@ void bvar_console_command_print_all(console_command_context context)
     // TODO: Other variable types
 }
 
-void bvar_register_console_commands(void)
+static void bvar_console_commands_register(void)
 {
-    console_register_command("bvar_create_int", 2, bvar_console_command_create_int);
-    console_register_command("bvar_print_int", 1, bvar_console_command_print_int);
-    console_register_command("bvar_set_int", 2, bvar_console_command_set_int);
-    console_register_command("bvar_print_all", 0, bvar_console_command_print_all);
+    console_command_register("bvar_create_int", 2, kvar_console_command_int_create);
+    console_command_register("bvar_print_int", 1, kvar_console_command_int_print);
+    console_command_register("bvar_set_int", 2, kvar_console_command_int_set);
+    console_command_register("bvar_print_all", 0, bvar_console_command_print_all);
 }

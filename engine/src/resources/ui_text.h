@@ -28,7 +28,7 @@ typedef struct ui_text
 BAPI b8 ui_text_create(ui_text_type type, const char* font_name, u16 font_size, const char* text_content, ui_text* out_text);
 BAPI void ui_text_destroy(ui_text* text);
 
-BAPI void ui_text_set_position(ui_text* u_text, vec3 position);
-BAPI void ui_text_set_text(ui_text* u_text, const char* text);
+BAPI void ui_text_position_set(ui_text* u_text, vec3 position);
+BAPI void ui_text_text_set(ui_text* u_text, const char* text);
 
 BAPI void ui_text_draw(ui_text* u_text);
