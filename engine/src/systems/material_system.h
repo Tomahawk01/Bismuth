@@ -24,3 +24,8 @@ BAPI b8 material_system_apply_global(u32 shader_id, u64 renderer_frame_number, c
 BAPI b8 material_system_apply_instance(material* m, b8 needs_update);
 
 BAPI b8 material_system_apply_local(material* m, const mat4* model);
+
+/**
+ * @brief Dumps all of the registered materials and their reference counts/handles
+ */
+BAPI void material_system_dump(void);

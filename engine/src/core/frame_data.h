@@ -12,6 +12,9 @@ typedef struct frame_data
     // Total amount of time in seconds application has been running
     f64 total_time;
 
+    // Number of meshes drawn in the last frame
+    u32 drawn_mesh_count;
+
     // Pointer to engine's frame allocator
     struct linear_allocator* frame_allocator;
 

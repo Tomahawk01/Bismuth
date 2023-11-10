@@ -30,10 +30,10 @@ typedef struct application
     b8 (*initialize)(struct application* app_inst);
 
     // Function pointer to application's update function
-    b8 (*update)(struct application* app_inst, const struct frame_data* p_frame_data);
+    b8 (*update)(struct application* app_inst, struct frame_data* p_frame_data);
 
     // Function pointer to application's render function
-    b8 (*render)(struct application* app_inst, struct render_packet* packet, const struct frame_data* p_frame_data);
+    b8 (*render)(struct application* app_inst, struct render_packet* packet, struct frame_data* p_frame_data);
 
     // Function pointer to handle resizes, if applicable
     void (*on_resize)(struct application* app_inst, u32 width, u32 height);

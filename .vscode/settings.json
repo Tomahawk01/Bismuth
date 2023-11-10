@@ -48,6 +48,7 @@
         "shader_system.h": "c",
         "job_system.h": "c",
         "font_system.h": "c",
-        "skybox.h": "c"
+        "skybox.h": "c",
+        "simple_scene.h": "c"
     },
 }

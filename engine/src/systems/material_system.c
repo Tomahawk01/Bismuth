@@ -143,6 +143,33 @@ b8 material_system_initialize(u64* memory_requirement, void* state, void* config
         return false;
     }
 
+    // Get uniform indices
+    // Save locations for known types for quick lookups
+    shader* s = shader_system_get("Shader.Builtin.Material");
+    state_ptr->material_shader_id = s->id;
+    state_ptr->material_locations.projection = shader_system_uniform_index(s, "projection");
+    state_ptr->material_locations.view = shader_system_uniform_index(s, "view");
+    state_ptr->material_locations.ambient_color = shader_system_uniform_index(s, "ambient_color");
+    state_ptr->material_locations.view_position = shader_system_uniform_index(s, "view_position");
+    state_ptr->material_locations.diffuse_color = shader_system_uniform_index(s, "diffuse_color");
+    state_ptr->material_locations.diffuse_texture = shader_system_uniform_index(s, "diffuse_texture");
+    state_ptr->material_locations.specular_texture = shader_system_uniform_index(s, "specular_texture");
+    state_ptr->material_locations.normal_texture = shader_system_uniform_index(s, "normal_texture");
+    state_ptr->material_locations.shininess = shader_system_uniform_index(s, "shininess");
+    state_ptr->material_locations.model = shader_system_uniform_index(s, "model");
+    state_ptr->material_locations.render_mode = shader_system_uniform_index(s, "mode");
+    state_ptr->material_locations.dir_light = shader_system_uniform_index(s, "dir_light");
+    state_ptr->material_locations.p_lights = shader_system_uniform_index(s, "p_lights");
+    state_ptr->material_locations.num_p_lights = shader_system_uniform_index(s, "num_p_lights");
+
+    s = shader_system_get("Shader.Builtin.UI");
+    state_ptr->ui_shader_id = s->id;
+    state_ptr->ui_locations.projection = shader_system_uniform_index(s, "projection");
+    state_ptr->ui_locations.view = shader_system_uniform_index(s, "view");
+    state_ptr->ui_locations.diffuse_color = shader_system_uniform_index(s, "diffuse_color");
+    state_ptr->ui_locations.diffuse_texture = shader_system_uniform_index(s, "diffuse_texture");
+    state_ptr->ui_locations.model = shader_system_uniform_index(s, "model");
+
     return true;
 }
 
@@ -233,37 +260,6 @@ material* material_system_acquire_from_config(material_config config)
                 return 0;
             }
 
-            // Get uniform indices
-            shader* s = shader_system_get_by_id(m->shader_id);
-            // Save off locations for known types for quick lookups
-            if (state_ptr->material_shader_id == INVALID_ID && strings_equal(config.shader_name, "Shader.Builtin.Material"))
-            {
-                state_ptr->material_shader_id = s->id;
-                state_ptr->material_locations.projection = shader_system_uniform_index(s, "projection");
-                state_ptr->material_locations.view = shader_system_uniform_index(s, "view");
-                state_ptr->material_locations.ambient_color = shader_system_uniform_index(s, "ambient_color");
-                state_ptr->material_locations.view_position = shader_system_uniform_index(s, "view_position");
-                state_ptr->material_locations.diffuse_color = shader_system_uniform_index(s, "diffuse_color");
-                state_ptr->material_locations.diffuse_texture = shader_system_uniform_index(s, "diffuse_texture");
-                state_ptr->material_locations.specular_texture = shader_system_uniform_index(s, "specular_texture");
-                state_ptr->material_locations.normal_texture = shader_system_uniform_index(s, "normal_texture");
-                state_ptr->material_locations.shininess = shader_system_uniform_index(s, "shininess");
-                state_ptr->material_locations.model = shader_system_uniform_index(s, "model");
-                state_ptr->material_locations.render_mode = shader_system_uniform_index(s, "mode");
-                state_ptr->material_locations.dir_light = shader_system_uniform_index(s, "dir_light");
-                state_ptr->material_locations.p_lights = shader_system_uniform_index(s, "p_lights");
-                state_ptr->material_locations.num_p_lights = shader_system_uniform_index(s, "num_p_lights");
-            }
-            else if (state_ptr->ui_shader_id == INVALID_ID && strings_equal(config.shader_name, "Shader.Builtin.UI"))
-            {
-                state_ptr->ui_shader_id = s->id;
-                state_ptr->ui_locations.projection = shader_system_uniform_index(s, "projection");
-                state_ptr->ui_locations.view = shader_system_uniform_index(s, "view");
-                state_ptr->ui_locations.diffuse_color = shader_system_uniform_index(s, "diffuse_color");
-                state_ptr->ui_locations.diffuse_texture = shader_system_uniform_index(s, "diffuse_texture");
-                state_ptr->ui_locations.model = shader_system_uniform_index(s, "model");
-            }
-
             if (m->generation == INVALID_ID)
             {
                 m->generation = 0;
@@ -305,6 +301,11 @@ void material_system_release(const char* name)
             BWARN("Tried to release non-existent material: '%s'", name);
             return;
         }
+
+        // Take a copy of the name since it would be wiped out if destroyed
+        char name_copy[MATERIAL_NAME_MAX_LENGTH];
+        string_ncopy(name_copy, name, MATERIAL_NAME_MAX_LENGTH);
+
         ref.reference_count--;
         if (ref.reference_count == 0 && ref.auto_release)
         {
@@ -316,15 +317,15 @@ void material_system_release(const char* name)
             // Reset reference
             ref.handle = INVALID_ID;
             ref.auto_release = false;
-            // BTRACE("Released material '%s', Material unloaded because reference count=0 and auto_release=true", name);
+            // BTRACE("Released material '%s', Material unloaded because reference count=0 and auto_release=true", name_copy);
         }
         else
         {
-            // BTRACE("Released material '%s', now has a reference count of '%i' (auto_release=%s)", name, ref.reference_count, ref.auto_release ? "true" : "false");
+            // BTRACE("Released material '%s', now has a reference count of '%i' (auto_release=%s)", name_copy, ref.reference_count, ref.auto_release ? "true" : "false");
         }
 
         // Update entry
-        hashtable_set(&state_ptr->registered_material_table, name, &ref);
+        hashtable_set(&state_ptr->registered_material_table, name_copy, &ref);
     }
     else
     {
@@ -435,6 +436,21 @@ b8 material_system_apply_local(material* m, const mat4* model)
 
     BERROR("Unrecognized shader id '%d'", m->shader_id);
     return false;
+}
+
+void material_system_dump(void)
+{
+    material_reference* refs = (material_reference*)state_ptr->registered_material_table.memory;
+    for (u32 i = 0; i < state_ptr->registered_material_table.element_count; ++i)
+    {
+        material_reference* r = &refs[i];
+        if (r->reference_count > 0 || r->handle != INVALID_ID)
+        {
+            BDEBUG("Found material ref (handle/refCount): (%u/%u)", r->handle, r->reference_count);
+            if (r->handle != INVALID_ID)
+                BTRACE("Material name: %s", state_ptr->registered_materials[r->handle].name);
+        }
+    }
 }
 
 b8 load_material(material_config config, material* m)

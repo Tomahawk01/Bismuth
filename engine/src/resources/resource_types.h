@@ -242,8 +242,17 @@ typedef struct geometry
     material* material;
 } geometry;
 
+struct geometry_config;
+typedef struct mesh_config
+{
+    const char* resource_name;
+    u16 geometry_count;
+    struct geometry_config* g_configs;
+} mesh_config;
+
 typedef struct mesh
 {
+    mesh_config config;
     u32 unique_id;
     u8 generation;
     u16 geometry_count;

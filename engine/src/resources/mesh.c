@@ -1,6 +1,7 @@
 #include "mesh.h"
 #include "core/bmemory.h"
 #include "core/logger.h"
+#include "core/identifier.h"
 #include "systems/job_system.h"
 #include "systems/resource_system.h"
 #include "systems/geometry_system.h"
@@ -50,7 +51,7 @@ b8 mesh_load_job_start(void* params, void* result_data)
     return result;
 }
 
-b8 mesh_load_from_resource(const char* resource_name, mesh* out_mesh)
+static b8 mesh_load_from_resource(const char* resource_name, mesh* out_mesh)
 {
     out_mesh->generation = INVALID_ID_U8;
 
@@ -65,7 +66,69 @@ b8 mesh_load_from_resource(const char* resource_name, mesh* out_mesh)
     return true;
 }
 
-void mesh_unload(mesh* m)
+b8 mesh_create(mesh_config config, mesh* out_mesh)
+{
+    if (!out_mesh)
+        return false;
+
+    bzero_memory(out_mesh, sizeof(mesh));
+
+    out_mesh->config = config;
+    out_mesh->generation = INVALID_ID_U8;
+    return true;
+}
+
+b8 mesh_initialize(mesh* m)
+{
+    if (!m)
+        return false;
+
+    if (m->config.resource_name)
+    {
+        return true;
+    }
+    else
+    {
+        if (!m->config.g_configs)
+            return false;
+
+        m->geometry_count = m->config.geometry_count;
+        m->geometries = ballocate(sizeof(geometry*), MEMORY_TAG_ARRAY);
+    }
+    return true;
+}
+
+b8 mesh_load(mesh* m)
+{
+    if (!m)
+        return false;
+
+    m->unique_id = identifier_aquire_new_id(m);
+
+    if (m->config.resource_name)
+    {
+        return mesh_load_from_resource(m->config.resource_name, m);
+    }
+    else
+    {
+        if (!m->config.g_configs)
+            return false;
+
+        for (u32 i = 0; i < m->config.geometry_count; ++i)
+        {
+            m->geometries[i] = geometry_system_acquire_from_config(m->config.g_configs[i], true);
+            m->generation = 0;
+
+            // Clean up allocations for geometry config
+            // TODO: Do this during unload/destroy
+            geometry_system_config_dispose(&m->config.g_configs[i]);
+        }
+    }
+
+    return true;
+}
+
+b8 mesh_unload(mesh* m)
 {
     if (m)
     {
@@ -76,5 +139,25 @@ void mesh_unload(mesh* m)
         bzero_memory(m, sizeof(mesh));
 
         m->generation = INVALID_ID_U8;
+
+        return true;
     }
+
+    return false;
+}
+
+b8 mesh_destroy(mesh* m)
+{
+    if (!m)
+        return false;
+
+    if (m->geometries)
+    {
+        if (!mesh_unload(m))
+        {
+            BERROR("mesh_destroy - failed to unload mesh");
+            return false;
+        }
+    }
+    return true;
 }

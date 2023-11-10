@@ -2175,9 +2175,10 @@ b8 vulkan_renderer_shader_release_instance_resources(renderer_plugin* plugin, sh
         instance_state->instance_texture_maps = 0;
     }
 
-    if (!renderer_renderbuffer_free(&internal->uniform_buffer, s->ubo_stride, instance_state->offset))
+    if (s->ubo_stride != 0)
     {
-        BERROR("vulkan_renderer_shader_release_instance_resources failed to free range from renderbuffer");
+        if (!renderer_renderbuffer_free(&internal->uniform_buffer, s->ubo_stride, instance_state->offset))
+            BERROR("vulkan_renderer_shader_release_instance_resources failed to free range from renderbuffer");
     }
     instance_state->offset = INVALID_ID;
     instance_state->id = INVALID_ID;
