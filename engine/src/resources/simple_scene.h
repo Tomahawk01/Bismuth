@@ -2,6 +2,7 @@
 
 #include "defines.h"
 #include "math/math_types.h"
+#include "renderer/views/render_view_world.h"
 
 struct frame_data;
 struct render_packet;
@@ -12,6 +13,7 @@ struct skybox;
 struct geometry_config;
 struct camera;
 struct simple_scene_config;
+struct terrain;
 
 typedef enum simple_scene_state
 {
@@ -59,6 +61,9 @@ typedef struct simple_scene
     // darray of meshes
     struct mesh* meshes;
 
+    // darray of terrains
+    struct terrain* terrains;
+
     // darray of meshes to be loaded
     pending_mesh* pending_meshes;
 
@@ -67,6 +72,8 @@ typedef struct simple_scene
 
     // Pointer to scene configuration, if provided
     struct simple_scene_config* config;
+
+    render_view_world_data world_data;
 } simple_scene;
 
 /**
@@ -125,25 +132,19 @@ BAPI b8 simple_scene_update(simple_scene* scene, const struct frame_data* p_fram
 BAPI b8 simple_scene_populate_render_packet(simple_scene* scene, struct camera* current_camera, f32 aspect, struct frame_data* p_frame_data, struct render_packet* packet);
 
 BAPI b8 simple_scene_directional_light_add(simple_scene* scene, const char* name, struct directional_light* light);
-
 BAPI b8 simple_scene_point_light_add(simple_scene* scene, const char* name, struct point_light* light);
-
 BAPI b8 simple_scene_mesh_add(simple_scene* scene, const char* name, struct mesh* m);
-
 BAPI b8 simple_scene_skybox_add(simple_scene* scene, const char* name, struct skybox* sb);
+BAPI b8 simple_scene_terrain_add(simple_scene* scene, const char* name, struct terrain* t);
 
 BAPI b8 simple_scene_directional_light_remove(simple_scene* scene, const char* name);
-
 BAPI b8 simple_scene_point_light_remove(simple_scene* scene, const char* name);
-
 BAPI b8 simple_scene_mesh_remove(simple_scene* scene, const char* name);
-
 BAPI b8 simple_scene_skybox_remove(simple_scene* scene, const char* name);
+BAPI b8 simple_scene_terrain_remove(simple_scene* scene, const char* name);
 
 BAPI struct directional_light* simple_scene_directional_light_get(simple_scene* scene, const char* name);
-
 BAPI struct point_light* simple_scene_point_light_get(simple_scene* scene, const char* name);
-
 BAPI struct mesh* simple_scene_mesh_get(simple_scene* scene, const char* name);
-
 BAPI struct skybox* simple_scene_skybox_get(simple_scene* scene, const char* name);
+BAPI struct terrain* simple_scene_terrain_get(simple_scene* scene, const char* name);

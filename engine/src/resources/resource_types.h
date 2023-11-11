@@ -411,6 +411,13 @@ typedef struct mesh_simple_scene_config
     char* parent_name;  // optional
 } mesh_simple_scene_config;
 
+typedef struct terrain_simple_scene_config
+{
+    char* name;
+    char* resource_name;
+    transform xform;
+} terrain_simple_scene_config;
+
 typedef struct simple_scene_config
 {
     char* name;
@@ -423,4 +430,7 @@ typedef struct simple_scene_config
 
     // darray
     mesh_simple_scene_config* meshes;
+
+    // darray
+    terrain_simple_scene_config* terrains;
 } simple_scene_config;

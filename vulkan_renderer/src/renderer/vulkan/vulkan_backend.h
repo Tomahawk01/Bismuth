@@ -20,6 +20,7 @@ b8 vulkan_renderer_renderpass_begin(renderer_plugin* backend, renderpass* pass, 
 b8 vulkan_renderer_renderpass_end(renderer_plugin* backend, renderpass* pass);
 
 void vulkan_renderer_geometry_draw(renderer_plugin* backend, geometry_render_data* data);
+void vulkan_renderer_terrain_geometry_draw(renderer_plugin* plugin, const geometry_render_data* data);
 void vulkan_renderer_texture_create(renderer_plugin* backend, const u8* pixels, texture* texture);
 void vulkan_renderer_texture_destroy(renderer_plugin* backend, texture* texture);
 void vulkan_renderer_texture_create_writeable(renderer_plugin* backend, texture* t);

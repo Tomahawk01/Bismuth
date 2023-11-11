@@ -181,6 +181,8 @@ typedef struct renderer_plugin
 
     void (*geometry_draw)(struct renderer_plugin* plugin, geometry_render_data* data);
 
+    void (*terrain_geometry_draw)(struct renderer_plugin* plugin, const geometry_render_data* data);
+
     void (*texture_create)(struct renderer_plugin* plugin, const u8* pixels, struct texture* texture);
     void (*texture_destroy)(struct renderer_plugin* plugin, struct texture* texture);
 
@@ -313,7 +315,7 @@ typedef struct render_view
     b8 (*on_packet_build)(const struct render_view* self, struct linear_allocator* frame_allocator, void* data, struct render_view_packet* out_packet);
     void (*on_packet_destroy)(const struct render_view* self, struct render_view_packet* packet);
 
-    b8 (*on_render)(const struct render_view* self, const struct render_view_packet* packet, u64 frame_number, u64 render_target_index);
+    b8 (*on_render)(const struct render_view* self, const struct render_view_packet* packet, u64 frame_number, u64 render_target_index, const struct frame_data* p_frame_data);
 
     b8 (*attachment_target_regenerate)(struct render_view* self, u32 pass_index, struct render_target_attachment* attachment);
 } render_view;
@@ -327,6 +329,8 @@ typedef struct render_view_packet
     vec4 ambient_color;
     u32 geometry_count;
     geometry_render_data* geometries;
+    u32 terrain_geometry_count;
+    geometry_render_data* terrain_geometries;
     const char* custom_shader_name;
     void* extended_data;
 } render_view_packet;

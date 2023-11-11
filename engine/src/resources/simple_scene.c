@@ -9,6 +9,7 @@
 #include "resources/resource_types.h"
 #include "resources/skybox.h"
 #include "resources/mesh.h"
+#include "resources/terrain.h"
 #include "renderer/renderer_types.inl"
 #include "systems/render_view_system.h"
 #include "renderer/camera.h"
@@ -39,6 +40,7 @@ b8 simple_scene_create(void* config, simple_scene* out_scene)
     out_scene->dir_light = 0;
     out_scene->point_lights = darray_create(point_light);
     out_scene->meshes = darray_create(mesh);
+    out_scene->terrains = darray_create(terrain);
     out_scene->sb = 0;
 
     if (config)
@@ -46,6 +48,10 @@ b8 simple_scene_create(void* config, simple_scene* out_scene)
         out_scene->config = ballocate(sizeof(simple_scene_config), MEMORY_TAG_SCENE);
         bcopy_memory(out_scene->config, config, sizeof(simple_scene_config));
     }
+
+    // NOTE: Starting with a reasonably high number to avoid reallocs in the beginning
+    out_scene->world_data.world_geometries = darray_reserve(geometry_render_data, 512);
+    out_scene->world_data.terrain_geometries = darray_create(geometry_render_data);
 
     return true;
 }
@@ -132,6 +138,37 @@ b8 simple_scene_initialize(simple_scene* scene)
 
             darray_push(scene->meshes, new_mesh);
         }
+
+        // Terrains
+        u32 terrain_config_count = darray_length(scene->config->terrains);
+        for(u32 i = 0; i < terrain_config_count; ++ i)
+        {
+            if (!scene->config->terrains[i].name || !scene->config->terrains[i].resource_name)
+            {
+                BWARN("Invalid terrain config, name and resource_name are required");
+                continue;
+            }
+            terrain_config new_terrain_config = {0};
+            new_terrain_config.name = string_duplicate(scene->config->terrains[i].name);
+            // TODO: Copy resource name, load from resource
+            new_terrain_config.tile_count_x = 100;
+            new_terrain_config.tile_count_z = 100;
+            new_terrain_config.tile_scale_x = 1.0f;
+            new_terrain_config.tile_scale_z = 1.0f;
+            new_terrain_config.material_count = 0;
+            new_terrain_config.material_names = 0;
+
+            terrain new_terrain;
+            if(!terrain_create(new_terrain_config, &new_terrain ))
+            {
+                BWARN("Failed to load terrain");
+                bfree(new_terrain_config.name, string_length(new_terrain_config.name), MEMORY_TAG_STRING);
+                continue;
+            }
+            new_terrain.xform = scene->config->terrains[i].xform;
+
+            darray_push(scene->terrains, new_terrain);
+        }
     }
 
     // Handle hierarchy
@@ -157,7 +194,7 @@ b8 simple_scene_initialize(simple_scene* scene)
         {
             BERROR("Skybox failed to initialize");
             scene->sb = 0;
-            return false;
+            // return false;
         }
     }
 
@@ -166,7 +203,17 @@ b8 simple_scene_initialize(simple_scene* scene)
         if (!mesh_initialize(&scene->meshes[i]))
         {
             BERROR("Mesh failed to initialize");
-            return false;
+            // return false;
+        }
+    }
+
+    u32 terrain_count = darray_length(scene->terrains);
+    for (u32 i = 0; i < terrain_count; ++i)
+    {
+        if(!terrain_initialize(&scene->terrains[i]))
+        {
+            BERROR("Terrain failed to initialize");
+            // return false;
         }
     }
 
@@ -202,6 +249,16 @@ b8 simple_scene_load(simple_scene* scene)
         {
             BERROR("Mesh failed to load");
             return false;
+        }
+    }
+
+    u32 terrain_count = darray_length(scene->terrains);
+    for(u32 i = 0; i < terrain_count; ++i)
+    {
+        if(!terrain_load(&scene->terrains[i]))
+        {
+            BERROR("Terrain failed to load");
+            // return false;
         }
     }
 
@@ -282,6 +339,10 @@ b8 simple_scene_populate_render_packet(simple_scene* scene, struct camera* curre
         const render_view* view = view_packet->view;
         if (view->type == RENDERER_VIEW_KNOWN_TYPE_WORLD)
         {
+            // Make sure to clear world geometry array
+            darray_clear(scene->world_data.world_geometries);
+            darray_clear(scene->world_data.terrain_geometries);
+
             // Update frustum
             vec3 forward = camera_forward(current_camera);
             vec3 right = camera_right(current_camera);
@@ -289,8 +350,6 @@ b8 simple_scene_populate_render_packet(simple_scene* scene, struct camera* curre
             // TODO: get camera fov, aspect, etc
             frustum f = frustum_create(&current_camera->position, &forward, &right, &up, aspect, deg_to_rad(45.0f), 0.1f, 1000.0f);
 
-            // TODO: Use frame allocator
-            geometry_render_data* world_geometries = darray_reserve(geometry_render_data, 512);
             p_frame_data->drawn_mesh_count = 0;
 
             u32 mesh_count = darray_length(scene->meshes);
@@ -325,7 +384,7 @@ b8 simple_scene_populate_render_packet(simple_scene* scene, struct camera* curre
                                 data.model = model;
                                 data.geometry = g;
                                 data.unique_id = m->unique_id;
-                                darray_push(world_geometries, data);
+                                darray_push(scene->world_data.world_geometries, data);
 
                                 p_frame_data->drawn_mesh_count++;
                             }
@@ -334,14 +393,28 @@ b8 simple_scene_populate_render_packet(simple_scene* scene, struct camera* curre
                 }
             }
 
+            // TODO: add terrains
+            u32 terrain_count = darray_length(scene->terrains);
+            for(u32 i = 0; i < terrain_count; ++i)
+            {
+                // TODO: Check terrain generation
+                // TODO: Frustum culling
+                geometry_render_data data = {0};
+                data.model = transform_world_get(&scene->terrains[i].xform);
+                data.geometry = &scene->terrains[i].geo;
+                data.unique_id = 0; // TODO: Terrain unique_id for object picking
+                darray_push(scene->world_data.terrain_geometries, data);
+
+                // TODO: Counter for terrain geometries
+                p_frame_data->drawn_mesh_count++;
+            }
+
             // World
-            if (!render_view_system_packet_build(render_view_system_get("world"), p_frame_data->frame_allocator, world_geometries, &packet->views[1]))
+            if (!render_view_system_packet_build(render_view_system_get("world"), p_frame_data->frame_allocator, &scene->world_data, &packet->views[1]))
             {
                 BERROR("Failed to build packet for view 'world_opaque'");
                 return false;
             }
-
-            darray_destroy(world_geometries);
         }
     }
 
@@ -446,6 +519,35 @@ b8 simple_scene_skybox_add(simple_scene* scene, const char* name, struct skybox*
     return true;
 }
 
+b8 simple_scene_terrain_add(simple_scene* scene, const char* name, struct terrain* t)
+{
+    if (!scene || !t)
+        return false;
+
+    if (scene->state > SIMPLE_SCENE_STATE_INITIALIZED)
+    {
+        if (!terrain_initialize(t))
+        {
+            BERROR("Terrain failed to initialize");
+            return false;
+        }
+    }
+
+    if (scene->state >= SIMPLE_SCENE_STATE_LOADED)
+    {
+        if (!terrain_load(t))
+        {
+            BERROR("Terrain failed to load");
+            return false;
+        }
+    }
+
+    darray_push(scene->terrains, t);
+
+    return true;
+
+}
+
 b8 simple_scene_directional_light_remove(simple_scene* scene, const char* name)
 {
     if (!scene || !name)
@@ -492,7 +594,7 @@ b8 simple_scene_point_light_remove(simple_scene* scene, const char* name)
         }
     }
 
-    BERROR("Cannot remove a point light from a scene of which it is not a part");
+    BERROR("Cannot remove point light from a scene of which it is not a part");
     return false;
 }
 
@@ -519,7 +621,7 @@ b8 simple_scene_mesh_remove(simple_scene* scene, const char* name)
         }
     }
 
-    BERROR("Cannot remove a point light from a scene of which it is not a part");
+    BERROR("Cannot remove mesh from a scene of which it is not a part");
     return false;
 }
 
@@ -537,6 +639,33 @@ b8 simple_scene_skybox_remove(simple_scene* scene, const char* name)
     scene->sb = 0;
 
     return true;
+}
+
+b8 simple_scene_terrain_remove(simple_scene* scene, const char* name)
+{
+    if (!scene || !name)
+        return false;
+
+    u32 terrain_count = darray_length(scene->terrains);
+    for (u32 i = 0; i < terrain_count; ++i)
+    {
+        if (strings_equal(scene->terrains[i].name, name))
+        {
+            if (!terrain_unload(&scene->terrains[i]))
+            {
+                BERROR("Failed to unload terrain");
+                return false;
+            }
+
+            terrain rubbish = {0};
+            darray_pop_at(scene->terrains, i, &rubbish);
+
+            return true;
+        }
+    }
+
+    BERROR("Cannot remove terrain from a scene of which it is not a part");
+    return false;
 }
 
 struct directional_light* simple_scene_directional_light_get(simple_scene* scene, const char* name)
@@ -585,6 +714,22 @@ struct skybox* simple_scene_skybox_get(simple_scene* scene, const char* name)
         return 0;
 
     return scene->sb;
+}
+
+struct terrain* simple_scene_terrain_get(simple_scene* scene, const char* name)
+{
+    if (!scene || !name)
+        return 0;
+
+    u32 length = darray_length(scene->terrains);
+    for (u32 i = 0; i < length; ++i)
+    {
+        if (strings_nequal(name, scene->terrains[i].name, 256))
+            return &scene->terrains[i];
+    }
+
+    BWARN("Simple scene does not contain a terrain called '%s'", name);
+    return 0;
 }
 
 static void simple_scene_actual_unload(simple_scene* scene)
@@ -637,6 +782,12 @@ static void simple_scene_actual_unload(simple_scene* scene)
 
     if (scene->meshes)
         darray_destroy(scene->meshes);
+
+    if(scene->world_data.world_geometries)
+        darray_destroy(scene->world_data.world_geometries);
+
+    if(scene->world_data.terrain_geometries)
+        darray_destroy(scene->world_data.terrain_geometries);
 
     bzero_memory(scene, sizeof(simple_scene));
 }

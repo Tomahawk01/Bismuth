@@ -169,7 +169,7 @@ void render_view_ui_on_packet_destroy(const struct render_view* self, struct ren
     bzero_memory(packet, sizeof(render_view_packet));
 }
 
-b8 render_view_ui_on_render(const struct render_view* self, const struct render_view_packet* packet, u64 frame_number, u64 render_target_index)
+b8 render_view_ui_on_render(const struct render_view* self, const struct render_view_packet* packet, u64 frame_number, u64 render_target_index, const struct frame_data* p_frame_data)
 {
     render_view_ui_internal_data* data = self->internal_data;
     u32 shader_id = data->s->id;

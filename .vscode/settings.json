@@ -49,6 +49,8 @@
         "job_system.h": "c",
         "font_system.h": "c",
         "skybox.h": "c",
-        "simple_scene.h": "c"
+        "simple_scene.h": "c",
+        "renderer_types.inl": "c",
+        "light_system.h": "c"
     },
 }

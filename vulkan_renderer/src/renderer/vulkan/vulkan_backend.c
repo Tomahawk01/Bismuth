@@ -790,8 +790,8 @@ b8 vulkan_renderer_renderpass_begin(renderer_plugin* plugin, renderpass* pass, r
     f32 r = fbrandom_in_range(0.0f, 1.0f);
     f32 g = fbrandom_in_range(0.0f, 1.0f);
     f32 b = fbrandom_in_range(0.0f, 1.0f);
-    vec4 colour = (vec4){r, g, b, 1.0f};
-    VK_BEGIN_DEBUG_LABEL(context, command_buffer->handle, pass->name, colour);
+    vec4 color = (vec4){r, g, b, 1.0f};
+    VK_BEGIN_DEBUG_LABEL(context, command_buffer->handle, pass->name, color);
 
     return true;
 }
@@ -1270,7 +1270,7 @@ b8 vulkan_renderer_geometry_create(renderer_plugin* plugin, geometry* geometry, 
 
     // Vertex data
     internal_data->vertex_count = vertex_count;
-    internal_data->vertex_element_size = sizeof(vertex_3d);
+    internal_data->vertex_element_size = vertex_size;
     u32 total_size = vertex_count * vertex_size;
     // Allocate space in the buffer
     if (!renderer_renderbuffer_allocate(&context->object_vertex_buffer, total_size, &internal_data->vertex_buffer_offset))
@@ -1290,7 +1290,7 @@ b8 vulkan_renderer_geometry_create(renderer_plugin* plugin, geometry* geometry, 
     if (index_count && indices)
     {
         internal_data->index_count = index_count;
-        internal_data->index_element_size = sizeof(u32);
+        internal_data->index_element_size = index_size;
         total_size = index_count * index_size;
         if (!renderer_renderbuffer_allocate(&context->object_index_buffer, total_size, &internal_data->index_buffer_offset))
         {
@@ -1383,6 +1383,31 @@ void vulkan_renderer_geometry_draw(renderer_plugin* plugin, geometry_render_data
         if (!vulkan_buffer_draw(plugin, &context->object_index_buffer, buffer_data->index_buffer_offset, buffer_data->index_count, !includes_index_data))
         {
             BERROR("vulkan_renderer_geometry_draw failed to draw index buffer");
+            return;
+        }
+    }
+}
+
+void vulkan_renderer_terrain_geometry_draw(renderer_plugin* plugin, const geometry_render_data* data)
+{
+    vulkan_context* context = (vulkan_context*)plugin->internal_context;
+    // Ignore non-uploaded geometries
+    if (data->geometry && data->geometry->internal_id == INVALID_ID)
+        return;
+
+    vulkan_geometry_data* buffer_data = &context->geometries[data->geometry->internal_id];
+    b8 includes_index_data = buffer_data->index_count > 0;
+    if (!vulkan_buffer_draw(plugin, &context->object_vertex_buffer, buffer_data->vertex_buffer_offset, buffer_data->vertex_count, includes_index_data))
+    {
+        BERROR("vulkan_renderer_draw_geometry failed to draw vertex buffer");
+        return;
+    }
+
+    if (includes_index_data)
+    {
+        if (!vulkan_buffer_draw(plugin, &context->object_index_buffer, buffer_data->index_buffer_offset, buffer_data->index_count, !includes_index_data))
+        {
+            BERROR("vulkan_renderer_draw_geometry failed to draw index buffer");
             return;
         }
     }

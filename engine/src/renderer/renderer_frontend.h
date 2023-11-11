@@ -42,6 +42,8 @@ BAPI void renderer_geometry_destroy(geometry* geometry);
 
 BAPI void renderer_geometry_draw(geometry_render_data* data);
 
+BAPI void renderer_terrain_geometry_draw(const geometry_render_data* data);
+
 BAPI b8 renderer_renderpass_begin(renderpass* pass, render_target* target);
 BAPI b8 renderer_renderpass_end(renderpass* pass);
 
