@@ -51,6 +51,7 @@
         "skybox.h": "c",
         "simple_scene.h": "c",
         "renderer_types.inl": "c",
-        "light_system.h": "c"
+        "light_system.h": "c",
+        "resource_types.h": "c"
     },
 }

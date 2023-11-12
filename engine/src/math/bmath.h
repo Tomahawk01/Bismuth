@@ -53,8 +53,8 @@ BINLINE b8 is_power_of_2(u64 value)
 BAPI i32 brandom(void);
 BAPI i32 brandom_in_range(i32 min, i32 max);
 
-BAPI f32 fbrandom(void);
-BAPI f32 fbrandom_in_range(f32 min, f32 max);
+BAPI f32 bfrandom(void);
+BAPI f32 bfrandom_in_range(f32 min, f32 max);
 
 // --------------------------------------------------------------------------------
 // ----------------------------------- Vector 2 -----------------------------------

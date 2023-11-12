@@ -185,7 +185,7 @@ b8 render_view_pick_on_create(struct render_view* self)
 
         // Default World properties
         data->world_shader_info.near_clip = 0.1f;
-        data->world_shader_info.far_clip = 1000.0f;
+        data->world_shader_info.far_clip = 4000.0f;
         data->world_shader_info.fov = deg_to_rad(45.0f);
         data->world_shader_info.projection = mat4_perspective(data->world_shader_info.fov, 1280 / 720.0f, data->world_shader_info.near_clip, data->world_shader_info.far_clip);
         data->world_shader_info.view = mat4_identity();

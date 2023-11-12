@@ -25,6 +25,11 @@ typedef struct terrain_vertex
     //f32 material_weights[TERRAIN_MAX_MATERIAL_COUNT];
 } terrain_vertex;
 
+typedef struct terrain_vertex_data
+{
+  f32 height;
+} terrain_vertex_data;
+
 typedef struct terrain_config
 {
     char* name;
@@ -34,6 +39,13 @@ typedef struct terrain_config
     f32 tile_scale_x;
     // How large each tile is on z axis
     f32 tile_scale_z;
+    // Max height of generated terrain
+    f32 scale_y;
+
+    transform xform;
+
+    u32 vertex_data_length;
+    terrain_vertex_data *vertex_datas;
 
     u32 material_count;
     char** material_names;
@@ -41,7 +53,6 @@ typedef struct terrain_config
 
 typedef struct terrain
 {
-    terrain_config config;
     char* name;
     transform xform;
     u32 tile_count_x;
@@ -50,6 +61,12 @@ typedef struct terrain
     f32 tile_scale_x;
     // How large each tile is on z axis
     f32 tile_scale_z;
+    // Max height of generated terrain
+    f32 scale_y;
+
+    u32 vertex_data_length;
+    terrain_vertex_data *vertex_datas;
+
     extents_3d extents;
     vec3 origin;
 
@@ -62,11 +79,12 @@ typedef struct terrain
     geometry geo;
 
     u32 material_count;
+    char **material_names;
     // Array of pointers to materials
     material** materials;
 } terrain;
 
-BAPI b8 terrain_create(terrain_config config, terrain* out_terrain);
+BAPI b8 terrain_create(const terrain_config* config, terrain* out_terrain);
 BAPI void terrain_destroy(terrain* t);
 
 BAPI b8 terrain_initialize(terrain* t);

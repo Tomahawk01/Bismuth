@@ -1,25 +1,26 @@
 #include "vulkan_backend.h"
-#include "vulkan_types.inl"
+
 #include "platform/vulkan_platform.h"
-#include "vulkan_device.h"
-#include "vulkan_swapchain.h"
 #include "vulkan_command_buffer.h"
-#include "vulkan_utils.h"
+#include "vulkan_device.h"
 #include "vulkan_image.h"
 #include "vulkan_pipeline.h"
-#include "core/logger.h"
-#include "core/bstring.h"
-#include "core/bmemory.h"
+#include "vulkan_swapchain.h"
+#include "vulkan_types.inl"
+#include "vulkan_utils.h"
 #include "core/event.h"
+#include "core/bmemory.h"
+#include "core/bstring.h"
+#include "core/logger.h"
 #include "containers/darray.h"
-#include "math/math_types.h"
 #include "math/bmath.h"
+#include "math/math_types.h"
 #include "renderer/renderer_frontend.h"
 #include "platform/platform.h"
-#include "systems/shader_system.h"
 #include "systems/material_system.h"
-#include "systems/texture_system.h"
 #include "systems/resource_system.h"
+#include "systems/shader_system.h"
+#include "systems/texture_system.h"
 
 // NOTE: If wanting to trace allocations, uncomment this
 // #ifndef BVULKAN_ALLOCATOR_TRACE
@@ -34,8 +35,7 @@
 VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(
     VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
     VkDebugUtilsMessageTypeFlagsEXT message_types,
-    const VkDebugUtilsMessengerCallbackDataEXT* callback_data,
-    void* user_data);
+    const VkDebugUtilsMessengerCallbackDataEXT* callback_data, void* user_data);
 
 static i32 find_memory_index(vulkan_context* context, u32 type_filter, u32 property_flags);
 
@@ -412,7 +412,8 @@ b8 vulkan_renderer_backend_initialize(renderer_plugin* plugin, const renderer_ba
 
     // Create buffers
     // Geometry vertex buffer
-    const u64 vertex_buffer_size = sizeof(vertex_3d) * 1024 * 1024;
+    // TODO: Make this configurable
+    const u64 vertex_buffer_size = sizeof(vertex_3d) * 10 * 1024 * 1024;
     if (!renderer_renderbuffer_create(RENDERBUFFER_TYPE_VERTEX, vertex_buffer_size, true, &context->object_vertex_buffer))
     {
         BERROR("Error creating vertex buffer");
@@ -421,7 +422,8 @@ b8 vulkan_renderer_backend_initialize(renderer_plugin* plugin, const renderer_ba
     renderer_renderbuffer_bind(&context->object_vertex_buffer, 0);
 
     // Geometry index buffer
-    const u64 index_buffer_size = sizeof(u32) * 1024 * 1024;
+    // TODO: Make this configurable
+    const u64 index_buffer_size = sizeof(u32) * 100 * 1024 * 1024;
     if (!renderer_renderbuffer_create(RENDERBUFFER_TYPE_INDEX, index_buffer_size, true, &context->object_index_buffer))
     {
         BERROR("Error creating index buffer");
@@ -514,8 +516,7 @@ void vulkan_renderer_backend_shutdown(renderer_plugin* plugin)
     BDEBUG("Destroying Vulkan debugger...");
     if (context->debug_messenger)
     {
-        PFN_vkDestroyDebugUtilsMessengerEXT func =
-            (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(context->instance, "vkDestroyDebugUtilsMessengerEXT");
+        PFN_vkDestroyDebugUtilsMessengerEXT func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(context->instance, "vkDestroyDebugUtilsMessengerEXT");
         func(context->instance, context->debug_messenger, context->allocator);
     }
 #endif
@@ -787,9 +788,9 @@ b8 vulkan_renderer_renderpass_begin(renderer_plugin* plugin, renderpass* pass, r
     vkCmdBeginRenderPass(command_buffer->handle, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
     command_buffer->state = COMMAND_BUFFER_STATE_IN_RENDER_PASS;
 
-    f32 r = fbrandom_in_range(0.0f, 1.0f);
-    f32 g = fbrandom_in_range(0.0f, 1.0f);
-    f32 b = fbrandom_in_range(0.0f, 1.0f);
+    f32 r = bfrandom_in_range(0.0f, 1.0f);
+    f32 g = bfrandom_in_range(0.0f, 1.0f);
+    f32 b = bfrandom_in_range(0.0f, 1.0f);
     vec4 color = (vec4){r, g, b, 1.0f};
     VK_BEGIN_DEBUG_LABEL(context, command_buffer->handle, pass->name, color);
 

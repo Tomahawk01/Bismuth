@@ -1,4 +1,5 @@
 #include "image_loader.h"
+
 #include "core/logger.h"
 #include "core/bmemory.h"
 #include "core/bstring.h"
@@ -99,6 +100,7 @@ static b8 image_loader_load(struct resource_loader* self, const char* name, void
     }
 
     bfree(raw_data, file_size, MEMORY_TAG_TEXTURE);
+
     image_resource_data* resource_data = ballocate(sizeof(image_resource_data), MEMORY_TAG_TEXTURE);
     resource_data->pixels = data;
     resource_data->width = width;

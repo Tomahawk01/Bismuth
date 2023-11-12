@@ -11,7 +11,7 @@
 #include "systems/shader_system.h"
 #include "systems/light_system.h"
 
-b8 terrain_create(terrain_config config, terrain* out_terrain)
+b8 terrain_create(const terrain_config* config, terrain* out_terrain)
 {
     if (!out_terrain)
     {
@@ -19,15 +19,61 @@ b8 terrain_create(terrain_config config, terrain* out_terrain)
         return false;
     }
 
-    out_terrain->config = config;
-    out_terrain->name = string_duplicate(config.name);
+    out_terrain->name = string_duplicate(config->name);
+
+    if (!config->tile_count_x)
+    {
+        BERROR("Tile count x cannot be less than one");
+        return false;
+    }
+
+    if (!config->tile_count_z)
+    {
+        BERROR("Tile count z cannot be less than one");
+        return false;
+    }
+
+    out_terrain->xform = config->xform;
+
+    // TODO: calculate based on actual terrain dimensions
+    out_terrain->extents = (extents_3d){0};
+    out_terrain->origin = vec3_zero();
+
+    out_terrain->tile_count_x = config->tile_count_x;
+    out_terrain->tile_count_z = config->tile_count_z;
+    out_terrain->tile_scale_x = config->tile_scale_x;
+    out_terrain->tile_scale_z = config->tile_scale_z;
+
+    out_terrain->scale_y = config->scale_y;
+
+    out_terrain->vertex_count = out_terrain->tile_count_x * out_terrain->tile_count_z;
+    out_terrain->vertices = ballocate(sizeof(terrain_vertex) * out_terrain->vertex_count, MEMORY_TAG_ARRAY);
+
+    out_terrain->vertex_data_length = out_terrain->vertex_count;
+    out_terrain->vertex_datas = ballocate(sizeof(terrain_vertex_data) * out_terrain->vertex_data_length, MEMORY_TAG_ARRAY);
+    bcopy_memory(out_terrain->vertex_datas, config->vertex_datas, config->vertex_data_length * sizeof(terrain_vertex_data));
+
+    out_terrain->index_count = out_terrain->vertex_count * 6;
+    out_terrain->indices = ballocate(sizeof(u32) * out_terrain->index_count, MEMORY_TAG_ARRAY);
+
+    out_terrain->material_count = config->material_count;
+    if (out_terrain->material_count)
+    {
+        out_terrain->materials = ballocate(sizeof(material_config) * out_terrain->material_count, MEMORY_TAG_ARRAY);
+        out_terrain->material_names = ballocate(sizeof(char *) * out_terrain->material_count, MEMORY_TAG_ARRAY);
+    }
+    else
+    {
+        out_terrain->materials = 0;
+        out_terrain->material_names = 0;
+    }
 
     return true;
 }
 
 void terrain_destroy(terrain* t)
 {
-
+    // TODO: Fill it
 }
 
 b8 terrain_initialize(terrain* t)
@@ -38,48 +84,15 @@ b8 terrain_initialize(terrain* t)
         return false;
     }
 
-    if (!t->config.tile_count_x)
-    {
-        BERROR("Tile count x cannot be less than one");
-        return false;
-    }
-
-    if (!t->config.tile_count_z)
-    {
-        BERROR("Tile count z cannot be less than one");
-        return false;
-    }
-
-    t->xform = transform_create();
-    t->extents = (extents_3d){0};
-    t->origin = vec3_zero();
-
-    t->tile_count_x = t->config.tile_count_x;
-    t->tile_count_z = t->config.tile_count_z;
-    t->tile_scale_x = t->config.tile_scale_x;
-    t->tile_scale_z = t->config.tile_scale_z;
-
-    t->vertex_count = t->tile_count_x * t->tile_count_z;
-    t->vertices = ballocate(sizeof(terrain_vertex) * t->vertex_count, MEMORY_TAG_ARRAY);
-
-    t->index_count = t->vertex_count * 6;
-    t->indices = ballocate(sizeof(u32) * t->index_count, MEMORY_TAG_ARRAY);
-
-    t->material_count = t->config.material_count;
-    if(t->material_count)
-        t->materials = ballocate(sizeof(material_config) * t->material_count, MEMORY_TAG_ARRAY);
-    else
-        t->materials = 0;
-
     // Generate vertices
     for (u32 z = 0, i = 0; z < t->tile_count_z; z++)
     {
         for (u32 x = 0; x < t->tile_count_x; ++x, ++i)
         {
-            terrain_vertex* v = &t->vertices[i];
+            terrain_vertex *v = &t->vertices[i];
             v->position.x = x * t->tile_scale_x;
             v->position.z = z * t->tile_scale_z;
-            v->position.y = 0.0f;         // TODO: this will be modified by a heightmap
+            v->position.y = t->vertex_datas[i].height * t->scale_y;
 
             v->color = vec4_one();        // white;
             v->normal = (vec3){0, 1, 0};  // TODO: calculate based on geometry
@@ -87,8 +100,6 @@ b8 terrain_initialize(terrain* t)
             v->texcoord.y = (f32)z;
 
             // TODO: Materials
-            // bzero_memory(v->material_weights, sizeof(f32) * TERRAIN_MAX_MATERIAL_COUNT);
-            // v->material_weights[0] = 1.0f;
             v->tangent = vec3_zero();
         }
     }
@@ -104,14 +115,17 @@ b8 terrain_initialize(terrain* t)
             u32 v3 = ((z + 1) * t->tile_count_x) + x + 1;
 
             // v0, v1, v2, v2, v1, v3
-            t->indices[i + 0] = v0;
+            t->indices[i + 0] = v2;
             t->indices[i + 1] = v1;
-            t->indices[i + 2] = v2;
-            t->indices[i + 3] = v2;
+            t->indices[i + 2] = v0;
+            t->indices[i + 3] = v3;
             t->indices[i + 4] = v1;
-            t->indices[i + 5] = v3;
+            t->indices[i + 5] = v2;
         }
     }
+
+    terrain_geometry_generate_normals(t->vertex_count, t->vertices, t->index_count, t->indices);
+    terrain_geometry_generate_tangents(t->vertex_count, t->vertices, t->index_count, t->indices);
 
     return true;
 }

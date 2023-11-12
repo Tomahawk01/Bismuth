@@ -29,7 +29,7 @@ layout(set = 0, binding = 0) uniform global_uniform_object
     mat4 projection;
 	mat4 view;
     mat4 model;
-	vec4 ambient_colour;
+	vec4 ambient_color;
 	vec3 view_position;
 	int mode;
     vec4 diffuse_color;

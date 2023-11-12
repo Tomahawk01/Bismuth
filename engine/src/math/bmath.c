@@ -56,12 +56,12 @@ i32 brandom_in_range(i32 min, i32 max)
     return (rand() % (max - min + 1)) + min;
 }
 
-f32 fbrandom(void)
+f32 bfrandom(void)
 {
     return (float)brandom() / (f32)RAND_MAX;
 }
 
-f32 fbrandom_in_range(f32 min, f32 max)
+f32 bfrandom_in_range(f32 min, f32 max)
 {
     return min + ((float)brandom() / ((f32)RAND_MAX / (max - min)));
 }

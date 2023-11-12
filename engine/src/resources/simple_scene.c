@@ -1,19 +1,20 @@
 #include "simple_scene.h"
 
+#include "containers/darray.h"
 #include "core/logger.h"
 #include "core/bmemory.h"
 #include "core/frame_data.h"
 #include "core/bstring.h"
-#include "containers/darray.h"
+#include "math/bmath.h"
 #include "math/transform.h"
 #include "resources/resource_types.h"
 #include "resources/skybox.h"
 #include "resources/mesh.h"
 #include "resources/terrain.h"
 #include "renderer/renderer_types.inl"
-#include "systems/render_view_system.h"
 #include "renderer/camera.h"
-#include "math/bmath.h"
+#include "systems/render_view_system.h"
+#include "systems/resource_system.h"
 #include "systems/light_system.h"
 
 static void simple_scene_actual_unload(simple_scene* scene);
@@ -148,24 +149,25 @@ b8 simple_scene_initialize(simple_scene* scene)
                 BWARN("Invalid terrain config, name and resource_name are required");
                 continue;
             }
-            terrain_config new_terrain_config = {0};
-            new_terrain_config.name = string_duplicate(scene->config->terrains[i].name);
-            // TODO: Copy resource name, load from resource
-            new_terrain_config.tile_count_x = 100;
-            new_terrain_config.tile_count_z = 100;
-            new_terrain_config.tile_scale_x = 1.0f;
-            new_terrain_config.tile_scale_z = 1.0f;
-            new_terrain_config.material_count = 0;
-            new_terrain_config.material_names = 0;
 
-            terrain new_terrain;
-            if(!terrain_create(new_terrain_config, &new_terrain ))
+            resource terrain_resource;
+            if (!resource_system_load(scene->config->terrains[i].resource_name, RESOURCE_TYPE_TERRAIN, 0, &terrain_resource))
             {
-                BWARN("Failed to load terrain");
-                bfree(new_terrain_config.name, string_length(new_terrain_config.name), MEMORY_TAG_STRING);
+                BWARN("Failed to load terrain resource");
                 continue;
             }
-            new_terrain.xform = scene->config->terrains[i].xform;
+
+            terrain_config *parsed_config = (terrain_config *)terrain_resource.data;
+            parsed_config->xform = scene->config->terrains[i].xform;
+
+            terrain new_terrain;
+            if(!terrain_create(parsed_config, &new_terrain))
+            {
+                BWARN("Failed to load terrain");
+                continue;
+            }
+
+            resource_system_unload(&terrain_resource);
 
             darray_push(scene->terrains, new_terrain);
         }
