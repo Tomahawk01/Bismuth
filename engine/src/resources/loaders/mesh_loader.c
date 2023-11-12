@@ -1,4 +1,5 @@
 #include "mesh_loader.h"
+
 #include "core/logger.h"
 #include "core/bmemory.h"
 #include "core/bstring.h"
@@ -220,7 +221,7 @@ static b8 write_bsm_file(const char* path, const char* name, u32 geometry_count,
 
     // Version
     u64 written = 0;
-    u16 version = 0x0001U;
+    u16 version = 0x0002U;
     filesystem_write(&f, sizeof(u16), &version, &written);
 
     // Name length
@@ -324,13 +325,7 @@ static b8 import_obj_file(file_handle* obj_file, const char* out_bsm_filename, g
                         // Vertex position
                         vec3 pos;
                         char t[2];
-                        sscanf(
-                            line_buf,
-                            "%s %f %f %f",
-                            t,
-                            &pos.x,
-                            &pos.y,
-                            &pos.z);
+                        sscanf(line_buf, "%s %f %f %f", t, &pos.x, &pos.y, &pos.z);
 
                         darray_push(positions, pos);
                     } break;
@@ -339,13 +334,7 @@ static b8 import_obj_file(file_handle* obj_file, const char* out_bsm_filename, g
                         // Vertex normal
                         vec3 norm;
                         char t[2];
-                        sscanf(
-                            line_buf,
-                            "%s %f %f %f",
-                            t,
-                            &norm.x,
-                            &norm.y,
-                            &norm.z);
+                        sscanf(line_buf, "%s %f %f %f", t, &norm.x, &norm.y, &norm.z);
 
                         darray_push(normals, norm);
                     } break;
@@ -356,12 +345,7 @@ static b8 import_obj_file(file_handle* obj_file, const char* out_bsm_filename, g
                         char t[2];
 
                         // NOTE: Ignoring Z if present
-                        sscanf(
-                            line_buf,
-                            "%s %f %f",
-                            t,
-                            &tex_coord.x,
-                            &tex_coord.y);
+                        sscanf(line_buf, "%s %f %f", t, &tex_coord.x, &tex_coord.y);
 
                         darray_push(tex_coords, tex_coord);
                     } break;
@@ -416,11 +400,7 @@ static b8 import_obj_file(file_handle* obj_file, const char* out_bsm_filename, g
                 // Material library file
                 char substr[7];
 
-                sscanf(
-                    line_buf,
-                    "%s %s",
-                    substr,
-                    material_file_name);
+                sscanf(line_buf, "%s %s", substr, material_file_name);
 
                 // If found, save off material file name
                 if (strings_nequali(substr, "mtllib", 6))
@@ -686,17 +666,16 @@ static b8 import_obj_material_library_file(const char* mtl_file_path)
                         // Ambient/Diffuse color are treated the same at this level
                         // Ambient color is determined by the level
                         char t[2];
-                        sscanf(
-                            line,
-                            "%s %f %f %f",
-                            t,
-                            &current_config.diffuse_color.r,
-                            &current_config.diffuse_color.g,
-                            &current_config.diffuse_color.b);
+                        material_config_prop prop = {0};
+                        prop.name = "diffuse_color";
+                        prop.type = SHADER_UNIFORM_TYPE_FLOAT32_4;
+                        sscanf(line, "%s %f %f %f", t, &prop.value_v4.r, &prop.value_v4.g, &prop.value_v4.b);
 
                         // NOTE: This is only used by color shader, and will set to max_norm by default.
                         // Transparency could be added as a material property
-                        current_config.diffuse_color.a = 1.0f;
+                        prop.value_v4.a = 1.0f;
+
+                        darray_push(current_config.properties, prop);
                     } break;
                     case 's':
                     {
@@ -704,13 +683,7 @@ static b8 import_obj_material_library_file(const char* mtl_file_path)
                         char t[2];
 
                         f32 spec_rubbish = 0.0f;
-                        sscanf(
-                            line,
-                            "%s %f %f %f",
-                            t,
-                            &spec_rubbish,
-                            &spec_rubbish,
-                            &spec_rubbish);
+                        sscanf(line, "%s %f %f %f", t, &spec_rubbish, &spec_rubbish, &spec_rubbish);
                     } break;
                 }
             } break;
@@ -724,7 +697,15 @@ static b8 import_obj_material_library_file(const char* mtl_file_path)
                         // Specular exponent
                         char t[2];
 
-                        sscanf(line, "%s %f", t, &current_config.shininess);
+                        material_config_prop prop = {0};
+                        prop.name = "shininess";
+                        prop.type = SHADER_UNIFORM_TYPE_FLOAT32;
+                        sscanf(line, "%s %f", t, &prop.value_f32);
+                        // NOTE: Need to make sure this is nonzero as this will cause artefacts in the rendering of objects
+                        if (prop.value_f32 == 0)
+                            prop.value_f32 = 8.0f;
+
+                        darray_push(current_config.properties, prop);
                     } break;
                 }
             } break;
@@ -734,25 +715,33 @@ static b8 import_obj_material_library_file(const char* mtl_file_path)
                 char substr[10];
                 char texture_file_name[512];
 
-                sscanf(
-                    line,
-                    "%s %s",
-                    substr,
-                    texture_file_name);
+                sscanf(line, "%s %s", substr, texture_file_name);
 
+                material_map map = {0};
+                map.filter_min = map.filter_mag = TEXTURE_FILTER_MODE_LINEAR;
+                map.repeat_u = map.repeat_v = map.repeat_w = TEXTURE_REPEAT_REPEAT;
+
+                // Texture name
+                char tex_name_buf[512] = {0};
+                string_filename_no_extension_from_path(tex_name_buf, texture_file_name);
+                map.texture_name = string_duplicate(tex_name_buf);
+
+                // map name/type
                 if (strings_nequali(substr, "map_Kd", 6))
                 {
                     // Is diffuse texture map
-                    string_filename_no_extension_from_path(current_config.diffuse_map_name, texture_file_name);
+                    map.name = "diffuse";
                 } else if (strings_nequali(substr, "map_Ks", 6))
                 {
                     // Is specular texture map
-                    string_filename_no_extension_from_path(current_config.specular_map_name, texture_file_name);
+                    map.name = "specular";
                 } else if (strings_nequali(substr, "map_bump", 8))
                 {
-                    // Is bump texture map
-                    string_filename_no_extension_from_path(current_config.normal_map_name, texture_file_name);
+                    // Is normal texture map
+                    map.name = "normal";
                 }
+
+                darray_push(current_config.maps, map);
             } break;
             case 'b':
             {
@@ -760,16 +749,21 @@ static b8 import_obj_material_library_file(const char* mtl_file_path)
                 char substr[10];
                 char texture_file_name[512];
 
-                sscanf(
-                    line,
-                    "%s %s",
-                    substr,
-                    texture_file_name);
+                sscanf(line, "%s %s", substr, texture_file_name);
+
+                material_map map = {0};
+                map.filter_min = map.filter_mag = TEXTURE_FILTER_MODE_LINEAR;
+                map.repeat_u = map.repeat_v = map.repeat_w = TEXTURE_REPEAT_REPEAT;
+
+                // Texture name
+                char tex_name_buf[512] = {0};
+                string_filename_no_extension_from_path(tex_name_buf, texture_file_name);
+                map.texture_name = string_duplicate(tex_name_buf);
+
                 if (strings_nequali(substr, "bump", 4))
-                {
-                    // Is bump (normal) texture map
-                    string_filename_no_extension_from_path(current_config.normal_map_name, texture_file_name);
-                }
+                    map.name = "normal";
+                
+                darray_push(current_config.maps, map);
             }
             case 'n':
             {
@@ -777,19 +771,11 @@ static b8 import_obj_material_library_file(const char* mtl_file_path)
                 char substr[10];
                 char material_name[512];
 
-                sscanf(
-                    line,
-                    "%s %s",
-                    substr,
-                    material_name);
+                sscanf(line, "%s %s", substr, material_name);
                 if (strings_nequali(substr, "newmtl", 6))
                 {
                     // Is a material name
-
                     current_config.shader_name = "Shader.Builtin.Material";
-                    // NOTE: Shininess of 0 will cause problems in the shader. Use a default if this is the case
-                    if (current_config.shininess == 0.0f)
-                        current_config.shininess = 8.0f;
                     if (hit_name)
                     {
                         //  Write out bmt file
@@ -813,9 +799,6 @@ static b8 import_obj_material_library_file(const char* mtl_file_path)
 
     // Write out the remaining bmt file
     current_config.shader_name = "Shader.Builtin.Material";
-    // NOTE: Shininess of 0 will cause problems in the shader. Use a default if this is the case
-    if (current_config.shininess == 0.0f)
-        current_config.shininess = 8.0f;
     if (!write_bmt_file(mtl_file_path, &current_config)) 
     {
         BERROR("Unable to write bmt file");
@@ -824,6 +807,54 @@ static b8 import_obj_material_library_file(const char* mtl_file_path)
 
     filesystem_close(&mtl_file);
     return true;
+}
+
+static const char *string_from_repeat(texture_repeat repeat)
+{
+    switch (repeat)
+    {
+        default:
+        case TEXTURE_REPEAT_REPEAT:
+            return "repeat";
+        case TEXTURE_REPEAT_CLAMP_TO_EDGE:
+            return "clamp_to_edge";
+        case TEXTURE_REPEAT_CLAMP_TO_BORDER:
+            return "clamp_to_border";
+        case TEXTURE_REPEAT_MIRRORED_REPEAT:
+            return "mirrored";
+    }
+}
+
+static const char *string_from_type(shader_uniform_type type)
+{
+    switch (type)
+    {
+        case SHADER_UNIFORM_TYPE_FLOAT32:
+            return "f32";
+        case SHADER_UNIFORM_TYPE_FLOAT32_2:
+            return "vec2";
+        case SHADER_UNIFORM_TYPE_FLOAT32_3:
+            return "vec3";
+        case SHADER_UNIFORM_TYPE_FLOAT32_4:
+            return "vec4";
+        case SHADER_UNIFORM_TYPE_INT8:
+            return "i8";
+        case SHADER_UNIFORM_TYPE_INT16:
+            return "i16";
+        case SHADER_UNIFORM_TYPE_INT32:
+            return "i32";
+        case SHADER_UNIFORM_TYPE_UINT8:
+            return "u8";
+        case SHADER_UNIFORM_TYPE_UINT16:
+            return "u16";
+        case SHADER_UNIFORM_TYPE_UINT32:
+            return "u32";
+        case SHADER_UNIFORM_TYPE_MATRIX_4:
+            return "mat4";
+        default:
+            BERROR("Unrecognized uniform type %d, defaulting to i32", type);
+            return "i32";
+    }
 }
 
 static b8 write_bmt_file(const char* mtl_file_path, material_config* config)
@@ -835,8 +866,8 @@ static b8 write_bmt_file(const char* mtl_file_path, material_config* config)
     file_handle f;
     char directory[320];
     string_directory_from_path(directory, mtl_file_path);
-    char full_file_path[512];
 
+    char full_file_path[512];
     string_format(full_file_path, format_str, directory, config->name, ".bmt");
     if (!filesystem_open(full_file_path, FILE_MODE_WRITE, false, &f))
     {
@@ -846,32 +877,111 @@ static b8 write_bmt_file(const char* mtl_file_path, material_config* config)
     BDEBUG("Writing .bmt file '%s'...", full_file_path);
 
     char line_buffer[512];
+    // File header
     filesystem_write_line(&f, "#material file");
     filesystem_write_line(&f, "");
-    filesystem_write_line(&f, "version=0.1"); // TODO: Hardcoded version
+    filesystem_write_line(&f, "version=2");
+
+    filesystem_write_line(&f, "# Types can be phong,pbr,custom");
+    filesystem_write_line(&f, "type=phong");  // TODO: Other material types
+
     string_format(line_buffer, "name=%s", config->name);
-    filesystem_write_line(&f, line_buffer);
-    string_format(line_buffer, "diffuse_color=%.6f %.6f %.6f %.6f", config->diffuse_color.r, config->diffuse_color.g, config->diffuse_color.b, config->diffuse_color.a);
-    filesystem_write_line(&f, line_buffer);
-    string_format(line_buffer, "shininess=%.6f", config->shininess);
-    filesystem_write_line(&f, line_buffer);
-    if (config->diffuse_map_name[0])
-    {
-        string_format(line_buffer, "diffuse_map_name=%s", config->diffuse_map_name);
-        filesystem_write_line(&f, line_buffer);
-    }
-    if (config->specular_map_name[0])
-    {
-        string_format(line_buffer, "specular_map_name=%s", config->specular_map_name);
-        filesystem_write_line(&f, line_buffer);
-    }
-    if (config->normal_map_name[0])
-    {
-        string_format(line_buffer, "normal_map_name=%s", config->normal_map_name);
-        filesystem_write_line(&f, line_buffer);
-    }
+    filesystem_write_line(&f, "# If custom, shader is required");
     string_format(line_buffer, "shader=%s", config->shader_name);
-    filesystem_write_line(&f, line_buffer);
+
+    // Write maps
+    u32 map_count = darray_length(config->maps);
+    for (u32 i = 0; i < map_count; ++i)
+    {
+        string_format(line_buffer, "name=%s", config->maps[i].name);
+        filesystem_write_line(&f, line_buffer);
+
+        string_format(line_buffer, "filter_min=%s", config->maps[i].filter_min == TEXTURE_FILTER_MODE_LINEAR ? "linear" : "nearest");
+        filesystem_write_line(&f, line_buffer);
+        string_format(line_buffer, "filter_mag=%s", config->maps[i].filter_mag == TEXTURE_FILTER_MODE_LINEAR ? "linear" : "nearest");
+        filesystem_write_line(&f, line_buffer);
+
+        string_format(line_buffer, "repeat_u=%s", string_from_repeat(config->maps[i].repeat_u));
+        filesystem_write_line(&f, line_buffer);
+        string_format(line_buffer, "repeat_v=%s", string_from_repeat(config->maps[i].repeat_v));
+        filesystem_write_line(&f, line_buffer);
+        string_format(line_buffer, "repeat_w=%s", string_from_repeat(config->maps[i].repeat_w));
+        filesystem_write_line(&f, line_buffer);
+
+        string_format(line_buffer, "texture_name=%s", config->maps[i].texture_name);
+        filesystem_write_line(&f, line_buffer);
+    }
+
+    // Write properties
+    u32 prop_count = darray_length(config->properties);
+    for (u32 i = 0; i < prop_count; ++i)
+    {
+        string_format(line_buffer, "name=%s", config->properties[i].name);
+        filesystem_write_line(&f, line_buffer);
+
+        // type
+        string_format(line_buffer, "type=%s", string_from_type(config->properties[i].type));
+        filesystem_write_line(&f, line_buffer);
+        // value
+        switch (config->properties[i].type)
+        {
+            case SHADER_UNIFORM_TYPE_FLOAT32:
+                string_format(line_buffer, "value=%f", config->properties[i].value_f32);
+                break;
+            case SHADER_UNIFORM_TYPE_FLOAT32_2:
+                string_format(line_buffer, "value=%f %f", config->properties[i].value_v2);
+                break;
+            case SHADER_UNIFORM_TYPE_FLOAT32_3:
+                string_format(line_buffer, "value=%f %f %f", config->properties[i].value_v3);
+                break;
+            case SHADER_UNIFORM_TYPE_FLOAT32_4:
+                string_format(line_buffer, "value=%f %f %f %f", config->properties[i].value_v4);
+                break;
+            case SHADER_UNIFORM_TYPE_INT8:
+                string_format(line_buffer, "value=%d", config->properties[i].value_i8);
+                break;
+            case SHADER_UNIFORM_TYPE_INT16:
+                string_format(line_buffer, "value=%d", config->properties[i].value_i16);
+                break;
+            case SHADER_UNIFORM_TYPE_INT32:
+                string_format(line_buffer, "value=%d", config->properties[i].value_i32);
+                break;
+            case SHADER_UNIFORM_TYPE_UINT8:
+                string_format(line_buffer, "value=%u", config->properties[i].value_u8);
+                break;
+            case SHADER_UNIFORM_TYPE_UINT16:
+                string_format(line_buffer, "value=%u", config->properties[i].value_u16);
+                break;
+            case SHADER_UNIFORM_TYPE_UINT32:
+                string_format(line_buffer, "value=%u", config->properties[i].value_u32);
+                break;
+            case SHADER_UNIFORM_TYPE_MATRIX_4:
+                string_format(line_buffer, "value=%f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f ",
+                              config->properties[i].value_mat4.data[0],
+                              config->properties[i].value_mat4.data[1],
+                              config->properties[i].value_mat4.data[2],
+                              config->properties[i].value_mat4.data[3],
+                              config->properties[i].value_mat4.data[4],
+                              config->properties[i].value_mat4.data[5],
+                              config->properties[i].value_mat4.data[6],
+                              config->properties[i].value_mat4.data[7],
+                              config->properties[i].value_mat4.data[8],
+                              config->properties[i].value_mat4.data[9],
+                              config->properties[i].value_mat4.data[10],
+                              config->properties[i].value_mat4.data[11],
+                              config->properties[i].value_mat4.data[12],
+                              config->properties[i].value_mat4.data[13],
+                              config->properties[i].value_mat4.data[14],
+                              config->properties[i].value_mat4.data[15]);
+                break;
+            case SHADER_UNIFORM_TYPE_SAMPLER:
+            case SHADER_UNIFORM_TYPE_CUSTOM:
+            default:
+                BERROR("Unsupported material property type");
+                break;
+        }
+        filesystem_write_line(&f, line_buffer);
+    }
 
     filesystem_close(&f);
 

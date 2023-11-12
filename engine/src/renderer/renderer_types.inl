@@ -8,6 +8,7 @@
 struct shader;
 struct shader_uniform;
 struct frame_data;
+struct terrain;
 
 typedef struct geometry_render_data
 {
@@ -181,8 +182,6 @@ typedef struct renderer_plugin
 
     void (*geometry_draw)(struct renderer_plugin* plugin, geometry_render_data* data);
 
-    void (*terrain_geometry_draw)(struct renderer_plugin* plugin, const geometry_render_data* data);
-
     void (*texture_create)(struct renderer_plugin* plugin, const u8* pixels, struct texture* texture);
     void (*texture_destroy)(struct renderer_plugin* plugin, struct texture* texture);
 
@@ -208,7 +207,7 @@ typedef struct renderer_plugin
     b8 (*shader_apply_globals)(struct renderer_plugin* plugin, struct shader* s);
     b8 (*shader_apply_instance)(struct renderer_plugin* plugin, struct shader* s, b8 needs_update);
 
-    b8 (*shader_instance_resources_acquire)(struct renderer_plugin* plugin, struct shader* s, texture_map** maps, u32* out_instance_id);
+    b8 (*shader_instance_resources_acquire)(struct renderer_plugin* plugin, struct shader* s, u32 texture_map_count, texture_map** maps, u32* out_instance_id);
     b8 (*shader_instance_resources_release)(struct renderer_plugin* plugin, struct shader* s, u32 instance_id);
 
     b8 (*shader_uniform_set)(struct renderer_plugin* plugin, struct shader* frontend_shader, struct shader_uniform* uniform, const void* value);
@@ -331,6 +330,7 @@ typedef struct render_view_packet
     geometry_render_data* geometries;
     u32 terrain_geometry_count;
     geometry_render_data* terrain_geometries;
+    struct terrain** terrains;
     const char* custom_shader_name;
     void* extended_data;
 } render_view_packet;

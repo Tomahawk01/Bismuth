@@ -1,6 +1,19 @@
 #include "vulkan_backend.h"
 
+#include "containers/darray.h"
+#include "core/event.h"
+#include "core/bmemory.h"
+#include "core/bstring.h"
+#include "core/logger.h"
+#include "math/bmath.h"
+#include "math/math_types.h"
+#include "platform/platform.h"
 #include "platform/vulkan_platform.h"
+#include "renderer/renderer_frontend.h"
+#include "systems/material_system.h"
+#include "systems/resource_system.h"
+#include "systems/shader_system.h"
+#include "systems/texture_system.h"
 #include "vulkan_command_buffer.h"
 #include "vulkan_device.h"
 #include "vulkan_image.h"
@@ -8,19 +21,6 @@
 #include "vulkan_swapchain.h"
 #include "vulkan_types.inl"
 #include "vulkan_utils.h"
-#include "core/event.h"
-#include "core/bmemory.h"
-#include "core/bstring.h"
-#include "core/logger.h"
-#include "containers/darray.h"
-#include "math/bmath.h"
-#include "math/math_types.h"
-#include "renderer/renderer_frontend.h"
-#include "platform/platform.h"
-#include "systems/material_system.h"
-#include "systems/resource_system.h"
-#include "systems/shader_system.h"
-#include "systems/texture_system.h"
 
 // NOTE: If wanting to trace allocations, uncomment this
 // #ifndef BVULKAN_ALLOCATOR_TRACE
@@ -1389,31 +1389,6 @@ void vulkan_renderer_geometry_draw(renderer_plugin* plugin, geometry_render_data
     }
 }
 
-void vulkan_renderer_terrain_geometry_draw(renderer_plugin* plugin, const geometry_render_data* data)
-{
-    vulkan_context* context = (vulkan_context*)plugin->internal_context;
-    // Ignore non-uploaded geometries
-    if (data->geometry && data->geometry->internal_id == INVALID_ID)
-        return;
-
-    vulkan_geometry_data* buffer_data = &context->geometries[data->geometry->internal_id];
-    b8 includes_index_data = buffer_data->index_count > 0;
-    if (!vulkan_buffer_draw(plugin, &context->object_vertex_buffer, buffer_data->vertex_buffer_offset, buffer_data->vertex_count, includes_index_data))
-    {
-        BERROR("vulkan_renderer_draw_geometry failed to draw vertex buffer");
-        return;
-    }
-
-    if (includes_index_data)
-    {
-        if (!vulkan_buffer_draw(plugin, &context->object_index_buffer, buffer_data->index_buffer_offset, buffer_data->index_count, !includes_index_data))
-        {
-            BERROR("vulkan_renderer_draw_geometry failed to draw index buffer");
-            return;
-        }
-    }
-}
-
 // Index of the global descriptor set
 const u32 DESC_SET_INDEX_GLOBAL = 0;
 // Index of the instance descriptor set
@@ -1984,22 +1959,7 @@ b8 vulkan_renderer_shader_apply_instance(renderer_plugin* plugin, shader* s, b8 
                 // Ensure texture is valid
                 if (t->generation == INVALID_ID)
                 {
-                    switch (map->use)
-                    {
-                        case TEXTURE_USE_MAP_DIFFUSE:
-                            t = texture_system_get_default_diffuse_texture();
-                            break;
-                        case TEXTURE_USE_MAP_SPECULAR:
-                            t = texture_system_get_default_specular_texture();
-                            break;
-                        case TEXTURE_USE_MAP_NORMAL:
-                            t = texture_system_get_default_normal_texture();
-                            break;
-                        default:
-                            BWARN("Undefined texture use %d", map->use);
-                            t = texture_system_get_default_texture();
-                            break;
-                    }
+                    t = texture_system_get_default_texture();
                 }
 
                 vulkan_image* image = (vulkan_image*)t->internal_data;
@@ -2119,7 +2079,7 @@ void vulkan_renderer_texture_map_resources_release(renderer_plugin* plugin, text
     }
 }
 
-b8 vulkan_renderer_shader_instance_resources_acquire(renderer_plugin* plugin, shader* s, texture_map** maps, u32* out_instance_id)
+b8 vulkan_renderer_shader_instance_resources_acquire(renderer_plugin* plugin, shader* s, u32 texture_map_count, texture_map** maps, u32* out_instance_id)
 {
     vulkan_context* context = (vulkan_context*)plugin->internal_context;
     vulkan_shader* internal = s->internal_data;
@@ -2141,18 +2101,18 @@ b8 vulkan_renderer_shader_instance_resources_acquire(renderer_plugin* plugin, sh
     }
 
     vulkan_shader_instance_state* instance_state = &internal->instance_states[*out_instance_id];
-    u8 sampler_binding_index = internal->config.descriptor_sets[DESC_SET_INDEX_INSTANCE].sampler_binding_index;
-    u32 instance_texture_count = internal->config.descriptor_sets[DESC_SET_INDEX_INSTANCE].bindings[sampler_binding_index].descriptorCount;
+    // u8 sampler_binding_index = internal->config.descriptor_sets[DESC_SET_INDEX_INSTANCE].sampler_binding_index;
+    // u32 instance_texture_count = internal->config.descriptor_sets[DESC_SET_INDEX_INSTANCE].bindings[sampler_binding_index].descriptorCount;
     if (s->instance_texture_count > 0)
     {
         // Wipe out memory for the entire array, even if it isn't all used
         instance_state->instance_texture_maps = ballocate(sizeof(texture_map*) * s->instance_texture_count, MEMORY_TAG_ARRAY);
         texture* default_texture = texture_system_get_default_texture();
-        bcopy_memory(instance_state->instance_texture_maps, maps, sizeof(texture_map*) * s->instance_texture_count);
+        bcopy_memory(instance_state->instance_texture_maps, maps, sizeof(texture_map*) * texture_map_count);
         // Set unassigned texture pointers to default until assigned
-        for (u32 i = 0; i < instance_texture_count; ++i)
+        for (u32 i = 0; i < texture_map_count; ++i)
         {
-            if (!maps[i]->texture)
+            if (maps[i] && !maps[i]->texture)
                 instance_state->instance_texture_maps[i]->texture = default_texture;
         }
     }
@@ -2250,10 +2210,11 @@ b8 vulkan_renderer_uniform_set(renderer_plugin* plugin, shader* s, shader_unifor
     vulkan_shader* internal = s->internal_data;
     if (uniform->type == SHADER_UNIFORM_TYPE_SAMPLER)
     {
+        texture_map *map = (texture_map *)value;
         if (uniform->scope == SHADER_SCOPE_GLOBAL)
-            s->global_texture_maps[uniform->location] = (texture_map*)value;
+            s->global_texture_maps[uniform->location] = map;
         else
-            internal->instance_states[s->bound_instance_id].instance_texture_maps[uniform->location] = (texture_map*)value;
+            internal->instance_states[s->bound_instance_id].instance_texture_maps[uniform->location] = map;
     }
     else
     {

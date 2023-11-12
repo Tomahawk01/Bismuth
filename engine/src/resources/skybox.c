@@ -31,7 +31,6 @@ b8 skybox_initialize(skybox* sb)
     texture_map* cube_map = &sb->cubemap;
     cube_map->filter_magnify = cube_map->filter_minify = TEXTURE_FILTER_MODE_LINEAR;
     cube_map->repeat_u = cube_map->repeat_v = cube_map->repeat_w = TEXTURE_REPEAT_CLAMP_TO_EDGE;
-    cube_map->use = TEXTURE_USE_MAP_CUBEMAP;
     sb->instance_id = INVALID_ID;
 
     sb->config.g_config = geometry_system_generate_cube_config(10.0f, 10.0f, 10.0f, 1.0f, 1.0f, sb->config.cubemap_name, 0);
@@ -61,7 +60,7 @@ b8 skybox_load(skybox* sb)
 
     shader* skybox_shader = shader_system_get("Shader.Builtin.Skybox"); // TODO: allow configurable shader
     texture_map* maps[1] = {&sb->cubemap};
-    if (!renderer_shader_instance_resources_acquire(skybox_shader, maps, &sb->instance_id))
+    if (!renderer_shader_instance_resources_acquire(skybox_shader, 1, maps, &sb->instance_id))
     {
         BFATAL("Unable to acquire shader resources for skybox texture");
         return false;

@@ -457,7 +457,6 @@ static b8 setup_font_data(font_data* font)
     // Create map resources
     font->atlas.filter_magnify = font->atlas.filter_minify = TEXTURE_FILTER_MODE_LINEAR;
     font->atlas.repeat_u = font->atlas.repeat_v = font->atlas.repeat_w = TEXTURE_REPEAT_CLAMP_TO_EDGE;
-    font->atlas.use = TEXTURE_USE_MAP_DIFFUSE;
     if (!renderer_texture_map_resources_acquire(&font->atlas))
     {
         BERROR("Unable to acquire resources for font atlas texture map");

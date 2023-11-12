@@ -49,7 +49,7 @@ b8 ui_text_create(ui_text_type type, const char* font_name, u16 font_size, const
     // Acquire resources for font texture map
     shader* ui_shader = shader_system_get("Shader.Builtin.UI");  // TODO: text shader
     texture_map* font_maps[1] = {&out_text->data->atlas};
-    if (!renderer_shader_instance_resources_acquire(ui_shader, font_maps, &out_text->instance_id))
+    if (!renderer_shader_instance_resources_acquire(ui_shader, 1, font_maps, &out_text->instance_id))
     {
         BFATAL("Unable to acquire shader resources for font texture map");
         return false;

@@ -2,9 +2,14 @@
 
 layout(location = 0) out vec4 out_color;
 
-layout(set = 1, binding = 0) uniform local_uniform_object
+struct ui_properties
 {
     vec4 diffuse_color;
+};
+
+layout(set = 1, binding = 0) uniform local_uniform_object
+{
+    ui_properties properties;
 } object_ubo;
 
 // Samplers
@@ -19,5 +24,5 @@ layout(location = 1) in struct dto
 
 void main()
 {
-    out_color = object_ubo.diffuse_color * texture(samplers[SAMP_DIFFUSE], in_dto.tex_coord);
+    out_color = object_ubo.properties.diffuse_color * texture(samplers[SAMP_DIFFUSE], in_dto.tex_coord);
 }

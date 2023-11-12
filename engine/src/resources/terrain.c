@@ -1,5 +1,6 @@
 #include "terrain.h"
 
+#include "defines.h"
 #include "core/logger.h"
 #include "core/bstring.h"
 #include "core/bmemory.h"
@@ -8,8 +9,10 @@
 #include "math/geometry_utils.h"
 #include "renderer/renderer_frontend.h"
 #include "renderer/renderer_types.inl"
+#include "resources/resource_types.h"
 #include "systems/shader_system.h"
 #include "systems/light_system.h"
+#include "systems/material_system.h"
 
 b8 terrain_create(const terrain_config* config, terrain* out_terrain)
 {
@@ -59,12 +62,11 @@ b8 terrain_create(const terrain_config* config, terrain* out_terrain)
     out_terrain->material_count = config->material_count;
     if (out_terrain->material_count)
     {
-        out_terrain->materials = ballocate(sizeof(material_config) * out_terrain->material_count, MEMORY_TAG_ARRAY);
-        out_terrain->material_names = ballocate(sizeof(char *) * out_terrain->material_count, MEMORY_TAG_ARRAY);
+        out_terrain->material_names = ballocate(sizeof(char*) * out_terrain->material_count, MEMORY_TAG_ARRAY);
+        bcopy_memory(out_terrain->material_names, config->material_names, sizeof(char*) * out_terrain->material_count);
     }
     else
     {
-        out_terrain->materials = 0;
         out_terrain->material_names = 0;
     }
 
@@ -99,8 +101,12 @@ b8 terrain_initialize(terrain* t)
             v->texcoord.x = (f32)x;
             v->texcoord.y = (f32)z;
 
-            // TODO: Materials
-            v->tangent = vec3_zero();
+            // TODO: Figure out a way to auto-assign terrain material weights
+            // v->material_weights[0] = 1.0f;
+
+            // TODO: Testing this using random material to apply full weight to
+            i32 index = brandom_in_range(0, 3);
+            v->material_weights[index] = 1.0f;
         }
     }
 
@@ -152,14 +158,15 @@ b8 terrain_load(terrain* t)
     g->extents.max = t->extents.max;
     g->generation++;
 
-    // TODO: acquire material(s)
-    // Acquire the material
-    // if (string_length(config.material_name) > 0) {
-    //     g->material = material_system_acquire(config.material_name);
-    //     if (!g->material) {
-    //         g->material = material_system_get_default();
-    //     }
-    // }
+    // Create terrain material by copying properties of these materials to a new terrain material
+    char terrain_material_name[MATERIAL_NAME_MAX_LENGTH] = {0};
+    string_format(terrain_material_name, "terrain_mat_%s", t->name);
+    g->material = material_system_acquire_terrain_material(terrain_material_name, t->material_count, (const char **)t->material_names, true);
+    if (!g->material)
+    {
+        BWARN("Failed to acquire terrain material. Using defualt instead");
+        g->material = material_system_get_default_terrain();
+    }
 
     return true;
 }

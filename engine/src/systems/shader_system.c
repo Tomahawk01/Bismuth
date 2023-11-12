@@ -441,7 +441,6 @@ b8 add_sampler(shader* shader, shader_uniform_config* config)
         default_map.filter_magnify = TEXTURE_FILTER_MODE_LINEAR;
         default_map.filter_minify = TEXTURE_FILTER_MODE_LINEAR;
         default_map.repeat_u = default_map.repeat_v = default_map.repeat_w = TEXTURE_REPEAT_REPEAT;
-        default_map.use = TEXTURE_USE_UNKNOWN;
 
         // Allocate pointer, assign texture and push into global texture maps
         // NOTE: This allocation is only done for global texture maps
@@ -449,7 +448,7 @@ b8 add_sampler(shader* shader, shader_uniform_config* config)
         *map = default_map;
         map->texture = texture_system_get_default_texture();
 
-        if (!renderer_texture_map_resources_acquire(&default_map))
+        if (!renderer_texture_map_resources_acquire(map))
         {
             BERROR("Failed to acquire resources for global texture map during shader creation");
             return false;
@@ -495,6 +494,7 @@ u32 get_shader_id(const char* shader_name)
         BERROR("There is no shader registered named '%s'", shader_name);
         return INVALID_ID;
     }
+    // BTRACE("Got id %u for shader named '%s'", shader_id, shader_name);
     return shader_id;
 }
 

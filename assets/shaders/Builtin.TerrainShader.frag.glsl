@@ -22,28 +22,48 @@ struct point_light
 };
 
 const int POINT_LIGHT_MAX = 10;
-//const int MAX_TERRAIN_MATERIALS = 8;
+const int MAX_TERRAIN_MATERIALS = 4;
 
 layout(set = 0, binding = 0) uniform global_uniform_object
 {
     mat4 projection;
 	mat4 view;
-    mat4 model;
 	vec4 ambient_color;
 	vec3 view_position;
 	int mode;
-    vec4 diffuse_color;
     directional_light dir_light;
-    point_light p_lights[POINT_LIGHT_MAX];
-    int num_p_lights;
-    float shininess;
 } global_ubo;
 
+struct material_phong_properties
+{
+    vec4 diffuse_color;
+    vec3 padding;
+    float shininess;
+};
+
+struct material_terrain_properties
+{
+    material_phong_properties materials[MAX_TERRAIN_MATERIALS];
+    vec3 padding;
+    int num_materials;
+    vec4 padding2;
+};
+
+layout(set = 1, binding = 0) uniform instance_uniform_object
+{
+    material_terrain_properties properties;
+    point_light p_lights[POINT_LIGHT_MAX];
+    vec3 padding;
+    int num_p_lights;
+} instance_ubo;
+
 // Samplers, diffuse, spec
-// const int SAMP_DIFFUSE_OFFSET = 0;
-// const int SAMP_SPECULAR_OFFSET = 1;
-// const int SAMP_NORMAL_OFFSET = 2;
-// layout(set = 1, binding = 1) uniform sampler2D samplers[3 * MAX_TERRAIN_MATERIALS];
+const int SAMP_DIFFUSE_OFFSET = 0;
+const int SAMP_SPECULAR_OFFSET = 1;
+const int SAMP_NORMAL_OFFSET = 2;
+
+// diff, spec, normal etc...
+layout(set = 1, binding = 1) uniform sampler2D samplers[3 * MAX_TERRAIN_MATERIALS];
 
 layout(location = 0) flat in int in_mode;
 // Data Transfer Object
@@ -56,12 +76,13 @@ layout(location = 1) in struct dto
 	vec3 frag_position;
     vec4 color;
 	vec3 tangent;
+    vec4 mat_weights;
 } in_dto;
 
 mat3 TBN;
 
-vec4 calculate_directional_light(directional_light light, vec3 normal, vec3 view_direction);
-vec4 calculate_point_light(point_light light, vec3 normal, vec3 frag_position, vec3 view_direction);
+vec4 calculate_directional_light(directional_light light, vec3 normal, vec3 view_direction, vec4 diff_samp, vec4 spec_samp, material_phong_properties mat_info);
+vec4 calculate_point_light(point_light light, vec3 normal, vec3 frag_position, vec3 view_direction, vec4 diff_samp, vec4 spec_samp, material_phong_properties mat_info);
 
 void main()
 {
@@ -72,18 +93,42 @@ void main()
     TBN = mat3(tangent, bitangent, normal);
 
     // Update normal to use a sample from the normal map
-    // vec3 localNormal = 2.0 * texture(samplers[SAMP_NORMAL], in_dto.tex_coord).rgb - 1.0;
-    // normal = normalize(TBN * localNormal);
+    vec3 normals[MAX_TERRAIN_MATERIALS];
+    vec4 diffuses[MAX_TERRAIN_MATERIALS];
+    vec4 specs[MAX_TERRAIN_MATERIALS];
+
+    material_phong_properties mat;
+    mat.diffuse_color = vec4(0);
+    mat.shininess = 1.0;
+
+    // Manually sample first material
+    // TODO: This mix isn't quite right
+    vec4 diff = vec4(normalize(TBN * (2.0 * texture(samplers[SAMP_NORMAL_OFFSET * 1], in_dto.tex_coord).rgb - 1.0)),1.0);
+    vec4 spec = texture(samplers[SAMP_DIFFUSE_OFFSET * 1], in_dto.tex_coord);
+    vec3 norm = texture(samplers[SAMP_SPECULAR_OFFSET * 1], in_dto.tex_coord).rgb;
+    for(int m = 0; m < instance_ubo.properties.num_materials; ++m)
+    {
+        normals[m] = normalize(TBN * (2.0 * texture(samplers[SAMP_NORMAL_OFFSET * m], in_dto.tex_coord).rgb - 1.0));
+        diffuses[m] = texture(samplers[SAMP_DIFFUSE_OFFSET * m], in_dto.tex_coord);
+        specs[m] = texture(samplers[SAMP_SPECULAR_OFFSET * m], in_dto.tex_coord);
+
+        norm = mix(norm, normals[m], in_dto.mat_weights[m]);
+        diff = mix(diff, diffuses[m], in_dto.mat_weights[m]);
+        spec = mix(spec, specs[m], in_dto.mat_weights[m]);
+
+        mat.diffuse_color = mix(mat.diffuse_color, instance_ubo.properties.materials[m].diffuse_color, in_dto.mat_weights[m]);
+        mat.shininess = mix(mat.shininess, instance_ubo.properties.materials[m].shininess, in_dto.mat_weights[m]);
+    }
 
     if(in_mode == 0 || in_mode == 1)
     {
         vec3 view_direction = normalize(in_dto.view_position - in_dto.frag_position);
 
-        out_color = calculate_directional_light(global_ubo.dir_light, normal, view_direction);
+        out_color = calculate_directional_light(global_ubo.dir_light, norm, view_direction, diff, spec, mat);
 
-        for(int i = 0; i < global_ubo.num_p_lights; ++i)
+        for(int i = 0; i < instance_ubo.num_p_lights; ++i)
         {
-            out_color += calculate_point_light(global_ubo.p_lights[i], normal, in_dto.frag_position, view_direction);
+            out_color += calculate_point_light(instance_ubo.p_lights[i], norm, in_dto.frag_position, view_direction, diff, spec, mat);
         }
     }
     else if(in_mode == 2)
@@ -92,15 +137,14 @@ void main()
     }
 }
 
-vec4 calculate_directional_light(directional_light light, vec3 normal, vec3 view_direction)
+vec4 calculate_directional_light(directional_light light, vec3 normal, vec3 view_direction, vec4 diff_samp, vec4 spec_samp, material_phong_properties mat_info)
 {
     float diffuse_factor = max(dot(normal, -light.direction.xyz), 0.0);
 
     vec3 half_direction = normalize(view_direction - light.direction.xyz);
-    float specular_factor = pow(max(dot(half_direction, normal), 0.0), global_ubo.shininess);
+    float specular_factor = pow(max(dot(half_direction, normal), 0.0), mat_info.shininess);
 
-    vec4 diff_samp = vec4(1.0); //texture(samplers[SAMP_DIFFUSE], in_dto.tex_coord);
-    vec4 ambient = vec4(vec3(in_dto.ambient * global_ubo.diffuse_color), diff_samp.a);
+    vec4 ambient = vec4(vec3(in_dto.ambient * mat_info.diffuse_color), diff_samp.a);
     vec4 diffuse = vec4(vec3(light.color * diffuse_factor), diff_samp.a);
     vec4 specular = vec4(vec3(light.color * specular_factor), diff_samp.a);
 
@@ -108,19 +152,19 @@ vec4 calculate_directional_light(directional_light light, vec3 normal, vec3 view
     {
         diffuse *= diff_samp;
         ambient *= diff_samp;
-        specular *= vec4(1.0); //vec4(texture(samplers[SAMP_SPECULAR], in_dto.tex_coord).rgb, diffuse.a);
+        specular *= spec_samp;
     }
 
     return (ambient + diffuse + specular);
 }
 
-vec4 calculate_point_light(point_light light, vec3 normal, vec3 frag_position, vec3 view_direction)
+vec4 calculate_point_light(point_light light, vec3 normal, vec3 frag_position, vec3 view_direction, vec4 diff_samp, vec4 spec_samp, material_phong_properties mat_info)
 {
     vec3 light_direction =  normalize(light.position.xyz - frag_position);
     float diff = max(dot(normal, light_direction), 0.0);
 
     vec3 reflect_direction = reflect(-light_direction, normal);
-    float spec = pow(max(dot(view_direction, reflect_direction), 0.0), global_ubo.shininess);
+    float spec = pow(max(dot(view_direction, reflect_direction), 0.0), mat_info.shininess);
 
     // Calculate attenuation, or light falloff over distance
     float distance = length(light.position.xyz - frag_position);
@@ -132,10 +176,9 @@ vec4 calculate_point_light(point_light light, vec3 normal, vec3 frag_position, v
 
     if(in_mode == 0)
     {
-        vec4 diff_samp = vec4(1.0); //texture(samplers[SAMP_DIFFUSE], in_dto.tex_coord);
         diffuse *= diff_samp;
         ambient *= diff_samp;
-        specular *= vec4(1.0); //vec4(texture(samplers[SAMP_SPECULAR], in_dto.tex_coord).rgb, diffuse.a);
+        specular *= spec_samp;
     }
 
     ambient *= attenuation;

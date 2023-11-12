@@ -405,6 +405,7 @@ b8 simple_scene_populate_render_packet(simple_scene* scene, struct camera* curre
                 data.model = transform_world_get(&scene->terrains[i].xform);
                 data.geometry = &scene->terrains[i].geo;
                 data.unique_id = 0; // TODO: Terrain unique_id for object picking
+
                 darray_push(scene->world_data.terrain_geometries, data);
 
                 // TODO: Counter for terrain geometries

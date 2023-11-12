@@ -35,7 +35,7 @@ static b8 terrain_loader_load(struct resource_loader *self, const char *name, vo
 
     // TODO: Materials
     resource_data->material_count = 0;
-    resource_data->material_names = 0;
+    resource_data->material_names = ballocate(sizeof(char*) * TERRAIN_MAX_MATERIAL_COUNT, MEMORY_TAG_ARRAY);;
 
     resource_data->name = 0;
 
@@ -114,6 +114,15 @@ static b8 terrain_loader_load(struct resource_loader *self, const char *name, vo
         {
             heightmap_file = string_duplicate(trimmed_value);
         }
+        else if (strings_nequali(trimmed_var_name, "material", 8))
+        {
+            u32 material_index = 0;
+            if (!string_to_u32(trimmed_var_name + 8, &material_index))
+                BWARN("Format error: Unable to parse material index");
+
+            resource_data->material_names[material_index] = string_duplicate(trimmed_value);
+            resource_data->material_count++;
+        }
         else
         {
             // TODO: capture anything else
@@ -183,6 +192,12 @@ static void terrain_loader_unload(struct resource_loader *self, resource *resour
         bfree(data->name, sizeof(char) * (string_length(data->name) + 1), MEMORY_TAG_STRING);
 
     bzero_memory(data, sizeof(shader_config));
+
+    if (data->material_names)
+    {
+        bfree(data->material_names, sizeof(char*) * TERRAIN_MAX_MATERIAL_COUNT, MEMORY_TAG_ARRAY);
+        data->material_names = 0;
+    }
 
     if (!resource_unload(self, resource, MEMORY_TAG_RESOURCE))
         BWARN("terrain_loader_unload called with nullptr for self or resource");

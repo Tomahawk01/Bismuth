@@ -1,4 +1,5 @@
 #include "geometry_system.h"
+
 #include "core/logger.h"
 #include "core/bmemory.h"
 #include "core/bstring.h"
@@ -304,7 +305,7 @@ static b8 create_default_geometries(geometry_system_state* state)
     }
 
     // Acquire default material
-    state->default_2d_geometry.material = material_system_get_default();
+    state->default_2d_geometry.material = material_system_get_default_ui();
 
     return true;
 }

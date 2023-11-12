@@ -1,7 +1,8 @@
 #include "core/bstring.h"
+
+#include "containers/darray.h"
 #include "core/bmemory.h"
 #include "core/logger.h"
-#include "containers/darray.h"
 #include "math/bmath.h"
 #include "math/transform.h"
 
@@ -315,6 +316,32 @@ b8 string_to_transform(const char* str, transform* out_transform)
     out_transform->is_dirty = true;
 
     return true;
+}
+
+b8 string_to_mat4(const char* str, mat4* out_mat)
+{
+    if (!str || !out_mat)
+        return false;
+
+    bzero_memory(out_mat, sizeof(mat4));
+    i32 result = sscanf(str, "%f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f",
+                        &out_mat->data[0],
+                        &out_mat->data[1],
+                        &out_mat->data[2],
+                        &out_mat->data[3],
+                        &out_mat->data[4],
+                        &out_mat->data[5],
+                        &out_mat->data[6],
+                        &out_mat->data[7],
+                        &out_mat->data[8],
+                        &out_mat->data[9],
+                        &out_mat->data[10],
+                        &out_mat->data[11],
+                        &out_mat->data[12],
+                        &out_mat->data[13],
+                        &out_mat->data[14],
+                        &out_mat->data[15]);
+    return result != -1;
 }
 
 b8 string_to_vec4(const char* str, vec4* out_vector)

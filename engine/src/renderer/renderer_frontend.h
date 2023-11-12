@@ -42,8 +42,6 @@ BAPI void renderer_geometry_destroy(geometry* geometry);
 
 BAPI void renderer_geometry_draw(geometry_render_data* data);
 
-BAPI void renderer_terrain_geometry_draw(const geometry_render_data* data);
-
 BAPI b8 renderer_renderpass_begin(renderpass* pass, render_target* target);
 BAPI b8 renderer_renderpass_end(renderpass* pass);
 
@@ -60,7 +58,7 @@ BAPI b8 renderer_shader_bind_instance(struct shader* s, u32 instance_id);
 BAPI b8 renderer_shader_apply_globals(struct shader* s);
 BAPI b8 renderer_shader_apply_instance(struct shader* s, b8 needs_update);
 
-BAPI b8 renderer_shader_instance_resources_acquire(struct shader* s, texture_map** maps, u32* out_instance_id);
+BAPI b8 renderer_shader_instance_resources_acquire(struct shader* s, u32 texture_map_count, texture_map** maps, u32* out_instance_id);
 BAPI b8 renderer_shader_instance_resources_release(struct shader* s, u32 instance_id);
 
 BAPI b8 renderer_shader_uniform_set(struct shader* s, struct shader_uniform* uniform, const void* value);

@@ -5,8 +5,6 @@
 #include "resources/resource_types.h"
 #include "core/frame_data.h"
 
-#define TERRAIN_MAX_MATERIAL_COUNT 8
-
 typedef struct terrain_vertex
 {
     /** @brief Position of the vertex */
@@ -18,11 +16,10 @@ typedef struct terrain_vertex
     /** @brief Color of the vertex */
     vec4 color;
     /** @brief Tangent of the vertex */
-    vec3 tangent;
+    vec4 tangent;
 
-    // TODO: Materials
     /** @brief Collection of material weights for this vertex */
-    //f32 material_weights[TERRAIN_MAX_MATERIAL_COUNT];
+    f32 material_weights[TERRAIN_MAX_MATERIAL_COUNT];
 } terrain_vertex;
 
 typedef struct terrain_vertex_data
@@ -80,8 +77,6 @@ typedef struct terrain
 
     u32 material_count;
     char **material_names;
-    // Array of pointers to materials
-    material** materials;
 } terrain;
 
 BAPI b8 terrain_create(const terrain_config* config, terrain* out_terrain);
