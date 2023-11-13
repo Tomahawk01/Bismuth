@@ -413,8 +413,11 @@ b8 vulkan_renderer_backend_initialize(renderer_plugin* plugin, const renderer_ba
     // Create buffers
     // Geometry vertex buffer
     // TODO: Make this configurable
+    char bufname[256];
+    bzero_memory(bufname, 256);
+    string_format(bufname, "renderbuffer_vertexbuffer_globalgeometry");
     const u64 vertex_buffer_size = sizeof(vertex_3d) * 10 * 1024 * 1024;
-    if (!renderer_renderbuffer_create(RENDERBUFFER_TYPE_VERTEX, vertex_buffer_size, true, &context->object_vertex_buffer))
+    if (!renderer_renderbuffer_create(bufname, RENDERBUFFER_TYPE_VERTEX, vertex_buffer_size, true, &context->object_vertex_buffer))
     {
         BERROR("Error creating vertex buffer");
         return false;
@@ -423,8 +426,10 @@ b8 vulkan_renderer_backend_initialize(renderer_plugin* plugin, const renderer_ba
 
     // Geometry index buffer
     // TODO: Make this configurable
+    bzero_memory(bufname, 256);
+    string_format(bufname, "renderbuffer_indexbuffer_globalgeometry");
     const u64 index_buffer_size = sizeof(u32) * 100 * 1024 * 1024;
-    if (!renderer_renderbuffer_create(RENDERBUFFER_TYPE_INDEX, index_buffer_size, true, &context->object_index_buffer))
+    if (!renderer_renderbuffer_create(bufname, RENDERBUFFER_TYPE_INDEX, index_buffer_size, true, &context->object_index_buffer))
     {
         BERROR("Error creating index buffer");
         return false;
@@ -1070,7 +1075,10 @@ void vulkan_renderer_texture_write_data(renderer_plugin* plugin, texture* t, u32
 
     // Create staging buffer and load data into it
     renderbuffer staging;
-    if (!renderer_renderbuffer_create(RENDERBUFFER_TYPE_STAGING, size, false, &staging))
+    char bufname[256];
+    bzero_memory(bufname, 256);
+    string_format(bufname, "renderbuffer_texture_write_staging");
+    if (!renderer_renderbuffer_create(bufname, RENDERBUFFER_TYPE_STAGING, size, false, &staging))
     {
         BERROR("Failed to create staging buffer for texture write");
         return;
@@ -1124,7 +1132,10 @@ void vulkan_renderer_texture_read_data(renderer_plugin* plugin, texture* t, u32 
 
     // Create staging buffer and load data into it
     renderbuffer staging;
-    if (!renderer_renderbuffer_create(RENDERBUFFER_TYPE_READ, size, false, &staging))
+    char bufname[256];
+    bzero_memory(bufname, 256);
+    string_format(bufname, "renderbuffer_texture_read_staging");
+    if (!renderer_renderbuffer_create(bufname, RENDERBUFFER_TYPE_READ, size, false, &staging))
     {
         BERROR("Failed to create staging buffer for texture read");
         return;
@@ -1178,7 +1189,10 @@ void vulkan_renderer_texture_read_pixel(renderer_plugin* plugin, texture* t, u32
 
     // Create staging buffer and load data into it
     renderbuffer staging;
-    if (!renderer_renderbuffer_create(RENDERBUFFER_TYPE_READ, sizeof(u8) * 4, false, &staging))
+    char bufname[256];
+    bzero_memory(bufname, 256);
+    string_format(bufname, "renderbuffer_texture_read_pixel_staging");
+    if (!renderer_renderbuffer_create(bufname, RENDERBUFFER_TYPE_READ, sizeof(u8) * 4, false, &staging))
     {
         BERROR("Failed to create staging buffer for texture pixel read");
         return;
@@ -1361,6 +1375,7 @@ void vulkan_renderer_geometry_destroy(renderer_plugin* plugin, geometry* geometr
         bzero_memory(internal_data, sizeof(vulkan_geometry_data));
         internal_data->id = INVALID_ID;
         internal_data->generation = INVALID_ID;
+        geometry->internal_id = INVALID_ID;
     }
 }
 
@@ -1774,8 +1789,11 @@ b8 vulkan_renderer_shader_initialize(renderer_plugin* plugin, shader* s)
 
     // Uniform  buffer
     // TODO: max count should be configurable
-    u64 total_buffer_size = s->global_ubo_stride + (s->ubo_stride * VULKAN_MAX_MATERIAL_COUNT);
-    if (!renderer_renderbuffer_create(RENDERBUFFER_TYPE_UNIFORM, total_buffer_size, true, &internal_shader->uniform_buffer))
+    u64 total_buffer_size = s->global_ubo_stride + (s->ubo_stride * VULKAN_MAX_MATERIAL_COUNT); // global + (locals)
+    char bufname[256];
+    bzero_memory(bufname, 256);
+    string_format(bufname, "renderbuffer_global_uniform");
+    if (!renderer_renderbuffer_create(bufname, RENDERBUFFER_TYPE_UNIFORM, total_buffer_size, true, &internal_shader->uniform_buffer))
     {
         BERROR("Vulkan buffer creation failed for object shader");
         return false;
@@ -2071,7 +2089,7 @@ b8 vulkan_renderer_texture_map_resources_acquire(renderer_plugin* plugin, textur
 void vulkan_renderer_texture_map_resources_release(renderer_plugin* plugin, texture_map* map)
 {
     vulkan_context* context = (vulkan_context*)plugin->internal_context;
-    if (map)
+    if (map && map->internal_data)
     {
         vkDeviceWaitIdle(context->device.logical_device);
         vkDestroySampler(context->device.logical_device, map->internal_data, context->allocator);
@@ -2711,6 +2729,10 @@ b8 vulkan_buffer_create_internal(renderer_plugin* plugin, renderbuffer* buffer)
 
     // Allocate memory
     VkResult result = vkAllocateMemory(context->device.logical_device, &allocate_info, context->allocator, &internal_buffer.memory);
+    if (!vulkan_set_debug_object_name(context, VK_OBJECT_TYPE_DEVICE_MEMORY, internal_buffer.memory, buffer->name))
+    {
+        // ...
+    }
 
     // Determine if memory is on device heap
     b8 is_device_memory = (internal_buffer.memory_property_flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
@@ -2734,6 +2756,7 @@ b8 vulkan_buffer_create_internal(renderer_plugin* plugin, renderbuffer* buffer)
 void vulkan_buffer_destroy_internal(renderer_plugin* plugin, renderbuffer* buffer)
 {
     vulkan_context* context = (vulkan_context*)plugin->internal_context;
+    vkDeviceWaitIdle(context->device.logical_device);
     if (buffer)
     {
         vulkan_buffer* internal_buffer = (vulkan_buffer*)buffer->internal_data;
@@ -2794,6 +2817,10 @@ b8 vulkan_buffer_resize(renderer_plugin* plugin, renderbuffer* buffer, u64 new_s
     // Allocate memory
     VkDeviceMemory new_memory;
     VkResult result = vkAllocateMemory(context->device.logical_device, &allocate_info, context->allocator, &new_memory);
+    if (!vulkan_set_debug_object_name(context, VK_OBJECT_TYPE_DEVICE_MEMORY, new_memory, buffer->name))
+    {
+        // ...
+    }
     if (result != VK_SUCCESS)
     {
         BERROR("Unable to resize vulkan buffer because the required memory allocation failed. Error: %i", result);
@@ -2921,7 +2948,10 @@ b8 vulkan_buffer_read(renderer_plugin* plugin, renderbuffer* buffer, u64 offset,
     {
         // Create host-visible staging buffer to copy to. Mark it as destination of the transfer
         renderbuffer read;
-        if (!renderer_renderbuffer_create(RENDERBUFFER_TYPE_READ, size, false, &read))
+        char bufname[256];
+        bzero_memory(bufname, 256);
+        string_format(bufname, "renderbuffer_read");
+        if (!renderer_renderbuffer_create(bufname, RENDERBUFFER_TYPE_READ, size, false, &read))
         {
             BERROR("vulkan_buffer_read() - Failed to create read buffer");
             return false;
@@ -2968,7 +2998,10 @@ b8 vulkan_buffer_load_range(renderer_plugin* plugin, renderbuffer* buffer, u64 o
     {
         // Create host-visible staging buffer to upload to. Mark it as the source of transfer
         renderbuffer staging;
-        if (!renderer_renderbuffer_create(RENDERBUFFER_TYPE_STAGING, size, false, &staging))
+        char bufname[256];
+        bzero_memory(bufname, 256);
+        string_format(bufname, "renderbuffer_loadrange_staging");
+        if (!renderer_renderbuffer_create(bufname, RENDERBUFFER_TYPE_STAGING, size, false, &staging))
         {
             BERROR("vulkan_buffer_load_range() - Failed to create staging buffer");
             return false;

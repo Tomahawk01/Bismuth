@@ -133,6 +133,7 @@ typedef enum renderbuffer_type
 
 typedef struct renderbuffer
 {
+    char* name;
     renderbuffer_type type;
     u64 total_size;
     u64 freelist_memory_requirement;

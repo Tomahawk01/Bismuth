@@ -160,7 +160,7 @@ b8 simple_scene_initialize(simple_scene* scene)
             terrain_config *parsed_config = (terrain_config *)terrain_resource.data;
             parsed_config->xform = scene->config->terrains[i].xform;
 
-            terrain new_terrain;
+            terrain new_terrain = {0};
             if(!terrain_create(parsed_config, &new_terrain))
             {
                 BWARN("Failed to load terrain");
@@ -752,19 +752,24 @@ static void simple_scene_actual_unload(simple_scene* scene)
         if (scene->meshes[i].generation != INVALID_ID_U8)
         {
             if (!mesh_unload(&scene->meshes[i]))
-            {
                 BERROR("Failed to unload mesh");
-            }
+            mesh_destroy(&scene->meshes[i]);
         }
+    }
+
+    u32 terrain_count = darray_length(scene->terrains);
+    for (u32 i = 0; i < terrain_count; ++i)
+    {
+        if (!terrain_unload(&scene->terrains[i]))
+            BERROR("Failed to unload terrain");
+        terrain_destroy(&scene->terrains[i]);
     }
 
     if (scene->dir_light)
     {
         // TODO: If there are resource to unload, that should be done before this next line
         if (!simple_scene_directional_light_remove(scene, scene->dir_light->name))
-        {
             BERROR("Failed to unload/remove directional light");
-        }
     }
 
     u32 p_light_count = darray_length(scene->point_lights);
@@ -785,6 +790,9 @@ static void simple_scene_actual_unload(simple_scene* scene)
 
     if (scene->meshes)
         darray_destroy(scene->meshes);
+
+    if (scene->terrains)
+        darray_destroy(scene->terrains);
 
     if(scene->world_data.world_geometries)
         darray_destroy(scene->world_data.world_geometries);

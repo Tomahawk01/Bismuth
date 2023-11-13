@@ -70,12 +70,58 @@ b8 terrain_create(const terrain_config* config, terrain* out_terrain)
         out_terrain->material_names = 0;
     }
 
+    // Invalidate geometry
+    out_terrain->geo.id = INVALID_ID;
+    out_terrain->geo.internal_id = INVALID_ID;
+    out_terrain->geo.generation = INVALID_ID_U16;
+
     return true;
 }
 
 void terrain_destroy(terrain* t)
 {
-    // TODO: Fill it
+    if (t->name)
+    {
+        u32 length = string_length(t->name);
+        bfree(t->name, length + 1, MEMORY_TAG_STRING);
+        t->name = 0;
+    }
+
+    if (t->vertices)
+    {
+        bfree(t->vertices, sizeof(terrain_vertex) * t->vertex_count, MEMORY_TAG_ARRAY);
+        t->vertices = 0;
+    }
+
+    if (t->indices)
+    {
+        bfree(t->indices, sizeof(u32) * t->index_count, MEMORY_TAG_ARRAY);
+        t->indices = 0;
+    }
+
+    if (t->material_names)
+    {
+        bfree(t->material_names, sizeof(char*) * t->material_count, MEMORY_TAG_ARRAY);
+        t->material_names = 0;
+    }
+
+    if (t->vertex_datas)
+    {
+        bfree(t->vertex_datas, sizeof(terrain_vertex_data) * t->vertex_data_length, MEMORY_TAG_ARRAY);
+        t->vertex_datas = 0;
+    }
+
+    // NOTE: Don't just zero memory, because some structs like geometry should have invalid ids
+    t->index_count = 0;
+    t->vertex_count = 0;
+    t->scale_y = 0;
+    t->tile_scale_x = 0;
+    t->tile_scale_z = 0;
+    t->tile_count_x = 0;
+    t->tile_count_z = 0;
+    t->vertex_data_length = 0;
+    bzero_memory(&t->origin, sizeof(vec3));
+    bzero_memory(&t->extents, sizeof(vec3));
 }
 
 b8 terrain_initialize(terrain* t)
@@ -101,12 +147,11 @@ b8 terrain_initialize(terrain* t)
             v->texcoord.x = (f32)x;
             v->texcoord.y = (f32)z;
 
-            // TODO: Figure out a way to auto-assign terrain material weights
-            // v->material_weights[0] = 1.0f;
-
-            // TODO: Testing this using random material to apply full weight to
-            i32 index = brandom_in_range(0, 3);
-            v->material_weights[index] = 1.0f;
+            // NOTE: Assigning default weights based on overall height. Lower indices are lower in altitude
+            v->material_weights[0] = bsmoothstep(0.00f, 0.25f, t->vertex_datas[i].height);
+            v->material_weights[1] = bsmoothstep(0.25f, 0.50f, t->vertex_datas[i].height);
+            v->material_weights[2] = bsmoothstep(0.50f, 0.75f, t->vertex_datas[i].height);
+            v->material_weights[3] = bsmoothstep(0.75f, 1.00f, t->vertex_datas[i].height);
         }
     }
 
@@ -145,8 +190,6 @@ b8 terrain_load(terrain* t)
     }
 
     geometry* g = &t->geo;
-    bzero_memory(g, sizeof(geometry));
-    g->generation = INVALID_ID_U16;
 
     // Send geometry off to the renderer to be uploaded to the GPU
     if (!renderer_geometry_create(g, sizeof(terrain_vertex), t->vertex_count, t->vertices, sizeof(u32), t->index_count, t->indices))
@@ -173,6 +216,9 @@ b8 terrain_load(terrain* t)
 
 b8 terrain_unload(terrain* t)
 {
+    material_system_release(t->geo.material->name);
+    renderer_geometry_destroy(&t->geo);
+
     return true;
 }
 

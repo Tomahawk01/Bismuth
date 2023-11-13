@@ -11,6 +11,7 @@ typedef struct command_history_entry
 
 typedef struct debug_console_state
 {
+    b8 loaded;
     u8 console_consumer_id;
     // Number of lines displayed at once
     u32 line_display_count;

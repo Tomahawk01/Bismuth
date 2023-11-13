@@ -12,7 +12,7 @@
 
 static void regenerate_geometry(ui_text* text);
 
-b8 ui_text_create(ui_text_type type, const char* font_name, u16 font_size, const char* text_content, ui_text* out_text)
+b8 ui_text_create(const char* name, ui_text_type type, const char* font_name, u16 font_size, const char* text_content, ui_text* out_text)
 {
     if (!font_name || !text_content || !out_text)
     {
@@ -33,6 +33,7 @@ b8 ui_text_create(ui_text_type type, const char* font_name, u16 font_size, const
         return false;
     }
 
+    out_text->name = string_duplicate(name);
     out_text->text = string_duplicate(text_content);
     out_text->transform = transform_create();
 
@@ -56,7 +57,9 @@ b8 ui_text_create(ui_text_type type, const char* font_name, u16 font_size, const
     }
 
     // Generate vertex buffer
-    if (!renderer_renderbuffer_create(RENDERBUFFER_TYPE_VERTEX, text_length * quad_size, false, &out_text->vertex_buffer))
+    char bufname[256] = {0};
+    string_format(bufname, "renderbuffer_vertexbuffer_uitext_%s", out_text->name);
+    if (!renderer_renderbuffer_create(bufname, RENDERBUFFER_TYPE_VERTEX, text_length * quad_size, false, &out_text->vertex_buffer))
     {
         BERROR("ui_text_create failed to create vertex renderbuffer");
         return false;
@@ -68,8 +71,10 @@ b8 ui_text_create(ui_text_type type, const char* font_name, u16 font_size, const
     }
 
     // Generate index buffer
+    bzero_memory(bufname, 256);
+    string_format(bufname, "renderbuffer_indexbuffer_uitext_%s", out_text->name);
     static const u8 quad_index_size = sizeof(u32) * 6;
-    if (!renderer_renderbuffer_create(RENDERBUFFER_TYPE_INDEX, text_length * quad_index_size, false, &out_text->index_buffer))
+    if (!renderer_renderbuffer_create(bufname, RENDERBUFFER_TYPE_INDEX, text_length * quad_index_size, false, &out_text->index_buffer))
     {
         BERROR("ui_text_create failed to create index renderbuffer");
         return false;
@@ -102,6 +107,13 @@ void ui_text_destroy(ui_text* text)
     {
         // Release unique identifier
         identifier_release_id(text->unique_id);
+
+        if(text->name)
+        {
+            u32 text_length = string_length(text->name);
+            bfree(text->name, sizeof(char) * text_length + 1, MEMORY_TAG_STRING);
+            text->name = 0;
+        }
 
         if (text->text)
         {

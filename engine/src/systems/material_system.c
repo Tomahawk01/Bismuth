@@ -272,6 +272,8 @@ void material_system_shutdown(void* state)
 
         // Destroy default material
         destroy_material(&s->default_material);
+        destroy_material(&s->default_ui_material);
+        destroy_material(&s->default_terrain_material);
     }
 
     state_ptr = 0;
@@ -444,6 +446,10 @@ material* material_system_acquire_terrain_material(const char* material_name, u3
                 }
             }
         }
+
+        // Release reference materials
+        for (u32 i = 0; i < material_count; ++i)
+            material_system_release(material_names[i]);
 
         bfree(materials, sizeof(material*) * material_count, MEMORY_TAG_ARRAY);
 
@@ -818,25 +824,66 @@ static b8 load_material(material_config* config, material* m)
         m->maps = darray_reserve(texture_map, 3);
         darray_length_set(m->maps, 3);
         u32 map_count = darray_length(config->maps);
+        if (strings_equali("Material__47", m->name))
+            BTRACE("Material__47 loaded");
+        b8 diffuse_assigned = false;
+        b8 spec_assigned = false;
+        b8 norm_assigned = false;
         for (u32 i = 0; i < map_count; ++i)
         {
             if (strings_equali(config->maps[i].name, "diffuse"))
             {
                 if (!assign_map(&m->maps[0], &config->maps[i], m->name, texture_system_get_default_diffuse_texture()))
                     return false;
+                diffuse_assigned = true;
             }
             else if (strings_equali(config->maps[i].name, "specular"))
             {
                 if (!assign_map(&m->maps[1], &config->maps[i], m->name, texture_system_get_default_specular_texture()))
                     return false;
+                spec_assigned = true;
             }
             else if (strings_equali(config->maps[i].name, "normal"))
             {
                 if (!assign_map(&m->maps[2], &config->maps[i], m->name, texture_system_get_default_normal_texture()))
                     return false;
+                norm_assigned = true;
             }
             // TODO: other maps
             // NOTE: Ignore unexpected maps
+        }
+        if (!diffuse_assigned)
+        {
+            // Make sure diffuse map is always assigned
+            material_map map_config = {0};
+            map_config.filter_mag = map_config.filter_min = TEXTURE_FILTER_MODE_LINEAR;
+            map_config.repeat_u = map_config.repeat_v = map_config.repeat_w = TEXTURE_REPEAT_REPEAT;
+            map_config.name = "diffuse";
+            map_config.texture_name = "";
+            if (!assign_map(&m->maps[0], &map_config, m->name, texture_system_get_default_diffuse_texture()))
+                return false;
+        }
+        if (!spec_assigned)
+        {
+            // Make sure specular map is always assigned
+            material_map map_config = {0};
+            map_config.filter_mag = map_config.filter_min = TEXTURE_FILTER_MODE_LINEAR;
+            map_config.repeat_u = map_config.repeat_v = map_config.repeat_w = TEXTURE_REPEAT_REPEAT;
+            map_config.name = "specular";
+            map_config.texture_name = "";
+            if (!assign_map(&m->maps[1], &map_config, m->name, texture_system_get_default_specular_texture()))
+                return false;
+        }
+        if (!norm_assigned)
+        {
+            // Make sure normal map is always assigned
+            material_map map_config = {0};
+            map_config.filter_mag = map_config.filter_min = TEXTURE_FILTER_MODE_LINEAR;
+            map_config.repeat_u = map_config.repeat_v = map_config.repeat_w = TEXTURE_REPEAT_REPEAT;
+            map_config.name = "normal";
+            map_config.texture_name = "";
+            if (!assign_map(&m->maps[2], &map_config, m->name, texture_system_get_default_normal_texture()))
+                return false;
         }
     }
     else if (config->type == MATERIAL_TYPE_UI)
@@ -1019,7 +1066,8 @@ static void destroy_material(material* m)
     for (u32 i = 0; i < length; ++i)
     {
         // Release texture references
-        texture_system_release(m->maps[i].texture->name);
+        if (m->maps[i].texture)
+            texture_system_release(m->maps[i].texture->name);
         // Release texture map resources
         renderer_texture_map_resources_release(&m->maps[i]);
     }

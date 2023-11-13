@@ -168,6 +168,7 @@ b8 application_boot(struct application* game_inst)
 
     // Allocate game state
     game_inst->state = ballocate(sizeof(testbed_game_state), MEMORY_TAG_GAME);
+    ((testbed_game_state*)game_inst->state)->running = false;
 
     debug_console_create(&((testbed_game_state*)game_inst->state)->debug_console);
 
@@ -225,6 +226,9 @@ b8 application_initialize(struct application* game_inst)
 
     testbed_game_state* state = ((testbed_game_state*)game_inst->state);
 
+    state->forward_move_speed = 5.0f;
+    state->backward_move_speed = 2.5f;
+
     // World meshes
     // Invalidate all meshes
     for (u32 i = 0; i < 10; ++i)
@@ -234,7 +238,7 @@ b8 application_initialize(struct application* game_inst)
     }
 
     // Create test ui text objects
-    if (!ui_text_create(UI_TEXT_TYPE_BITMAP, "Open Sans 21px", 21, "Some test text 123,\n\thello!", &state->test_text))
+    if (!ui_text_create("testbed_mono_test_text", UI_TEXT_TYPE_BITMAP, "Open Sans 21px", 21, "Some test text 123,\n\thello!", &state->test_text))
     {
         BERROR("Failed to load basic ui bitmap text");
         return false;
@@ -242,7 +246,7 @@ b8 application_initialize(struct application* game_inst)
     // Move debug text to new bottom of screen
     ui_text_position_set(&state->test_text, vec3_create(20, game_inst->app_config.start_height - 75, 0));
 
-    if (!ui_text_create(UI_TEXT_TYPE_SYSTEM, "Noto Sans CJK JP", 31, "Some system text 123, \n\thello!\n\n\tこんにちは", &state->test_sys_text))
+    if (!ui_text_create("testbed_UTF_test_text", UI_TEXT_TYPE_SYSTEM, "Noto Sans CJK JP", 31, "Some system text 123, \n\thello!\n\n\tこんにちは", &state->test_sys_text))
     {
         BERROR("Failed to load basic ui system text");
         return false;
@@ -297,12 +301,15 @@ b8 application_initialize(struct application* game_inst)
     // TODO: end temp load/prepare stuff
 
     state->world_camera = camera_system_get_default();
-    camera_position_set(state->world_camera, (vec3){10.0f, 5.0f, 9.0f});
+    camera_position_set(state->world_camera, (vec3){51.45f, 8.35f, 67.15f});
+    camera_rotation_euler_set(state->world_camera, (vec3){-11.080f, 262.600f, 0.0f});
 
     //bzero_memory(&game_inst->frame_data, sizeof(app_frame_data));
 
     bzero_memory(&state->update_clock, sizeof(clock));
     bzero_memory(&state->render_clock, sizeof(clock));
+
+    state->running = true;
 
     return true;
 }
@@ -314,6 +321,8 @@ b8 application_update(struct application* game_inst, struct frame_data* p_frame_
         return true;
 
     testbed_game_state* state = (testbed_game_state*)game_inst->state;
+    if (!state->running)
+        return true;
     
     clock_start(&state->update_clock);
 
@@ -335,12 +344,12 @@ b8 application_update(struct application* game_inst, struct frame_data* p_frame_
         if (state->p_light_1)
         {
             state->p_light_1->data.color = (vec4){
-                (bsin(p_frame_data->total_time + 0.0f) + 1.0f) * 0.5f,
-                (bsin(p_frame_data->total_time + 0.3f) + 1.0f) * 0.5f,
-                (bsin(p_frame_data->total_time + 0.6f) + 1.0f) * 0.5f,
+                BCLAMP(bsin(p_frame_data->total_time) * 0.75f + 0.5f, 0.0f, 1.0f),
+                BCLAMP(bsin(p_frame_data->total_time - (B_2PI / 3)) * 0.75f + 0.5f, 0.0f, 1.0f),
+                BCLAMP(bsin(p_frame_data->total_time - (B_4PI / 3)) * 0.75f + 0.5f, 0.0f, 1.0f),
                 1.0f
             };
-            state->p_light_1->data.position.x = bsin(p_frame_data->total_time);
+            state->p_light_1->data.position.z = 70.0f + bsin(p_frame_data->total_time);
         }
     }
 
@@ -389,7 +398,8 @@ VSync: %s Drawn: %-5u Hovered: %s%u",
         p_frame_data->drawn_mesh_count,
         state->hovered_object_id == INVALID_ID ? "none" : "",
         state->hovered_object_id == INVALID_ID ? 0 : state->hovered_object_id);
-    ui_text_text_set(&state->test_text, text_buffer);
+    if (state->running)
+        ui_text_text_set(&state->test_text, text_buffer);
 
     debug_console_update(&((testbed_game_state*)game_inst->state)->debug_console);
 
@@ -402,6 +412,8 @@ VSync: %s Drawn: %-5u Hovered: %s%u",
 b8 application_render(struct application* game_inst, struct render_packet* packet, struct frame_data* p_frame_data)
 {
     testbed_game_state *state = (testbed_game_state*)game_inst->state;
+    if (!state->running)
+        return true;
 
     clock_start(&state->render_clock);
 
@@ -505,6 +517,7 @@ void application_on_resize(struct application* game_inst, u32 width, u32 height)
 void application_shutdown(struct application* game_inst)
 {
     testbed_game_state* state = (testbed_game_state*)game_inst->state;
+    state->running = false;
 
     if (state->main_scene.state == SIMPLE_SCENE_STATE_LOADED)
     {

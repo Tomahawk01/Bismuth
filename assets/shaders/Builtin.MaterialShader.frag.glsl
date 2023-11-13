@@ -26,6 +26,7 @@ const int MAX_POINT_LIGHTS = 10;
 struct phong_properties
 {
     vec4 diffuse_color;
+    vec3 padding;
     float shininess;
 };
 

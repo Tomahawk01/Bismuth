@@ -319,75 +319,80 @@ b8 render_view_world_on_render(const struct render_view* self, const struct rend
                 BERROR("Failed to use apply globals for terrain shader. Render frame failed");
                 return false;
             }
-        }
-        for(u32 i = 0; i < terrain_count; ++i)
-        {
-            material* m = 0;
-            if (packet->terrain_geometries[i].geometry->material)
-                m = packet->terrain_geometries[i].geometry->material;
-            else
-                m = material_system_get_default_terrain();
-
-            b8 needs_update = m->render_frame_number != frame_number;
-            if (!material_system_apply_instance(m, needs_update))
+            for (u32 i = 0; i < terrain_count; ++i)
             {
-                BWARN("Failed to apply terrain material '%s'. Skipping draw", m->name);
-                continue;
+                material* m = 0;
+                if (packet->terrain_geometries[i].geometry->material)
+                    m = packet->terrain_geometries[i].geometry->material;
+                else
+                    m = material_system_get_default_terrain();
+
+                b8 needs_update = m->render_frame_number != frame_number;
+                if (!material_system_apply_instance(m, needs_update))
+                {
+                    BWARN("Failed to apply terrain material '%s'. Skipping draw", m->name);
+                    continue;
+                }
+                else
+                {
+                    // Sync frame number
+                    m->render_frame_number = frame_number;
+                }
+
+                // Apply the locals
+                material_system_apply_local(m, &packet->terrain_geometries[i].model);
+
+                // Draw it
+                renderer_geometry_draw(&packet->terrain_geometries[i]);
             }
-            else
-            {
-                // Sync frame number
-                m->render_frame_number = frame_number;
-            }
-
-            // Apply locals
-            material_system_apply_local(m, &packet->terrain_geometries[i].model);
-
-            // Draw it
-            renderer_geometry_draw(&packet->terrain_geometries[i]);
-        }
-
-        if (!shader_system_use_by_id(shader_id))
-        {
-            BERROR("Failed to use material shader. Render frame failed");
-            return false;
         }
 
-        // Apply globals
-        if (!material_system_apply_global(shader_id, frame_number, &packet->projection_matrix, &packet->view_matrix, &packet->ambient_color, &packet->view_position, data->render_mode))
+        // Static geometries
+        u32 geometry_count = packet->geometry_count;
+        if (geometry_count > 0)
         {
-            BERROR("Failed to use apply globals for material shader. Render frame failed");
-            return false;
-        }
-
-        // Draw geometries
-        u32 count = packet->geometry_count;
-        for (u32 i = 0; i < count; ++i)
-        {
-            material* m = 0;
-            if (packet->geometries[i].geometry->material)
-                m = packet->geometries[i].geometry->material;
-            else
-                m = material_system_get_default();
-
-            // Update material if it hasn't already been this frame
-            b8 needs_update = m->render_frame_number != frame_number;
-            if (!material_system_apply_instance(m, needs_update))
+            if (!shader_system_use_by_id(shader_id))
             {
-                BWARN("Failed to apply material '%s'. Skipping draw", m->name);
-                continue;
-            }
-            else
-            {
-                // Sync frame number
-                m->render_frame_number = frame_number;
+                BERROR("Failed to use material shader. Render frame failed");
+                return false;
             }
 
-            // Apply locals
-            material_system_apply_local(m, &packet->geometries[i].model);
+            // Apply globals
+            // TODO: Find generic way to request data such as ambient color and mode
+            if (!material_system_apply_global(shader_id, frame_number, &packet->projection_matrix, &packet->view_matrix, &packet->ambient_color, &packet->view_position, data->render_mode))
+            {
+                BERROR("Failed to use apply globals for material shader. Render frame failed");
+                return false;
+            }
 
-            // Draw it
-            renderer_geometry_draw(&packet->geometries[i]);
+            // Draw geometries
+            u32 count = packet->geometry_count;
+            for (u32 i = 0; i < count; ++i)
+            {
+                material* m = 0;
+                if (packet->geometries[i].geometry->material)
+                    m = packet->geometries[i].geometry->material;
+                else
+                    m = material_system_get_default();
+
+                b8 needs_update = m->render_frame_number != frame_number;
+                if (!material_system_apply_instance(m, needs_update))
+                {
+                    BWARN("Failed to apply material '%s'. Skipping draw", m->name);
+                    continue;
+                }
+                else
+                {
+                    // Sync frame number
+                    m->render_frame_number = frame_number;
+                }
+
+                // Apply the locals
+                material_system_apply_local(m, &packet->geometries[i].model);
+
+                // Draw it
+                renderer_geometry_draw(&packet->geometries[i]);
+            }
         }
 
         if (!renderer_renderpass_end(pass))

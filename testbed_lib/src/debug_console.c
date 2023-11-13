@@ -14,8 +14,11 @@ b8 debug_console_consumer_write(void* inst, log_level level, const char* message
     debug_console_state* state = (debug_console_state*)inst;
     if (state)
     {
+        // Not necessarily failure, but move on if not loaded
+        if (!state->loaded)
+            return true;
         // For high-priority error/fatal messages don't bother with splitting, just output them
-        if(level <= LOG_LEVEL_ERROR)
+        if (level <= LOG_LEVEL_ERROR)
         {
             darray_push(state->lines, message);
             state->dirty = true;
@@ -37,6 +40,8 @@ b8 debug_console_consumer_write(void* inst, log_level level, const char* message
 static b8 debug_console_on_key(u16 code, void* sender, void* listener_inst, event_context context)
 {
     debug_console_state* state = (debug_console_state*)listener_inst;
+    if (!state->loaded)
+        return false;
     if (!state->visible)
         return false;
 
@@ -149,6 +154,7 @@ void debug_console_create(debug_console_state* out_console_state)
         out_console_state->visible = false;
         out_console_state->history = darray_create(command_history_entry);
         out_console_state->history_offset = 0;
+        out_console_state->loaded = false;
 
         console_consumer_register(out_console_state, debug_console_consumer_write, &out_console_state->console_consumer_id);
 
@@ -167,7 +173,7 @@ b8 debug_console_load(debug_console_state* state)
     }
 
     // Create a ui text control for rendering
-    if (!ui_text_create(UI_TEXT_TYPE_SYSTEM, "Noto Sans CJK JP", 31, "", &state->text_control))
+    if (!ui_text_create("debug_console_log_text", UI_TEXT_TYPE_SYSTEM, "Noto Sans CJK JP", 31, "", &state->text_control))
     {
         BFATAL("Unable to create text control for debug console");
         return false;
@@ -176,13 +182,15 @@ b8 debug_console_load(debug_console_state* state)
     ui_text_position_set(&state->text_control, (vec3){3.0f, 30.0f, 0.0f});
 
     // Create another ui text control for rendering typed text
-    if (!ui_text_create(UI_TEXT_TYPE_SYSTEM, "Noto Sans CJK JP", 31, "", &state->entry_control))
+    if (!ui_text_create("debug_console_entry_text", UI_TEXT_TYPE_SYSTEM, "Noto Sans CJK JP", 31, "", &state->entry_control))
     {
         BFATAL("Unable to create entry text control for debug console");
         return false;
     }
 
     ui_text_position_set(&state->entry_control, (vec3){3.0f, 30.0f + (31.0f * state->line_display_count), 0.0f});
+
+    state->loaded = true;
 
     return true;
 }
@@ -191,6 +199,7 @@ void debug_console_unload(debug_console_state* state)
 {
     if (state)
     {
+        state->loaded = false;
         ui_text_destroy(&state->text_control);
         ui_text_destroy(&state->entry_control);
     }
@@ -198,7 +207,7 @@ void debug_console_unload(debug_console_state* state)
 
 void debug_console_update(debug_console_state* state)
 {
-    if (state && state->dirty)
+    if (state && state->loaded && state->dirty)
     {
         u32 line_count = darray_length(state->lines);
         u32 max_lines = BMIN(state->line_display_count, BMAX(line_count, state->line_display_count));
@@ -300,7 +309,7 @@ void debug_console_move_down(debug_console_state* state)
 {
     if (state)
     {
-        if(state->line_offset == 0)
+        if (state->line_offset == 0)
             return;
 
         state->dirty = true;

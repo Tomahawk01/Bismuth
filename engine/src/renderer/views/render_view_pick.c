@@ -412,7 +412,7 @@ b8 render_view_pick_on_render(const struct render_view* self, const struct rende
 
         if (!renderer_renderpass_end(pass))
         {
-            BERROR("render_view_ui_on_render pass index %u failed to end", p);
+            BERROR("render_view_pick_on_render pass index %u failed to end", p);
             return false;
         }
 
@@ -421,7 +421,7 @@ b8 render_view_pick_on_render(const struct render_view* self, const struct rende
 
         if (!renderer_renderpass_begin(pass, &pass->targets[render_target_index]))
         {
-            BERROR("render_view_ui_on_render pass index %u failed to start", p);
+            BERROR("render_view_pick_on_render pass index %u failed to start", p);
             return false;
         }
 

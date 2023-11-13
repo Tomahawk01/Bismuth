@@ -6,6 +6,7 @@
 
 #define B_PI 3.14159265358979323846f
 #define B_2PI (2.0f * B_PI)
+#define B_4PI (4.0f * B_PI)
 #define B_HALF_PI (0.5f * B_PI)
 #define B_QUARTER_PI (0.25f * B_PI)
 #define B_ONE_OVER_PI (1.0f / B_PI)
@@ -55,6 +56,20 @@ BAPI i32 brandom_in_range(i32 min, i32 max);
 
 BAPI f32 bfrandom(void);
 BAPI f32 bfrandom_in_range(f32 min, f32 max);
+
+/**
+ * @brief Perform Hermite interpolation between two values
+ * 
+ * @param edge_0 The lower edge of the Hermite function
+ * @param edge_1 The upper edge of the Hermite function
+ * @param x The value to interpolate
+ * @return The interpolated value
+ */
+BINLINE f32 bsmoothstep(f32 edge_0, f32 edge_1, f32 x)
+{
+    f32 t = BCLAMP((x - edge_0) / (edge_1 - edge_0), 0.0f, 1.0f);
+    return t * t * (3.0 - 2.0 * t);
+}
 
 // --------------------------------------------------------------------------------
 // ----------------------------------- Vector 2 -----------------------------------
