@@ -193,6 +193,7 @@ typedef struct renderer_plugin
     void (*texture_read_pixel)(struct renderer_plugin* plugin, texture* t, u32 x, u32 y, u8** out_rgba);
 
     b8 (*geometry_create)(struct renderer_plugin* plugin, geometry* geometry, u32 vertex_size, u32 vertex_count, const void* vertices, u32 index_size, u32 index_count, const void* indices);
+    void (*geometry_vertex_update)(struct renderer_plugin *plugin, geometry *g, u32 offset, u32 vertex_count, void *vertices);
     void (*geometry_destroy)(struct renderer_plugin* plugin, geometry* geometry);
 
     b8 (*shader_create)(struct renderer_plugin* plugin, struct shader* shader, const shader_config* config, renderpass* pass, u8 stage_count, const char** stage_filenames, shader_stage* stages);
@@ -331,6 +332,8 @@ typedef struct render_view_packet
     geometry_render_data* geometries;
     u32 terrain_geometry_count;
     geometry_render_data* terrain_geometries;
+    u32 debug_geometry_count;
+    geometry_render_data* debug_geometries;
     struct terrain** terrains;
     const char* custom_shader_name;
     void* extended_data;

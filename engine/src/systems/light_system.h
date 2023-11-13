@@ -14,6 +14,7 @@ typedef struct directional_light
 {
     char* name;
     directional_light_data data;
+    void* debug_data;
 } directional_light;
 
 typedef struct point_light_data
@@ -33,6 +34,7 @@ typedef struct point_light
 {
     char* name;
     point_light_data data;
+    void* debug_data;
 } point_light;
 
 b8 light_system_initialize(u64* memory_requirement, void* memory, void* config);

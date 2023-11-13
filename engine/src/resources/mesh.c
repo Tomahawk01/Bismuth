@@ -1,8 +1,10 @@
 #include "mesh.h"
+
 #include "core/bmemory.h"
 #include "core/logger.h"
 #include "core/identifier.h"
 #include "core/bstring.h"
+#include "math/math_types.h"
 #include "systems/job_system.h"
 #include "systems/resource_system.h"
 #include "systems/geometry_system.h"
@@ -24,7 +26,50 @@ static void mesh_load_job_success(void* params)
     mesh_params->out_mesh->geometry_count = mesh_params->mesh_resource.data_size;
     mesh_params->out_mesh->geometries = ballocate(sizeof(geometry*) * mesh_params->out_mesh->geometry_count, MEMORY_TAG_ARRAY);
     for (u32 i = 0; i < mesh_params->out_mesh->geometry_count; ++i)
+    {
         mesh_params->out_mesh->geometries[i] = geometry_system_acquire_from_config(configs[i], true);
+        // Calculate geometry extents
+        extents_3d* local_extents = &mesh_params->out_mesh->geometries[i]->extents;
+        vertex_3d* verts = configs[i].vertices;
+        for (u32 v = 0; v < configs[i].vertex_count; ++v)
+        {
+            // Min
+            if (verts[v].position.x < local_extents->min.x)
+                local_extents->min.x = verts[v].position.x;
+            if (verts[v].position.y < local_extents->min.y)
+                local_extents->min.y = verts[v].position.y;
+            if (verts[v].position.z < local_extents->min.z)
+                local_extents->min.z = verts[v].position.z;
+
+            // Max
+            if (verts[v].position.x > local_extents->max.x)
+                local_extents->max.x = verts[v].position.x;
+            if (verts[v].position.y > local_extents->max.y)
+                local_extents->max.y = verts[v].position.y;
+            if (verts[v].position.z > local_extents->max.z)
+                local_extents->max.z = verts[v].position.z;
+        }
+
+        // Calculate overall extents for mesh by getting extents for each sub-mesh
+        extents_3d* global_extents = &mesh_params->out_mesh->extents;
+
+        // Min
+        if (local_extents->min.x < global_extents->min.x)
+            global_extents->min.x = local_extents->min.x;
+        if (local_extents->min.y < global_extents->min.y)
+            global_extents->min.y = local_extents->min.y;
+        if (local_extents->min.z < global_extents->min.z)
+            global_extents->min.z = local_extents->min.z;
+
+        // Max
+        if (local_extents->max.x > global_extents->max.x)
+            global_extents->max.x = local_extents->max.x;
+        if (local_extents->max.y > global_extents->max.y)
+            global_extents->max.y = local_extents->max.y;
+        if (local_extents->max.z > global_extents->max.z)
+            global_extents->max.z = local_extents->max.z;
+    }
+    
     mesh_params->out_mesh->generation++;
 
     BTRACE("Successfully loaded mesh '%s'", mesh_params->resource_name);

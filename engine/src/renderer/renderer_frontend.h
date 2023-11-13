@@ -38,6 +38,7 @@ BAPI void renderer_texture_read_data(texture* t, u32 offset, u32 size, void** ou
 BAPI void renderer_texture_read_pixel(texture* t, u32 x, u32 y, u8** out_rgba);
 
 BAPI b8 renderer_geometry_create(geometry* geometry, u32 vertex_size, u32 vertex_count, const void* vertices, u32 index_size, u32 index_count, const void* indices);
+BAPI void renderer_geometry_vertex_update(geometry* g, u32 offset, u32 vertex_count, void* vertices);
 BAPI void renderer_geometry_destroy(geometry* geometry);
 
 BAPI void renderer_geometry_draw(geometry_render_data* data);

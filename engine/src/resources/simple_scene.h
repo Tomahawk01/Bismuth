@@ -3,6 +3,7 @@
 #include "defines.h"
 #include "math/math_types.h"
 #include "renderer/views/render_view_world.h"
+#include "resources/debug/debug_grid.h"
 
 struct frame_data;
 struct render_packet;
@@ -69,6 +70,9 @@ typedef struct simple_scene
 
     // Singlular pointer to a skybox
     struct skybox* sb;
+
+    // Grid for the scene
+    debug_grid grid;
 
     // Pointer to scene configuration, if provided
     struct simple_scene_config* config;

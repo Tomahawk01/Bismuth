@@ -78,6 +78,8 @@ typedef struct shader
 
     shader_flag_bits flags;
 
+    u32 topology_types;
+
     u64 required_ubo_alignment;
 
     // The actual size of the global uniform buffer object

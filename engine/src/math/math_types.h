@@ -111,6 +111,12 @@ typedef struct vertex_2d
     vec2 texcoord;
 } vertex_2d;
 
+typedef struct color_vertex_3d
+{
+    vec4 position;
+    vec4 color;
+} color_vertex_3d;
+
 typedef struct transform
 {
     vec3 position;

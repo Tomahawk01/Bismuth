@@ -1,5 +1,6 @@
 #include "simple_scene.h"
 
+#include "defines.h"
 #include "containers/darray.h"
 #include "core/logger.h"
 #include "core/bmemory.h"
@@ -11,6 +12,8 @@
 #include "resources/skybox.h"
 #include "resources/mesh.h"
 #include "resources/terrain.h"
+#include "resources/debug/debug_box3d.h"
+#include "resources/debug/debug_line3d.h"
 #include "renderer/renderer_types.inl"
 #include "renderer/camera.h"
 #include "systems/render_view_system.h"
@@ -20,6 +23,12 @@
 static void simple_scene_actual_unload(simple_scene* scene);
 
 static u32 global_scene_id = 0;
+
+typedef struct simple_scene_debug_data
+{
+    debug_box3d box;
+    debug_line3d line;
+} simple_scene_debug_data;
 
 b8 simple_scene_create(void* config, simple_scene* out_scene)
 {
@@ -53,6 +62,18 @@ b8 simple_scene_create(void* config, simple_scene* out_scene)
     // NOTE: Starting with a reasonably high number to avoid reallocs in the beginning
     out_scene->world_data.world_geometries = darray_reserve(geometry_render_data, 512);
     out_scene->world_data.terrain_geometries = darray_create(geometry_render_data);
+    out_scene->world_data.debug_geometries = darray_create(geometry_render_data);
+
+    debug_grid_config grid_config = {0};
+    grid_config.orientation = DEBUG_GRID_ORIENTATION_XZ;
+    grid_config.tile_count_dim_0 = 100;
+    grid_config.tile_count_dim_1 = 100;
+    grid_config.tile_scale = 1.0f;
+    grid_config.name = "debug_grid";
+    grid_config.use_third_axis = true;
+
+    if (!debug_grid_create(&grid_config, &out_scene->grid))
+        return false;
 
     return true;
 }
@@ -94,6 +115,18 @@ b8 simple_scene_initialize(simple_scene* scene)
             scene->dir_light->name = string_duplicate(scene->config->directional_light_config.name);
             scene->dir_light->data.color = scene->config->directional_light_config.color;
             scene->dir_light->data.direction = scene->config->directional_light_config.direction;
+
+            // Add debug data and initialize it
+            scene->dir_light->debug_data = ballocate(sizeof(simple_scene_debug_data), MEMORY_TAG_RESOURCE);
+            simple_scene_debug_data *debug = scene->dir_light->debug_data;
+
+            // Generate line points based on light direction
+            // First point will always be at the scene's origin
+            vec3 point_0 = vec3_zero();
+            vec3 point_1 = vec3_mul_scalar(vec3_normalized(vec3_from_vec4(scene->dir_light->data.direction)), -1.0f);
+
+            if (!debug_line3d_create(point_0, point_1, 0, &debug->line))
+                BERROR("Failed to create debug line for directional light");
         }
 
         // Point lights
@@ -107,6 +140,19 @@ b8 simple_scene_initialize(simple_scene* scene)
             new_light.data.linear = scene->config->point_lights[i].linear;
             new_light.data.position = scene->config->point_lights[i].position;
             new_light.data.quadratic = scene->config->point_lights[i].quadratic;
+
+            // Add debug data and initialize it
+            new_light.debug_data = ballocate(sizeof(simple_scene_debug_data), MEMORY_TAG_RESOURCE);
+            simple_scene_debug_data *debug = new_light.debug_data;
+
+            if (!debug_box3d_create((vec3){0.2f, 0.2f, 0.2f}, 0, &debug->box))
+            {
+                BERROR("Failed to create debug box for directional light");
+            }
+            else
+            {
+                transform_position_set(&debug->box.xform, vec3_from_vec4(new_light.data.position));   
+            }         
 
             darray_push(scene->point_lights, new_light);
         }
@@ -170,6 +216,39 @@ b8 simple_scene_initialize(simple_scene* scene)
             resource_system_unload(&terrain_resource);
 
             darray_push(scene->terrains, new_terrain);
+        }
+
+        if (!debug_grid_initialize(&scene->grid))
+            return false;
+
+        // Handle directional light debug lines
+        if (scene->dir_light && scene->dir_light->debug_data)
+        {
+            simple_scene_debug_data *debug = (simple_scene_debug_data *)scene->dir_light->debug_data;
+            if (!debug_line3d_initialize(&debug->line))
+            {
+                BERROR("debug box failed to initialize");
+                bfree(scene->dir_light->debug_data, sizeof(simple_scene_debug_data), MEMORY_TAG_RESOURCE);
+                scene->dir_light->debug_data = 0;
+                return false;
+            }
+        }
+
+        // Handle point light debug boxes
+        u32 point_light_count = darray_length(scene->point_lights);
+        for (u32 i = 0; i < point_light_count; ++i)
+        {
+            if (scene->point_lights[i].debug_data)
+            {
+                simple_scene_debug_data *debug = (simple_scene_debug_data *)scene->point_lights[i].debug_data;
+                if (!debug_box3d_initialize(&debug->box))
+                {
+                    BERROR("debug box failed to initialize");
+                    bfree(scene->point_lights[i].debug_data, sizeof(simple_scene_debug_data), MEMORY_TAG_RESOURCE);
+                    scene->point_lights[i].debug_data = 0;
+                    return false;
+                }
+            }
         }
     }
 
@@ -264,17 +343,49 @@ b8 simple_scene_load(simple_scene* scene)
         }
     }
 
+    // Debug grid
+    if (!debug_grid_load(&scene->grid))
+        return false;
+
     if (scene->dir_light)
     {
         if (!light_system_directional_add(scene->dir_light))
+        {
             BWARN("Failed to add directional light to lighting system");
+        }
+        else
+        {
+            if (scene->dir_light->debug_data)
+            {
+                simple_scene_debug_data *debug = scene->dir_light->debug_data;
+                if (!debug_line3d_load(&debug->line))
+                {
+                    BERROR("debug line failed to load");
+                    bfree(scene->dir_light->debug_data, sizeof(simple_scene_debug_data), MEMORY_TAG_RESOURCE);
+                    scene->dir_light->debug_data = 0;
+                }
+            }
+        }
     }
 
     u32 point_light_count = darray_length(scene->point_lights);
     for (u32 i = 0; i < point_light_count; ++i)
     {
         if (!light_system_point_add(&scene->point_lights[i]))
+        {
             BWARN("Failed to add point light to lighting system");
+        }
+        else
+        {
+            // Load debug data if it was setup
+            simple_scene_debug_data *debug = (simple_scene_debug_data *)scene->point_lights[i].debug_data;
+            if (!debug_box3d_load(&debug->box))
+            {
+                BERROR("debug box failed to load");
+                bfree(scene->point_lights[i].debug_data, sizeof(simple_scene_debug_data), MEMORY_TAG_RESOURCE);
+                scene->point_lights[i].debug_data = 0;
+            }
+        }
     }
 
     scene->state = SIMPLE_SCENE_STATE_LOADED;
@@ -302,6 +413,82 @@ b8 simple_scene_update(simple_scene* scene, const struct frame_data* p_frame_dat
 {
     if (!scene)
         return false;
+
+    if (scene->state >= SIMPLE_SCENE_STATE_LOADED)
+    {
+        // TODO: Update directional light, if changed
+        if (scene->dir_light && scene->dir_light->debug_data)
+        {
+            simple_scene_debug_data *debug = scene->dir_light->debug_data;
+            if (debug->line.geo.generation != INVALID_ID_U16)
+            {
+                // Update color
+                debug_line3d_color_set(&debug->line, scene->dir_light->data.color);
+            }
+        }
+
+        // Update point light debug boxes
+        u32 point_light_count = darray_length(scene->point_lights);
+        for (u32 i = 0; i < point_light_count; ++i)
+        {
+            if (scene->point_lights[i].debug_data)
+            {
+                simple_scene_debug_data *debug = (simple_scene_debug_data *)scene->point_lights[i].debug_data;
+                if (debug->box.geo.generation != INVALID_ID_U16)
+                {
+                    // Update transform
+                    transform_position_set(&debug->box.xform, vec3_from_vec4(scene->point_lights[i].data.position));
+
+                    // Update color
+                    debug_box3d_color_set(&debug->box, scene->point_lights[i].data.color);
+                }
+            }
+        }
+
+        // Check meshes to see if they have debug data. If not, add it here and init/load it.
+        // Doing this here because mesh loading is multi-threaded, and may not yet be available
+        // even though the object is present in scene
+        u32 mesh_count = darray_length(scene->meshes);
+        for (u32 i = 0; i < mesh_count; ++i)
+        {
+            mesh *m = &scene->meshes[i];
+            if (m->generation == INVALID_ID_U8)
+                continue;
+            if (!m->debug_data)
+            {
+                m->debug_data = ballocate(sizeof(simple_scene_debug_data), MEMORY_TAG_RESOURCE);
+                simple_scene_debug_data *debug = m->debug_data;
+
+                if (!debug_box3d_create((vec3){0.2f, 0.2f, 0.2f}, 0, &debug->box))
+                {
+                    BERROR("Failed to create debug box for mesh '%s'", m->name);
+                }
+                else
+                {
+                    transform_parent_set(&debug->box.xform, &m->transform);
+
+                    if (!debug_box3d_initialize(&debug->box))
+                    {
+                        BERROR("debug box failed to initialize");
+                        bfree(m->debug_data, sizeof(simple_scene_debug_data), MEMORY_TAG_RESOURCE);
+                        m->debug_data = 0;
+                        continue;
+                    }
+
+                    if (!debug_box3d_load(&debug->box))
+                    {
+                        BERROR("debug box failed to load");
+                        bfree(m->debug_data, sizeof(simple_scene_debug_data), MEMORY_TAG_RESOURCE);
+                        m->debug_data = 0;
+                    }
+
+                    // Update extents
+                    debug_box3d_color_set(&debug->box, (vec4){0.0f, 1.0f, 0.0f, 1.0f});
+                    debug_box3d_extents_set(&debug->box, m->extents);
+                }
+            }
+        }
+    }
 
     if (scene->state == SIMPLE_SCENE_STATE_UNLOADING)
         simple_scene_actual_unload(scene);
@@ -335,15 +522,16 @@ b8 simple_scene_populate_render_packet(simple_scene* scene, struct camera* curre
         }
     }
 
-    for (u32 i = 0; i < packet->view_count; ++i)
+    for (u32 v = 0; v < packet->view_count; ++v)
     {
-        render_view_packet* view_packet = &packet->views[i];
+        render_view_packet* view_packet = &packet->views[v];
         const render_view* view = view_packet->view;
         if (view->type == RENDERER_VIEW_KNOWN_TYPE_WORLD)
         {
             // Make sure to clear world geometry array
             darray_clear(scene->world_data.world_geometries);
             darray_clear(scene->world_data.terrain_geometries);
+            darray_clear(scene->world_data.debug_geometries);
 
             // Update frustum
             vec3 forward = camera_forward(current_camera);
@@ -412,6 +600,69 @@ b8 simple_scene_populate_render_packet(simple_scene* scene, struct camera* curre
                 p_frame_data->drawn_mesh_count++;
             }
 
+            // Debug geometry
+            // Grid
+            {
+                geometry_render_data data = {0};
+                data.model = mat4_identity();
+                data.geometry = &scene->grid.geo;
+                data.unique_id = INVALID_ID;
+                darray_push(scene->world_data.debug_geometries, data);
+            }
+
+            // Directional light
+            {
+                if (scene->dir_light && scene->dir_light->debug_data)
+                {
+                    simple_scene_debug_data *debug = scene->dir_light->debug_data;
+
+                    // Debug line 3d
+                    geometry_render_data data = {0};
+                    data.model = transform_world_get(&debug->line.xform);
+                    data.geometry = &debug->line.geo;
+                    data.unique_id = debug->line.unique_id;
+                    darray_push(scene->world_data.debug_geometries, data);
+                }
+            }
+
+            // Point lights
+            {
+                u32 point_light_count = darray_length(scene->point_lights);
+                for (u32 i = 0; i < point_light_count; ++i)
+                {
+                    if (scene->point_lights[i].debug_data)
+                    {
+                        simple_scene_debug_data *debug = (simple_scene_debug_data *)scene->point_lights[i].debug_data;
+
+                        // Debug box 3d
+                        geometry_render_data data = {0};
+                        data.model = transform_world_get(&debug->box.xform);
+                        data.geometry = &debug->box.geo;
+                        data.unique_id = debug->box.unique_id;
+                        darray_push(scene->world_data.debug_geometries, data);
+                    }
+                }
+            }
+
+            // Mesh debug shapes
+            {
+                u32 mesh_count = darray_length(scene->meshes);
+                for (u32 i = 0; i < mesh_count; ++i)
+                {
+                    if (scene->meshes[i].debug_data)
+                    {
+                        simple_scene_debug_data *debug = (simple_scene_debug_data *)scene->meshes[i].debug_data;
+
+                        // Debug box 3d
+                        geometry_render_data data = {0};
+                        data.model = transform_world_get(&debug->box.xform);
+                        data.geometry = &debug->box.geo;
+                        data.unique_id = debug->box.unique_id;
+                        darray_push(scene->world_data.debug_geometries, data);
+                    }
+                }
+            }
+
             // World
             if (!render_view_system_packet_build(render_view_system_get("world"), p_frame_data->frame_allocator, &scene->world_data, &packet->views[1]))
             {
@@ -431,20 +682,69 @@ b8 simple_scene_directional_light_add(simple_scene* scene, const char* name, str
 
     if (scene->dir_light)
     {
-        // TODO: resource unloading required
         light_system_directional_remove(scene->dir_light);
+        if (scene->dir_light->debug_data)
+        {
+            simple_scene_debug_data *debug = scene->dir_light->debug_data;
+
+            debug_line3d_unload(&debug->line);
+            debug_line3d_destroy(&debug->line);
+
+            // NOTE: not freeing here unless there is a light since it will be used again below
+            if (!light)
+            {
+                bfree(scene->dir_light->debug_data, sizeof(simple_scene_debug_data), MEMORY_TAG_RESOURCE);
+                scene->dir_light->debug_data = 0;
+            }
+        }
     }
 
-    if (light)
+    scene->dir_light = light;
+
+    if (scene->dir_light)
     {
         if (!light_system_directional_add(light))
         {
             BERROR("simple_scene_directional_light_add - failed to add directional light to light system");
             return false;
         }
-    }
 
-    scene->dir_light = light;
+        // Add lines indicating light direction
+        simple_scene_debug_data *debug = scene->dir_light->debug_data;
+
+        // Generate line points based on light direction
+        // First point will always be at scene's origin
+        vec3 point_0 = vec3_zero();
+        vec3 point_1 = vec3_mul_scalar(vec3_normalized(vec3_from_vec4(scene->dir_light->data.direction)), -1.0f);
+
+        if (!debug_line3d_create(point_0, point_1, 0, &debug->line))
+        {
+            BERROR("Failed to create debug line for directional light");
+        }
+        else
+        {
+            if (scene->state > SIMPLE_SCENE_STATE_INITIALIZED)
+            {
+                if (!debug_line3d_initialize(&debug->line))
+                {
+                    BERROR("debug line failed to initialize");
+                    bfree(light->debug_data, sizeof(simple_scene_debug_data), MEMORY_TAG_RESOURCE);
+                    light->debug_data = 0;
+                    return false;
+                }
+            }
+
+            if (scene->state >= SIMPLE_SCENE_STATE_LOADED)
+            {
+                if (!debug_line3d_load(&debug->line))
+                {
+                    BERROR("debug line failed to load");
+                    bfree(light->debug_data, sizeof(simple_scene_debug_data), MEMORY_TAG_RESOURCE);
+                    light->debug_data = 0;
+                }
+            }
+        }
+    }
 
     return true;
 }
@@ -458,6 +758,39 @@ b8 simple_scene_point_light_add(simple_scene* scene, const char* name, struct po
     {
         BERROR("Failed to add point light to scene (light system add failure, check logs)");
         return false;
+    }
+
+    light->debug_data = ballocate(sizeof(simple_scene_debug_data), MEMORY_TAG_RESOURCE);
+    simple_scene_debug_data *debug = light->debug_data;
+
+    if (!debug_box3d_create((vec3){0.2f, 0.2f, 0.2f}, 0, &debug->box))
+    {
+        BERROR("Failed to create debug box for directional light");
+    }
+    else
+    {
+        transform_position_set(&debug->box.xform, vec3_from_vec4(light->data.position));
+
+        if (scene->state > SIMPLE_SCENE_STATE_INITIALIZED)
+        {
+            if (!debug_box3d_initialize(&debug->box))
+            {
+                BERROR("debug box failed to initialize");
+                bfree(light->debug_data, sizeof(simple_scene_debug_data), MEMORY_TAG_RESOURCE);
+                light->debug_data = 0;
+                return false;
+            }
+        }
+
+        if (scene->state >= SIMPLE_SCENE_STATE_LOADED)
+        {
+            if (!debug_box3d_load(&debug->box))
+            {
+                BERROR("debug box failed to load");
+                bfree(light->debug_data, sizeof(simple_scene_debug_data), MEMORY_TAG_RESOURCE);
+                light->debug_data = 0;
+            }
+        }
     }
 
     darray_push(scene->point_lights, light);
@@ -567,6 +900,20 @@ b8 simple_scene_directional_light_remove(simple_scene* scene, const char* name)
         BERROR("Failed to remove directional light from light system");
         return false;
     }
+    else
+    {
+        // Unload directional light debug if it exists
+        if (scene->dir_light->debug_data)
+        {
+            simple_scene_debug_data *debug = scene->dir_light->debug_data;
+
+            debug_line3d_unload(&debug->line);
+            debug_line3d_destroy(&debug->line);
+
+            bfree(scene->dir_light->debug_data, sizeof(simple_scene_debug_data), MEMORY_TAG_RESOURCE);
+            scene->dir_light->debug_data = 0;
+        }
+    }
 
     bfree(scene->dir_light, sizeof(directional_light), MEMORY_TAG_SCENE);
     scene->dir_light = 0;
@@ -588,6 +935,18 @@ b8 simple_scene_point_light_remove(simple_scene* scene, const char* name)
             {
                 BERROR("Failed to remove point light from light system");
                 return false;
+            }
+            else
+            {
+                // Destroy debug data if it exists
+                if (scene->point_lights[i].debug_data)
+                {
+                    simple_scene_debug_data *debug = (simple_scene_debug_data *)scene->point_lights[i].debug_data;
+                    debug_box3d_unload(&debug->box);
+                    debug_box3d_destroy(&debug->box);
+                    bfree(scene->point_lights[i].debug_data, sizeof(simple_scene_debug_data), MEMORY_TAG_RESOURCE);
+                    scene->point_lights[i].debug_data = 0;
+                }
             }
 
             point_light rubbish = {0};
@@ -611,6 +970,18 @@ b8 simple_scene_mesh_remove(simple_scene* scene, const char* name)
     {
         if (strings_equal(scene->meshes[i].name, name))
         {
+            // Unload any debug data
+            if (scene->meshes[i].debug_data)
+            {
+                simple_scene_debug_data *debug = scene->meshes[i].debug_data;
+
+                debug_box3d_unload(&debug->box);
+                debug_box3d_destroy(&debug->box);
+
+                bfree(scene->meshes[i].debug_data, sizeof(simple_scene_debug_data), MEMORY_TAG_RESOURCE);
+                scene->meshes[i].debug_data = 0;
+            }
+            // Unload mesh
             if (!mesh_unload(&scene->meshes[i]))
             {
                 BERROR("Failed to unload mesh");
@@ -751,6 +1122,19 @@ static void simple_scene_actual_unload(simple_scene* scene)
     {
         if (scene->meshes[i].generation != INVALID_ID_U8)
         {
+            // Unload any debug data
+            if (scene->meshes[i].debug_data)
+            {
+                simple_scene_debug_data *debug = scene->meshes[i].debug_data;
+
+                debug_box3d_unload(&debug->box);
+                debug_box3d_destroy(&debug->box);
+
+                bfree(scene->meshes[i].debug_data, sizeof(simple_scene_debug_data), MEMORY_TAG_RESOURCE);
+                scene->meshes[i].debug_data = 0;
+            }
+
+            // Unload mesh
             if (!mesh_unload(&scene->meshes[i]))
                 BERROR("Failed to unload mesh");
             mesh_destroy(&scene->meshes[i]);
@@ -765,11 +1149,24 @@ static void simple_scene_actual_unload(simple_scene* scene)
         terrain_destroy(&scene->terrains[i]);
     }
 
+    // Debug grid
+    if (!debug_grid_unload(&scene->grid))
+        BWARN("Debug grid unload failed");
+
     if (scene->dir_light)
     {
-        // TODO: If there are resource to unload, that should be done before this next line
         if (!simple_scene_directional_light_remove(scene, scene->dir_light->name))
             BERROR("Failed to unload/remove directional light");
+        
+        if (scene->dir_light && scene->dir_light->debug_data)
+        {
+            simple_scene_debug_data *debug = (simple_scene_debug_data *)scene->dir_light->debug_data;
+            // Unload directional light line data
+            debug_line3d_unload(&debug->line);
+            debug_line3d_destroy(&debug->line);
+            bfree(scene->dir_light->debug_data, sizeof(simple_scene_debug_data), MEMORY_TAG_RESOURCE);
+            scene->dir_light->debug_data = 0;
+        }
     }
 
     u32 p_light_count = darray_length(scene->point_lights);
@@ -777,6 +1174,16 @@ static void simple_scene_actual_unload(simple_scene* scene)
     {
         if (!light_system_point_remove(&scene->point_lights[i]))
             BWARN("Failed to remove point light from light system");
+        
+        // Destroy debug data if it exists
+        if (scene->point_lights[i].debug_data)
+        {
+            simple_scene_debug_data *debug = (simple_scene_debug_data *)scene->point_lights[i].debug_data;
+            debug_box3d_unload(&debug->box);
+            debug_box3d_destroy(&debug->box);
+            bfree(scene->point_lights[i].debug_data, sizeof(simple_scene_debug_data), MEMORY_TAG_RESOURCE);
+            scene->point_lights[i].debug_data = 0;
+        }
     }
 
     scene->state = SIMPLE_SCENE_STATE_UNLOADED;
@@ -799,6 +1206,9 @@ static void simple_scene_actual_unload(simple_scene* scene)
 
     if(scene->world_data.terrain_geometries)
         darray_destroy(scene->world_data.terrain_geometries);
+    
+    if (scene->world_data.debug_geometries)
+        darray_destroy(scene->world_data.debug_geometries);
 
     bzero_memory(scene, sizeof(simple_scene));
 }

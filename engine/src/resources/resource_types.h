@@ -61,6 +61,18 @@ typedef enum face_cull_mode
     FACE_CULL_MODE_FRONT_AND_BACK = 0x3
 } face_cull_mode;
 
+typedef enum primitive_topology_type
+{
+    PRIMITIVE_TOPOLOGY_TYPE_NONE = 0x00,
+    PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_LIST = 0x01, // Default if nothing is defined
+    PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_STRIP = 0x02,
+    PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_FAN = 0x04,
+    PRIMITIVE_TOPOLOGY_TYPE_LINE_LIST = 0x08,
+    PRIMITIVE_TOPOLOGY_TYPE_LINE_STRIP = 0x10,
+    PRIMITIVE_TOPOLOGY_TYPE_POINT_LIST = 0x20,
+    PRIMITIVE_TOPOLOGY_TYPE_MAX = PRIMITIVE_TOPOLOGY_TYPE_POINT_LIST << 1
+} primitive_topology_type;
+
 typedef enum texture_flag
 {
     TEXTURE_FLAG_HAS_TRANSPARENCY = 0x1,
@@ -227,6 +239,8 @@ typedef struct mesh
     u16 geometry_count;
     geometry** geometries;
     transform transform;
+    extents_3d extents;
+    void *debug_data;
 } mesh;
 
 // Shader stages available in the system
@@ -321,6 +335,9 @@ typedef struct shader_config
 
     // The face cull mode to be used. NOTE: default is BACK if not supplied
     face_cull_mode cull_mode;
+
+    // Topology types for shader pipeline. Defaults to "triangle list" if unspecified
+    u32 topology_types;
 
     // The count of attributes
     u8 attribute_count;

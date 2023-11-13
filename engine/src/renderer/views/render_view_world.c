@@ -16,6 +16,13 @@
 #include "systems/light_system.h"
 #include "renderer/renderer_frontend.h"
 
+typedef struct debug_color_shader_locations
+{
+    u16 projection;
+    u16 view;
+    u16 model;
+} debug_color_shader_locations;
+
 typedef struct render_view_world_internal_data
 {
     shader* s;
@@ -26,6 +33,8 @@ typedef struct render_view_world_internal_data
     camera* world_camera;
     vec4 ambient_color;
     u32 render_mode;
+
+    debug_color_shader_locations debug_locations;
 } render_view_world_internal_data;
 
 typedef struct geometry_distance
@@ -125,6 +134,37 @@ b8 render_view_world_on_create(struct render_view* self)
         }
         resource_system_unload(&terrain_shader_config_resource);
 
+        // Load debug color3d shader
+        // TODO: move builtin shaders to shader system itself
+        const char* color3d_shader_name = "Shader.Builtin.ColorShader3D";
+        resource color3d_shader_config_resource;
+        if (!resource_system_load(color3d_shader_name, RESOURCE_TYPE_SHADER, 0, &color3d_shader_config_resource))
+        {
+            BERROR("Failed to load builtin color3d shader resource");
+            return false;
+        }
+        shader_config* color3d_shader_config = (shader_config*)color3d_shader_config_resource.data;
+        // NOTE: Assuming the first pass since that's all this view has
+        if (!shader_system_create(&self->passes[0], color3d_shader_config))
+        {
+            BERROR("Failed to load builtin color3d shader");
+            return false;
+        }
+        resource_system_unload(&color3d_shader_config_resource);
+
+        // Get color3d shader uniform locations
+        {
+            shader* s = shader_system_get(color3d_shader_name);
+            if (!s)
+            {
+                BERROR("Unable to get color3d shader");
+                return false;
+            }
+            data->debug_locations.projection = shader_system_uniform_index(s, "projection");
+            data->debug_locations.view = shader_system_uniform_index(s, "view");
+            data->debug_locations.model = shader_system_uniform_index(s, "model");
+        }
+
         // Get either custom shader override or defined default
         data->s = shader_system_get(self->custom_shader_name ? self->custom_shader_name : shader_name);
         // TODO: Set from configuration
@@ -209,6 +249,7 @@ b8 render_view_world_on_packet_build(const struct render_view* self, struct line
     // TODO: Use frame allocator
     out_packet->geometries = darray_create(geometry_render_data);
     out_packet->terrain_geometries = darray_create(geometry_render_data);
+    out_packet->debug_geometries = darray_create(geometry_render_data);
     out_packet->view = self;
 
     // Set matrices, etc
@@ -273,6 +314,14 @@ b8 render_view_world_on_packet_build(const struct render_view* self, struct line
         out_packet->terrain_geometry_count++;
     }
 
+    // Debug geometries
+    u32 debug_geometry_count = darray_length(world_data->debug_geometries);
+    for (u32 i = 0; i < debug_geometry_count; ++i)
+    {
+        darray_push(out_packet->debug_geometries, world_data->debug_geometries[i]);
+        out_packet->debug_geometry_count++;
+    }
+
     // Clean up
     darray_destroy(geometry_distances);
 
@@ -283,6 +332,7 @@ void render_view_world_on_packet_destroy(const struct render_view* self, struct 
 {
     darray_destroy(packet->geometries);
     darray_destroy(packet->terrain_geometries);
+    darray_destroy(packet->debug_geometries);
     bzero_memory(packet, sizeof(render_view_packet));
 }
 
@@ -392,6 +442,36 @@ b8 render_view_world_on_render(const struct render_view* self, const struct rend
 
                 // Draw it
                 renderer_geometry_draw(&packet->geometries[i]);
+            }
+        }
+
+        // TODO: Debug geometries (i.e. grids, lines, boxes, gizmos, etc)
+        // This should go through same geometry system as anything else
+        u32 debug_geometry_count = packet->debug_geometry_count;
+        if (debug_geometry_count > 0)
+        {
+            shader* s = shader_system_get("Shader.Builtin.ColorShader3D");
+            if (!s)
+            {
+                BERROR("Unable to obtain color3d shader");
+                return false;
+            }
+            shader_system_use_by_id(s->id);
+
+            // Globals
+            shader_system_uniform_set_by_index(data->debug_locations.projection, &packet->projection_matrix);
+            shader_system_uniform_set_by_index(data->debug_locations.view, &packet->view_matrix);
+
+            shader_system_apply_global();
+
+            // Each geometry
+            for (u32 i = 0; i < debug_geometry_count; ++i)
+            {
+                // Local
+                shader_system_uniform_set_by_index(data->debug_locations.model, &packet->debug_geometries[i].model);
+
+                // Draw it
+                renderer_geometry_draw(&packet->debug_geometries[i]);
             }
         }
 

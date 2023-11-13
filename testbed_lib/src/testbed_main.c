@@ -301,7 +301,7 @@ b8 application_initialize(struct application* game_inst)
     // TODO: end temp load/prepare stuff
 
     state->world_camera = camera_system_get_default();
-    camera_position_set(state->world_camera, (vec3){51.45f, 8.35f, 67.15f});
+    camera_position_set(state->world_camera, (vec3){1.45f, 3.35f, 17.15f});
     camera_rotation_euler_set(state->world_camera, (vec3){-11.080f, 262.600f, 0.0f});
 
     //bzero_memory(&game_inst->frame_data, sizeof(app_frame_data));
@@ -349,7 +349,7 @@ b8 application_update(struct application* game_inst, struct frame_data* p_frame_
                 BCLAMP(bsin(p_frame_data->total_time - (B_4PI / 3)) * 0.75f + 0.5f, 0.0f, 1.0f),
                 1.0f
             };
-            state->p_light_1->data.position.z = 70.0f + bsin(p_frame_data->total_time);
+            state->p_light_1->data.position.z = 20.0f + bsin(p_frame_data->total_time);
         }
     }
 

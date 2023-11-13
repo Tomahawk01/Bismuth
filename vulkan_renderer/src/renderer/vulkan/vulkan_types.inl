@@ -132,6 +132,14 @@ typedef struct vulkan_shader_stage
     VkPipelineShaderStageCreateInfo shader_stage_create_info;
 } vulkan_shader_stage;
 
+typedef enum vulkan_topology_class
+{
+    VULKAN_TOPOLOGY_CLASS_POINT = 0,
+    VULKAN_TOPOLOGY_CLASS_LINE = 1,
+    VULKAN_TOPOLOGY_CLASS_TRIANGLE = 2,
+    VULKAN_TOPOLOGY_CLASS_MAX = VULKAN_TOPOLOGY_CLASS_TRIANGLE + 1
+} vulkan_topology_class;
+
 typedef struct vulkan_pipeline_config
 {
     char* name;
@@ -150,12 +158,14 @@ typedef struct vulkan_pipeline_config
     u32 shader_flags;
     u32 push_constant_range_count;
     range* push_constant_ranges;
+    u32 topology_types;
 } vulkan_pipeline_config;
 
 typedef struct vulkan_pipeline
 {
     VkPipeline handle;
     VkPipelineLayout pipeline_layout;
+    u32 supported_topology_types;
 } vulkan_pipeline;
 
 // Max number of material instances
@@ -263,7 +273,10 @@ typedef struct vulkan_shader
     VkDescriptorSet global_descriptor_sets[3];
     renderbuffer uniform_buffer;
 
-    vulkan_pipeline pipeline;
+    vulkan_pipeline** pipelines;
+
+    u8 bound_pipeline_index;
+    VkPrimitiveTopology current_topology;
 
     // TODO: make dynamic
     u32 instance_count;

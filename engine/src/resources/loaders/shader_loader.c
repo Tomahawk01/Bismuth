@@ -36,6 +36,7 @@ static b8 shader_loader_load(struct resource_loader* self, const char* name, voi
     resource_data->stage_count = 0;
     resource_data->stages = darray_create(shader_stage);
     resource_data->cull_mode = FACE_CULL_MODE_BACK;
+    resource_data->topology_types = PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_LIST;
     resource_data->stage_count = 0;
     resource_data->stage_names = darray_create(char*);
     resource_data->stage_filenames = darray_create(char*);
@@ -159,7 +160,36 @@ static b8 shader_loader_load(struct resource_loader* self, const char* name, voi
             else if (strings_equali(trimmed_value, "none"))
                 resource_data->cull_mode = FACE_CULL_MODE_NONE;
             // Any other value will use default of BACK
-
+        }
+        else if (strings_equali(trimmed_var_name, "topology"))
+        {
+            char** topologies = darray_create(char*);
+            u32 count = string_split(trimmed_value, ',', &topologies, true, true);
+            // If there are no entries, default to triangle list, as this is the most common
+            if (count > 0)
+            {
+                // If there is at least one entry, wipe out default and only use what is configured
+                resource_data->topology_types = PRIMITIVE_TOPOLOGY_TYPE_NONE;
+                for (u32 i = 0; i < count; ++i)
+                {
+                    if (strings_equali(topologies[i], "triangle_list"))
+                        resource_data->topology_types |= PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_LIST;
+                    else if (strings_equali(topologies[i], "triangle_strip"))
+                        resource_data->topology_types |= PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_STRIP;
+                    else if (strings_equali(topologies[i], "triangle_fan"))
+                        resource_data->topology_types |= PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_FAN;
+                    else if (strings_equali(topologies[i], "line_list"))
+                        resource_data->topology_types |= PRIMITIVE_TOPOLOGY_TYPE_LINE_LIST;
+                    else if (strings_equali(topologies[i], "line_strip"))
+                        resource_data->topology_types |= PRIMITIVE_TOPOLOGY_TYPE_LINE_STRIP;
+                    else if (strings_equali(topologies[i], "point_list"))
+                        resource_data->topology_types |= PRIMITIVE_TOPOLOGY_TYPE_POINT_LIST;
+                    else
+                        BERROR("Unrecognized topology type '%s'. Skipping", topologies[i]);
+                }
+            }
+            string_cleanup_split_array(topologies);
+            darray_destroy(topologies);
         }
         else if (strings_equali(trimmed_var_name, "depth_test"))
         {
