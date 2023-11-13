@@ -134,6 +134,7 @@ typedef struct vulkan_shader_stage
 
 typedef struct vulkan_pipeline_config
 {
+    char* name;
     vulkan_renderpass* renderpass;
     u32 stride;
     u32 attribute_count;

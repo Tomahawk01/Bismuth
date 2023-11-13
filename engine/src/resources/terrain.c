@@ -2,6 +2,7 @@
 
 #include "defines.h"
 #include "core/logger.h"
+#include "core/identifier.h"
 #include "core/bstring.h"
 #include "core/bmemory.h"
 #include "math/bmath.h"
@@ -142,8 +143,8 @@ b8 terrain_initialize(terrain* t)
             v->position.z = z * t->tile_scale_z;
             v->position.y = t->vertex_datas[i].height * t->scale_y;
 
-            v->color = vec4_one();        // white;
-            v->normal = (vec3){0, 1, 0};  // TODO: calculate based on geometry
+            v->color = vec4_one();  // white
+            v->normal = (vec3){0, 1, 0};
             v->texcoord.x = (f32)x;
             v->texcoord.y = (f32)z;
 
@@ -191,6 +192,8 @@ b8 terrain_load(terrain* t)
 
     geometry* g = &t->geo;
 
+    t->unique_id = identifier_aquire_new_id(t);
+
     // Send geometry off to the renderer to be uploaded to the GPU
     if (!renderer_geometry_create(g, sizeof(terrain_vertex), t->vertex_count, t->vertices, sizeof(u32), t->index_count, t->indices))
         return false;
@@ -218,6 +221,8 @@ b8 terrain_unload(terrain* t)
 {
     material_system_release(t->geo.material->name);
     renderer_geometry_destroy(&t->geo);
+
+    t->unique_id = 0;
 
     return true;
 }

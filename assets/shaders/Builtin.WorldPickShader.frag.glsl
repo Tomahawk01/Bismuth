@@ -2,12 +2,12 @@
 
 layout(location = 0) out vec4 out_color;
 
-layout(set = 1, binding = 0) uniform local_uniform_object
+layout(set = 1, binding = 0) uniform instance_uniform_object
 {
     vec3 id_color;
-} object_ubo;
+} instance_ubo;
 
 void main()
 {
-    out_color =  vec4(object_ubo.id_color, 1.0);
+    out_color =  vec4(instance_ubo.id_color, 1.0);
 }
