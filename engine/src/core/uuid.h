@@ -9,4 +9,4 @@ typedef struct uuid
 
 void uuid_seed(u64 seed);
 
-uuid uuid_generate(void);
+BAPI uuid uuid_generate(void);

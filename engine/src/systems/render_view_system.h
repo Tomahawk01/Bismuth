@@ -14,7 +14,7 @@ typedef struct render_view_system_config
 b8 render_view_system_initialize(u64* memory_requirement, void* state, void* config);
 void render_view_system_shutdown(void* state);
 
-BAPI b8 render_view_system_create(const render_view_config* config);
+BAPI b8 render_view_system_register(render_view* view);
 
 BAPI void render_view_system_on_window_resize(u32 width, u32 height);
 

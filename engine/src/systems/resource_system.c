@@ -10,7 +10,6 @@
 #include "resources/loaders/material_loader.h"
 #include "resources/loaders/mesh_loader.h"
 #include "resources/loaders/shader_loader.h"
-#include "resources/loaders/simple_scene_loader.h"
 #include "resources/loaders/system_font_loader.h"
 #include "resources/loaders/terrain_loader.h"
 #include "resources/loaders/text_loader.h"
@@ -59,7 +58,6 @@ b8 resource_system_initialize(u64* memory_requirement, void* state, void* config
     resource_system_loader_register(mesh_resource_loader_create());
     resource_system_loader_register(bitmap_font_resource_loader_create());
     resource_system_loader_register(system_font_resource_loader_create());
-    resource_system_loader_register(simple_scene_resource_loader_create());
     resource_system_loader_register(terrain_resource_loader_create());
 
     BINFO("Resource system initialized with base path '%s'", typed_config->asset_base_path);

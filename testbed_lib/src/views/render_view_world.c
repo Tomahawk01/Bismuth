@@ -94,7 +94,7 @@ static b8 render_view_on_event(u16 code, void* sender, void* listener_inst, even
     return false;
 }
 
-b8 render_view_world_on_create(struct render_view* self)
+b8 render_view_world_on_registered(struct render_view* self)
 {
     if (self)
     {

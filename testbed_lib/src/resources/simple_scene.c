@@ -19,6 +19,7 @@
 #include "systems/render_view_system.h"
 #include "systems/resource_system.h"
 #include "systems/light_system.h"
+#include "testbed_types.h"
 
 static void simple_scene_actual_unload(simple_scene* scene);
 
@@ -501,174 +502,166 @@ b8 simple_scene_populate_render_packet(simple_scene* scene, struct camera* curre
     if (!scene || !packet)
         return false;
 
-    for (u32 i = 0; i < packet->view_count; ++i)
+    // Skybox
+    if (scene->sb)
     {
-        render_view_packet* view_packet = &packet->views[i];
-        const render_view* view = view_packet->view;
-        if (view->type == RENDERER_VIEW_KNOWN_TYPE_SKYBOX)
+        render_view_packet *view_packet = &packet->views[TESTBED_PACKET_VIEW_SKYBOX];
+        const render_view *view = view_packet->view;
+        // Skybox
+        skybox_packet_data skybox_data = {};
+        skybox_data.sb = scene->sb;
+        if (!render_view_system_packet_build(view, p_frame_data->frame_allocator, &skybox_data, view_packet))
         {
-            if (scene->sb)
-            {
-                // Skybox
-                skybox_packet_data skybox_data = {};
-                skybox_data.sb = scene->sb;
-                if (!render_view_system_packet_build(view, p_frame_data->frame_allocator, &skybox_data, view_packet))
-                {
-                    BERROR("Failed to build packet for view 'skybox'");
-                    return false;
-                }
-            }
-            break;
+            BERROR("Failed to build packet for view 'skybox'");
+            return false;
         }
     }
 
-    for (u32 v = 0; v < packet->view_count; ++v)
+    // World render
     {
-        render_view_packet* view_packet = &packet->views[v];
-        const render_view* view = view_packet->view;
-        if (view->type == RENDERER_VIEW_KNOWN_TYPE_WORLD)
+        render_view_packet *view_packet = &packet->views[TESTBED_PACKET_VIEW_WORLD];
+        const render_view *view = view_packet->view;
+        // Make sure to clear the world geometry array
+        darray_clear(scene->world_data.world_geometries);
+        darray_clear(scene->world_data.terrain_geometries);
+        darray_clear(scene->world_data.debug_geometries);
+
+        // Update frustum
+        vec3 forward = camera_forward(current_camera);
+        vec3 right = camera_right(current_camera);
+        vec3 up = camera_up(current_camera);
+        // TODO: get camera fov, aspect, etc
+        frustum f = frustum_create(&current_camera->position, &forward, &right, &up, aspect, deg_to_rad(45.0f), 0.1f, 1000.0f);
+
+        p_frame_data->drawn_mesh_count = 0;
+
+        u32 mesh_count = darray_length(scene->meshes);
+        for (u32 i = 0; i < mesh_count; ++i)
         {
-            // Make sure to clear world geometry array
-            darray_clear(scene->world_data.world_geometries);
-            darray_clear(scene->world_data.terrain_geometries);
-            darray_clear(scene->world_data.debug_geometries);
-
-            // Update frustum
-            vec3 forward = camera_forward(current_camera);
-            vec3 right = camera_right(current_camera);
-            vec3 up = camera_up(current_camera);
-            // TODO: get camera fov, aspect, etc
-            frustum f = frustum_create(&current_camera->position, &forward, &right, &up, aspect, deg_to_rad(45.0f), 0.1f, 1000.0f);
-
-            p_frame_data->drawn_mesh_count = 0;
-
-            u32 mesh_count = darray_length(scene->meshes);
-            for (u32 i = 0; i < mesh_count; ++i)
+            mesh *m = &scene->meshes[i];
+            if (m->generation != INVALID_ID_U8)
             {
-                mesh* m = &scene->meshes[i];
-                if (m->generation != INVALID_ID_U8)
+                mat4 model = transform_world_get(&m->transform);
+
+                for (u32 j = 0; j < m->geometry_count; ++j)
                 {
-                    mat4 model = transform_world_get(&m->transform);
+                    geometry *g = m->geometries[j];
 
-                    for (u32 j = 0; j < m->geometry_count; ++j)
+                    // AABB calculation
                     {
-                        geometry* g = m->geometries[j];
+                        // Translate/scale the extents
+                        vec3 extents_max = vec3_mul_mat4(g->extents.max, model);
 
-                        // AABB calculation
+                        // Translate/scale the center
+                        vec3 center = vec3_mul_mat4(g->center, model);
+                        vec3 half_extents = {
+                            babs(extents_max.x - center.x),
+                            babs(extents_max.y - center.y),
+                            babs(extents_max.z - center.z),
+                        };
+
+                        if (frustum_intersects_aabb(&f, &center, &half_extents))
                         {
-                            // Translate/scale extents
-                            vec3 extents_max = vec3_mul_mat4(g->extents.max, model);
+                            // Add it to the list to be rendered
+                            geometry_render_data data = {0};
+                            data.model = model;
+                            data.geometry = g;
+                            data.unique_id = m->unique_id;
+                            darray_push(scene->world_data.world_geometries, data);
 
-                            // Translate/scale center
-                            vec3 center = vec3_mul_mat4(g->center, model);
-                            vec3 half_extents = {
-                                babs(extents_max.x - center.x),
-                                babs(extents_max.y - center.y),
-                                babs(extents_max.z - center.z),
-                            };
-
-                            if (frustum_intersects_aabb(&f, &center, &half_extents))
-                            {
-                                // Add it to the list to be rendered
-                                geometry_render_data data = {0};
-                                data.model = model;
-                                data.geometry = g;
-                                data.unique_id = m->unique_id;
-                                darray_push(scene->world_data.world_geometries, data);
-
-                                p_frame_data->drawn_mesh_count++;
-                            }
+                            p_frame_data->drawn_mesh_count++;
                         }
                     }
                 }
             }
+        }
 
-            // TODO: add terrains
-            u32 terrain_count = darray_length(scene->terrains);
-            for(u32 i = 0; i < terrain_count; ++i)
+        // TODO: Add terrain(s)
+        u32 terrain_count = darray_length(scene->terrains);
+        for (u32 i = 0; i < terrain_count; ++i)
+        {
+            // TODO: Check terrain generation
+            // TODO: Frustum culling
+            geometry_render_data data = {0};
+            data.model = transform_world_get(&scene->terrains[i].xform);
+            data.geometry = &scene->terrains[i].geo;
+            data.unique_id = scene->terrains[i].unique_id;
+
+            darray_push(scene->world_data.terrain_geometries, data);
+
+            // TODO: Counter for terrain geometries
+            p_frame_data->drawn_mesh_count++;
+        }
+
+        // Debug geometry
+
+        // Grid
+        {
+            geometry_render_data data = {0};
+            data.model = mat4_identity();
+            data.geometry = &scene->grid.geo;
+            data.unique_id = INVALID_ID;
+            darray_push(scene->world_data.debug_geometries, data);
+        }
+
+        // Directional light
+        {
+            if (scene->dir_light && scene->dir_light->debug_data)
             {
-                // TODO: Check terrain generation
-                // TODO: Frustum culling
+                simple_scene_debug_data *debug = scene->dir_light->debug_data;
+
+                // Debug line 3d
                 geometry_render_data data = {0};
-                data.model = transform_world_get(&scene->terrains[i].xform);
-                data.geometry = &scene->terrains[i].geo;
-                data.unique_id = scene->terrains[i].unique_id;
-
-                darray_push(scene->world_data.terrain_geometries, data);
-
-                // TODO: Counter for terrain geometries
-                p_frame_data->drawn_mesh_count++;
-            }
-
-            // Debug geometry
-            // Grid
-            {
-                geometry_render_data data = {0};
-                data.model = mat4_identity();
-                data.geometry = &scene->grid.geo;
-                data.unique_id = INVALID_ID;
+                data.model = transform_world_get(&debug->line.xform);
+                data.geometry = &debug->line.geo;
+                data.unique_id = debug->line.unique_id;
                 darray_push(scene->world_data.debug_geometries, data);
             }
+        }
 
-            // Directional light
+        // Point lights
+        {
+            u32 point_light_count = darray_length(scene->point_lights);
+            for (u32 i = 0; i < point_light_count; ++i)
             {
-                if (scene->dir_light && scene->dir_light->debug_data)
+                if (scene->point_lights[i].debug_data)
                 {
-                    simple_scene_debug_data *debug = scene->dir_light->debug_data;
+                    simple_scene_debug_data *debug = (simple_scene_debug_data *)scene->point_lights[i].debug_data;
 
-                    // Debug line 3d
+                    // Debug box 3d
                     geometry_render_data data = {0};
-                    data.model = transform_world_get(&debug->line.xform);
-                    data.geometry = &debug->line.geo;
-                    data.unique_id = debug->line.unique_id;
+                    data.model = transform_world_get(&debug->box.xform);
+                    data.geometry = &debug->box.geo;
+                    data.unique_id = debug->box.unique_id;
                     darray_push(scene->world_data.debug_geometries, data);
                 }
             }
+        }
 
-            // Point lights
+        // Mesh debug shapes
+        {
+            u32 mesh_count = darray_length(scene->meshes);
+            for (u32 i = 0; i < mesh_count; ++i)
             {
-                u32 point_light_count = darray_length(scene->point_lights);
-                for (u32 i = 0; i < point_light_count; ++i)
+                if (scene->meshes[i].debug_data)
                 {
-                    if (scene->point_lights[i].debug_data)
-                    {
-                        simple_scene_debug_data *debug = (simple_scene_debug_data *)scene->point_lights[i].debug_data;
+                    simple_scene_debug_data *debug = (simple_scene_debug_data *)scene->meshes[i].debug_data;
 
-                        // Debug box 3d
-                        geometry_render_data data = {0};
-                        data.model = transform_world_get(&debug->box.xform);
-                        data.geometry = &debug->box.geo;
-                        data.unique_id = debug->box.unique_id;
-                        darray_push(scene->world_data.debug_geometries, data);
-                    }
+                    // Debug box 3d
+                    geometry_render_data data = {0};
+                    data.model = transform_world_get(&debug->box.xform);
+                    data.geometry = &debug->box.geo;
+                    data.unique_id = debug->box.unique_id;
+                    darray_push(scene->world_data.debug_geometries, data);
                 }
             }
+        }
 
-            // Mesh debug shapes
-            {
-                u32 mesh_count = darray_length(scene->meshes);
-                for (u32 i = 0; i < mesh_count; ++i)
-                {
-                    if (scene->meshes[i].debug_data)
-                    {
-                        simple_scene_debug_data *debug = (simple_scene_debug_data *)scene->meshes[i].debug_data;
-
-                        // Debug box 3d
-                        geometry_render_data data = {0};
-                        data.model = transform_world_get(&debug->box.xform);
-                        data.geometry = &debug->box.geo;
-                        data.unique_id = debug->box.unique_id;
-                        darray_push(scene->world_data.debug_geometries, data);
-                    }
-                }
-            }
-
-            // World
-            if (!render_view_system_packet_build(render_view_system_get("world"), p_frame_data->frame_allocator, &scene->world_data, &packet->views[1]))
-            {
-                BERROR("Failed to build packet for view 'world_opaque'");
-                return false;
-            }
+        // World
+        if (!render_view_system_packet_build(view, p_frame_data->frame_allocator, &scene->world_data, &packet->views[1]))
+        {
+            BERROR("Failed to build packet for view 'world_opaque'");
+            return false;
         }
     }
 

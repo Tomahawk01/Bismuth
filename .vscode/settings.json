@@ -54,6 +54,8 @@
         "light_system.h": "c",
         "resource_types.h": "c",
         "vulkan_core.h": "c",
-        "transform.h": "c"
+        "transform.h": "c",
+        "simple_scene_loader.h": "c",
+        "mesh.h": "c"
     },
 }

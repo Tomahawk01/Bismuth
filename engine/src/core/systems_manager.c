@@ -1,25 +1,26 @@
 #include "systems_manager.h"
+
 #include "core/logger.h"
 #include "containers/darray.h"
 
 // Systems
-#include "core/bmemory.h"
-#include "core/engine.h"
 #include "core/console.h"
-#include "core/bvar.h"
+#include "core/engine.h"
 #include "core/event.h"
 #include "core/input.h"
+#include "core/bmemory.h"
+#include "core/bvar.h"
 #include "platform/platform.h"
+#include "renderer/renderer_frontend.h"
+#include "systems/camera_system.h"
+#include "systems/geometry_system.h"
+#include "systems/job_system.h"
+#include "systems/light_system.h"
+#include "systems/material_system.h"
+#include "systems/render_view_system.h"
 #include "systems/resource_system.h"
 #include "systems/shader_system.h"
-#include "renderer/renderer_frontend.h"
-#include "systems/job_system.h"
 #include "systems/texture_system.h"
-#include "systems/camera_system.h"
-#include "systems/render_view_system.h"
-#include "systems/material_system.h"
-#include "systems/geometry_system.h"
-#include "systems/light_system.h"
 
 static b8 register_known_systems_pre_boot(systems_manager_state* state, application_config* app_config);
 static b8 register_known_systems_post_boot(systems_manager_state* state, application_config* app_config);
@@ -322,13 +323,13 @@ static b8 register_known_systems_post_boot(systems_manager_state* state, applica
     }
 
     // Load render views from app config
-    u32 view_count = darray_length(app_config->render_views);
+    u32 view_count = darray_length(app_config->views);
     for (u32 v = 0; v < view_count; ++v)
     {
-        render_view_config* view = &app_config->render_views[v];
-        if (!render_view_system_create(view))
+        render_view* view = &app_config->views[v];
+        if (!render_view_system_register(view))
         {
-            BFATAL("Failed to create view '%s'. Aborting application...", view->name);
+            BFATAL("Failed to register view '%s'. Aborting application", view->name);
             return false;
         }
     }

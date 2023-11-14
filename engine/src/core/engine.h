@@ -15,8 +15,9 @@ typedef struct application_config
     i16 start_width;
     i16 start_height;
     char* name;
+
     font_system_config font_config;
-    render_view_config* render_views;
+    render_view* views;
 
     renderer_plugin renderer_plugin;
 

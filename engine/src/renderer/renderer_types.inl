@@ -256,51 +256,14 @@ typedef struct renderer_plugin
     b8 (*renderbuffer_draw)(struct renderer_plugin* plugin, renderbuffer* buffer, u64 offset, u32 element_count, b8 bind_only);
 } renderer_plugin;
 
-typedef enum render_view_known_type
-{
-    RENDERER_VIEW_KNOWN_TYPE_WORLD = 0x01,
-    RENDERER_VIEW_KNOWN_TYPE_UI = 0x02,
-    RENDERER_VIEW_KNOWN_TYPE_SKYBOX = 0x03,
-    RENDERER_VIEW_KNOWN_TYPE_PICK = 0x04
-} render_view_known_type;
-
-typedef enum render_view_view_matrix_source
-{
-    RENDER_VIEW_VIEW_MATRIX_SOURCE_SCENE_CAMERA = 0x01,
-    RENDER_VIEW_VIEW_MATRIX_SOURCE_UI_CAMERA = 0x02,
-    RENDER_VIEW_VIEW_MATRIX_SOURCE_LIGHT_CAMERA = 0x03,
-} render_view_view_matrix_source;
-
-typedef enum render_view_projection_matrix_source
-{
-    RENDER_VIEW_PROJECTION_MATRIX_SOURCE_DEFAULT_PERSPECTIVE = 0x01,
-    RENDER_VIEW_PROJECTION_MATRIX_SOURCE_DEFAULT_ORTHOGRAPHIC = 0x02,
-} render_view_projection_matrix_source;
-
-typedef struct render_view_config
-{
-    const char* name;
-
-    const char* custom_shader_name;
-    u16 width;
-    u16 height;
-    render_view_known_type type;
-    render_view_view_matrix_source view_matrix_source;
-    render_view_projection_matrix_source projection_matrix_source;
-    u8 pass_count;
-    renderpass_config* passes;
-} render_view_config;
-
 struct render_view_packet;
 struct linear_allocator;
 
 typedef struct render_view
 {
-    u16 id;
     const char* name;
     u16 width;
     u16 height;
-    render_view_known_type type;
 
     u8 renderpass_count;
     renderpass* passes;
@@ -308,7 +271,7 @@ typedef struct render_view
     const char* custom_shader_name;
     void* internal_data;
 
-    b8 (*on_create)(struct render_view* self);
+    b8 (*on_registered)(struct render_view* self);
     void (*on_destroy)(struct render_view* self);
 
     void (*on_resize)(struct render_view* self, u32 width, u32 height);

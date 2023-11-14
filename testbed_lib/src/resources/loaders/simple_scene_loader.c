@@ -4,10 +4,10 @@
 #include "core/bmemory.h"
 #include "core/bstring.h"
 #include "resources/resource_types.h"
+#include "resources/loaders/loader_utils.h"
 #include "systems/resource_system.h"
 #include "math/bmath.h"
 #include "math/transform.h"
-#include "loader_utils.h"
 #include "containers/darray.h"
 #include "platform/filesystem.h"
 
