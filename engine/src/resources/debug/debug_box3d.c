@@ -104,8 +104,10 @@ b8 debug_box3d_initialize(debug_box3d *box)
 
 b8 debug_box3d_load(debug_box3d *box)
 {
-    // Send geometry off to renderer to be uploaded to the GPU
     if (!renderer_geometry_create(&box->geo, sizeof(color_vertex_3d), box->vertex_count, box->vertices, 0, 0, 0))
+        return false;
+    // Send geometry off to renderer to be uploaded to the GPU
+    if (!renderer_geometry_upload(&box->geo))
         return false;
 
     if (box->geo.generation == INVALID_ID_U16)

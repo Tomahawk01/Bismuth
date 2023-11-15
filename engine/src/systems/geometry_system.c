@@ -184,9 +184,28 @@ geometry* geometry_system_get_default_2d(void)
 
 static b8 create_geometry(geometry_system_state* state, geometry_config config, geometry* g)
 {
-    // Send geometry off to the renderer to be uploaded to the GPU
+    if (!g)
+    {
+        BERROR("geometry_system->create_geometry requires a valid pointer to geometry");
+        return false;
+    }
+    // Create geometry
     if (!renderer_geometry_create(g, config.vertex_size, config.vertex_count, config.vertices, config.index_size, config.index_count, config.indices))
     {
+        BERROR("Geometry creation failed during renderer_geometry_create");
+        // Invalidate the entry.
+        state->registered_geometries[g->id].reference_count = 0;
+        state->registered_geometries[g->id].auto_release = false;
+        g->id = INVALID_ID;
+        g->generation = INVALID_ID_U16;
+        g->internal_id = INVALID_ID;
+        
+        return false;
+    }
+    // Send geometry off to the renderer to be uploaded to the GPU
+    if (!renderer_geometry_upload(g))
+    {
+        BERROR("Geometry creation failed during renderer_geometry_upload");
         // Invalidate entry
         state->registered_geometries[g->id].reference_count = 0;
         state->registered_geometries[g->id].auto_release = false;
@@ -261,10 +280,14 @@ static b8 create_default_geometries(geometry_system_state* state)
     u32 indices[6] = {0, 1, 2, 0, 3, 1};
 
     // Send geometry off to the renderer to be uploaded to the GPU
-    state->default_geometry.internal_id = INVALID_ID;
     if (!renderer_geometry_create(&state->default_geometry, sizeof(vertex_3d), 4, verts, sizeof(u32), 6, indices))
     {
         BFATAL("Failed to create default geometry. Application cannot continue");
+        return false;
+    }
+    if (!renderer_geometry_upload(&state->default_geometry))
+    {
+        BFATAL("Failed to upload default geometry. Application cannot continue");
         return false;
     }
 
@@ -301,6 +324,11 @@ static b8 create_default_geometries(geometry_system_state* state)
     if (!renderer_geometry_create(&state->default_2d_geometry, sizeof(vertex_2d), 4, verts2d, sizeof(u32), 6, indices2d))
     {
         BFATAL("Failed to create default 2d geometry. Application cannot continue");
+        return false;
+    }
+    if (!renderer_geometry_upload(&state->default_2d_geometry))
+    {
+        BFATAL("Failed to upload default 2d geometry. Application cannot continue");
         return false;
     }
 

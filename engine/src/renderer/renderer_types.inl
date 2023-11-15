@@ -181,8 +181,6 @@ typedef struct renderer_plugin
     b8 (*renderpass_begin)(struct renderer_plugin* plugin, renderpass* pass, render_target* target);
     b8 (*renderpass_end)(struct renderer_plugin* plugin, renderpass* pass);
 
-    void (*geometry_draw)(struct renderer_plugin* plugin, geometry_render_data* data);
-
     void (*texture_create)(struct renderer_plugin* plugin, const u8* pixels, struct texture* texture);
     void (*texture_destroy)(struct renderer_plugin* plugin, struct texture* texture);
 
@@ -192,9 +190,11 @@ typedef struct renderer_plugin
     void (*texture_read_data)(struct renderer_plugin* plugin, texture* t, u32 offset, u32 size, void** out_memory);
     void (*texture_read_pixel)(struct renderer_plugin* plugin, texture* t, u32 x, u32 y, u8** out_rgba);
 
-    b8 (*geometry_create)(struct renderer_plugin* plugin, geometry* geometry, u32 vertex_size, u32 vertex_count, const void* vertices, u32 index_size, u32 index_count, const void* indices);
+    b8 (*geometry_create)(struct renderer_plugin* plugin, geometry* g);
+    b8 (*geometry_upload)(struct renderer_plugin* plugin, geometry* g, u32 vertex_offset, u32 vertex_size, u32 index_offset, u32 index_size);
     void (*geometry_vertex_update)(struct renderer_plugin *plugin, geometry *g, u32 offset, u32 vertex_count, void *vertices);
-    void (*geometry_destroy)(struct renderer_plugin* plugin, geometry* geometry);
+    void (*geometry_destroy)(struct renderer_plugin* plugin, geometry* g);
+    void (*geometry_draw)(struct renderer_plugin* plugin, geometry_render_data* data);
 
     b8 (*shader_create)(struct renderer_plugin* plugin, struct shader* shader, const shader_config* config, renderpass* pass, u8 stage_count, const char** stage_filenames, shader_stage* stages);
     void (*shader_destroy)(struct renderer_plugin* plugin, struct shader* shader);
@@ -206,7 +206,7 @@ typedef struct renderer_plugin
     b8 (*shader_bind_globals)(struct renderer_plugin* plugin, struct shader* s);
     b8 (*shader_bind_instance)(struct renderer_plugin* plugin, struct shader* s, u32 instance_id);
 
-    b8 (*shader_apply_globals)(struct renderer_plugin* plugin, struct shader* s);
+    b8 (*shader_apply_globals)(struct renderer_plugin* plugin, struct shader* s, b8 needs_update);
     b8 (*shader_apply_instance)(struct renderer_plugin* plugin, struct shader* s, b8 needs_update);
 
     b8 (*shader_instance_resources_acquire)(struct renderer_plugin* plugin, struct shader* s, u32 texture_map_count, texture_map** maps, u32* out_instance_id);

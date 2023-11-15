@@ -216,6 +216,15 @@ typedef struct geometry
     u16 generation;
     vec3 center;
     extents_3d extents;
+
+    u32 vertex_count;
+    u32 vertex_element_size;
+    void* vertices;
+
+    u32 index_count;
+    u32 index_element_size;
+    void* indices;
+
     char name[GEOMETRY_NAME_MAX_LENGTH];
     struct material* material;
 } geometry;

@@ -462,7 +462,7 @@ b8 render_view_world_on_render(const struct render_view* self, const struct rend
             shader_system_uniform_set_by_index(data->debug_locations.projection, &packet->projection_matrix);
             shader_system_uniform_set_by_index(data->debug_locations.view, &packet->view_matrix);
 
-            shader_system_apply_global();
+            shader_system_apply_global(true);
 
             // Each geometry
             for (u32 i = 0; i < debug_geometry_count; ++i)
@@ -473,6 +473,9 @@ b8 render_view_world_on_render(const struct render_view* self, const struct rend
                 // Draw it
                 renderer_geometry_draw(&packet->debug_geometries[i]);
             }
+
+            // HACK: This should be handled every frame by shader system
+            s->render_frame_number = frame_number;
         }
 
         if (!renderer_renderpass_end(pass))

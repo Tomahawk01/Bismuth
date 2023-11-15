@@ -56,6 +56,7 @@
         "vulkan_core.h": "c",
         "transform.h": "c",
         "simple_scene_loader.h": "c",
-        "mesh.h": "c"
+        "mesh.h": "c",
+        "cmath": "c"
     },
 }

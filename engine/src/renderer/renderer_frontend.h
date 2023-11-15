@@ -38,6 +38,7 @@ BAPI void renderer_texture_read_data(texture* t, u32 offset, u32 size, void** ou
 BAPI void renderer_texture_read_pixel(texture* t, u32 x, u32 y, u8** out_rgba);
 
 BAPI b8 renderer_geometry_create(geometry* geometry, u32 vertex_size, u32 vertex_count, const void* vertices, u32 index_size, u32 index_count, const void* indices);
+BAPI b8 renderer_geometry_upload(geometry* geometry);
 BAPI void renderer_geometry_vertex_update(geometry* g, u32 offset, u32 vertex_count, void* vertices);
 BAPI void renderer_geometry_destroy(geometry* geometry);
 
@@ -56,7 +57,7 @@ BAPI b8 renderer_shader_use(struct shader* s);
 BAPI b8 renderer_shader_bind_globals(struct shader* s);
 BAPI b8 renderer_shader_bind_instance(struct shader* s, u32 instance_id);
 
-BAPI b8 renderer_shader_apply_globals(struct shader* s);
+BAPI b8 renderer_shader_apply_globals(struct shader* s, b8 needs_update);
 BAPI b8 renderer_shader_apply_instance(struct shader* s, b8 needs_update);
 
 BAPI b8 renderer_shader_instance_resources_acquire(struct shader* s, u32 texture_map_count, texture_map** maps, u32* out_instance_id);

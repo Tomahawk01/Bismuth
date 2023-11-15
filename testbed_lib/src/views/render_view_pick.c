@@ -407,6 +407,10 @@ b8 render_view_pick_on_render(const struct render_view* self, const struct rende
 
     if (render_target_index == 0)
     {
+        pick_packet_data* packet_data = (pick_packet_data*)packet->extended_data;
+        if (!packet_data)
+            return true;
+
         // Reset
         u64 count = darray_length(data->instance_updated);
         for (u64 i = 0; i < count; ++i)
@@ -417,8 +421,6 @@ b8 render_view_pick_on_render(const struct render_view* self, const struct rende
             BERROR("render_view_ui_on_render pass index %u failed to start", p);
             return false;
         }
-
-        pick_packet_data* packet_data = (pick_packet_data*)packet->extended_data;
 
         i32 current_instance_id = 0;
 
@@ -434,7 +436,7 @@ b8 render_view_pick_on_render(const struct render_view* self, const struct rende
             BERROR("Failed to apply projection matrix");
         if (!shader_system_uniform_set_by_index(data->world_shader_info.view_location, &data->world_shader_info.view))
             BERROR("Failed to apply view matrix");
-        shader_system_apply_global();
+        shader_system_apply_global(true);
 
         // Draw geometries. Start from 0 since world geometries are added first, and stop at the world geometry count
         u32 world_geometry_count = !packet_data->world_mesh_data ? 0 : darray_length(packet_data->world_mesh_data);
@@ -482,7 +484,7 @@ b8 render_view_pick_on_render(const struct render_view* self, const struct rende
             BERROR("Failed to apply projection matrix");
         if (!shader_system_uniform_set_by_index(data->terrain_shader_info.view_location, &data->terrain_shader_info.view))
             BERROR("Failed to apply view matrix");
-        shader_system_apply_global();
+        shader_system_apply_global(true);
 
         // Draw geometries. Start from 0 since terrain geometries are added first, and stop at the terrain geometry count
         u32 terrain_geometry_count = !packet_data->terrain_mesh_data ? 0 : darray_length(packet_data->terrain_mesh_data);
@@ -544,7 +546,7 @@ b8 render_view_pick_on_render(const struct render_view* self, const struct rende
             BERROR("Failed to apply projection matrix");
         if (!shader_system_uniform_set_by_index(data->ui_shader_info.view_location, &data->ui_shader_info.view))
             BERROR("Failed to apply view matrix");
-        shader_system_apply_global();
+        shader_system_apply_global(true);
 
         // Draw geometries. Start off where world geometries left off
         for (u32 i = world_geometry_count; i < packet->geometry_count; ++i)
