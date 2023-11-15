@@ -71,6 +71,14 @@ BINLINE f32 bsmoothstep(f32 edge_0, f32 edge_1, f32 x)
     return t * t * (3.0 - 2.0 * t);
 }
 
+/**
+ * @brief Compares two floats and returns true if both are less than B_FLOAT_EPSILON; otherwise false
+ */
+BINLINE b8 bfloat_compare(f32 f_0, f32 f_1)
+{
+    return babs(f_0 - f_1) < B_FLOAT_EPSILON;
+}
+
 // --------------------------------------------------------------------------------
 // ----------------------------------- Vector 2 -----------------------------------
 // --------------------------------------------------------------------------------

@@ -17,6 +17,9 @@
 
 #include "debug_console.h"
 
+struct debug_line3d;
+struct debug_box3d;
+
 typedef struct testbed_game_state
 {
     b8 running;
@@ -55,6 +58,10 @@ typedef struct testbed_game_state
     f32 backward_move_speed;
 
     editor_gizmo gizmo;
+
+    // Used for visualization of casts/collisions
+    struct debug_line3d* test_lines;
+    struct debug_box3d* test_boxes;
     // TODO: end temp
 } testbed_game_state;
 

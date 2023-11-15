@@ -183,6 +183,8 @@ void input_process_button(buttons button, b8 pressed)
         // Fire the event
         event_context context;
         context.data.u16[0] = button;
+        context.data.i16[1] = state_ptr->mouse_current.x;
+        context.data.i16[2] = state_ptr->mouse_current.y;
         event_fire(pressed ? EVENT_CODE_BUTTON_PRESSED : EVENT_CODE_BUTTON_RELEASED, 0, context);
     }
 }

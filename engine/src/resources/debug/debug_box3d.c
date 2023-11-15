@@ -15,6 +15,8 @@ b8 debug_box3d_create(vec3 size, transform *parent, debug_box3d *out_box)
     out_box->vertex_count = 0;
     out_box->vertices = 0;
     out_box->xform = transform_create();
+    if (parent)
+        transform_parent_set(&out_box->xform, parent);
     out_box->size = size;
     out_box->unique_id = identifier_aquire_new_id(out_box);
     out_box->color = vec4_one();  // white
