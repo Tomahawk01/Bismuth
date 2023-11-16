@@ -25,6 +25,8 @@ BAPI void renderer_viewport_reset(void);
 BAPI void renderer_scissor_set(vec4 rect);
 BAPI void renderer_scissor_reset(void);
 
+BAPI void renderer_winding_set(renderer_winding winding);
+
 BAPI void renderer_texture_create(const u8* pixels, struct texture* texture);
 BAPI void renderer_texture_destroy(struct texture* texture);
 

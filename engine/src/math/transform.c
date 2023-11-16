@@ -157,8 +157,13 @@ mat4 transform_world_get(transform* t)
         if (t->parent)
         {
             mat4 p = transform_world_get(t->parent);
-            return mat4_mul(l, p);
+            mat4 r = mat4_mul(l, p);
+            // Save determinant at the bottom-most level
+            t->determinant = mat4_determinant(r);
+            return r;
         }
+        // If no parent, do it against the local matrix instead
+        t->determinant = mat4_determinant(l);
         return l;
     }
     return mat4_identity();

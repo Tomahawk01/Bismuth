@@ -285,7 +285,7 @@ b8 render_view_world_on_packet_build(const struct render_view* self, struct line
         {
             // For meshes with transparency, add them to a separate list to be sorted by distance
             // NOTE: This isn't perfect for translucent meshes that intersect, but is enough for now
-            vec3 center = vec3_transform(g_data->geometry->center, g_data->model);
+            vec3 center = vec3_transform(g_data->geometry->center, 1.0f, g_data->model);
             f32 distance = vec3_distance(center, internal_data->world_camera->position);
             
             geometry_distance gdist;
@@ -440,8 +440,16 @@ b8 render_view_world_on_render(const struct render_view* self, const struct rend
                 // Apply the locals
                 material_system_apply_local(m, &packet->geometries[i].model);
 
+                // Invert winding if needed
+                if (packet->geometries[i].winding_inverted)
+                    renderer_winding_set(RENDERER_WINDING_CLOCKWISE);
+
                 // Draw it
                 renderer_geometry_draw(&packet->geometries[i]);
+
+                // Change winding back if needed
+                if (packet->geometries[i].winding_inverted)
+                    renderer_winding_set(RENDERER_WINDING_COUNTER_CLOCKWISE);
             }
         }
 

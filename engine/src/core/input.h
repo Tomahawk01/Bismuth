@@ -183,6 +183,7 @@ BAPI b8 input_is_button_down(buttons button);
 BAPI b8 input_is_button_up(buttons button);
 BAPI b8 input_was_button_down(buttons button);
 BAPI b8 input_was_button_up(buttons button);
+BAPI b8 input_is_button_dragging(buttons button);
 BAPI void input_get_mouse_position(i32* x, i32* y);
 BAPI void input_get_previous_mouse_position(i32* x, i32* y);
 

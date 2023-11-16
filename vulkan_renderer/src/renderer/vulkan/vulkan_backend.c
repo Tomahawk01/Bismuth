@@ -23,6 +23,7 @@
 #include "vulkan_types.inl"
 #include "vulkan_utils.h"
 
+#include <renderer/renderer_types.inl>
 #include <vulkan/vulkan_core.h>
 
 // NOTE: If wanting to trace allocations, uncomment this
@@ -632,6 +633,8 @@ b8 vulkan_renderer_backend_frame_begin(renderer_plugin* plugin, const struct fra
     context->scissor_rect = (vec4){0, 0, context->framebuffer_width, context->framebuffer_height};
     vulkan_renderer_scissor_set(plugin, context->scissor_rect);
 
+    vulkan_renderer_winding_set(plugin, RENDERER_WINDING_COUNTER_CLOCKWISE);
+
     return true;
 }
 
@@ -741,6 +744,38 @@ void vulkan_renderer_scissor_reset(renderer_plugin* plugin)
 {
     vulkan_context* context = (vulkan_context*)plugin->internal_context;
     vulkan_renderer_scissor_set(plugin, context->scissor_rect);
+}
+
+void vulkan_renderer_winding_set(struct renderer_plugin *plugin, renderer_winding winding)
+{
+    vulkan_context *context = (vulkan_context *)plugin->internal_context;
+    vulkan_command_buffer *command_buffer = &context->graphics_command_buffers[context->image_index];
+
+    VkFrontFace vk_winding = winding == RENDERER_WINDING_COUNTER_CLOCKWISE ? VK_FRONT_FACE_COUNTER_CLOCKWISE : VK_FRONT_FACE_CLOCKWISE;
+    if (context->device.support_flags & VULKAN_DEVICE_SUPPORT_FLAG_NATIVE_DYNAMIC_FRONT_FACE_BIT)
+    {
+        vkCmdSetFrontFace(command_buffer->handle, vk_winding);
+    }
+    else if (context->device.support_flags * VULKAN_DEVICE_SUPPORT_FLAG_DYNAMIC_FRONT_FACE_BIT)
+    {
+        context->vkCmdSetFrontFaceEXT(command_buffer->handle, vk_winding);
+    }
+    else
+    {
+        if (context->bound_shader)
+        {
+            vulkan_shader *internal_shader = context->bound_shader->internal_data;
+            // Bind the correct winding pipeline
+            if (winding == RENDERER_WINDING_COUNTER_CLOCKWISE)
+                vulkan_pipeline_bind(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, internal_shader->pipelines[internal_shader->bound_pipeline_index]);
+            else
+                vulkan_pipeline_bind(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, internal_shader->clockwise_pipelines[internal_shader->bound_pipeline_index]);
+        }
+        else
+        {
+            BERROR("Unable to set winding because there is no currently bound shader");
+        }
+    }
 }
 
 b8 vulkan_renderer_renderpass_begin(renderer_plugin* plugin, renderpass* pass, render_target* target)
@@ -1812,44 +1847,70 @@ b8 vulkan_renderer_shader_initialize(renderer_plugin* plugin, shader* s)
         // In this case, one pipeline must be created per topology type
         pipeline_count = 6;
 
-        // Create an array of pointers to pipelines, one per topology type. Null means not supported for this shader
+        // Create an array of pointers to pipelines, one per topology type. Counter-clockwise. Null means not supported for this shader
         internal_shader->pipelines = ballocate(sizeof(vulkan_pipeline *) * pipeline_count, MEMORY_TAG_ARRAY);
+        // Create an array of pointers to pipelines, one per topology type. Clockwise. Null means not supported for this shader
+        internal_shader->clockwise_pipelines = ballocate(sizeof(vulkan_pipeline *) * pipeline_count, MEMORY_TAG_ARRAY);
 
         // Check each type individually. Will always be in this order
         // Point
         if (s->topology_types & PRIMITIVE_TOPOLOGY_TYPE_POINT_LIST)
         {
+            // Counter-clockwise
             internal_shader->pipelines[0] = ballocate(sizeof(vulkan_pipeline), MEMORY_TAG_VULKAN);
             internal_shader->pipelines[0]->supported_topology_types = PRIMITIVE_TOPOLOGY_TYPE_POINT_LIST;
+            // Clockwise
+            internal_shader->clockwise_pipelines[0] = ballocate(sizeof(vulkan_pipeline), MEMORY_TAG_VULKAN);
+            internal_shader->clockwise_pipelines[0]->supported_topology_types = PRIMITIVE_TOPOLOGY_TYPE_POINT_LIST;
         }
 
         // Line
         if (s->topology_types & PRIMITIVE_TOPOLOGY_TYPE_LINE_LIST)
         {
+            // Counter-clockwise
             internal_shader->pipelines[1] = ballocate(sizeof(vulkan_pipeline), MEMORY_TAG_VULKAN);
             internal_shader->pipelines[1]->supported_topology_types = PRIMITIVE_TOPOLOGY_TYPE_LINE_LIST;
+            // Clockwise
+            internal_shader->clockwise_pipelines[1] = ballocate(sizeof(vulkan_pipeline), MEMORY_TAG_VULKAN);
+            internal_shader->clockwise_pipelines[1]->supported_topology_types = PRIMITIVE_TOPOLOGY_TYPE_LINE_LIST;
         }
         if (s->topology_types & PRIMITIVE_TOPOLOGY_TYPE_LINE_STRIP)
         {
+            // Counter-clockwise
             internal_shader->pipelines[2] = ballocate(sizeof(vulkan_pipeline), MEMORY_TAG_VULKAN);
             internal_shader->pipelines[2]->supported_topology_types = PRIMITIVE_TOPOLOGY_TYPE_LINE_STRIP;
+            // Clockwise
+            internal_shader->clockwise_pipelines[2] = ballocate(sizeof(vulkan_pipeline), MEMORY_TAG_VULKAN);
+            internal_shader->clockwise_pipelines[2]->supported_topology_types = PRIMITIVE_TOPOLOGY_TYPE_LINE_STRIP;
         }
 
         // Triangle
         if (s->topology_types & PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_LIST)
         {
+            // Clockwise
             internal_shader->pipelines[3] = ballocate(sizeof(vulkan_pipeline), MEMORY_TAG_VULKAN);
             internal_shader->pipelines[3]->supported_topology_types = PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_LIST;
+            // Clockwise
+            internal_shader->clockwise_pipelines[3] = ballocate(sizeof(vulkan_pipeline), MEMORY_TAG_VULKAN);
+            internal_shader->clockwise_pipelines[3]->supported_topology_types = PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_LIST;
         }
         if (s->topology_types & PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_STRIP)
         {
+            // Clockwise
             internal_shader->pipelines[4] = ballocate(sizeof(vulkan_pipeline), MEMORY_TAG_VULKAN);
             internal_shader->pipelines[4]->supported_topology_types = PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_STRIP;
+            // Counter-clockwise
+            internal_shader->clockwise_pipelines[4] = ballocate(sizeof(vulkan_pipeline), MEMORY_TAG_VULKAN);
+            internal_shader->clockwise_pipelines[4]->supported_topology_types = PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_STRIP;
         }
         if (s->topology_types & PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_FAN)
         {
+            // Clockwise
             internal_shader->pipelines[5] = ballocate(sizeof(vulkan_pipeline), MEMORY_TAG_VULKAN);
             internal_shader->pipelines[5]->supported_topology_types = PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_FAN;
+            // Clockwise
+            internal_shader->clockwise_pipelines[5] = ballocate(sizeof(vulkan_pipeline), MEMORY_TAG_VULKAN);
+            internal_shader->clockwise_pipelines[5]->supported_topology_types = PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_FAN;
         }
     }
 

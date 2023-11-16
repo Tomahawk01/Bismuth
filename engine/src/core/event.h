@@ -2,9 +2,11 @@
 
 #include "defines.h"
 
-typedef struct event_context {
+typedef struct event_context
+{
     // 128 bytes
-    union {
+    union
+    {
         i64 i64[2];
         u64 u64[2];
         f64 f64[2];
@@ -59,53 +61,31 @@ BAPI b8 event_unregister(u16 code, void* listener, PFN_on_event on_event);
  */
 BAPI b8 event_fire(u16 code, void* sender, event_context context);
 
-// System internal event codes. Application should use codes beyond 255.
-typedef enum system_event_code {
+// System internal event codes. Application should use codes beyond 255
+typedef enum system_event_code
+{
     // Shuts the application down on the next frame.
     EVENT_CODE_APPLICATION_QUIT = 0x01,
 
-    // Keyboard key pressed.
-    /* Context usage:
-     * u16 key_code = data.data.u16[0];
-     */
+    // Keyboard key pressed
     EVENT_CODE_KEY_PRESSED = 0x02,
 
-    // Keyboard key released.
-    /* Context usage:
-     * u16 key_code = data.data.u16[0];
-     */
+    // Keyboard key released
     EVENT_CODE_KEY_RELEASED = 0x03,
 
-    // Mouse button pressed.
-    /* Context usage:
-     * u16 button = data.data.u16[0];
-     */
+    // Mouse button pressed
     EVENT_CODE_BUTTON_PRESSED = 0x04,
 
-    // Mouse button released.
-    /* Context usage:
-     * u16 button = data.data.u16[0];
-     */
+    // Mouse button released
     EVENT_CODE_BUTTON_RELEASED = 0x05,
 
-    // Mouse moved.
-    /* Context usage:
-     * u16 x = data.data.i16[0];
-     * u16 y = data.data.i16[1];
-     */
+    // Mouse moved
     EVENT_CODE_MOUSE_MOVED = 0x06,
 
-    // Mouse moved.
-    /* Context usage:
-     * u8 z_delta = data.data.u8[0];
-     */
+    // Mouse wheel moved
     EVENT_CODE_MOUSE_WHEEL = 0x07,
 
-    // Resized/resolution changed from the OS.
-    /* Context usage:
-     * u16 width = data.data.u16[0];
-     * u16 height = data.data.u16[1];
-     */
+    // Resize/resolution changed from the OS
     EVENT_CODE_RESIZED = 0x08,
 
     // Change render mode for debugging purposes
@@ -125,8 +105,12 @@ typedef enum system_event_code {
 
     EVENT_CODE_BVAR_CHANGED = 0x17,
 
-    EVENT_CODE_WATCHED_FILE_WRITTEN = 0X18,
+    EVENT_CODE_WATCHED_FILE_WRITTEN = 0x18,
     EVENT_CODE_WATCHED_FILE_DELETED = 0x19,
+
+    EVENT_CODE_MOUSE_DRAGGED = 0x20,
+    EVENT_CODE_MOUSE_DRAG_BEGIN = 0x21,
+    EVENT_CODE_MOUSE_DRAG_END = 0x22,
 
     MAX_EVENT_CODE = 0xFF
 } system_event_code;

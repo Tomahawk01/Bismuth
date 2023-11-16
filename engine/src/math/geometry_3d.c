@@ -1,7 +1,9 @@
 #include "geometry_3d.h"
 
-#include"math/bmath.h"
+#include "defines.h"
+#include "math/bmath.h"
 #include "math/math_types.h"
+#include "math/transform.h"
 
 ray ray_create(vec3 position, vec3 direction)
 {
@@ -38,72 +40,139 @@ ray ray_from_screen(vec2 screen_pos, vec2 viewport_size, vec3 origin, mat4 view,
     return r;
 }
 
-b8 raycast_oriented_extents(extents_3d bb_extents, const mat4* bb_model, const ray* r, f32* out_dist)
+b8 raycast_aabb(extents_3d bb_extents, const ray* r, vec3* out_point)
 {
-    // Nearest "far" intersection (within x, y and z plane pairs)
-    f32 nearest_far_intersection = 0.0f;
+    b8 inside = true;
+    i8 quadrant[3];
+    vec3 max_t;
+    vec3 candidate_plane;
 
-    // Farthest "near" intersection (withing x, y and z plane pairs)
-    f32 farthest_near_intersection = 100000.0f;
+    for (u32 i = 0; i < 3; ++i)
+    {
+        if (r->origin.elements[i] < bb_extents.min.elements[i])
+        {
+            quadrant[i] = 1;  // left
+            candidate_plane.elements[i] = bb_extents.min.elements[i];
+            inside = false;
+        }
+        else if (r->origin.elements[i] > bb_extents.max.elements[i])
+        {
+            quadrant[i] = 0;  // right
+            candidate_plane.elements[i] = bb_extents.max.elements[i];
+            inside = false;
+        }
+        else
+            quadrant[i] = 2;  // middle
+    }
 
-    // Pick world position from the model matrix
-    vec3 oriented_pos_world = vec3_create(bb_model->data[12], bb_model->data[13], bb_model->data[14]);
+    // Ray origin inside bounding box
+    if (inside)
+    {
+        *out_point = r->origin;
+        return true;
+    }
 
-    // Transform the extents - This will orient/scale them to the model matrix
-    bb_extents.min = mat4_mul_vec3(*bb_model, bb_extents.min);
-    bb_extents.max = mat4_mul_vec3(*bb_model, bb_extents.max);
+    // Calculate distances to candidate planes
+    for (u32 i = 0; i < 3; ++i)
+    {
+        if (quadrant[i] != 2 && r->direction.elements[i] != 0.0f)
+            max_t.elements[i] = (candidate_plane.elements[i] - r->origin.elements[i]) / r->direction.elements[i];
+        else
+            max_t.elements[i] = -1.0f;
+    }
 
-    // Distance between the world position and the ray's origin
-    vec3 delta = vec3_sub(oriented_pos_world, r->origin);
+    // Get largest of the max_ts for final choice of intersection
+    i32 which_plane = 0;
+    for (u32 i = 1; i < 3; ++i)
+    {
+        if (max_t.elements[which_plane] < max_t.elements[i])
+            which_plane = i;
+    }
 
-    // Test for intersection with other planes perpendicular to each axis
-    vec3 x_axis = mat4_right(*bb_model);
-    vec3 y_axis = mat4_up(*bb_model);
-    vec3 z_axis = mat4_backward(*bb_model);
-    vec3 axes[3] = {x_axis, y_axis, z_axis};
+    // Check final candidate actually inside box
+    if (max_t.elements[which_plane] < 0.0f)
+        return false;
+
     for (i32 i = 0; i < 3; ++i)
     {
-        f32 e = vec3_dot(axes[i], delta);
-        f32 f = vec3_dot(r->direction, axes[i]);
-
-        if (babs(f) > 0.0001f)
+        if (which_plane != i)
         {
-            // Store distances between ray origin and ray-plane intersections in t1, and t2
-            // Intersection with "left" plane
-            f32 t1 = (e + bb_extents.min.elements[i]) / f;
-            // Intersection with "right" plane
-            f32 t2 = (e + bb_extents.max.elements[i]) / f;
-
-            // Ensure that t1 is nearest intersection, and swap if needed
-            if (t1 > t2)
-            {
-                f32 temp = t1;
-                t1 = t2;
-                t2 = temp;
-            }
-
-            if (t2 < farthest_near_intersection)
-                farthest_near_intersection = t2;
-
-            if (t1 > nearest_far_intersection)
-                nearest_far_intersection = t1;
-
-            // If "far" is closer than "near" then there is no intersection
-            if (farthest_near_intersection < nearest_far_intersection)
+            out_point->elements[i] = r->origin.elements[i] + max_t.elements[which_plane] * r->direction.elements[i];
+            if (out_point->elements[i] < bb_extents.min.elements[i] || out_point->elements[i] > bb_extents.max.elements[i])
                 return false;
         }
         else
-        {
-            // Where ray is almost parallel to the planes then they don't have any intersection
-            if (-e + bb_extents.min.elements[i] > 0.0f || -e + bb_extents.max.elements[i] < 0.0f)
-                return false;
-        }
+            out_point->elements[i] = candidate_plane.elements[i];
     }
 
-    // This prevents interections from within a bounding box if the ray originates there
-    if (nearest_far_intersection == 0.0f)
+    // Hits box
+    return true;
+}
+
+b8 raycast_oriented_extents(extents_3d bb_extents, mat4 model, const ray* r, f32* out_dist)
+{
+    mat4 inv = mat4_inverse(model);
+
+    // Transform the ray to AABB space
+    ray transformed_ray;
+    transformed_ray.origin = vec3_transform(r->origin, 1.0f, inv);
+    transformed_ray.direction = vec3_transform(r->direction, 0.0f, inv);
+
+    vec3 out_point;
+    b8 result = raycast_aabb(bb_extents, &transformed_ray, &out_point);
+
+    // If there was a hit, transform the point to oriented space,
+    // then calculate hit distance based on that transformed position versus the original
+    if (result)
+    {
+        out_point = vec3_transform(out_point, 1.0f, model);
+        *out_dist = vec3_distance(out_point, r->origin);
+    }
+
+    return result;
+}
+
+b8 raycast_plane_3d(const ray* r, const plane_3d* p, vec3* out_point, f32* out_distance)
+{
+    f32 normal_dir = vec3_dot(r->direction, p->normal);
+    f32 point_normal = vec3_dot(r->origin, p->normal);
+
+    // If ray and plane normal point in the same direction, there can't be a hit
+    if (normal_dir >= 0.0f)
         return false;
 
-    *out_dist = nearest_far_intersection;
-    return true;
+    // Calculate distance
+    f32 t = (p->distance - point_normal) / normal_dir;
+
+    // Distance must be positive or 0, otherwise ray hits behind the plane, which isn't a hit at all
+    if (t >= 0.0f)
+    {
+        *out_distance = t;
+        *out_point = vec3_add(r->origin, vec3_mul_scalar(r->direction, t));
+        return true;
+    }
+
+    return false;
+}
+
+b8 raycast_disc_3d(const ray* r, vec3 center, vec3 normal, f32 outer_radius, f32 inner_radius, vec3* out_point, f32* out_distance)
+{
+    if (!r)
+        return false;
+
+    plane_3d p = plane_3d_create(center, normal);
+    if (raycast_plane_3d(r, &p, out_point, out_distance))
+    {
+        f32 orad_sq = outer_radius * outer_radius;
+        f32 irad_sq = inner_radius * inner_radius;
+        f32 dist_sq = vec3_distance_squared(center, *out_point);
+        if (dist_sq > orad_sq)
+            return false;
+        if (inner_radius > 0 && dist_sq < irad_sq)
+            return false;
+
+        return true;
+    }
+
+    return false;
 }

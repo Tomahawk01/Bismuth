@@ -29,4 +29,9 @@ typedef struct raycast_result
 BAPI ray ray_create(vec3 position, vec3 direction);
 BAPI ray ray_from_screen(vec2 screen_pos, vec2 viewport_size, vec3 origin, mat4 view, mat4 projection);
 
-BAPI b8 raycast_oriented_extents(extents_3d bb_extents, const mat4* bb_model, const ray* r, f32* out_dist);
+BAPI b8 raycast_aabb(extents_3d bb_extents, const ray* r, vec3* out_point);
+BAPI b8 raycast_oriented_extents(extents_3d bb_extents, mat4 model, const ray* r, f32* out_dist);
+
+BAPI b8 raycast_plane_3d(const ray* r, const plane_3d* p, vec3* out_point, f32* out_distance);
+
+BAPI b8 raycast_disc_3d(const ray* r, vec3 center, vec3 normal, f32 outer_radius, f32 inner_radius, vec3* out_point, f32* out_distance);

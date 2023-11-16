@@ -15,6 +15,7 @@ typedef struct geometry_render_data
     mat4 model;
     geometry* geometry;
     u32 unique_id;
+    b8 winding_inverted;
 } geometry_render_data;
 
 typedef enum renderer_debug_view_mode
@@ -157,6 +158,12 @@ typedef struct renderer_backend_config
     renderer_config_flags flags;
 } renderer_backend_config;
 
+typedef enum renderer_winding
+{
+    RENDERER_WINDING_COUNTER_CLOCKWISE = 0,
+    RENDERER_WINDING_CLOCKWISE = 1
+} renderer_winding;
+
 typedef struct renderer_plugin
 {
     u64 frame_number;
@@ -177,6 +184,8 @@ typedef struct renderer_plugin
 
     void (*scissor_set)(struct renderer_plugin* plugin, vec4 rect);
     void (*scissor_reset)(struct renderer_plugin* plugin);
+
+    void (*winding_set)(struct renderer_plugin* plugin, renderer_winding winding);
 
     b8 (*renderpass_begin)(struct renderer_plugin* plugin, renderpass* pass, render_target* target);
     b8 (*renderpass_end)(struct renderer_plugin* plugin, renderpass* pass);

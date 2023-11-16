@@ -79,6 +79,13 @@ typedef union vec4_u
 
 typedef vec4 quat;
 
+/** @brief 3x3 matrix */
+typedef union mat3_u
+{
+    // Matrix elements
+    f32 data[12];
+} mat3;
+
 typedef union mat4_u
 {
     f32 data[16];
@@ -124,6 +131,7 @@ typedef struct transform
     vec3 scale;
     b8 is_dirty;
     mat4 local;
+    f32 determinant;
     struct transform* parent;
 } transform;
 
