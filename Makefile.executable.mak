@@ -62,7 +62,7 @@ endif
 link: scaffold $(OBJ_FILES) # link
 	@echo Linking "$(ASSEMBLY)"...
 ifeq ($(BUILD_PLATFORM),windows)
-	clang $(OBJ_FILES) -o $(BUILD_DIR)\$(ASSEMBLY)$(EXTENSION) $(LINKER_FLAGS)
+	@clang $(OBJ_FILES) -o $(BUILD_DIR)\$(ASSEMBLY)$(EXTENSION) $(LINKER_FLAGS)
 else
 	@clang $(OBJ_FILES) -o $(BUILD_DIR)/$(ASSEMBLY)$(EXTENSION) $(LINKER_FLAGS)
 endif

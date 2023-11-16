@@ -49,10 +49,12 @@ ifeq ($(DO_VERSION),yes)
 endif
 
 # Generate numeric-only version for PDBs
-ifeq ($(BUILD_PLATFORM),windows)
-	BNUMERIC_VERSION := $(shell $(DIR)\$(BUILD_DIR)\versiongen.exe -n)
-else
-	BNUMERIC_VERSION := $(shell $(BUILD_DIR)/versiongen -n)
+ifeq ($(DO_VERSION),yes)
+	ifeq ($(BUILD_PLATFORM),windows)
+		BNUMERIC_VERSION := $(shell $(DIR)\$(BUILD_DIR)\versiongen.exe -n)
+	else
+		BNUMERIC_VERSION := $(shell $(BUILD_DIR)/versiongen -n)
+	endif
 endif
 
 # Defaults to debug unless release is specified
