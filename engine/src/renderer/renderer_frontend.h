@@ -1,6 +1,6 @@
 #pragma once
 
-#include "renderer_types.inl"
+#include "renderer_types.h"
 
 struct shader;
 struct shader_uniform;

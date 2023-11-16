@@ -1,6 +1,6 @@
 #pragma once
 
-#include "renderer/renderer_types.inl"
+#include "renderer/renderer_types.h"
 
 typedef struct geometry_system_config
 {

@@ -8,7 +8,7 @@
 #include "systems/job_system.h"
 #include "systems/resource_system.h"
 #include "systems/geometry_system.h"
-#include "renderer/renderer_types.inl"
+#include "renderer/renderer_types.h"
 
 typedef struct mesh_load_params
 {

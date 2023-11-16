@@ -1,11 +1,11 @@
 #include "render_view_system.h"
+
 #include "containers/hashtable.h"
 #include "core/logger.h"
 #include "core/bmemory.h"
 #include "core/bstring.h"
 #include "renderer/renderer_frontend.h"
-
-#include "renderer/renderer_types.inl"
+#include "renderer/renderer_types.h"
 
 typedef struct render_view_system_state
 {

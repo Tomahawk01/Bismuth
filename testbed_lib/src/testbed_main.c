@@ -15,7 +15,7 @@
 #include <memory/linear_allocator.h>
 #include <renderer/camera.h>
 #include <renderer/renderer_frontend.h>
-#include <renderer/renderer_types.inl>
+#include <renderer/renderer_types.h>
 
 #include "defines.h"
 #include "game_state.h"

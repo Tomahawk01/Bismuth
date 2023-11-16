@@ -1,7 +1,7 @@
 #pragma once
 
 #include "defines.h"
-#include "renderer/renderer_types.inl"
+#include "renderer/renderer_types.h"
 #include "containers/hashtable.h"
 
 typedef struct shader_system_config

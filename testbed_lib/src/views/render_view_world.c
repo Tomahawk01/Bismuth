@@ -6,7 +6,7 @@
 #include "math/transform.h"
 #include "memory/linear_allocator.h"
 #include "containers/darray.h"
-#include "renderer/renderer_types.inl"
+#include "renderer/renderer_types.h"
 #include "resources/terrain.h"
 #include "systems/resource_system.h"
 #include "systems/material_system.h"

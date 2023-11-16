@@ -20,10 +20,10 @@
 #include "vulkan_image.h"
 #include "vulkan_pipeline.h"
 #include "vulkan_swapchain.h"
-#include "vulkan_types.inl"
+#include "vulkan_types.h"
 #include "vulkan_utils.h"
 
-#include <renderer/renderer_types.inl>
+#include <renderer/renderer_types.h>
 #include <vulkan/vulkan_core.h>
 
 // NOTE: If wanting to trace allocations, uncomment this

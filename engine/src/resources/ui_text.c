@@ -5,7 +5,7 @@
 #include "core/identifier.h"
 #include "math/bmath.h"
 #include "math/transform.h"
-#include "renderer/renderer_types.inl"
+#include "renderer/renderer_types.h"
 #include "renderer/renderer_frontend.h"
 #include "systems/font_system.h"
 #include "systems/shader_system.h"

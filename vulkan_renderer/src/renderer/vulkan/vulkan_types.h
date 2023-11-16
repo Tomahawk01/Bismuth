@@ -2,7 +2,7 @@
 
 #include "defines.h"
 #include "core/asserts.h"
-#include "renderer/renderer_types.inl"
+#include "renderer/renderer_types.h"
 #include "containers/freelist.h"
 #include "containers/hashtable.h"
 

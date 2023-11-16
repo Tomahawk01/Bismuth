@@ -16,7 +16,7 @@
 #include "resources/terrain.h"
 #include "resources/debug/debug_box3d.h"
 #include "resources/debug/debug_line3d.h"
-#include "renderer/renderer_types.inl"
+#include "renderer/renderer_types.h"
 #include "renderer/camera.h"
 #include "systems/render_view_system.h"
 #include "systems/resource_system.h"

@@ -13,7 +13,7 @@
 #include <core/bmemory.h>
 #include <core/logger.h>
 
-#include "renderer/vulkan/vulkan_types.inl"
+#include "renderer/vulkan/vulkan_types.h"
 #include "renderer/vulkan/platform/vulkan_platform.h"
 
 typedef struct win32_handle_info
