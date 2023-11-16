@@ -223,7 +223,7 @@ static b8 simple_scene_loader_load(struct resource_loader* self, const char* nam
                 {
                     default:
                     case SIMPLE_SCENE_PARSE_MODE_ROOT:
-                        BWARN("Format warning: Cannot process name in root node");
+                        BWARN("Format warning: Cannot process name in root mode");
                         break;
                     case SIMPLE_SCENE_PARSE_MODE_SCENE:
                         resource_data->name = string_duplicate(trimmed_value);
@@ -250,7 +250,7 @@ static b8 simple_scene_loader_load(struct resource_loader* self, const char* nam
                 switch (mode)
                 {
                     default:
-                        BWARN("Format warning: Cannot process name in the current node");
+                        BWARN("Format warning: Cannot process color in the current mode");
                         break;
                     case SIMPLE_SCENE_PARSE_MODE_DIRECTIONAL_LIGHT:
                         if (!string_to_vec4(trimmed_value, &resource_data->directional_light_config.color))
@@ -273,14 +273,14 @@ static b8 simple_scene_loader_load(struct resource_loader* self, const char* nam
                 if (mode == SIMPLE_SCENE_PARSE_MODE_SCENE)
                     resource_data->description = string_duplicate(trimmed_value);
                 else
-                    BWARN("Format warning: Cannot process description in the current node");
+                    BWARN("Format warning: Cannot process description in the current mode");
             }
             else if (strings_equali(trimmed_var_name, "cubemap_name"))
             {
                 if (mode == SIMPLE_SCENE_PARSE_MODE_SKYBOX)
                     resource_data->skybox_config.cubemap_name = string_duplicate(trimmed_value);
                 else
-                    BWARN("Format warning: Cannot process cubemap_name in the current node");
+                    BWARN("Format warning: Cannot process cubemap_name in the current mode");
             }
             else if (strings_equali(trimmed_var_name, "resource_name"))
             {
@@ -289,14 +289,14 @@ static b8 simple_scene_loader_load(struct resource_loader* self, const char* nam
                 else if(mode == SIMPLE_SCENE_PARSE_MODE_TERRAIN)
                     current_terrain_config.resource_name = string_duplicate(trimmed_value);
                 else
-                    BWARN("Format warning: Cannot process resource_name in the current node");
+                    BWARN("Format warning: Cannot process resource_name in the current mode");
             }
             else if (strings_equali(trimmed_var_name, "parent"))
             {
                 if (mode == SIMPLE_SCENE_PARSE_MODE_MESH)
                     current_mesh_config.parent_name = string_duplicate(trimmed_value);
                 else
-                    BWARN("Format warning: Cannot process resource_name in the current node");
+                    BWARN("Format warning: Cannot process parent in the current mode");
             }
             else if (strings_equali(trimmed_var_name, "direction"))
             {
@@ -310,7 +310,7 @@ static b8 simple_scene_loader_load(struct resource_loader* self, const char* nam
                 }
                 else
                 {
-                    BWARN("Format warning: Cannot process direction in the current node");
+                    BWARN("Format warning: Cannot process direction in the current mode");
                 }
             }
             else if (strings_equali(trimmed_var_name, "position"))
@@ -325,7 +325,7 @@ static b8 simple_scene_loader_load(struct resource_loader* self, const char* nam
                 }
                 else
                 {
-                    BWARN("Format warning: Cannot process direction in the current node");
+                    BWARN("Format warning: Cannot process position in the current mode");
                 }
             }
             else if (strings_equali(trimmed_var_name, "transform"))
@@ -342,7 +342,7 @@ static b8 simple_scene_loader_load(struct resource_loader* self, const char* nam
                 }
                 else
                 {
-                    BWARN("Format warning: Cannot process transform in the current node");
+                    BWARN("Format warning: Cannot process transform in the current mode");
                 }
             }
             else if (strings_equali(trimmed_var_name, "constant_f"))
@@ -357,7 +357,7 @@ static b8 simple_scene_loader_load(struct resource_loader* self, const char* nam
                 }
                 else
                 {
-                    BWARN("Format warning: Cannot process constant in the current node");
+                    BWARN("Format warning: Cannot process constant in the current mode");
                 }
             }
             else if (strings_equali(trimmed_var_name, "linear"))
@@ -372,7 +372,7 @@ static b8 simple_scene_loader_load(struct resource_loader* self, const char* nam
                 }
                 else
                 {
-                    BWARN("Format warning: Cannot process linear in the current node");
+                    BWARN("Format warning: Cannot process linear in the current mode");
                 }
             }
             else if (strings_equali(trimmed_var_name, "quadratic"))
@@ -387,7 +387,7 @@ static b8 simple_scene_loader_load(struct resource_loader* self, const char* nam
                 }
                 else
                 {
-                    BWARN("Format warning: Cannot process quadratic in the current node");
+                    BWARN("Format warning: Cannot process quadratic in the current mode");
                 }
             }
         }

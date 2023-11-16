@@ -33,8 +33,30 @@ typedef struct vulkan_swapchain_support_info
     VkPresentModeKHR* present_modes;
 } vulkan_swapchain_support_info;
 
+typedef enum vulkan_device_support_flag_bits
+{
+    VULKAN_DEVICE_SUPPORT_FLAG_NONE_BIT = 0x0,
+
+    /** @brief Indicates if this device supports native dynamic topology (Vulkan API >= 1.3) */
+    VULKAN_DEVICE_SUPPORT_FLAG_NATIVE_DYNAMIC_TOPOLOGY_BIT = 0x1,
+
+    /** @brief Indicates if this device supports dynamic topology. If not, renderer will need to generate a separate pipeline per topology type */
+    VULKAN_DEVICE_SUPPORT_FLAG_DYNAMIC_TOPOLOGY_BIT = 0x2,
+    VULKAN_DEVICE_SUPPORT_FLAG_LINE_SMOOTH_RASTERISATION_BIT = 0x4
+} vulkan_device_support_flag_bits;
+
+/** @brief Bitwise flags for device support. @see vulkan_device_support_flag_bits. */
+typedef u32 vulkan_device_support_flags;
+
 typedef struct vulkan_device
 {
+    /** @brief Supported device-level api major version */
+    u32 api_major;
+    /** @brief Supported device-level api minor version */
+    u32 api_minor;
+    /** @brief Supported device-level api patch version */
+    u32 api_patch;
+
     VkPhysicalDevice physical_device;
     VkDevice logical_device;
     vulkan_swapchain_support_info swapchain_support;
@@ -56,6 +78,9 @@ typedef struct vulkan_device
 
     VkFormat depth_format;
     u8 depth_channel_count;
+
+    /** @brief Indicates support for various features */
+    vulkan_device_support_flags support_flags;
 } vulkan_device;
 
 typedef struct vulkan_image
@@ -288,6 +313,13 @@ typedef struct vulkan_shader
 
 typedef struct vulkan_context
 {
+    /** @brief Instance-level api major version */
+    u32 api_major;
+    /** @brief Instance-level api minor version */
+    u32 api_minor;
+    /** @brief Instance-level api patch version */
+    u32 api_patch;
+
     u32 framebuffer_width;
     u32 framebuffer_height;
 
@@ -351,4 +383,6 @@ typedef struct vulkan_context
     b8 multithreading_enabled;
 
     i32 (*find_memory_index)(struct vulkan_context* context, u32 type_filter, u32 property_flags);
+
+    PFN_vkCmdSetPrimitiveTopologyEXT vkCmdSetPrimitiveTopologyEXT;
 } vulkan_context;

@@ -10,6 +10,7 @@
 #include "platform/platform.h"
 #include "platform/vulkan_platform.h"
 #include "renderer/renderer_frontend.h"
+#include "resources/resource_types.h"
 #include "systems/material_system.h"
 #include "systems/resource_system.h"
 #include "systems/shader_system.h"
@@ -202,9 +203,16 @@ b8 vulkan_renderer_backend_initialize(renderer_plugin* plugin, const renderer_ba
     context->framebuffer_width = 800;
     context->framebuffer_height = 600;
 
+    // Get currently-installed instance version. Use this to create instance
+    u32 api_version = 0;
+    vkEnumerateInstanceVersion(&api_version);
+    context->api_major = VK_VERSION_MAJOR(api_version);
+    context->api_minor = VK_VERSION_MINOR(api_version);
+    context->api_patch = VK_VERSION_PATCH(api_version);
+
     // Setup Vulkan instance
     VkApplicationInfo app_info = {VK_STRUCTURE_TYPE_APPLICATION_INFO};
-    app_info.apiVersion = VK_API_VERSION_1_3;
+    app_info.apiVersion = VK_MAKE_API_VERSION(0, context->api_major, context->api_minor, context->api_patch);
     app_info.pApplicationName = config->application_name;
     app_info.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
     app_info.pEngineName = "Bismuth Engine";
@@ -1757,39 +1765,96 @@ b8 vulkan_renderer_shader_initialize(renderer_plugin* plugin, shader* s)
     for (u32 i = 0; i < internal_shader->config.stage_count; ++i)
         stage_create_infos[i] = internal_shader->stages[i].shader_stage_create_info;
     
-    // Create an array of pointers to pipelines, one per topology class. Null means not supported for this shader
-    internal_shader->pipelines = ballocate(sizeof(vulkan_pipeline *) * VULKAN_TOPOLOGY_CLASS_MAX, MEMORY_TAG_ARRAY);
+    u32 pipeline_count = 0;
+    // If dynamic topology is supported, create one pipeline per topology class
+    // Otherwise we must create one pipeline per topology type
 
-    // Create one pipeline per topology class
-    // Point class
-    if (s->topology_types & PRIMITIVE_TOPOLOGY_TYPE_POINT_LIST)
+    if ((context->device.support_flags & VULKAN_DEVICE_SUPPORT_FLAG_NATIVE_DYNAMIC_TOPOLOGY_BIT) ||
+        (context->device.support_flags & VULKAN_DEVICE_SUPPORT_FLAG_DYNAMIC_TOPOLOGY_BIT))
     {
-        internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_POINT] = ballocate(sizeof(vulkan_pipeline), MEMORY_TAG_VULKAN);
-        // Set supported types for this class
-        internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_POINT]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_POINT_LIST;
+        pipeline_count = 3;
+
+        // Create an array of pointers to pipelines, one per topology class. Null means not supported for this shader
+        internal_shader->pipelines = ballocate(sizeof(vulkan_pipeline *) * pipeline_count, MEMORY_TAG_ARRAY);
+
+        // Create one pipeline per topology class
+        // Point class
+        if (s->topology_types & PRIMITIVE_TOPOLOGY_TYPE_POINT_LIST)
+        {
+            internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_POINT] = ballocate(sizeof(vulkan_pipeline), MEMORY_TAG_VULKAN);
+            // Set supported types for this class
+            internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_POINT]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_POINT_LIST;
+        }
+
+        // Line class
+        if (s->topology_types & PRIMITIVE_TOPOLOGY_TYPE_LINE_LIST || s->topology_types & PRIMITIVE_TOPOLOGY_TYPE_LINE_STRIP)
+        {
+            internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_LINE] = ballocate(sizeof(vulkan_pipeline), MEMORY_TAG_VULKAN);
+            // Set supported types for this class
+            internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_LINE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_LINE_LIST;
+            internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_LINE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_LINE_STRIP;
+        }
+
+        // Triangle class
+        if (s->topology_types & PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_LIST ||
+            s->topology_types & PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_STRIP ||
+            s->topology_types & PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_FAN)
+        {
+            internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_TRIANGLE] = ballocate(sizeof(vulkan_pipeline), MEMORY_TAG_VULKAN);
+            // Set supported types for this class
+            internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_TRIANGLE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_LIST;
+            internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_TRIANGLE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_STRIP;
+            internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_TRIANGLE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_FAN;
+        }
     }
-
-    // Line class
-    if (s->topology_types & PRIMITIVE_TOPOLOGY_TYPE_LINE_LIST || s->topology_types & PRIMITIVE_TOPOLOGY_TYPE_LINE_STRIP)
+    else
     {
-        internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_LINE] = ballocate(sizeof(vulkan_pipeline), MEMORY_TAG_VULKAN);
-        // Set supported types for this class
-        internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_LINE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_LINE_LIST;
-        internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_LINE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_LINE_STRIP;
-    }
+        // In this case, one pipeline must be created per topology type
+        pipeline_count = 6;
 
-    // Triangle class
-    if (s->topology_types & PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_LIST || s->topology_types & PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_STRIP || s->topology_types & PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_FAN)
-    {
-        internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_TRIANGLE] = ballocate(sizeof(vulkan_pipeline), MEMORY_TAG_VULKAN);
-        // Set supported types for this class
-        internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_TRIANGLE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_LIST;
-        internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_TRIANGLE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_STRIP;
-        internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_TRIANGLE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_FAN;
+        // Create an array of pointers to pipelines, one per topology type. Null means not supported for this shader
+        internal_shader->pipelines = ballocate(sizeof(vulkan_pipeline *) * pipeline_count, MEMORY_TAG_ARRAY);
+
+        // Check each type individually. Will always be in this order
+        // Point
+        if (s->topology_types & PRIMITIVE_TOPOLOGY_TYPE_POINT_LIST)
+        {
+            internal_shader->pipelines[0] = ballocate(sizeof(vulkan_pipeline), MEMORY_TAG_VULKAN);
+            internal_shader->pipelines[0]->supported_topology_types = PRIMITIVE_TOPOLOGY_TYPE_POINT_LIST;
+        }
+
+        // Line
+        if (s->topology_types & PRIMITIVE_TOPOLOGY_TYPE_LINE_LIST)
+        {
+            internal_shader->pipelines[1] = ballocate(sizeof(vulkan_pipeline), MEMORY_TAG_VULKAN);
+            internal_shader->pipelines[1]->supported_topology_types = PRIMITIVE_TOPOLOGY_TYPE_LINE_LIST;
+        }
+        if (s->topology_types & PRIMITIVE_TOPOLOGY_TYPE_LINE_STRIP)
+        {
+            internal_shader->pipelines[2] = ballocate(sizeof(vulkan_pipeline), MEMORY_TAG_VULKAN);
+            internal_shader->pipelines[2]->supported_topology_types = PRIMITIVE_TOPOLOGY_TYPE_LINE_STRIP;
+        }
+
+        // Triangle
+        if (s->topology_types & PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_LIST)
+        {
+            internal_shader->pipelines[3] = ballocate(sizeof(vulkan_pipeline), MEMORY_TAG_VULKAN);
+            internal_shader->pipelines[3]->supported_topology_types = PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_LIST;
+        }
+        if (s->topology_types & PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_STRIP)
+        {
+            internal_shader->pipelines[4] = ballocate(sizeof(vulkan_pipeline), MEMORY_TAG_VULKAN);
+            internal_shader->pipelines[4]->supported_topology_types = PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_STRIP;
+        }
+        if (s->topology_types & PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_FAN)
+        {
+            internal_shader->pipelines[5] = ballocate(sizeof(vulkan_pipeline), MEMORY_TAG_VULKAN);
+            internal_shader->pipelines[5]->supported_topology_types = PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_FAN;
+        }
     }
 
     // Loop through and config/create one pipeline per class. Null entries are skipped
-    for (u32 i = 0; i < VULKAN_TOPOLOGY_CLASS_MAX; ++i)
+    for (u32 i = 0; i < pipeline_count; ++i)
     {
         if (!internal_shader->pipelines[i])
             continue;
@@ -1827,7 +1892,7 @@ b8 vulkan_renderer_shader_initialize(renderer_plugin* plugin, shader* s)
     // TODO: Figure out what default should be here
     internal_shader->bound_pipeline_index = 0;
     b8 pipeline_found = false;
-    for (u32 i = 0; i < VULKAN_TOPOLOGY_CLASS_MAX; ++i)
+    for (u32 i = 0; i < pipeline_count; ++i)
     {
         if (internal_shader->pipelines[i])
         {
@@ -1940,7 +2005,11 @@ b8 vulkan_renderer_shader_use(renderer_plugin* plugin, shader* shader)
     vulkan_pipeline_bind(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s->pipelines[s->bound_pipeline_index]);
 
     // Make sure to use current bound type as well
-    vkCmdSetPrimitiveTopology(command_buffer->handle, s->current_topology);
+    if (context->device.support_flags & VULKAN_DEVICE_SUPPORT_FLAG_NATIVE_DYNAMIC_TOPOLOGY_BIT)
+        vkCmdSetPrimitiveTopology(command_buffer->handle, s->current_topology);
+    else if (context->device.support_flags & VULKAN_DEVICE_SUPPORT_FLAG_DYNAMIC_TOPOLOGY_BIT)
+        context->vkCmdSetPrimitiveTopologyEXT(command_buffer->handle, s->current_topology);
+
     return true;
 }
 
