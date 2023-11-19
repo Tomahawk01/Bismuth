@@ -55,11 +55,12 @@ void* linear_allocator_allocate(linear_allocator* allocator, u64 size)
     return 0;
 }
 
-void linear_allocator_free_all(linear_allocator* allocator)
+void linear_allocator_free_all(linear_allocator* allocator, b8 clear)
 {
     if (allocator && allocator->memory)
     {
         allocator->allocated = 0;
-        bzero_memory(allocator->memory, allocator->total_size);
+        if (clear)
+            bzero_memory(allocator->memory, allocator->total_size);
     }
 }

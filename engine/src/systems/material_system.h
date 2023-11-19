@@ -27,7 +27,7 @@ BAPI material* material_system_get_default_ui(void);
 BAPI material* material_system_get_default_terrain(void);
 
 BAPI b8 material_system_apply_global(u32 shader_id, const struct frame_data* p_frame_data, const mat4* projection, const mat4* view, const vec4* ambient_color, const vec3* view_position, u32 render_mode);
-BAPI b8 material_system_apply_instance(material* m, b8 needs_update);
+BAPI b8 material_system_apply_instance(material* m, struct frame_data* p_frame_data, b8 needs_update);
 BAPI b8 material_system_apply_local(material* m, const mat4* model);
 
 /**

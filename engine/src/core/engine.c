@@ -38,6 +38,29 @@ typedef struct engine_state_t
 
 static engine_state_t* engine_state;
 
+// Frame allocator functions
+static void* frame_allocator_allocate(u64 size)
+{
+    if (!engine_state)
+        return 0;
+
+    return linear_allocator_allocate(&engine_state->frame_allocator, size);
+}
+
+static void frame_allocator_free(u64 size)
+{
+    // NOTE: Linear allocator doesn't free
+}
+
+static void frame_allocator_free_all(void)
+{
+    if (engine_state)
+    {
+        // Don't wipe the memory each time, to save on performance
+        linear_allocator_free_all(&engine_state->frame_allocator, false);
+    }
+}
+
 // Event handlers
 static b8 engine_on_event(u16 code, void* sender, void* listener_inst, event_context context);
 static b8 engine_on_resized(u16 code, void* sender, void* listener_inst, event_context context);
@@ -91,7 +114,11 @@ b8 engine_create(application* game_inst)
 
     // Setup frame allocator
     linear_allocator_create(game_inst->app_config.frame_allocator_size, 0, &engine_state->frame_allocator);
-    engine_state->p_frame_data.frame_allocator = &engine_state->frame_allocator;
+    engine_state->p_frame_data.allocator.allocate = frame_allocator_allocate;
+    engine_state->p_frame_data.allocator.free = frame_allocator_free;
+    engine_state->p_frame_data.allocator.free_all = frame_allocator_free_all;
+
+    // Allocate for application's frame data
     if (game_inst->app_config.app_frame_data_size > 0)
         engine_state->p_frame_data.application_frame_data = ballocate(game_inst->app_config.app_frame_data_size, MEMORY_TAG_GAME);
     else
@@ -155,7 +182,7 @@ b8 engine_run(application* game_inst)
             engine_state->p_frame_data.delta_time = (f32)delta;
 
             // Reset frame allocator
-            linear_allocator_free_all(&engine_state->frame_allocator);
+            engine_state->p_frame_data.allocator.free_all();
 
             // Update systems
             systems_manager_update(&engine_state->sys_manager_state, &engine_state->p_frame_data);

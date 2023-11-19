@@ -4,6 +4,13 @@
 
 struct linear_allocator;
 
+typedef struct frame_allocator_int
+{
+    void* (*allocate)(u64 size);
+    void (*free)(u64 size);
+    void (*free_all)(void);
+} frame_allocator_int;
+
 typedef struct frame_data
 {
     // Time in seconds since last frame
@@ -15,8 +22,8 @@ typedef struct frame_data
     // Number of meshes drawn in the last frame
     u32 drawn_mesh_count;
 
-    // Pointer to engine's frame allocator
-    struct linear_allocator* frame_allocator;
+    // An allocator used for per-frame allocations
+    frame_allocator_int allocator;
 
     // Current renderer frame number (used for data synchronization)
     u64 renderer_frame_number;

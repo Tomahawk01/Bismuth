@@ -300,7 +300,7 @@ typedef struct render_view
     b8 (*on_packet_build)(const struct render_view* self, struct frame_data* p_frame_data, struct viewport* v, struct camera* c, void* data, struct render_view_packet* out_packet);
     void (*on_packet_destroy)(const struct render_view* self, struct render_view_packet* packet);
 
-    b8 (*on_render)(const struct render_view* self, const struct render_view_packet* packet, const struct frame_data* p_frame_data);
+    b8 (*on_render)(const struct render_view* self, const struct render_view_packet* packet, struct frame_data* p_frame_data);
 
     b8 (*attachment_target_regenerate)(struct render_view* self, u32 pass_index, struct render_target_attachment* attachment);
 } render_view;

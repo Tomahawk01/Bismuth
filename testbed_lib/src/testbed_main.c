@@ -13,7 +13,6 @@
 #include <math/geometry_2d.h>
 #include <math/geometry_3d.h>
 #include <math/bmath.h>
-#include <memory/linear_allocator.h>
 #include <renderer/camera.h>
 #include <renderer/renderer_frontend.h>
 #include <renderer/renderer_types.h>
@@ -689,7 +688,7 @@ b8 application_prepare_render_packet(struct application* app_inst, struct render
         return true;
 
     packet->view_count = 3;
-    packet->views = linear_allocator_allocate(p_frame_data->frame_allocator, sizeof(render_view_packet) * packet->view_count);
+    packet->views = p_frame_data->allocator.allocate(sizeof(render_view_packet) * packet->view_count);
 
     // TODO: Cache it instead of lookups every frame
     // packet->views[TESTBED_PACKET_VIEW_SKYBOX].view = render_view_system_get("skybox");
@@ -762,7 +761,7 @@ b8 application_prepare_render_packet(struct application* app_inst, struct render
 
         u32 ui_mesh_count = 0;
         u32 max_ui_meshes = 10;
-        mesh** ui_meshes = linear_allocator_allocate(p_frame_data->frame_allocator, sizeof(mesh*) * max_ui_meshes);
+        mesh** ui_meshes = p_frame_data->allocator.allocate(sizeof(mesh*) * max_ui_meshes);
 
         for (u32 i = 0; i < max_ui_meshes; ++i)
         {
@@ -780,7 +779,7 @@ b8 application_prepare_render_packet(struct application* app_inst, struct render
         b8 render_debug_console = debug_console_text && debug_console_visible(&state->debug_console);
         if (render_debug_console)
             ui_packet.text_count += 2;
-        ui_text** texts = linear_allocator_allocate(p_frame_data->frame_allocator, sizeof(ui_text*) * ui_packet.text_count);
+        ui_text** texts = p_frame_data->allocator.allocate(sizeof(ui_text*) * ui_packet.text_count);
         texts[0] = &state->test_text;
         texts[1] = &state->test_sys_text;
         if (render_debug_console)

@@ -6,7 +6,6 @@
 #include "core/frame_data.h"
 #include "math/bmath.h"
 #include "math/transform.h"
-#include "memory/linear_allocator.h"
 #include "containers/darray.h"
 #include "systems/resource_system.h"
 #include "systems/material_system.h"
@@ -129,7 +128,7 @@ b8 render_view_ui_on_packet_build(const struct render_view* self, struct frame_d
     out_packet->view_matrix = internal_data->view_matrix;
 
     // TODO: temp
-    out_packet->extended_data = linear_allocator_allocate(p_frame_data->frame_allocator, sizeof(ui_packet_data));
+    out_packet->extended_data = p_frame_data->allocator.allocate(sizeof(ui_packet_data));
     bcopy_memory(out_packet->extended_data, packet_data, sizeof(ui_packet_data));
 
     // Obtain all geometries from the current scene.
@@ -156,7 +155,7 @@ void render_view_ui_on_packet_destroy(const struct render_view* self, struct ren
     bzero_memory(packet, sizeof(render_view_packet));
 }
 
-b8 render_view_ui_on_render(const struct render_view* self, const struct render_view_packet* packet, const struct frame_data* p_frame_data)
+b8 render_view_ui_on_render(const struct render_view* self, const struct render_view_packet* packet, struct frame_data* p_frame_data)
 {
     render_view_ui_internal_data* data = self->internal_data;
     u32 shader_id = data->s->id;
@@ -198,7 +197,7 @@ b8 render_view_ui_on_render(const struct render_view* self, const struct render_
 
             // Update material if it hasn't already been this frame. This keeps same material from being updated multiple times
             b8 needs_update = m->render_frame_number != p_frame_data->renderer_frame_number;
-            if (!material_system_apply_instance(m, needs_update))
+            if (!material_system_apply_instance(m, p_frame_data, needs_update))
             {
                 BWARN("Failed to apply material '%s'. Skipping draw...", m->name);
                 continue;

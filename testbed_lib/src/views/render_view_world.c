@@ -6,7 +6,6 @@
 #include "core/frame_data.h"
 #include "math/bmath.h"
 #include "math/transform.h"
-#include "memory/linear_allocator.h"
 #include "containers/darray.h"
 #include "renderer/renderer_types.h"
 #include "renderer/viewport.h"
@@ -353,7 +352,7 @@ void render_view_world_on_packet_destroy(const struct render_view* self, struct 
     bzero_memory(packet, sizeof(render_view_packet));
 }
 
-b8 render_view_world_on_render(const struct render_view* self, const struct render_view_packet* packet, const struct frame_data* p_frame_data)
+b8 render_view_world_on_render(const struct render_view* self, const struct render_view_packet* packet, struct frame_data* p_frame_data)
 {
     render_view_world_internal_data* data = self->internal_data;
 
@@ -450,7 +449,7 @@ b8 render_view_world_on_render(const struct render_view* self, const struct rend
                     m = material_system_get_default_terrain();
 
                 b8 needs_update = m->render_frame_number != p_frame_data->renderer_frame_number || m->render_draw_index != p_frame_data->draw_index;
-                if (!material_system_apply_instance(m, needs_update))
+                if (!material_system_apply_instance(m, p_frame_data, needs_update))
                 {
                     BWARN("Failed to apply terrain material '%s'. Skipping draw", m->name);
                     continue;
@@ -499,7 +498,7 @@ b8 render_view_world_on_render(const struct render_view* self, const struct rend
                     m = material_system_get_default();
 
                 b8 needs_update = m->render_frame_number != p_frame_data->renderer_frame_number || m->render_draw_index != p_frame_data->draw_index;
-                if (!material_system_apply_instance(m, needs_update))
+                if (!material_system_apply_instance(m, p_frame_data, needs_update))
                 {
                     BWARN("Failed to apply material '%s'. Skipping draw", m->name);
                     continue;

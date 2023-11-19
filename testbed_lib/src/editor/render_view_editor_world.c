@@ -9,7 +9,6 @@
 #include "editor/editor_gizmo.h"
 #include "math/bmath.h"
 #include "math/transform.h"
-#include "memory/linear_allocator.h"
 #include "renderer/camera.h"
 #include "renderer/renderer_frontend.h"
 #include "renderer/renderer_types.h"
@@ -171,7 +170,7 @@ void render_view_editor_world_on_packet_destroy(const struct render_view* self, 
     bzero_memory(packet, sizeof(render_view_packet));
 }
 
-b8 render_view_editor_world_on_render(const struct render_view* self, const struct render_view_packet* packet, const struct frame_data* p_frame_data)
+b8 render_view_editor_world_on_render(const struct render_view* self, const struct render_view_packet* packet, struct frame_data* p_frame_data)
 {
     render_view_editor_world_internal_data* data = self->internal_data;
 
