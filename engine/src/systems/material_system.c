@@ -6,6 +6,7 @@
 #include "core/bmemory.h"
 #include "core/bstring.h"
 #include "core/logger.h"
+#include "core/frame_data.h"
 #include "math/bmath.h"
 #include "renderer/renderer_frontend.h"
 #include "resources/resource_types.h"
@@ -591,12 +592,12 @@ material* material_system_get_default_terrain(void)
         return false;                                 \
     }
 
-b8 material_system_apply_global(u32 shader_id, u64 renderer_frame_number, u8 renderer_draw_index, const mat4* projection, const mat4* view, const vec4* ambient_color, const vec3* view_position, u32 render_mode)
+b8 material_system_apply_global(u32 shader_id, const struct frame_data* p_frame_data, const mat4* projection, const mat4* view, const vec4* ambient_color, const vec3* view_position, u32 render_mode)
 {
     shader* s = shader_system_get_by_id(shader_id);
     if (!s)
         return false;
-    if (s->render_frame_number == renderer_frame_number && s->draw_index == renderer_draw_index)
+    if (s->render_frame_number == p_frame_data->renderer_frame_number && s->draw_index == p_frame_data->draw_index)
         return true;
     
     if (shader_id == state_ptr->material_shader_id || shader_id == state_ptr->terrain_shader_id)
@@ -619,7 +620,7 @@ b8 material_system_apply_global(u32 shader_id, u64 renderer_frame_number, u8 ren
     }
     MATERIAL_APPLY_OR_FAIL(shader_system_apply_global(true));
     // Sync frame number
-    s->render_frame_number = renderer_frame_number;
+    s->render_frame_number = p_frame_data->renderer_frame_number;
     return true;
 }
 
