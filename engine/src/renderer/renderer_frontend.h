@@ -5,6 +5,7 @@
 struct shader;
 struct shader_uniform;
 struct frame_data;
+struct viewport;
 
 typedef struct renderer_system_config
 {
@@ -17,7 +18,10 @@ BAPI void renderer_system_shutdown(void* state);
 
 BAPI void renderer_on_resized(u16 width, u16 height);
 
-BAPI b8 renderer_draw_frame(render_packet* packet, const struct frame_data* p_frame_data);
+BAPI b8 renderer_frame_prepare(struct frame_data* p_frame_data);
+BAPI b8 renderer_begin(struct frame_data* p_frame_data);
+BAPI b8 renderer_end(struct frame_data* p_frame_data);
+BAPI b8 renderer_present(struct frame_data* p_frame_data);
 
 BAPI void renderer_viewport_set(vec4 rect);
 BAPI void renderer_viewport_reset(void);
@@ -106,7 +110,9 @@ BAPI b8 renderer_renderbuffer_allocate(renderbuffer* buffer, u64 size, u64* out_
 BAPI b8 renderer_renderbuffer_free(renderbuffer* buffer, u64 size, u64 offset);
 
 BAPI b8 renderer_renderbuffer_load_range(renderbuffer* buffer, u64 offset, u64 size, const void* data);
-
 BAPI b8 renderer_renderbuffer_copy_range(renderbuffer* source, u64 source_offset, renderbuffer* dest, u64 dest_offset, u64 size);
 
 BAPI b8 renderer_renderbuffer_draw(renderbuffer* buffer, u64 offset, u32 element_count, b8 bind_only);
+
+BAPI struct viewport* renderer_active_viewport_get(void);
+BAPI void renderer_active_viewport_set(struct viewport* v);

@@ -18,6 +18,7 @@ typedef struct skybox
     geometry* g;
     u32 instance_id;
     u64 render_frame_number;
+    u8 draw_index;
 } skybox;
 
 BAPI b8 skybox_create(skybox_config config, skybox* out_skybox);

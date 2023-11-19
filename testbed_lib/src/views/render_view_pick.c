@@ -1,8 +1,10 @@
 #include "render_view_pick.h"
+
 #include "core/logger.h"
 #include "core/bmemory.h"
 #include "core/event.h"
 #include "core/bstring.h"
+#include "core/frame_data.h"
 #include "core/uuid.h"
 #include "math/bmath.h"
 #include "math/transform.h"
@@ -13,6 +15,7 @@
 #include "systems/camera_system.h"
 #include "systems/render_view_system.h"
 #include "renderer/renderer_frontend.h"
+#include "renderer/viewport.h"
 #include "resources/ui_text.h"
 
 typedef struct render_view_pick_shader_info
@@ -23,11 +26,7 @@ typedef struct render_view_pick_shader_info
     u16 model_location;
     u16 projection_location;
     u16 view_location;
-    mat4 projection;
     mat4 view;
-    f32 near_clip;
-    f32 far_clip;
-    f32 fov;
 } render_view_pick_shader_info;
 
 typedef struct render_view_pick_internal_data
@@ -165,10 +164,6 @@ b8 render_view_pick_on_registered(struct render_view* self)
         data->ui_shader_info.view_location = shader_system_uniform_index(data->ui_shader_info.s, "view");
 
         // Default UI properties
-        data->ui_shader_info.near_clip = -100.0f;
-        data->ui_shader_info.far_clip = 100.0f;
-        data->ui_shader_info.fov = 0;
-        data->ui_shader_info.projection = mat4_orthographic(0.0f, 1280.0f, 720.0f, 0.0f, data->ui_shader_info.near_clip, data->ui_shader_info.far_clip);
         data->ui_shader_info.view = mat4_identity();
 
         // Builtin World Pick shader
@@ -194,10 +189,6 @@ b8 render_view_pick_on_registered(struct render_view* self)
         data->world_shader_info.view_location = shader_system_uniform_index(data->world_shader_info.s, "view");
 
         // Default World properties
-        data->world_shader_info.near_clip = 0.1f;
-        data->world_shader_info.far_clip = 4000.0f;
-        data->world_shader_info.fov = deg_to_rad(45.0f);
-        data->world_shader_info.projection = mat4_perspective(data->world_shader_info.fov, 1280 / 720.0f, data->world_shader_info.near_clip, data->world_shader_info.far_clip);
         data->world_shader_info.view = mat4_identity();
 
         // Builtin Terrain Pick shader
@@ -223,10 +214,6 @@ b8 render_view_pick_on_registered(struct render_view* self)
         data->terrain_shader_info.view_location = shader_system_uniform_index(data->terrain_shader_info.s, "view");
 
         // Default terrain properties
-        data->terrain_shader_info.near_clip = 0.1f;
-        data->terrain_shader_info.far_clip = 4000.0f;
-        data->terrain_shader_info.fov = deg_to_rad(45.0f);
-        data->terrain_shader_info.projection = mat4_perspective(data->terrain_shader_info.fov, 1280 / 720.0f, data->terrain_shader_info.near_clip, data->terrain_shader_info.far_clip);
         data->terrain_shader_info.view = mat4_identity();
 
         data->instance_count = 0;
@@ -275,31 +262,13 @@ void render_view_pick_on_destroy(struct render_view* self)
 
 void render_view_pick_on_resize(struct render_view* self, u32 width, u32 height)
 {
-    render_view_pick_internal_data* data = self->internal_data;
+    // render_view_pick_internal_data* data = self->internal_data;
 
     self->width = width;
     self->height = height;
-
-    // UI
-    data->ui_shader_info.projection = mat4_orthographic(0.0f, (f32)width, (f32)height, 0.0f, data->ui_shader_info.near_clip, data->ui_shader_info.far_clip);
-
-    // World
-    f32 aspect = (f32)self->width / self->height;
-    data->world_shader_info.projection = mat4_perspective(data->world_shader_info.fov, aspect, data->world_shader_info.near_clip, data->world_shader_info.far_clip);
-
-    // Terrain
-    data->terrain_shader_info.projection = mat4_perspective(data->terrain_shader_info.fov, aspect, data->terrain_shader_info.near_clip, data->terrain_shader_info.far_clip);
-
-    for (u32 i = 0; i < self->renderpass_count; ++i)
-    {
-        self->passes[i].render_area.x = 0;
-        self->passes[i].render_area.y = 0;
-        self->passes[i].render_area.z = width;
-        self->passes[i].render_area.w = height;
-    }
 }
 
-b8 render_view_pick_on_packet_build(const struct render_view* self, struct linear_allocator* frame_allocator, void* data, struct render_view_packet* out_packet)
+b8 render_view_pick_on_packet_build(const struct render_view* self, struct frame_data* p_frame_data, struct viewport* v, void* data, struct render_view_packet* out_packet)
 {
     if (!self || !data || !out_packet)
     {
@@ -313,6 +282,7 @@ b8 render_view_pick_on_packet_build(const struct render_view* self, struct linea
     out_packet->geometries = darray_create(geometry_render_data);
     out_packet->terrain_geometries = darray_create(geometry_render_data);
     out_packet->view = self;
+    out_packet->vp = v;
 
     // TODO: Get active camera
     camera* world_camera = camera_system_get_default();
@@ -321,7 +291,7 @@ b8 render_view_pick_on_packet_build(const struct render_view* self, struct linea
 
     // Set pick packet data to extended data
     packet_data->ui_geometry_count = 0;
-    out_packet->extended_data = linear_allocator_allocate(frame_allocator, sizeof(pick_packet_data));
+    out_packet->extended_data = linear_allocator_allocate(p_frame_data->frame_allocator, sizeof(pick_packet_data));
 
     u32 world_geometry_count = !packet_data->world_mesh_data ? 0 : darray_length(packet_data->world_mesh_data);
 
@@ -396,14 +366,17 @@ void render_view_pick_on_packet_destroy(const struct render_view* self, struct r
     bzero_memory(packet, sizeof(render_view_packet));
 }
 
-b8 render_view_pick_on_render(const struct render_view* self, const struct render_view_packet* packet, u64 frame_number, u64 render_target_index, const struct frame_data* p_frame_data)
+b8 render_view_pick_on_render(const struct render_view* self, const struct render_view_packet* packet, const struct frame_data* p_frame_data)
 {
     render_view_pick_internal_data* data = self->internal_data;
+
+    // Bind viewport
+    renderer_active_viewport_set(packet->vp);
 
     u32 p = 0;
     renderpass* pass = &self->passes[p]; // First pass
 
-    if (render_target_index == 0)
+    if (p_frame_data->render_target_index == 0)
     {
         pick_packet_data* packet_data = (pick_packet_data*)packet->extended_data;
         if (!packet_data)
@@ -414,7 +387,7 @@ b8 render_view_pick_on_render(const struct render_view* self, const struct rende
         for (u64 i = 0; i < count; ++i)
             data->instance_updated[i] = false;
 
-        if (!renderer_renderpass_begin(pass, &pass->targets[render_target_index]))
+        if (!renderer_renderpass_begin(pass, &pass->targets[p_frame_data->render_target_index]))
         {
             BERROR("render_view_ui_on_render pass index %u failed to start", p);
             return false;
@@ -430,7 +403,8 @@ b8 render_view_pick_on_render(const struct render_view* self, const struct rende
         }
 
         // Apply globals
-        if (!shader_system_uniform_set_by_index(data->world_shader_info.projection_location, &data->world_shader_info.projection))
+        viewport* v = renderer_active_viewport_get();
+        if (!shader_system_uniform_set_by_index(data->world_shader_info.projection_location, &v->projection))
             BERROR("Failed to apply projection matrix");
         if (!shader_system_uniform_set_by_index(data->world_shader_info.view_location, &data->world_shader_info.view))
             BERROR("Failed to apply view matrix");
@@ -478,7 +452,7 @@ b8 render_view_pick_on_render(const struct render_view* self, const struct rende
         }
 
         // Apply globals
-        if (!shader_system_uniform_set_by_index(data->terrain_shader_info.projection_location, &data->terrain_shader_info.projection))
+        if (!shader_system_uniform_set_by_index(data->terrain_shader_info.projection_location, &v->projection))
             BERROR("Failed to apply projection matrix");
         if (!shader_system_uniform_set_by_index(data->terrain_shader_info.view_location, &data->terrain_shader_info.view))
             BERROR("Failed to apply view matrix");
@@ -526,7 +500,7 @@ b8 render_view_pick_on_render(const struct render_view* self, const struct rende
         p++;
         pass = &self->passes[p]; // Second pass
 
-        if (!renderer_renderpass_begin(pass, &pass->targets[render_target_index]))
+        if (!renderer_renderpass_begin(pass, &pass->targets[p_frame_data->render_target_index]))
         {
             BERROR("render_view_pick_on_render pass index %u failed to start", p);
             return false;
@@ -540,8 +514,10 @@ b8 render_view_pick_on_render(const struct render_view* self, const struct rende
         }
 
         // Apply globals
-        if (!shader_system_uniform_set_by_index(data->ui_shader_info.projection_location, &data->ui_shader_info.projection))
-            BERROR("Failed to apply projection matrix");
+        // TODO: This won't work as a single view
+        BFATAL("Cannot use pick pass without it being split into UI/World first due to viewport changes");
+        // if (!shader_system_uniform_set_by_index(data->ui_shader_info.projection_location, &data->ui_shader_info.projection))
+        //     BERROR("Failed to apply projection matrix");
         if (!shader_system_uniform_set_by_index(data->ui_shader_info.view_location, &data->ui_shader_info.view))
             BERROR("Failed to apply view matrix");
         shader_system_apply_global(true);
@@ -675,8 +651,8 @@ b8 render_view_pick_attachment_target_regenerate(struct render_view* self, u32 p
     // Generate UUID to act as texture name
     uuid texture_name_uuid = uuid_generate();
 
-    u32 width = self->passes[pass_index].render_area.z;
-    u32 height = self->passes[pass_index].render_area.w;
+    u32 width = self->width;
+    u32 height = self->height;
     b8 has_transparency = false;  // TODO: make configurable
 
     attachment->texture->id = INVALID_ID;

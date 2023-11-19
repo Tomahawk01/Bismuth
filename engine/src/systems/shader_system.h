@@ -137,6 +137,8 @@ typedef struct shader
     // Used to ensure shader's globals are only updated once per frame
     u64 render_frame_number;
 
+    u8 draw_index;
+
     // An opaque pointer to hold renderer API specific data. Renderer is responsible for creation and destruction of this
     void* internal_data;
 } shader;

@@ -14,6 +14,8 @@ BAPI b8 application_initialize(struct application* game_inst);
 
 BAPI b8 application_update(struct application* game_inst, struct frame_data* p_frame_data);
 
+BAPI b8 application_prepare_render_packet(struct application* app_inst, struct render_packet* packet, struct frame_data* p_frame_data);
+
 BAPI b8 application_render(struct application* game_inst, struct render_packet* packet, struct frame_data* p_frame_data);
 
 BAPI void application_on_resize(struct application* game_inst, u32 width, u32 height);

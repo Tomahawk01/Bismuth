@@ -327,10 +327,15 @@ BINLINE b8 vec2_compare(vec2 vector_0, vec2 vector_1, f32 tolerance)
  */
 BINLINE f32 vec2_distance(vec2 vector_0, vec2 vector_1)
 {
-    vec2 d = (vec2){
-        vector_0.x - vector_1.x,
-        vector_0.y - vector_1.y};
+    vec2 d = (vec2){vector_0.x - vector_1.x, vector_0.y - vector_1.y};
     return vec2_length(d);
+}
+
+/* @brief Returns the squared distance between vector_0 and vector_1 */
+BINLINE f32 vec2_distance_squared(vec2 vector_0, vec2 vector_1)
+{
+    vec2 d = (vec2){vector_0.x - vector_1.x, vector_0.y - vector_1.y};
+    return vec2_length_squared(d);
 }
 
 // --------------------------------------------------------------------------------

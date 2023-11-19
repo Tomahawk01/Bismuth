@@ -1,12 +1,16 @@
 #include "render_view_world.h"
+
 #include "core/logger.h"
 #include "core/bmemory.h"
 #include "core/event.h"
+#include "core/frame_data.h"
 #include "math/bmath.h"
 #include "math/transform.h"
 #include "memory/linear_allocator.h"
 #include "containers/darray.h"
 #include "renderer/renderer_types.h"
+#include "renderer/viewport.h"
+#include "resources/skybox.h"
 #include "resources/terrain.h"
 #include "systems/resource_system.h"
 #include "systems/material_system.h"
@@ -23,18 +27,23 @@ typedef struct debug_color_shader_locations
     u16 model;
 } debug_color_shader_locations;
 
+typedef struct skybox_shader_locations
+{
+    u16 projection_location;
+    u16 view_location;
+    u16 cube_map_location;
+} skybox_shader_locations;
+
 typedef struct render_view_world_internal_data
 {
     shader* s;
-    f32 fov;
-    f32 near_clip;
-    f32 far_clip;
-    mat4 projection_matrix;
+    shader* skybox_shader;
     camera* world_camera;
     vec4 ambient_color;
     u32 render_mode;
 
     debug_color_shader_locations debug_locations;
+    skybox_shader_locations skybox_locations;
 } render_view_world_internal_data;
 
 typedef struct geometry_distance
@@ -110,12 +119,36 @@ b8 render_view_world_on_registered(struct render_view* self)
             return false;
         }
         shader_config* config = (shader_config*)config_resource.data;
-        if (!shader_system_create(&self->passes[0], config))
+        // NOTE: Second pass is the world pass
+        if (!shader_system_create(&self->passes[1], config))
         {
             BERROR("Failed to load builtin material shader");
             return false;
         }
         resource_system_unload(&config_resource);
+
+        // Load skybox shader
+        const char* skybox_shader_name = "Shader.Builtin.Skybox";
+        resource skybox_shader_config_resource;
+        if (!resource_system_load(skybox_shader_name, RESOURCE_TYPE_SHADER, 0, &skybox_shader_config_resource))
+        {
+            BERROR("Failed to load builtin skybox shader");
+            return false;
+        }
+        shader_config* skybox_shader_config = (shader_config*)skybox_shader_config_resource.data;
+        // NOTE: First pass is the skybox pass
+        if (!shader_system_create(&self->passes[0], skybox_shader_config))
+        {
+            BERROR("Failed to load builtin skybox shader");
+            return false;
+        }
+
+        resource_system_unload(&skybox_shader_config_resource);
+        // Get pointer to the shader
+        data->skybox_shader = shader_system_get(skybox_shader_name);
+        data->skybox_locations.projection_location = shader_system_uniform_index(data->skybox_shader, "projection");
+        data->skybox_locations.view_location = shader_system_uniform_index(data->skybox_shader, "view");
+        data->skybox_locations.cube_map_location = shader_system_uniform_index(data->skybox_shader, "cube_texture");
 
         // Load terrain shader
         const char* terrain_shader_name = "Shader.Builtin.Terrain";
@@ -126,8 +159,8 @@ b8 render_view_world_on_registered(struct render_view* self)
             return false;
         }
         shader_config* terrain_shader_config = (shader_config*)terrain_shader_config_resource.data;
-        // NOTE: Assuming the first pass since that's all this view has
-        if (!shader_system_create(&self->passes[0], terrain_shader_config))
+        // NOTE: Second pass is the world pass
+        if (!shader_system_create(&self->passes[1], terrain_shader_config))
         {
             BERROR("Failed to load builtin terrain shader");
             return false;
@@ -144,8 +177,8 @@ b8 render_view_world_on_registered(struct render_view* self)
             return false;
         }
         shader_config* color3d_shader_config = (shader_config*)color3d_shader_config_resource.data;
-        // NOTE: Assuming the first pass since that's all this view has
-        if (!shader_system_create(&self->passes[0], color3d_shader_config))
+        // NOTE: Second pass is the world pass
+        if (!shader_system_create(&self->passes[1], color3d_shader_config))
         {
             BERROR("Failed to load builtin color3d shader");
             return false;
@@ -167,13 +200,6 @@ b8 render_view_world_on_registered(struct render_view* self)
 
         // Get either custom shader override or defined default
         data->s = shader_system_get(self->custom_shader_name ? self->custom_shader_name : shader_name);
-        // TODO: Set from configuration
-        data->near_clip = 0.1f;
-        data->far_clip = 4000.0f;
-        data->fov = deg_to_rad(45.0f);
-
-        // Default
-        data->projection_matrix = mat4_perspective(data->fov, 16 / 9.0f, data->near_clip, data->far_clip);
 
         data->world_camera = camera_system_get_default();
 
@@ -218,24 +244,14 @@ void render_view_world_on_resize(struct render_view* self, u32 width, u32 height
     // Check if different. If so, regenerate projection matrix
     if (width != self->width || height != self->height)
     {
-        render_view_world_internal_data* data = self->internal_data;
+        // render_view_world_internal_data* data = self->internal_data;
 
         self->width = width;
         self->height = height;
-        f32 aspect = (f32)self->width / self->height;
-        data->projection_matrix = mat4_perspective(data->fov, aspect, data->near_clip, data->far_clip);
-
-        for (u32 i = 0; i < self->renderpass_count; ++i)
-        {
-            self->passes[i].render_area.x = 0;
-            self->passes[i].render_area.y = 0;
-            self->passes[i].render_area.z = width;
-            self->passes[i].render_area.w = height;
-        }
     }
 }
 
-b8 render_view_world_on_packet_build(const struct render_view* self, struct linear_allocator* frame_allocator, void* data, struct render_view_packet* out_packet)
+b8 render_view_world_on_packet_build(const struct render_view* self, struct frame_data* frame_data, viewport* v, void* data, struct render_view_packet* out_packet)
 {
     if (!self || !data || !out_packet)
     {
@@ -251,12 +267,16 @@ b8 render_view_world_on_packet_build(const struct render_view* self, struct line
     out_packet->terrain_geometries = darray_create(geometry_render_data);
     out_packet->debug_geometries = darray_create(geometry_render_data);
     out_packet->view = self;
+    out_packet->vp = v;
 
     // Set matrices, etc
-    out_packet->projection_matrix = internal_data->projection_matrix;
+    out_packet->projection_matrix = v->projection;
     out_packet->view_matrix = camera_view_get(internal_data->world_camera);
     out_packet->view_position = camera_position_get(internal_data->world_camera);
     out_packet->ambient_color = internal_data->ambient_color;
+
+    // Skybox data
+    out_packet->skybox_data = world_data->skybox_data;
 
     // Obtain all geometries from the current scene
     geometry_distance* geometry_distances = darray_create(geometry_distance);
@@ -336,20 +356,84 @@ void render_view_world_on_packet_destroy(const struct render_view* self, struct 
     bzero_memory(packet, sizeof(render_view_packet));
 }
 
-b8 render_view_world_on_render(const struct render_view* self, const struct render_view_packet* packet, u64 frame_number, u64 render_target_index, const struct frame_data* p_frame_data)
+b8 render_view_world_on_render(const struct render_view* self, const struct render_view_packet* packet, const struct frame_data* p_frame_data)
 {
     render_view_world_internal_data* data = self->internal_data;
     u32 shader_id = data->s->id;
 
-    for (u32 p = 0; p < self->renderpass_count; ++p)
+    // Bind viewport
+    renderer_active_viewport_set(packet->vp);
+
+    // Skybox renderpass
     {
-        renderpass* pass = &self->passes[p];
-        if (!renderer_renderpass_begin(pass, &pass->targets[render_target_index]))
+        renderpass* pass = &self->passes[0];
+        if (!renderer_renderpass_begin(pass, &pass->targets[p_frame_data->render_target_index]))
         {
-            BERROR("render_view_world_on_render pass index %u failed to start", p);
+            BERROR("render_view_world_on_render skybox pass failed to start");
             return false;
         }
 
+        // Skybox first.
+        if (packet->skybox_data.sb)
+        {
+            shader_system_use_by_id(data->skybox_shader->id);
+
+            // Get view matrix, but zero out the position so the skybox stays put on screen
+            mat4 view_matrix = camera_view_get(data->world_camera);
+            view_matrix.data[12] = 0.0f;
+            view_matrix.data[13] = 0.0f;
+            view_matrix.data[14] = 0.0f;
+
+            // Apply globals
+            // TODO: Bind by id
+            renderer_shader_bind_globals(shader_system_get_by_id(shader_id));
+            if (!shader_system_uniform_set_by_index(data->skybox_locations.projection_location, &packet->projection_matrix))
+            {
+                BERROR("Failed to apply skybox projection uniform");
+                return false;
+            }
+            if (!shader_system_uniform_set_by_index(data->skybox_locations.view_location, &view_matrix))
+            {
+                BERROR("Failed to apply skybox view uniform");
+                return false;
+            }
+            shader_system_apply_global(true);
+
+            // Instance
+            shader_system_bind_instance(packet->skybox_data.sb->instance_id);
+            if (!shader_system_uniform_set_by_index(data->skybox_locations.cube_map_location, &packet->skybox_data.sb->cubemap))
+            {
+                BERROR("Failed to apply skybox cube map uniform");
+                return false;
+            }
+            b8 needs_update = packet->skybox_data.sb->render_frame_number != p_frame_data->renderer_frame_number || packet->skybox_data.sb->draw_index != p_frame_data->draw_index;
+            shader_system_apply_instance(needs_update);
+
+            // Sync frame number and draw index
+            packet->skybox_data.sb->render_frame_number = p_frame_data->renderer_frame_number;
+            packet->skybox_data.sb->draw_index = p_frame_data->draw_index;
+
+            // Draw it
+            geometry_render_data render_data = {};
+            render_data.geometry = packet->skybox_data.sb->g;
+            renderer_geometry_draw(&render_data);
+        }
+
+        if (!renderer_renderpass_end(pass))
+        {
+            BERROR("render_view_world_on_render skybox pass failed to end");
+            return false;
+        }
+    }
+
+    // World renderpass
+    {
+        renderpass* pass = &self->passes[1];
+        if (!renderer_renderpass_begin(pass, &pass->targets[p_frame_data->render_target_index]))
+        {
+            BERROR("render_view_world_on_render world pass failed to start");
+            return false;
+        }
         // Use appropriate shader and apply global uniforms
         u32 terrain_count = packet->terrain_geometry_count;
         if(terrain_count > 0)
@@ -364,7 +448,7 @@ b8 render_view_world_on_render(const struct render_view* self, const struct rend
             shader_system_use_by_id(s->id);
 
             // Apply globals
-            if (!material_system_apply_global(s->id, frame_number, &packet->projection_matrix, &packet->view_matrix, &packet->ambient_color, &packet->view_position, data->render_mode))
+            if (!material_system_apply_global(s->id, p_frame_data->renderer_frame_number, p_frame_data->draw_index, &packet->projection_matrix, &packet->view_matrix, &packet->ambient_color, &packet->view_position, data->render_mode))
             {
                 BERROR("Failed to use apply globals for terrain shader. Render frame failed");
                 return false;
@@ -377,7 +461,7 @@ b8 render_view_world_on_render(const struct render_view* self, const struct rend
                 else
                     m = material_system_get_default_terrain();
 
-                b8 needs_update = m->render_frame_number != frame_number;
+                b8 needs_update = m->render_frame_number != p_frame_data->renderer_frame_number || m->render_draw_index != p_frame_data->draw_index;
                 if (!material_system_apply_instance(m, needs_update))
                 {
                     BWARN("Failed to apply terrain material '%s'. Skipping draw", m->name);
@@ -385,8 +469,9 @@ b8 render_view_world_on_render(const struct render_view* self, const struct rend
                 }
                 else
                 {
-                    // Sync frame number
-                    m->render_frame_number = frame_number;
+                    // Sync frame number and draw index
+                    m->render_frame_number = p_frame_data->renderer_frame_number;
+                    m->render_draw_index = p_frame_data->draw_index;
                 }
 
                 // Apply the locals
@@ -409,7 +494,7 @@ b8 render_view_world_on_render(const struct render_view* self, const struct rend
 
             // Apply globals
             // TODO: Find generic way to request data such as ambient color and mode
-            if (!material_system_apply_global(shader_id, frame_number, &packet->projection_matrix, &packet->view_matrix, &packet->ambient_color, &packet->view_position, data->render_mode))
+            if (!material_system_apply_global(shader_id, p_frame_data->renderer_frame_number, p_frame_data->draw_index, &packet->projection_matrix, &packet->view_matrix, &packet->ambient_color, &packet->view_position, data->render_mode))
             {
                 BERROR("Failed to use apply globals for material shader. Render frame failed");
                 return false;
@@ -425,7 +510,7 @@ b8 render_view_world_on_render(const struct render_view* self, const struct rend
                 else
                     m = material_system_get_default();
 
-                b8 needs_update = m->render_frame_number != frame_number;
+                b8 needs_update = m->render_frame_number != p_frame_data->renderer_frame_number || m->render_draw_index != p_frame_data->draw_index;
                 if (!material_system_apply_instance(m, needs_update))
                 {
                     BWARN("Failed to apply material '%s'. Skipping draw", m->name);
@@ -433,8 +518,9 @@ b8 render_view_world_on_render(const struct render_view* self, const struct rend
                 }
                 else
                 {
-                    // Sync frame number
-                    m->render_frame_number = frame_number;
+                    // Sync frame number and draw index
+                    m->render_frame_number = p_frame_data->renderer_frame_number;
+                    m->render_draw_index = p_frame_data->draw_index;
                 }
 
                 // Apply the locals
@@ -483,12 +569,12 @@ b8 render_view_world_on_render(const struct render_view* self, const struct rend
             }
 
             // HACK: This should be handled every frame by shader system
-            s->render_frame_number = frame_number;
+            s->render_frame_number = p_frame_data->renderer_frame_number;
         }
 
         if (!renderer_renderpass_end(pass))
         {
-            BERROR("render_view_world_on_render pass index %u failed to end", p);
+            BERROR("render_view_world_on_render world pass failed to end");
             return false;
         }
     }

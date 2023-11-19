@@ -10,6 +10,7 @@
 #include "platform/platform.h"
 #include "platform/vulkan_platform.h"
 #include "renderer/renderer_frontend.h"
+#include "renderer/viewport.h"
 #include "resources/resource_types.h"
 #include "systems/material_system.h"
 #include "systems/resource_system.h"
@@ -559,7 +560,7 @@ void vulkan_renderer_backend_on_resized(renderer_plugin* plugin, u16 width, u16 
     BINFO("Vulkan renderer plugin->resized: w/h/gen: %i/%i/%llu", width, height, context->framebuffer_size_generation);
 }
 
-b8 vulkan_renderer_backend_frame_begin(renderer_plugin* plugin, const struct frame_data* p_frame_data)
+b8 vulkan_renderer_frame_prepare(renderer_plugin *plugin, struct frame_data *p_frame_data)
 {
     vulkan_context* context = (vulkan_context*)plugin->internal_context;
     vulkan_device* device = &context->device;
@@ -621,24 +622,34 @@ b8 vulkan_renderer_backend_frame_begin(renderer_plugin* plugin, const struct fra
         return false;
     }
 
+    return true;
+}
+
+b8 vulkan_renderer_begin(renderer_plugin *plugin, struct frame_data *p_frame_data)
+{
+    vulkan_context *context = (vulkan_context*)plugin->internal_context;
     // Begin recording commands
-    vulkan_command_buffer* command_buffer = &context->graphics_command_buffers[context->image_index];
+    vulkan_command_buffer *command_buffer = &context->graphics_command_buffers[context->image_index];
+
+    // Wait for execution of the current frame to complete. Fence being free will allow this one to move on
+    VkResult result = vkWaitForFences(
+        context->device.logical_device, 1,
+        &context->in_flight_fences[context->current_frame], true, 0xffffffffffffffff);
+    if (!vulkan_result_is_success(result))
+    {
+        BFATAL("In-flight fence wait failure! error: %s", vulkan_result_string(result, true));
+        return false;
+    }
+
     vulkan_command_buffer_reset(command_buffer);
     vulkan_command_buffer_begin(command_buffer, false, false, false);
-
-    // Dynamic state
-    context->viewport_rect = (vec4){0.0f, (f32)context->framebuffer_height, (f32)context->framebuffer_width, -(f32)context->framebuffer_height};
-    vulkan_renderer_viewport_set(plugin, context->viewport_rect);
-
-    context->scissor_rect = (vec4){0, 0, context->framebuffer_width, context->framebuffer_height};
-    vulkan_renderer_scissor_set(plugin, context->scissor_rect);
 
     vulkan_renderer_winding_set(plugin, RENDERER_WINDING_COUNTER_CLOCKWISE);
 
     return true;
 }
 
-b8 vulkan_renderer_backend_frame_end(renderer_plugin* plugin, const struct frame_data* p_frame_data)
+b8 vulkan_renderer_end(renderer_plugin *plugin, struct frame_data *p_frame_data)
 {
     vulkan_context* context = (vulkan_context*)plugin->internal_context;
     vulkan_command_buffer* command_buffer = &context->graphics_command_buffers[context->image_index];
@@ -659,7 +670,8 @@ b8 vulkan_renderer_backend_frame_end(renderer_plugin* plugin, const struct frame
     // Reset the fence for use on the next frame
     VK_CHECK(vkResetFences(context->device.logical_device, 1, &context->in_flight_fences[context->current_frame]));
 
-    // Submit the queue and wait for the operation to complete. Begin queue submission
+    // Submit the queue and wait for the operation to complete
+    // Begin queue submission
     VkSubmitInfo submit_info = {VK_STRUCTURE_TYPE_SUBMIT_INFO};
 
     // Command buffer(s) to be executed
@@ -667,12 +679,26 @@ b8 vulkan_renderer_backend_frame_end(renderer_plugin* plugin, const struct frame
     submit_info.pCommandBuffers = &command_buffer->handle;
 
     // The semaphore(s) to be signaled when the queue is complete
-    submit_info.signalSemaphoreCount = 1;
-    submit_info.pSignalSemaphores = &context->queue_complete_semaphores[context->current_frame];
+    if (plugin->draw_index == 0)
+    {
+        submit_info.signalSemaphoreCount = 1;
+        submit_info.pSignalSemaphores = &context->queue_complete_semaphores[context->current_frame];
+    }
+    else
+    {
+        submit_info.signalSemaphoreCount = 0;
+    }
 
     // Wait semaphore ensures that the operation cannot begin until the image is available
-    submit_info.waitSemaphoreCount = 1;
-    submit_info.pWaitSemaphores = &context->image_available_semaphores[context->current_frame];
+    if (plugin->draw_index == 0)
+    {
+        submit_info.waitSemaphoreCount = 1;
+        submit_info.pWaitSemaphores = &context->image_available_semaphores[context->current_frame];
+    }
+    else
+    {
+        submit_info.waitSemaphoreCount = 0;
+    }
 
     // Each semaphore waits on the corresponding pipeline stage to complete. 1:1 ratio
     VkPipelineStageFlags flags[1] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
@@ -689,8 +715,16 @@ b8 vulkan_renderer_backend_frame_end(renderer_plugin* plugin, const struct frame
         return false;
     }
 
-    // End queue submission
     vulkan_command_buffer_update_submitted(command_buffer);
+    // End queue submission
+
+    return true;
+}
+
+b8 vulkan_renderer_present(renderer_plugin* plugin, struct frame_data* p_frame_data)
+{
+    // Cold-cast the context
+    vulkan_context* context = (vulkan_context*)plugin->internal_context;
 
     // Give the image back to the swapchain
     vulkan_swapchain_present(
@@ -786,13 +820,15 @@ b8 vulkan_renderer_renderpass_begin(renderer_plugin* plugin, renderpass* pass, r
     // Begin render pass
     vulkan_renderpass* internal_data = pass->internal_data;
 
+    viewport* v = renderer_active_viewport_get();
+
     VkRenderPassBeginInfo begin_info = {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
     begin_info.renderPass = internal_data->handle;
     begin_info.framebuffer = target->internal_framebuffer;
-    begin_info.renderArea.offset.x = pass->render_area.x;
-    begin_info.renderArea.offset.y = pass->render_area.y;
-    begin_info.renderArea.extent.width = pass->render_area.z;
-    begin_info.renderArea.extent.height = pass->render_area.w;
+    begin_info.renderArea.offset.x = v->rect.x;
+    begin_info.renderArea.offset.y = v->rect.y;
+    begin_info.renderArea.extent.width = v->rect.width;
+    begin_info.renderArea.extent.height = v->rect.height;
 
     begin_info.clearValueCount = 0;
     begin_info.pClearValues = 0;
@@ -2064,6 +2100,8 @@ b8 vulkan_renderer_shader_use(renderer_plugin* plugin, shader* shader)
     vulkan_shader* s = shader->internal_data;
     vulkan_command_buffer *command_buffer = &context->graphics_command_buffers[context->image_index];
     vulkan_pipeline_bind(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s->pipelines[s->bound_pipeline_index]);
+
+    context->bound_shader = shader;
 
     // Make sure to use current bound type as well
     if (context->device.support_flags & VULKAN_DEVICE_SUPPORT_FLAG_NATIVE_DYNAMIC_TOPOLOGY_BIT)

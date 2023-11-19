@@ -66,18 +66,20 @@ typedef union vec4_u
             union
             {
                 // Third element
-                f32 z, b, p;
+                f32 z, b, p, width;
             };
             union
             {
                 // Fourth element
-                f32 w, a, q;
+                f32 w, a, q, height;
             };
         };
     };
 } vec4;
 
 typedef vec4 quat;
+
+typedef vec4 rect_2d;
 
 /** @brief 3x3 matrix */
 typedef union mat3_u

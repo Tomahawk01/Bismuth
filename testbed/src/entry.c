@@ -14,11 +14,14 @@ b8 load_game_lib(application* app)
     // Dynamically load game library
     if (!platform_dynamic_library_load("testbed_lib_loaded", &app->game_library))
         return false;
+
     if (!platform_dynamic_library_load_function("application_boot", &app->game_library))
         return false;
     if (!platform_dynamic_library_load_function("application_initialize", &app->game_library))
         return false;
     if (!platform_dynamic_library_load_function("application_update", &app->game_library))
+        return false;
+    if (!platform_dynamic_library_load_function("application_prepare_render_packet", &app->game_library))
         return false;
     if (!platform_dynamic_library_load_function("application_render", &app->game_library))
         return false;
@@ -35,11 +38,12 @@ b8 load_game_lib(application* app)
     app->boot = app->game_library.functions[0].pfn;
     app->initialize = app->game_library.functions[1].pfn;
     app->update = app->game_library.functions[2].pfn;
-    app->render = app->game_library.functions[3].pfn;
-    app->on_resize = app->game_library.functions[4].pfn;
-    app->shutdown = app->game_library.functions[5].pfn;
-    app->lib_on_load = app->game_library.functions[6].pfn;
-    app->lib_on_unload = app->game_library.functions[7].pfn;
+    app->prepare_render_packet = app->game_library.functions[3].pfn;
+    app->render = app->game_library.functions[4].pfn;
+    app->on_resize = app->game_library.functions[5].pfn;
+    app->shutdown = app->game_library.functions[6].pfn;
+    app->lib_on_load = app->game_library.functions[7].pfn;
+    app->lib_on_unload = app->game_library.functions[8].pfn;
 
     app->lib_on_load(app);
 

@@ -463,7 +463,8 @@ typedef struct material
 
     u32 shader_id;
 
-    u32 render_frame_number;
+    u64 render_frame_number;
+    u64 render_draw_index;
 } material;
 
 typedef struct skybox_simple_scene_config

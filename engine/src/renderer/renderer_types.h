@@ -9,6 +9,7 @@ struct shader;
 struct shader_uniform;
 struct frame_data;
 struct terrain;
+struct viewport;
 
 typedef struct geometry_render_data
 {
@@ -49,6 +50,12 @@ typedef enum render_target_attachment_store_operation
     RENDER_TARGET_ATTACHMENT_STORE_OPERATION_DONT_CARE = 0x0,
     RENDER_TARGET_ATTACHMENT_STORE_OPERATION_STORE = 0x1
 } render_target_attachment_store_operation;
+
+typedef enum renderer_projection_matrix_type
+{
+    RENDERER_PROJECTION_MATRIX_TYPE_PERSPECTIVE = 0x0,
+    RENDERER_PROJECTION_MATRIX_TYPE_ORTHOGRAPHIC = 0x1
+} renderer_projection_matrix_type;
 
 typedef struct render_target_attachment_config
 {
@@ -168,6 +175,8 @@ typedef struct renderer_plugin
 {
     u64 frame_number;
 
+    u8 draw_index;
+
     u64 internal_context_size;
     void* internal_context;
 
@@ -176,8 +185,10 @@ typedef struct renderer_plugin
 
     void (*resized)(struct renderer_plugin* plugin, u16 width, u16 height);
 
-    b8 (*frame_begin)(struct renderer_plugin* plugin, const struct frame_data* p_frame_data);
-    b8 (*frame_end)(struct renderer_plugin* plugin, const struct frame_data* p_frame_data);
+    b8 (*frame_prepare)(struct renderer_plugin* plugin, struct frame_data* p_frame_data);
+    b8 (*begin)(struct renderer_plugin* plugin, struct frame_data* p_frame_data);
+    b8 (*end)(struct renderer_plugin* plugin, struct frame_data* p_frame_data);
+    b8 (*present)(struct renderer_plugin* plugin, struct frame_data* p_frame_data);
 
     void (*viewport_set)(struct renderer_plugin* plugin, vec4 rect);
     void (*viewport_reset)(struct renderer_plugin* plugin);
@@ -285,21 +296,28 @@ typedef struct render_view
 
     void (*on_resize)(struct render_view* self, u32 width, u32 height);
 
-    b8 (*on_packet_build)(const struct render_view* self, struct linear_allocator* frame_allocator, void* data, struct render_view_packet* out_packet);
+    b8 (*on_packet_build)(const struct render_view* self, struct frame_data* p_frame_data, struct viewport* v, void* data, struct render_view_packet* out_packet);
     void (*on_packet_destroy)(const struct render_view* self, struct render_view_packet* packet);
 
-    b8 (*on_render)(const struct render_view* self, const struct render_view_packet* packet, u64 frame_number, u64 render_target_index, const struct frame_data* p_frame_data);
+    b8 (*on_render)(const struct render_view* self, const struct render_view_packet* packet, const struct frame_data* p_frame_data);
 
     b8 (*attachment_target_regenerate)(struct render_view* self, u32 pass_index, struct render_target_attachment* attachment);
 } render_view;
 
+typedef struct skybox_packet_data
+{
+    struct skybox* sb;
+} skybox_packet_data;
+
 typedef struct render_view_packet
 {
+    struct viewport* vp;
     const render_view* view;
     mat4 view_matrix;
     mat4 projection_matrix;
     vec3 view_position;
     vec4 ambient_color;
+    skybox_packet_data skybox_data;
     u32 geometry_count;
     geometry_render_data* geometries;
     u32 terrain_geometry_count;
@@ -340,11 +358,6 @@ typedef struct pick_packet_data
 } pick_packet_data;
 
 struct skybox;
-
-typedef struct skybox_packet_data
-{
-    struct skybox* sb;
-} skybox_packet_data;
 
 typedef struct render_packet
 {

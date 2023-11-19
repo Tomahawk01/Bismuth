@@ -3,6 +3,7 @@
 #include "core/logger.h"
 #include "core/bmemory.h"
 #include "core/event.h"
+#include "core/frame_data.h"
 #include "math/bmath.h"
 #include "math/transform.h"
 #include "memory/linear_allocator.h"
@@ -12,14 +13,12 @@
 #include "systems/render_view_system.h"
 #include "systems/shader_system.h"
 #include "renderer/renderer_frontend.h"
+#include "renderer/viewport.h"
 #include "resources/ui_text.h"
 
 typedef struct render_view_ui_internal_data
 {
     shader* s;
-    f32 near_clip;
-    f32 far_clip;
-    mat4 projection_matrix;
     mat4 view_matrix;
     u16 diffuse_map_location;
     u16 properties_location;
@@ -71,12 +70,7 @@ b8 render_view_ui_on_registered(struct render_view* self)
         data->diffuse_map_location = shader_system_uniform_index(data->s, "diffuse_texture");
         data->properties_location = shader_system_uniform_index(data->s, "properties");
         data->model_location = shader_system_uniform_index(data->s, "model");
-        // TODO: Set from configuration
-        data->near_clip = -100.0f;
-        data->far_clip = 100.0f;
 
-        // Default
-        data->projection_matrix = mat4_orthographic(0.0f, 1280.0f, 720.0f, 0.0f, data->near_clip, data->far_clip);
         data->view_matrix = mat4_identity();
 
         if (!event_register(EVENT_CODE_DEFAULT_RENDERTARGET_REFRESH_REQUIRED, self, render_view_on_event))
@@ -108,23 +102,14 @@ void render_view_ui_on_resize(struct render_view* self, u32 width, u32 height)
     // Check if different. If so, regenerate projection matrix
     if (width != self->width || height != self->height)
     {
-        render_view_ui_internal_data* data = self->internal_data;
+        // render_view_ui_internal_data* data = self->internal_data;
 
         self->width = width;
         self->height = height;
-        data->projection_matrix = mat4_orthographic(0.0f, (f32)self->width, (f32)self->height, 0.0f, data->near_clip, data->far_clip);
-
-        for (u32 i = 0; i < self->renderpass_count; ++i)
-        {
-            self->passes[i].render_area.x = 0;
-            self->passes[i].render_area.y = 0;
-            self->passes[i].render_area.z = width;
-            self->passes[i].render_area.w = height;
-        }
     }
 }
 
-b8 render_view_ui_on_packet_build(const struct render_view* self, struct linear_allocator* frame_allocator, void* data, struct render_view_packet* out_packet)
+b8 render_view_ui_on_packet_build(const struct render_view* self, struct frame_data* p_frame_data, struct viewport* v, void* data, struct render_view_packet* out_packet)
 {
     if (!self || !data || !out_packet)
     {
@@ -137,13 +122,14 @@ b8 render_view_ui_on_packet_build(const struct render_view* self, struct linear_
 
     out_packet->geometries = darray_create(geometry_render_data);
     out_packet->view = self;
+    out_packet->vp = v;
 
     // Set matrices, etc
-    out_packet->projection_matrix = internal_data->projection_matrix;
+    out_packet->projection_matrix = v->projection;
     out_packet->view_matrix = internal_data->view_matrix;
 
     // TODO: temp
-    out_packet->extended_data = linear_allocator_allocate(frame_allocator, sizeof(ui_packet_data));
+    out_packet->extended_data = linear_allocator_allocate(p_frame_data->frame_allocator, sizeof(ui_packet_data));
     bcopy_memory(out_packet->extended_data, packet_data, sizeof(ui_packet_data));
 
     // Obtain all geometries from the current scene.
@@ -170,15 +156,18 @@ void render_view_ui_on_packet_destroy(const struct render_view* self, struct ren
     bzero_memory(packet, sizeof(render_view_packet));
 }
 
-b8 render_view_ui_on_render(const struct render_view* self, const struct render_view_packet* packet, u64 frame_number, u64 render_target_index, const struct frame_data* p_frame_data)
+b8 render_view_ui_on_render(const struct render_view* self, const struct render_view_packet* packet, const struct frame_data* p_frame_data)
 {
     render_view_ui_internal_data* data = self->internal_data;
     u32 shader_id = data->s->id;
 
+    // Bind viewport
+    renderer_active_viewport_set(packet->vp);
+
     for (u32 p = 0; p < self->renderpass_count; ++p)
     {
         renderpass* pass = &self->passes[p];
-        if (!renderer_renderpass_begin(pass, &pass->targets[render_target_index]))
+        if (!renderer_renderpass_begin(pass, &pass->targets[p_frame_data->render_target_index]))
         {
             BERROR("render_view_ui_on_render pass index %u failed to start", p);
             return false;
@@ -191,7 +180,7 @@ b8 render_view_ui_on_render(const struct render_view* self, const struct render_
         }
 
         // Apply globals
-        if (!material_system_apply_global(shader_id, frame_number, &packet->projection_matrix, &packet->view_matrix, 0, 0, 0))
+        if (!material_system_apply_global(shader_id, p_frame_data->renderer_frame_number, p_frame_data->draw_index, &packet->projection_matrix, &packet->view_matrix, 0, 0, 0))
         {
             BERROR("Failed to use apply globals for material shader. Render frame failed");
             return false;
@@ -208,7 +197,7 @@ b8 render_view_ui_on_render(const struct render_view* self, const struct render_
                 m = material_system_get_default_ui();
 
             // Update material if it hasn't already been this frame. This keeps same material from being updated multiple times
-            b8 needs_update = m->render_frame_number != frame_number;
+            b8 needs_update = m->render_frame_number != p_frame_data->renderer_frame_number;
             if (!material_system_apply_instance(m, needs_update))
             {
                 BWARN("Failed to apply material '%s'. Skipping draw...", m->name);
@@ -217,7 +206,7 @@ b8 render_view_ui_on_render(const struct render_view* self, const struct render_
             else
             {
                 // Sync frame number
-                m->render_frame_number = frame_number;
+                m->render_frame_number = p_frame_data->renderer_frame_number;
             }
 
             // Apply locals
@@ -247,11 +236,12 @@ b8 render_view_ui_on_render(const struct render_view* self, const struct render_
                 BERROR("Failed to apply bitmap font diffuse color uniform");
                 return false;
             }
-            b8 needs_update = text->render_frame_number != frame_number;
+            b8 needs_update = text->render_frame_number != p_frame_data->renderer_frame_number || text->draw_index != p_frame_data->draw_index;
             shader_system_apply_instance(needs_update);
 
-            // Sync frame number
-            text->render_frame_number = frame_number;
+            // Sync frame number and draw index
+            text->render_frame_number = p_frame_data->renderer_frame_number;
+            text->draw_index = p_frame_data->draw_index;
 
             // Apply locals
             mat4 model = transform_world_get(&text->transform);

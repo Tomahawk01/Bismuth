@@ -24,6 +24,7 @@ typedef struct ui_text
     transform transform;
     u32 instance_id;
     u64 render_frame_number;
+    u8 draw_index;
 } ui_text;
 
 BAPI b8 ui_text_create(const char* name, ui_text_type type, const char* font_name, u16 font_size, const char* text_content, ui_text* out_text);
