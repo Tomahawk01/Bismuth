@@ -79,6 +79,7 @@ b8 vulkan_device_create(vulkan_context* context)
     // TODO: Should be driven by engine config
     VkPhysicalDeviceFeatures device_features = {};
     device_features.samplerAnisotropy = VK_TRUE;
+    device_features.fillModeNonSolid = VK_TRUE;
 
     b8 portability_required = false;
     u32 available_extension_count = 0;

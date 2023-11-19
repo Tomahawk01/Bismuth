@@ -67,13 +67,15 @@ static b8 image_loader_load(struct resource_loader* self, const char* name, void
     i32 width;
     i32 height;
     i32 channel_count;
+    // Final result of all operations
+    b8 final_result = false;
 
     u8* raw_data = ballocate(file_size, MEMORY_TAG_TEXTURE);
     if (!raw_data)
     {
         BERROR("Unable to read file '%s'", full_file_path);
         filesystem_close(&f);
-        return false;
+        goto image_loader_load_return;
     }
 
     u64 bytes_read = 0;
@@ -83,23 +85,21 @@ static b8 image_loader_load(struct resource_loader* self, const char* name, void
     if (!read_result)
     {
         BERROR("Unable to read file: '%s'", full_file_path);
-        return false;
+        goto image_loader_load_return;
     }
 
     if (bytes_read != file_size)
     {
         BERROR("File size if %llu does not match expected: %llu", bytes_read, file_size);
-        return false;
+        goto image_loader_load_return;
     }
 
     u8* data = stbi_load_from_memory(raw_data, file_size, &width, &height, &channel_count, required_channel_count);
     if (!data)
     {
         BERROR("Image resource loader failed to load file '%s'", full_file_path);
-        return false;
+        goto image_loader_load_return;
     }
-
-    bfree(raw_data, file_size, MEMORY_TAG_TEXTURE);
 
     image_resource_data* resource_data = ballocate(sizeof(image_resource_data), MEMORY_TAG_TEXTURE);
     resource_data->pixels = data;
@@ -109,8 +109,13 @@ static b8 image_loader_load(struct resource_loader* self, const char* name, void
 
     out_resource->data = resource_data;
     out_resource->data_size = sizeof(image_resource_data);
+    final_result = true;
 
-    return true;
+    // No matter what result, clean and return
+image_loader_load_return:
+    if (raw_data)
+        bfree(raw_data, file_size, MEMORY_TAG_TEXTURE);
+    return final_result;
 }
 
 static void image_loader_unload(struct resource_loader* self, resource* resource)

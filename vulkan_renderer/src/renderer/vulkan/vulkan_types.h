@@ -182,7 +182,6 @@ typedef struct vulkan_pipeline_config
     VkViewport viewport;
     VkRect2D scissor;
     face_cull_mode cull_mode;
-    b8 is_wireframe;
     u32 shader_flags;
     u32 push_constant_range_count;
     range* push_constant_ranges;

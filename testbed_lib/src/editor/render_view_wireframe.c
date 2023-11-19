@@ -1,0 +1,332 @@
+#include "render_view_wireframe.h"
+
+#include <containers/darray.h>
+#include <core/event.h>
+#include <core/frame_data.h>
+#include <core/bmemory.h>
+#include <core/logger.h>
+#include <defines.h>
+#include <math/bmath.h>
+#include <renderer/camera.h>
+#include <renderer/renderer_frontend.h>
+#include <renderer/renderer_types.h>
+#include <renderer/viewport.h>
+#include <systems/render_view_system.h>
+#include <systems/resource_system.h>
+#include <systems/shader_system.h>
+
+typedef struct wireframe_shader_locations
+{
+    u16 projection;
+    u16 view;
+    u16 model;
+    u16 color;
+} wireframe_shader_locations;
+
+typedef struct wireframe_color_instance
+{
+    u32 id;
+    u64 frame_number;
+    u8 draw_index;
+    vec4 color;
+} wireframe_color_instance;
+
+typedef struct wireframe_shader_info
+{
+    shader* s;
+    wireframe_shader_locations locations;
+    // One instance per color drawn
+    wireframe_color_instance normal_instance;
+    wireframe_color_instance selected_instance;
+} wireframe_shader_info;
+
+typedef struct render_view_wireframe_internal_data
+{
+    u32 selected_id;
+
+    wireframe_shader_info mesh_shader;
+    wireframe_shader_info terrain_shader;
+} render_view_wireframe_internal_data;
+
+static b8 render_view_on_event(u16 code, void* sender, void* listener_inst, event_context context)
+{
+    render_view* self = (render_view*)listener_inst;
+    if (!self)
+        return false;
+
+    render_view_wireframe_internal_data* data = (render_view_wireframe_internal_data*)self->internal_data;
+    if (!data)
+        return false;
+
+    switch (code)
+    {
+        case EVENT_CODE_DEFAULT_RENDERTARGET_REFRESH_REQUIRED:
+            render_view_system_render_targets_regenerate(self);
+            // This needs to be consumed by other views, so consider this as not handled
+            return false;
+    }
+
+    // Event not handled to allow other listeners to get this
+    return false;
+}
+
+b8 render_view_wireframe_on_registered(struct render_view* self)
+{
+    if (!self)
+        return false;
+
+    // Setup internal data
+    self->internal_data = ballocate(sizeof(render_view_wireframe_internal_data), MEMORY_TAG_RENDERER);
+    render_view_wireframe_internal_data* data = self->internal_data;
+    data->selected_id = INVALID_ID;
+
+    const char* shader_names[2] = {"Shader.Builtin.Wireframe", "Shader.Builtin.WireframeTerrain"};
+    wireframe_shader_info* shader_infos[2] = {&data->mesh_shader, &data->terrain_shader};
+    vec4 normal_colors[2] = {vec4_create(0.5f, 0.8f, 0.8f, 1.0f), vec4_create(0.8f, 0.8f, 0.5f, 1.0f)};
+
+    for (u32 s = 0; s < 2; ++s)
+    {
+        wireframe_shader_info* info = shader_infos[s];
+        // Load wireframe shader and its locations
+        resource wireframe_shader_config_resource;
+        if (!resource_system_load(shader_names[s], RESOURCE_TYPE_SHADER, 0, &wireframe_shader_config_resource))
+        {
+            BERROR("Failed to load builtin wireframe shader");
+            return false;
+        }
+        shader_config* wireframe_shader_config = wireframe_shader_config_resource.data;
+        if (!shader_system_create(&self->passes[0], wireframe_shader_config))
+        {
+            BERROR("Failed to load builtin wireframe shader");
+            return false;
+        }
+        resource_system_unload(&wireframe_shader_config_resource);
+
+        info->s = shader_system_get(shader_names[s]);
+        info->locations.projection = shader_system_uniform_index(info->s, "projection");
+        info->locations.view = shader_system_uniform_index(info->s, "view");
+        info->locations.model = shader_system_uniform_index(info->s, "model");
+        info->locations.color = shader_system_uniform_index(info->s, "color");
+
+        // Acquire shader instance resources
+        info->normal_instance = (wireframe_color_instance){0};
+        info->normal_instance.color = normal_colors[s];
+        if (!renderer_shader_instance_resources_acquire(info->s, 0, 0, &info->normal_instance.id))
+        {
+            BERROR("Unable to acquire geometry shader instance resources from wireframe shader");
+            return false;
+        }
+
+        info->selected_instance = (wireframe_color_instance){0};
+        info->selected_instance.color = vec4_create(0.0f, 1.0f, 0.0f, 1.0f);
+        if (!renderer_shader_instance_resources_acquire(info->s, 0, 0, &info->selected_instance.id))
+        {
+            BERROR("Unable to acquire selected shader instance resources from wireframe shader");
+            return false;
+        }
+    }
+
+    // Register for events
+    if (!event_register(EVENT_CODE_DEFAULT_RENDERTARGET_REFRESH_REQUIRED, self, render_view_on_event))
+    {
+        BERROR("Unable to listen for refresh required event. Creation failed");
+        return false;
+    }
+
+    return true;
+}
+
+void render_view_wireframe_on_destroy(struct render_view* self)
+{
+    if (!self)
+        return;
+
+    render_view_wireframe_internal_data* internal_data = self->internal_data;
+
+    // Unregister from the event
+    event_unregister(EVENT_CODE_DEFAULT_RENDERTARGET_REFRESH_REQUIRED, self, render_view_on_event);
+
+    // Release shader instance resources
+    renderer_shader_instance_resources_release(internal_data->mesh_shader.s, internal_data->mesh_shader.normal_instance.id);
+    renderer_shader_instance_resources_release(internal_data->mesh_shader.s, internal_data->mesh_shader.selected_instance.id);
+    renderer_shader_instance_resources_release(internal_data->terrain_shader.s, internal_data->terrain_shader.normal_instance.id);
+    renderer_shader_instance_resources_release(internal_data->terrain_shader.s, internal_data->terrain_shader.selected_instance.id);
+
+    // Free internal data structure
+    bfree(self->internal_data, sizeof(render_view_wireframe_internal_data), MEMORY_TAG_RENDERER);
+    self->internal_data = 0;
+}
+
+void render_view_wireframe_on_resize(struct render_view* self, u32 width, u32 height)
+{
+    if (self)
+    {
+        if (width != self->width || height != self->height)
+        {
+            self->width = width;
+            self->height = height;
+        }
+    }
+}
+
+b8 render_view_wireframe_on_packet_build(const struct render_view* self, struct frame_data* p_frame_data, struct viewport* v, struct camera* c, void* data, struct render_view_packet* out_packet)
+{
+    if (!self || !data || !out_packet)
+    {
+        BWARN("render_view_wireframe_on_packet_build requires a valid pointer to view, packet and data");
+        return false;
+    }
+
+    render_view_wireframe_data* world_data = data;
+    render_view_wireframe_internal_data* internal_data = self->internal_data;
+
+    out_packet->geometries = 0;
+    out_packet->view = self;
+    out_packet->vp = v;
+
+    // Set matrices, etc
+    out_packet->projection_matrix = v->projection;
+    out_packet->view_matrix = camera_view_get(c);
+    out_packet->view_position = camera_position_get(c);
+
+    internal_data->selected_id = world_data->selected_id;
+
+    wireframe_shader_info* infos[2] = {&internal_data->mesh_shader, &internal_data->terrain_shader};
+    geometry_render_data* source_arrays[2] = {world_data->world_geometries, world_data->terrain_geometries};
+    u32* counts[2] = {&out_packet->geometry_count, &out_packet->terrain_geometry_count};
+    geometry_render_data** target_arrays[2] = {&out_packet->geometries, &out_packet->terrain_geometries};
+
+    for (u32 s = 0; s < 2; ++s)
+    {
+        // Reset draw indices
+        infos[s]->normal_instance.draw_index = 0;
+        infos[s]->selected_instance.draw_index = 0;
+
+        geometry_render_data* source_array = source_arrays[s];
+        if (source_array)
+        {
+            u32 geometry_data_count = darray_length(source_array);
+            *counts[s] = geometry_data_count;
+            if (geometry_data_count)
+            {
+                // For this view, render everything provided
+                *target_arrays[s] = p_frame_data->allocator.allocate(sizeof(geometry_render_data) * geometry_data_count);
+                for (u32 i = 0; i < geometry_data_count; ++i)
+                {
+                    geometry_render_data* render_data = &((*target_arrays[s])[i]);
+                    render_data->unique_id = source_array[i].unique_id;
+                    render_data->geometry = source_array[i].geometry;
+                    render_data->model = source_array[i].model;
+                    render_data->winding_inverted = source_array[i].winding_inverted;
+                }
+            }
+        }
+    }
+
+    return true;
+}
+
+void render_view_wireframe_on_packet_destroy(const struct render_view* self, struct render_view_packet* packet)
+{
+    if (self)
+    {
+        // NOTE: Nothing to do
+    }
+}
+b8 render_view_wireframe_on_render(const struct render_view* self, const struct render_view_packet* packet, struct frame_data* p_frame_data)
+{
+    if (self)
+    {
+        render_view_wireframe_internal_data* internal_data = self->internal_data;
+
+        // Bind viewport
+        renderer_active_viewport_set(packet->vp);
+
+        // NOTE: First renderpass is the only one
+        renderpass* pass = &self->passes[0];
+
+        if (!renderer_renderpass_begin(pass, &pass->targets[p_frame_data->render_target_index]))
+        {
+            BERROR("render_view_wireframe_on_render render pass failed to start");
+            return false;
+        }
+
+        wireframe_shader_info* infos[2] = {&internal_data->mesh_shader, &internal_data->terrain_shader};
+        u32 counts[2] = {packet->geometry_count, packet->terrain_geometry_count};
+        geometry_render_data* arrays[2] = {packet->geometries, packet->terrain_geometries};
+
+        for (u32 s = 0; s < 2; ++s)
+        {
+            wireframe_shader_info* info = infos[s];
+            geometry_render_data* array = arrays[s];
+
+            shader_system_use_by_id(info->s->id);
+
+            // Set global uniforms
+            renderer_shader_bind_globals(info->s);
+            if (!shader_system_uniform_set_by_index(info->locations.projection, &packet->projection_matrix))
+            {
+                BERROR("Failed to set projection matrix uniform on wireframe shader");
+                return false;
+            }
+            if (!shader_system_uniform_set_by_index(info->locations.view, &packet->view_matrix))
+            {
+                BERROR("Failed to set view matrix uniform on wireframe shader");
+                return false;
+            }
+            shader_system_apply_global(true);
+
+            if (array)
+            {
+                for (u32 i = 0; i < counts[s]; ++i)
+                {
+                    // Set instance uniforms
+                    // Selecting instance allows easy color changing
+                    wireframe_color_instance* inst = 0;
+                    if (array[i].unique_id == internal_data->selected_id)
+                        inst = &info->selected_instance;
+                    else
+                        inst = &info->normal_instance;
+
+                    shader_system_bind_instance(inst->id);
+
+                    b8 needs_update = inst->frame_number != p_frame_data->renderer_frame_number || inst->draw_index != p_frame_data->draw_index;
+                    if (needs_update)
+                    {
+                        if (!shader_system_uniform_set_by_index(info->locations.color, &inst->color))
+                        {
+                            BERROR("Unable to set uniform color for wireframe shader");
+                            return false;
+                        }
+                    }
+
+                    shader_system_apply_instance(needs_update);
+
+                    // Sync frame number and draw index
+                    inst->frame_number = p_frame_data->renderer_frame_number;
+                    inst->draw_index = p_frame_data->draw_index;
+
+                    // Locals
+                    if (!shader_system_uniform_set_by_index(info->locations.model, &array[i].model))
+                    {
+                        BERROR("Failed to apply model matrix uniform for wireframe shader");
+                        return false;
+                    }
+
+                    // Draw it
+                    renderer_geometry_draw(&array[i]);
+                }
+            }
+        }
+
+        // TODO: terrains
+
+        if (!renderer_renderpass_end(pass))
+        {
+            BERROR("render_view_wireframe_on_render Failed to end renderpass");
+            return false;
+        }
+    }
+
+    return true;
+}

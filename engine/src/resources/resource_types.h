@@ -367,8 +367,8 @@ typedef struct shader_config
     // The collection of stage file names to be loaded (one per stage). Must align with stages array. Darray
     char** stage_filenames;
 
-    b8 depth_test;
-    b8 depth_write;
+    // Flags set for this shader
+    u32 flags;
 } shader_config;
 
 typedef enum material_type

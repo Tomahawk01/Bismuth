@@ -1,9 +1,11 @@
 #include "shader_loader.h"
+
 #include "core/logger.h"
 #include "core/bmemory.h"
 #include "core/bstring.h"
 #include "resources/resource_types.h"
 #include "systems/resource_system.h"
+#include "systems/shader_system.h"
 #include "math/bmath.h"
 #include "loader_utils.h"
 #include "containers/darray.h"
@@ -193,11 +195,24 @@ static b8 shader_loader_load(struct resource_loader* self, const char* name, voi
         }
         else if (strings_equali(trimmed_var_name, "depth_test"))
         {
-            string_to_bool(trimmed_value, &resource_data->depth_test);
+            b8 depth_test;
+            string_to_bool(trimmed_value, &depth_test);
+            if (depth_test)
+                resource_data->flags |= SHADER_FLAG_DEPTH_TEST;
         }
         else if (strings_equali(trimmed_var_name, "depth_write"))
         {
-            string_to_bool(trimmed_value, &resource_data->depth_write); 
+            b8 depth_write;
+            string_to_bool(trimmed_value, &depth_write);
+            if (depth_write)
+                resource_data->flags |= SHADER_FLAG_DEPTH_WRITE;
+        }
+        else if (strings_equali(trimmed_var_name, "wireframe"))
+        {
+            b8 wireframe;
+            string_to_bool(trimmed_value, &wireframe);
+            if (wireframe)
+                resource_data->flags |= SHADER_FLAG_WIREFRAME;
         }
         else if (strings_equali(trimmed_var_name, "attribute"))
         {
