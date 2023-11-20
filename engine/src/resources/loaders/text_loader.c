@@ -29,7 +29,7 @@ static b8 text_loader_load(struct resource_loader* self, const char* name, void*
 
     u64 file_size = 0;
     if (!filesystem_size(&f, &file_size)) {
-        BERROR("Unable to text read file: %s", full_file_path);
+        BERROR("Unable to read text file: %s", full_file_path);
         filesystem_close(&f);
         return false;
     }
@@ -39,7 +39,7 @@ static b8 text_loader_load(struct resource_loader* self, const char* name, void*
     u64 read_size = 0;
     if (!filesystem_read_all_text(&f, resource_data, &read_size))
     {
-        BERROR("Unable to text read file: %s", full_file_path);
+        BERROR("Unable to read text file: %s", full_file_path);
         filesystem_close(&f);
         return false;
     }

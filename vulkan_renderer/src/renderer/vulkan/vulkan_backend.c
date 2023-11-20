@@ -807,7 +807,7 @@ void vulkan_renderer_winding_set(struct renderer_plugin *plugin, renderer_windin
     {
         vkCmdSetFrontFace(command_buffer->handle, vk_winding);
     }
-    else if (context->device.support_flags * VULKAN_DEVICE_SUPPORT_FLAG_DYNAMIC_FRONT_FACE_BIT)
+    else if (context->device.support_flags & VULKAN_DEVICE_SUPPORT_FLAG_DYNAMIC_FRONT_FACE_BIT)
     {
         context->vkCmdSetFrontFaceEXT(command_buffer->handle, vk_winding);
     }
