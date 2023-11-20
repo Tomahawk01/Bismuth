@@ -394,4 +394,6 @@ typedef struct vulkan_context
 
     // Pointer to the currently bound shader
     struct shader* bound_shader;
+
+    renderbuffer staging;
 } vulkan_context;

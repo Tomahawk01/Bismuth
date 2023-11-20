@@ -108,6 +108,7 @@ BAPI b8 renderer_renderbuffer_resize(renderbuffer* buffer, u64 new_total_size);
 
 BAPI b8 renderer_renderbuffer_allocate(renderbuffer* buffer, u64 size, u64* out_offset);
 BAPI b8 renderer_renderbuffer_free(renderbuffer* buffer, u64 size, u64 offset);
+BAPI b8 renderer_renderbuffer_clear(renderbuffer* buffer, b8 zero_memory);
 
 BAPI b8 renderer_renderbuffer_load_range(renderbuffer* buffer, u64 offset, u64 size, const void* data);
 BAPI b8 renderer_renderbuffer_copy_range(renderbuffer* source, u64 source_offset, renderbuffer* dest, u64 dest_offset, u64 size);

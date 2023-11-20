@@ -38,12 +38,15 @@ void vulkan_image_transition_layout(
  * @param context The Vulkan context.
  * @param image The image to copy the buffer's data to.
  * @param buffer The buffer whose data will be copied.
+ * @param offset The offset in bytes from the beginning of the buffer.
+ * @param command_buffer A pointer to the command buffer to be used for this operation.
  */
 void vulkan_image_copy_from_buffer(
     vulkan_context* context,
     texture_type type,
     vulkan_image* image,
     VkBuffer buffer,
+    u64 offset,
     vulkan_command_buffer* command_buffer);
 
 void vulkan_image_copy_to_buffer(
