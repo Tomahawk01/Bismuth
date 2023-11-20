@@ -16,26 +16,35 @@
 #include <renderer/camera.h>
 #include <renderer/renderer_frontend.h>
 #include <renderer/renderer_types.h>
+#include <resources/terrain.h>
 
 #include "defines.h"
 #include "game_state.h"
 #include "math/math_types.h"
 #include "renderer/viewport.h"
+#include "resources/loaders/simple_scene_loader.h"
 #include "systems/camera_system.h"
 #include "testbed_types.h"
+
+// Rendergraph and passes
+#include "passes/editor_pass.h"
+#include "passes/scene_pass.h"
+#include "passes/skybox_pass.h"
+#include "passes/ui_pass.h"
+#include "renderer/rendergraph.h"
+
 // Views
-#include "editor/render_view_wireframe.h"
-#include "resources/loaders/simple_scene_loader.h"
-#include "views/render_view_pick.h"
-#include "views/render_view_ui.h"
-#include "views/render_view_world.h"
+// #include "editor/render_view_wireframe.h"
+// #include "views/render_view_pick.h"
+// #include "views/render_view_ui.h"
+// #include "views/render_view_world.h"
 
 // TODO: Editor temp
 #include <resources/debug/debug_box3d.h>
 #include <resources/debug/debug_line3d.h>
 
 #include "editor/editor_gizmo.h"
-#include "editor/render_view_editor_world.h"
+// #include "editor/render_view_editor_world.h"
 
 // TODO: temp
 #include <core/identifier.h>
@@ -47,7 +56,6 @@
 #include <systems/geometry_system.h>
 #include <systems/light_system.h>
 #include <systems/material_system.h>
-#include <systems/render_view_system.h>
 #include <systems/resource_system.h>
 
 #include "debug_console.h"
@@ -55,10 +63,17 @@
 #include "game_keybinds.h"
 // TODO: end temp
 
+typedef struct geometry_distance
+{
+    geometry_render_data g;
+    f32 distance;
+} geometry_distance;
+
 b8 configure_render_views(application_config* config);
 void application_register_events(struct application* game_inst);
 void application_unregister_events(struct application* game_inst);
 static b8 load_main_scene(struct application* game_inst);
+static b8 configure_rendergraph(application* app);
 
 static void clear_debug_objects(struct application* game_inst)
 {
@@ -99,6 +114,27 @@ b8 game_on_event(u16 code, void* sender, void* listener_inst, event_context cont
         case EVENT_CODE_OBJECT_HOVER_ID_CHANGED:
         {
             state->hovered_object_id = context.data.u32[0];
+            return true;
+        }
+        case EVENT_CODE_SET_RENDER_MODE:
+        {
+            i32 mode = context.data.i32[0];
+            switch (mode)
+            {
+                default:
+                case RENDERER_VIEW_MODE_DEFAULT:
+                    BDEBUG("Renderer mode set to default");
+                    state->render_mode = RENDERER_VIEW_MODE_DEFAULT;
+                    break;
+                case RENDERER_VIEW_MODE_LIGHTING:
+                    BDEBUG("Renderer mode set to lighting");
+                    state->render_mode = RENDERER_VIEW_MODE_LIGHTING;
+                    break;
+                case RENDERER_VIEW_MODE_NORMALS:
+                    BDEBUG("Renderer mode set to normals");
+                    state->render_mode = RENDERER_VIEW_MODE_NORMALS;
+                    break;
+            }
             return true;
         }
     }
@@ -419,9 +455,14 @@ b8 application_boot(struct application* game_inst)
     config->font_config.max_system_font_count = 101;
 
     // Configure render views
-    if (!configure_render_views(config))
+    // if (!configure_render_views(config))
+    // {
+    //     BERROR("Failed to configure renderer views. Aborting application...");
+    //     return false;
+    // }
+    if (!configure_rendergraph(game_inst))
     {
-        BERROR("Failed to configure renderer views. Aborting application...");
+        BERROR("Failed to setup render graph. Aboring application...");
         return false;
     }
 
@@ -682,137 +723,324 @@ VSync: %s Drawn: %-5u Hovered: %s%u",
     return true;
 }
 
-b8 application_prepare_render_packet(struct application* app_inst, struct render_packet* packet, struct frame_data* p_frame_data)
+// Quicksort for geometry_distance
+static void gdistance_swap(geometry_distance* a, geometry_distance* b)
+{
+    geometry_distance temp = *a;
+    *a = *b;
+    *b = temp;
+}
+
+static i32 gdistance_partition(geometry_distance arr[], i32 low_index, i32 high_index, b8 ascending)
+{
+    geometry_distance pivot = arr[high_index];
+    i32 i = (low_index - 1);
+
+    for (i32 j = low_index; j <= high_index - 1; ++j)
+    {
+        if (ascending)
+        {
+            if (arr[j].distance < pivot.distance)
+            {
+                ++i;
+                gdistance_swap(&arr[i], &arr[j]);
+            }
+        }
+        else
+        {
+            if (arr[j].distance > pivot.distance)
+            {
+                ++i;
+                gdistance_swap(&arr[i], &arr[j]);
+            }
+        }
+    }
+
+    gdistance_swap(&arr[i + 1], &arr[high_index]);
+    return i + 1;
+}
+
+static void gdistance_quick_sort(geometry_distance arr[], i32 low_index, i32 high_index, b8 ascending)
+{
+    if (low_index < high_index)
+    {
+        i32 partition_index = gdistance_partition(arr, low_index, high_index, ascending);
+
+        // Independently sort elements before and after partition index
+        gdistance_quick_sort(arr, low_index, partition_index - 1, ascending);
+        gdistance_quick_sort(arr, partition_index + 1, high_index, ascending);
+    }
+}
+
+b8 application_prepare_frame(struct application* app_inst, struct frame_data* p_frame_data)
 {
     testbed_game_state* state = (testbed_game_state*)app_inst->state;
     if (!state->running)
-        return true;
+        return false;
 
-    packet->view_count = 4;
-    packet->views = p_frame_data->allocator.allocate(sizeof(render_view_packet) * packet->view_count);
+    // Skybox pass
+    // This pass must always run, as it is what clears the screen
+    skybox_pass_extended_data* skybox_pass_ext_data = state->skybox_pass.pass_data.ext_data;
+    state->skybox_pass.pass_data.vp = &state->world_viewport;
+    camera* current_camera = state->world_camera;
+    state->skybox_pass.pass_data.view_matrix = camera_view_get(current_camera);
+    state->skybox_pass.pass_data.view_position = camera_position_get(current_camera);
+    state->skybox_pass.pass_data.projection_matrix = state->world_viewport.projection;
+    state->skybox_pass.pass_data.do_execute = true;
 
-    // TODO: Cache it instead of lookups every frame
-    // packet->views[TESTBED_PACKET_VIEW_SKYBOX].view = render_view_system_get("skybox");
-    packet->views[TESTBED_PACKET_VIEW_WORLD].view = render_view_system_get("world");
-    packet->views[TESTBED_PACKET_VIEW_EDITOR_WORLD].view = render_view_system_get("editor_world");
-    packet->views[TESTBED_PACKET_VIEW_WIREFRAME].view = render_view_system_get("wireframe");
-    packet->views[TESTBED_PACKET_VIEW_UI].view = render_view_system_get("ui");
-    // packet->views[TESTBED_PACKET_VIEW_PICK].view = render_view_system_get("pick");
-
-    // Tell scene to generate relevant packet data
-    // NOTE: Generates skybox and world packets
+    // Tell our scene to generate relevant packet data. NOTE: Generates skybox and world packets
     if (state->main_scene.state == SIMPLE_SCENE_STATE_LOADED)
     {
-        if (!simple_scene_populate_render_packet(&state->main_scene, state->world_camera, &state->world_viewport, p_frame_data, packet))
         {
-            BERROR("Failed populare render packet for main scene");
-            return false;
+            skybox_pass_ext_data->sb = state->main_scene.sb;
         }
-    }
-    else
-    {
-        // Make sure they at least have a viewport
-        // packet->views[TESTBED_PACKET_VIEW_SKYBOX].vp = &state->world_viewport;
-        packet->views[TESTBED_PACKET_VIEW_WORLD].vp = &state->world_viewport;
-    }
 
-    // HACK: Inject debug geometries into world packet
-    if (state->main_scene.state == SIMPLE_SCENE_STATE_LOADED)
-    {
-        u32 line_count = darray_length(state->test_lines);
-        for (u32 i = 0; i < line_count; ++i)
         {
-            geometry_render_data rd = {0};
-            rd.model = transform_world_get(&state->test_lines[i].xform);
-            rd.geometry = &state->test_lines[i].geo;
-            rd.unique_id = INVALID_ID_U16;
-            darray_push(packet->views[TESTBED_PACKET_VIEW_WORLD].debug_geometries, rd);
-            packet->views[TESTBED_PACKET_VIEW_WORLD].debug_geometry_count++;
+            // Enable this pass for this frame
+            state->scene_pass.pass_data.do_execute = true;
+            state->scene_pass.pass_data.vp = &state->world_viewport;
+            camera* current_camera = state->world_camera;
+            state->scene_pass.pass_data.view_matrix = camera_view_get(current_camera);
+            state->scene_pass.pass_data.view_position = camera_position_get(current_camera);
+            state->scene_pass.pass_data.projection_matrix = state->world_viewport.projection;
+
+            scene_pass_extended_data* ext_data = state->scene_pass.pass_data.ext_data;
+            // TODO: Get from scene
+            ext_data->ambient_color = (vec4){0.25f, 0.25f, 0.25f, 1.0f};
+            ext_data->render_mode = state->render_mode;
+
+            // Populate scene pass data
+            viewport* v = &state->world_viewport;
+            simple_scene* scene = &state->main_scene;
+
+            // Update frustum
+            vec3 forward = camera_forward(current_camera);
+            vec3 right = camera_right(current_camera);
+            vec3 up = camera_up(current_camera);
+            frustum f = frustum_create(&current_camera->position, &forward, &right, &up, v->rect.width / v->rect.height, v->fov, v->near_clip, v->far_clip);
+
+            p_frame_data->drawn_mesh_count = 0;
+
+            ext_data->geometries = darray_reserve_with_allocator(geometry_render_data, 512, &p_frame_data->allocator);
+            geometry_distance* transparent_geometries = darray_create_with_allocator(geometry_distance, &p_frame_data->allocator);
+
+            u32 mesh_count = darray_length(scene->meshes);
+            for (u32 i = 0; i < mesh_count; ++i)
+            {
+                mesh* m = &scene->meshes[i];
+                if (m->generation != INVALID_ID_U8)
+                {
+                    mat4 model = transform_world_get(&m->transform);
+                    b8 winding_inverted = m->transform.determinant < 0;
+
+                    for (u32 j = 0; j < m->geometry_count; ++j)
+                    {
+                        geometry* g = m->geometries[j];
+                        // AABB calculation
+                        {
+                            // Translate/scale extents
+                            vec3 extents_max = vec3_mul_mat4(g->extents.max, model);
+
+                            // Translate/scale center
+                            vec3 center = vec3_mul_mat4(g->center, model);
+                            vec3 half_extents = {
+                                babs(extents_max.x - center.x),
+                                babs(extents_max.y - center.y),
+                                babs(extents_max.z - center.z),
+                            };
+
+                            if (frustum_intersects_aabb(&f, &center, &half_extents))
+                            {
+                                // Add it to the list to be rendered
+                                geometry_render_data data = {0};
+                                data.model = model;
+                                data.geometry = g;
+                                data.unique_id = m->unique_id;
+                                data.winding_inverted = winding_inverted;
+
+                                // Check if transparent. If so, put into a separate, temp array to be sorted by distance from the camera
+                                b8 has_transparency = false;
+                                if (g->material->type == MATERIAL_TYPE_PHONG)
+                                {
+                                    // Check diffuse map (slot 0)
+                                    has_transparency = ((g->material->maps[0].texture->flags & TEXTURE_FLAG_HAS_TRANSPARENCY) != 0);
+                                }
+
+                                if (has_transparency)
+                                {
+                                    // For meshes with transparency, add them to separate list to be sorted by distance later
+                                    vec3 center = vec3_transform(g->center, 1.0f, model);
+                                    f32 distance = vec3_distance(center, current_camera->position);
+
+                                    geometry_distance gdist;
+                                    gdist.distance = babs(distance);
+                                    gdist.g = data;
+                                    darray_push(transparent_geometries, gdist);
+                                }
+                                else
+                                {
+                                    darray_push(ext_data->geometries, data);
+                                }
+                                p_frame_data->drawn_mesh_count++;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Sort transparent geometries, then add them to the ext_data->geometries array
+            u32 geometry_count = darray_length(transparent_geometries);
+            gdistance_quick_sort(transparent_geometries, 0, geometry_count - 1, false);
+            for (u32 i = 0; i < geometry_count; ++i)
+                darray_push(ext_data->geometries, transparent_geometries[i].g);
+
+            ext_data->geometry_count = darray_length(ext_data->geometries);
+
+            // Add terrain(s)
+            u32 terrain_count = darray_length(scene->terrains);
+            ext_data->terrain_geometries = darray_reserve_with_allocator(geometry_render_data, 16, &p_frame_data->allocator);
+            ext_data->terrain_geometry_count = 0;
+            for (u32 i = 0; i < terrain_count; ++i)
+            {
+                // TODO: Frustum culling
+                geometry_render_data data = {0};
+                data.model = transform_world_get(&scene->terrains[i].xform);
+                data.geometry = &scene->terrains[i].geo;
+                data.unique_id = scene->terrains[i].unique_id;
+
+                darray_push(ext_data->terrain_geometries, data);
+
+                // TODO: Counter for terrain geometries
+                p_frame_data->drawn_mesh_count++;
+            }
+            ext_data->terrain_geometry_count = darray_length(ext_data->terrain_geometries);
+
+            // Debug geometry
+            if (!simple_scene_debug_render_data_query(scene, &ext_data->debug_geometry_count, 0))
+            {
+                BERROR("Failed to obtain count of debug render objects");
+                return false;
+            }
+            ext_data->debug_geometries = darray_reserve_with_allocator(geometry_render_data, ext_data->debug_geometry_count, &p_frame_data->allocator);
+
+            if (!simple_scene_debug_render_data_query(scene, &ext_data->debug_geometry_count, &ext_data->debug_geometries))
+            {
+                BERROR("Failed to obtain debug render objects");
+                return false;
+            }
+            // Make sure the count is correct before pushing
+            darray_length_set(ext_data->debug_geometries, ext_data->debug_geometry_count);
+
+            // HACK: Inject raycast debug geometries into scene pass data
+            if (state->main_scene.state == SIMPLE_SCENE_STATE_LOADED)
+            {
+                u32 line_count = darray_length(state->test_lines);
+                for (u32 i = 0; i < line_count; ++i)
+                {
+                    geometry_render_data rd = {0};
+                    rd.model = transform_world_get(&state->test_lines[i].xform);
+                    rd.geometry = &state->test_lines[i].geo;
+                    rd.unique_id = INVALID_ID_U16;
+                    darray_push(ext_data->debug_geometries, rd);
+                    ext_data->debug_geometry_count++;
+                }
+                u32 box_count = darray_length(state->test_boxes);
+                for (u32 i = 0; i < box_count; ++i)
+                {
+                    geometry_render_data rd = {0};
+                    rd.model = transform_world_get(&state->test_boxes[i].xform);
+                    rd.geometry = &state->test_boxes[i].geo;
+                    rd.unique_id = INVALID_ID_U16;
+                    darray_push(ext_data->debug_geometries, rd);
+                    ext_data->debug_geometry_count++;
+                }
+            }
         }
-        u32 box_count = darray_length(state->test_boxes);
-        for (u32 i = 0; i < box_count; ++i)
+        // Scene loaded!
+
+        // Editor pass
         {
-            geometry_render_data rd = {0};
-            rd.model = transform_world_get(&state->test_boxes[i].xform);
-            rd.geometry = &state->test_boxes[i].geo;
-            rd.unique_id = INVALID_ID_U16;
-            darray_push(packet->views[TESTBED_PACKET_VIEW_WORLD].debug_geometries, rd);
-            packet->views[TESTBED_PACKET_VIEW_WORLD].debug_geometry_count++;
-        }
-    }
+            // Enable this pass for this frame
+            state->editor_pass.pass_data.do_execute = true;
+            state->editor_pass.pass_data.vp = &state->world_viewport;
+            state->editor_pass.pass_data.view_matrix = camera_view_get(current_camera);
+            state->editor_pass.pass_data.view_position = camera_position_get(current_camera);
+            state->editor_pass.pass_data.projection_matrix = state->world_viewport.projection;
 
-    // Editor world
-    {
-        render_view_packet* view_packet = &packet->views[TESTBED_PACKET_VIEW_EDITOR_WORLD];
-        const render_view* view = view_packet->view;
+            editor_pass_extended_data* ext_data = state->editor_pass.pass_data.ext_data;
 
-        editor_world_packet_data editor_world_data = {0};
-        editor_world_data.gizmo = &state->gizmo;
-        if (!render_view_system_packet_build(view, p_frame_data, &state->world_viewport, state->world_camera, &editor_world_data, view_packet))
-        {
-            BERROR("Failed to build packet for view 'editor_world'");
-            return false;
-        }
-    }
+            geometry* g = &state->gizmo.mode_data[state->gizmo.mode].geo;
 
-    // Wireframe
-    {
-        render_view_packet* view_packet = &packet->views[TESTBED_PACKET_VIEW_WIREFRAME];
-        const render_view* view = view_packet->view;
+            mat4 model = transform_world_get(&state->gizmo.xform);
+            f32 scale_scalar = 1.0f;
+            state->gizmo.scale_scalar = scale_scalar;  // Keep copy of this for hit detection
+            mat4 scale = mat4_scale((vec3){scale_scalar, scale_scalar, scale_scalar});
+            model = mat4_mul(model, scale);
 
-        render_view_wireframe_data wireframe_data = {0};
-        // TODO: Get a list of geometries not culled for the current camera
-        wireframe_data.selected_id = state->selection.unique_id;
-        wireframe_data.world_geometries = packet->views[TESTBED_PACKET_VIEW_WORLD].geometries;
-        wireframe_data.terrain_geometries = packet->views[TESTBED_PACKET_VIEW_WORLD].terrain_geometries;
-        if (!render_view_system_packet_build(view, p_frame_data, &state->world_viewport2, state->world_camera_2, &wireframe_data, view_packet))
-        {
-            BERROR("Failed to build packet for view 'wireframe'");
-            return false;
+            geometry_render_data render_data = {0};
+            render_data.model = model;
+            render_data.geometry = g;
+            render_data.unique_id = INVALID_ID;
+
+            ext_data->debug_geometries = darray_create_with_allocator(geometry_render_data, &p_frame_data->allocator);
+            darray_push(ext_data->debug_geometries, render_data);
+
+#ifdef _DEBUG
+            geometry_render_data plane_normal_render_data = {0};
+            plane_normal_render_data.model = transform_world_get(&state->gizmo.plane_normal_line.xform);
+            plane_normal_render_data.geometry = &state->gizmo.plane_normal_line.geo;
+            plane_normal_render_data.unique_id = INVALID_ID;
+            darray_push(ext_data->debug_geometries, plane_normal_render_data);
+#endif
+            ext_data->debug_geometry_count = darray_length(ext_data->debug_geometries);
         }
     }
 
     // UI
-    ui_packet_data ui_packet = {0};
     {
-        render_view_packet* view_packet = &packet->views[TESTBED_PACKET_VIEW_UI];
-        const render_view* view = view_packet->view;
+        ui_pass_extended_data* ext_data = state->ui_pass.pass_data.ext_data;
+        state->ui_pass.pass_data.vp = &state->ui_viewport;
+        state->ui_pass.pass_data.view_matrix = mat4_identity();
+        state->ui_pass.pass_data.projection_matrix = state->ui_viewport.projection;
+        state->ui_pass.pass_data.do_execute = true;
 
-        u32 ui_mesh_count = 0;
-        u32 max_ui_meshes = 10;
-        mesh** ui_meshes = p_frame_data->allocator.allocate(sizeof(mesh*) * max_ui_meshes);
+        ext_data->geometries = darray_reserve_with_allocator(geometry_render_data, 10, &p_frame_data->allocator);
 
-        for (u32 i = 0; i < max_ui_meshes; ++i)
+        for (u32 i = 0; i < 10; ++i)
         {
             if (state->ui_meshes[i].generation != INVALID_ID_U8)
             {
-                ui_meshes[ui_mesh_count] = &state->ui_meshes[i];
-                ui_mesh_count++;
+                mesh* m = &state->ui_meshes[i];
+                u32 geometry_count = m->geometry_count;
+                for (u32 j = 0; j < geometry_count; ++j)
+                {
+                    geometry_render_data render_data;
+                    render_data.geometry = m->geometries[j];
+                    render_data.model = transform_world_get(&m->transform);
+                    darray_push(ext_data->geometries, render_data);
+                }
             }
         }
+        ext_data->geometry_count = darray_length(ext_data->geometries);
 
-        ui_packet.mesh_data.mesh_count = ui_mesh_count;
-        ui_packet.mesh_data.meshes = ui_meshes;
-        ui_packet.text_count = 2;
+        ext_data->texts = 0;
+        ext_data->texts = darray_reserve_with_allocator(ui_text*, 2, &p_frame_data->allocator);
+        if (state->test_text.text)
+            darray_push(ext_data->texts, &state->test_text);
+        if (state->test_sys_text.text)
+            darray_push(ext_data->texts, &state->test_sys_text);
+
         ui_text* debug_console_text = debug_console_get_text(&state->debug_console);
-        b8 render_debug_console = debug_console_text && debug_console_visible(&state->debug_console);
-        if (render_debug_console)
-            ui_packet.text_count += 2;
-        ui_text** texts = p_frame_data->allocator.allocate(sizeof(ui_text*) * ui_packet.text_count);
-        texts[0] = &state->test_text;
-        texts[1] = &state->test_sys_text;
-        if (render_debug_console)
+        b8 render_debug_conole = debug_console_text && debug_console_visible(&state->debug_console);
+        if (render_debug_conole)
         {
-            texts[2] = debug_console_text;
-            texts[3] = debug_console_get_entry_text(&state->debug_console);
+            if (debug_console_text->text)
+                darray_push(ext_data->texts, debug_console_text);
+            ui_text* debug_console_entry_text = debug_console_get_entry_text(&state->debug_console);
+            if (debug_console_entry_text->text)
+                darray_push(ext_data->texts, debug_console_entry_text);
         }
-
-        ui_packet.texts = texts;
-        if (!render_view_system_packet_build(view, p_frame_data, &state->ui_viewport, 0, &ui_packet, view_packet))
-        {
-            BERROR("Failed to build packet for view 'ui'");
-            return false;
-        }
+        ext_data->ui_text_count = darray_length(ext_data->texts);
     }
 
     // Pick
@@ -839,11 +1067,9 @@ b8 application_prepare_render_packet(struct application* app_inst, struct render
     return true;
 }
 
-b8 application_render(struct application* game_inst, struct render_packet* packet, struct frame_data* p_frame_data)
+b8 application_render_frame(struct application* game_inst, struct frame_data* p_frame_data)
 {
     // Start the frame
-    if (!renderer_frame_prepare(p_frame_data))
-        return true;
 
     if (!renderer_begin(p_frame_data))
     {
@@ -856,21 +1082,11 @@ b8 application_render(struct application* game_inst, struct render_packet* packe
 
     clock_start(&state->render_clock);
 
-    // World
-    render_view_packet* view_packet = &packet->views[TESTBED_PACKET_VIEW_WORLD];
-    view_packet->view->on_render(view_packet->view, view_packet, p_frame_data);
-
-    // Editor world
-    view_packet = &packet->views[TESTBED_PACKET_VIEW_EDITOR_WORLD];
-    view_packet->view->on_render(view_packet->view, view_packet, p_frame_data);
-
-    // Render wireframe view
-    view_packet = &packet->views[TESTBED_PACKET_VIEW_WIREFRAME];
-    view_packet->view->on_render(view_packet->view, view_packet, p_frame_data);
-
-    // UI
-    view_packet = &packet->views[TESTBED_PACKET_VIEW_UI];
-    view_packet->view->on_render(view_packet->view, view_packet, p_frame_data);
+    if (!rendergraph_execute_frame(&state->frame_graph, p_frame_data))
+    {
+        BERROR("Failed to execute rendergraph frame");
+        return false;
+    }
 
     clock_update(&state->render_clock);
 
@@ -902,7 +1118,7 @@ void application_on_resize(struct application* game_inst, u32 width, u32 height)
 
     // Resize viewports
     // World Viewport (right side)
-    rect_2d world_vp_rect = vec4_create(half_width + 20.0f, 20.0f, half_width - 40.0f, state->height - 40.0f);
+    rect_2d world_vp_rect = vec4_create(0.0f, 0.0f, state->width, state->height);
     viewport_resize(&state->world_viewport, world_vp_rect);
 
     // UI Viewport
@@ -916,6 +1132,9 @@ void application_on_resize(struct application* game_inst, u32 width, u32 height)
     // TODO: temp
     // Move debug text to new bottom of screen
     ui_text_position_set(&state->test_text, vec3_create(20, state->height - 75, 0));
+
+    // Pass resize onto the rendergraph
+    rendergraph_on_resize(&state->frame_graph, state->width, state->height);
     // TODO: end temp
 }
 
@@ -939,6 +1158,9 @@ void application_shutdown(struct application* game_inst)
     ui_text_destroy(&state->test_sys_text);
 
     debug_console_unload(&state->debug_console);
+
+    // Destroy rendergraph(s)
+    rendergraph_destroy(&state->frame_graph);
 }
 
 void application_lib_on_unload(struct application* game_inst)
@@ -983,6 +1205,7 @@ void application_register_events(struct application* game_inst)
         event_register(EVENT_CODE_DEBUG1, game_inst, game_on_debug_event);
         event_register(EVENT_CODE_DEBUG2, game_inst, game_on_debug_event);
         event_register(EVENT_CODE_OBJECT_HOVER_ID_CHANGED, game_inst, game_on_event);
+        event_register(EVENT_CODE_SET_RENDER_MODE, game_inst, game_on_event);
         event_register(EVENT_CODE_BUTTON_RELEASED, game_inst->state, game_on_button);
         event_register(EVENT_CODE_MOUSE_MOVED, game_inst->state, game_on_mouse_move);
         event_register(EVENT_CODE_MOUSE_DRAG_BEGIN, game_inst->state, game_on_drag);
@@ -1004,6 +1227,7 @@ void application_unregister_events(struct application* game_inst)
     event_unregister(EVENT_CODE_DEBUG1, game_inst, game_on_debug_event);
     event_unregister(EVENT_CODE_DEBUG2, game_inst, game_on_debug_event);
     event_unregister(EVENT_CODE_OBJECT_HOVER_ID_CHANGED, game_inst, game_on_event);
+    event_unregister(EVENT_CODE_SET_RENDER_MODE, game_inst, game_on_event);
     event_unregister(EVENT_CODE_BUTTON_RELEASED, game_inst->state, game_on_button);
     event_unregister(EVENT_CODE_MOUSE_MOVED, game_inst->state, game_on_mouse_move);
     event_unregister(EVENT_CODE_MOUSE_DRAG_BEGIN, game_inst->state, game_on_drag);
@@ -1017,7 +1241,98 @@ void application_unregister_events(struct application* game_inst)
     event_unregister(EVENT_CODE_BVAR_CHANGED, 0, game_on_bvar_changed);
 }
 
-b8 configure_render_views(application_config* config)
+#define RG_CHECK(expr)                            \
+    if (!expr)                                    \
+    {                                             \
+        BERROR("Failed to execute: '%s'", #expr); \
+        return false;                             \
+    }
+
+static void refresh_rendergraph_pfns(application* app)
+{
+    testbed_game_state* state = (testbed_game_state*)app->state;
+
+    state->skybox_pass.initialize = skybox_pass_initialize;
+    state->skybox_pass.execute = skybox_pass_execute;
+    state->skybox_pass.destroy = skybox_pass_destroy;
+
+    state->scene_pass.initialize = scene_pass_initialize;
+    state->scene_pass.execute = scene_pass_execute;
+    state->scene_pass.destroy = scene_pass_destroy;
+
+    state->editor_pass.initialize = editor_pass_initialize;
+    state->editor_pass.execute = editor_pass_execute;
+    state->editor_pass.destroy = editor_pass_destroy;
+
+    state->ui_pass.initialize = ui_pass_initialize;
+    state->ui_pass.execute = ui_pass_execute;
+    state->ui_pass.destroy = ui_pass_destroy;
+}
+
+static b8 configure_rendergraph(application* app)
+{
+    testbed_game_state* state = (testbed_game_state*)app->state;
+
+    if (!rendergraph_create("testbed_frame_rendergraph", app, &state->frame_graph))
+    {
+        BERROR("Failed to create rendergraph");
+        return false;
+    }
+
+    // Add global sources
+    if (!rendergraph_global_source_add(&state->frame_graph, "colorbuffer", RENDERGRAPH_SOURCE_TYPE_RENDER_TARGET_COLOR, RENDERGRAPH_SOURCE_ORIGIN_GLOBAL))
+    {
+        BERROR("Failed to add global colorbuffer source");
+        return false;
+    }
+    if (!rendergraph_global_source_add(&state->frame_graph, "depthbuffer", RENDERGRAPH_SOURCE_TYPE_RENDER_TARGET_DEPTH_STENCIL, RENDERGRAPH_SOURCE_ORIGIN_GLOBAL))
+    {
+        BERROR("Failed to add global depthbuffer source");
+        return false;
+    }
+
+    // Skybox pass
+    RG_CHECK(rendergraph_pass_create(&state->frame_graph, "skybox", skybox_pass_create, &state->skybox_pass));
+    RG_CHECK(rendergraph_pass_sink_add(&state->frame_graph, "skybox", "colorbuffer"));
+    RG_CHECK(rendergraph_pass_source_add(&state->frame_graph, "skybox", "colorbuffer", RENDERGRAPH_SOURCE_TYPE_RENDER_TARGET_COLOR, RENDERGRAPH_SOURCE_ORIGIN_OTHER));
+    RG_CHECK(rendergraph_pass_set_sink_linkage(&state->frame_graph, "skybox", "colorbuffer", 0, "colorbuffer"));
+
+    // Scene pass
+    RG_CHECK(rendergraph_pass_create(&state->frame_graph, "scene", scene_pass_create, &state->scene_pass));
+    RG_CHECK(rendergraph_pass_sink_add(&state->frame_graph, "scene", "colorbuffer"));
+    RG_CHECK(rendergraph_pass_sink_add(&state->frame_graph, "scene", "depthbuffer"));
+    RG_CHECK(rendergraph_pass_source_add(&state->frame_graph, "scene", "colorbuffer", RENDERGRAPH_SOURCE_TYPE_RENDER_TARGET_COLOR, RENDERGRAPH_SOURCE_ORIGIN_OTHER));
+    RG_CHECK(rendergraph_pass_source_add(&state->frame_graph, "scene", "depthbuffer", RENDERGRAPH_SOURCE_TYPE_RENDER_TARGET_DEPTH_STENCIL, RENDERGRAPH_SOURCE_ORIGIN_GLOBAL));
+    RG_CHECK(rendergraph_pass_set_sink_linkage(&state->frame_graph, "scene", "colorbuffer", "skybox", "colorbuffer"));
+    RG_CHECK(rendergraph_pass_set_sink_linkage(&state->frame_graph, "scene", "depthbuffer", 0, "depthbuffer"));
+
+    // Editor pass
+    RG_CHECK(rendergraph_pass_create(&state->frame_graph, "editor", editor_pass_create, &state->editor_pass));
+    RG_CHECK(rendergraph_pass_sink_add(&state->frame_graph, "editor", "colorbuffer"));
+    RG_CHECK(rendergraph_pass_sink_add(&state->frame_graph, "editor", "depthbuffer"));
+    RG_CHECK(rendergraph_pass_source_add(&state->frame_graph, "editor", "colorbuffer", RENDERGRAPH_SOURCE_TYPE_RENDER_TARGET_COLOR, RENDERGRAPH_SOURCE_ORIGIN_OTHER));
+    RG_CHECK(rendergraph_pass_source_add(&state->frame_graph, "editor", "depthbuffer", RENDERGRAPH_SOURCE_TYPE_RENDER_TARGET_DEPTH_STENCIL, RENDERGRAPH_SOURCE_ORIGIN_OTHER));
+    RG_CHECK(rendergraph_pass_set_sink_linkage(&state->frame_graph, "editor", "colorbuffer", "scene", "colorbuffer"));
+    RG_CHECK(rendergraph_pass_set_sink_linkage(&state->frame_graph, "editor", "depthbuffer", "scene", "depthbuffer"));
+
+    // UI pass
+    RG_CHECK(rendergraph_pass_create(&state->frame_graph, "ui", ui_pass_create, &state->ui_pass));
+    RG_CHECK(rendergraph_pass_sink_add(&state->frame_graph, "ui", "colorbuffer"));
+    RG_CHECK(rendergraph_pass_source_add(&state->frame_graph, "ui", "colorbuffer", RENDERGRAPH_SOURCE_TYPE_RENDER_TARGET_COLOR, RENDERGRAPH_SOURCE_ORIGIN_OTHER));
+    RG_CHECK(rendergraph_pass_set_sink_linkage(&state->frame_graph, "ui", "colorbuffer", "editor", "colorbuffer"));
+
+    refresh_rendergraph_pfns(app);
+
+    if (!rendergraph_finalize(&state->frame_graph))
+    {
+        BERROR("Failed to finalize rendergraph. See log for details");
+        return false;
+    }
+
+    return true;
+}
+
+/* b8 configure_render_views(application_config* config)
 {
     config->views = darray_create(render_view);
 
@@ -1249,85 +1564,85 @@ b8 configure_render_views(application_config* config)
 
     // Pick pass
     // TODO: Split into 2 views and reenable
-    // {
-    //     render_view pick_view = {};
-    //     pick_view.name = "pick";
-    //     pick_view.renderpass_count = 2;
-    //     pick_view.passes = ballocate(sizeof(renderpass) * pick_view.renderpass_count, MEMORY_TAG_ARRAY);
+    {
+        render_view pick_view = {};
+        pick_view.name = "pick";
+        pick_view.renderpass_count = 2;
+        pick_view.passes = ballocate(sizeof(renderpass) * pick_view.renderpass_count, MEMORY_TAG_ARRAY);
 
-    //     // World pick pass
-    //     renderpass_config world_pick_pass = {0};
-    //     world_pick_pass.name = "Renderpass.Builtin.WorldPick";
-    //     world_pick_pass.clear_color = (vec4){1.0f, 1.0f, 1.0f, 1.0f};  // TODO: Clear to black, as 0 is invalid id
-    //     world_pick_pass.clear_flags = RENDERPASS_CLEAR_COLOR_BUFFER_FLAG | RENDERPASS_CLEAR_DEPTH_BUFFER_FLAG;
-    //     world_pick_pass.depth = 1.0f;
-    //     world_pick_pass.stencil = 0;
-    //     world_pick_pass.render_target_count = 1;  // NOTE: Not triple-buffering this
-    //     world_pick_pass.target.attachment_count = 2;
-    //     world_pick_pass.target.attachments = ballocate(sizeof(render_target_attachment_config) * world_pick_pass.target.attachment_count, MEMORY_TAG_ARRAY);
+        // World pick pass
+        renderpass_config world_pick_pass = {0};
+        world_pick_pass.name = "Renderpass.Builtin.WorldPick";
+        world_pick_pass.clear_color = (vec4){1.0f, 1.0f, 1.0f, 1.0f};  // TODO: Clear to black, as 0 is invalid id
+        world_pick_pass.clear_flags = RENDERPASS_CLEAR_COLOR_BUFFER_FLAG | RENDERPASS_CLEAR_DEPTH_BUFFER_FLAG;
+        world_pick_pass.depth = 1.0f;
+        world_pick_pass.stencil = 0;
+        world_pick_pass.render_target_count = 1;  // NOTE: Not triple-buffering this
+        world_pick_pass.target.attachment_count = 2;
+        world_pick_pass.target.attachments = ballocate(sizeof(render_target_attachment_config) * world_pick_pass.target.attachment_count, MEMORY_TAG_ARRAY);
 
-    //     // Color attachment
-    //     render_target_attachment_config* world_pick_pass_color = &world_pick_pass.target.attachments[0];
-    //     world_pick_pass_color->type = RENDER_TARGET_ATTACHMENT_TYPE_COLOR;
-    //     world_pick_pass_color->source = RENDER_TARGET_ATTACHMENT_SOURCE_VIEW;  // Obtain attachment from the view
-    //     world_pick_pass_color->load_operation = RENDER_TARGET_ATTACHMENT_LOAD_OPERATION_DONT_CARE;
-    //     world_pick_pass_color->store_operation = RENDER_TARGET_ATTACHMENT_STORE_OPERATION_STORE;
-    //     world_pick_pass_color->present_after = false;
+        // Color attachment
+        render_target_attachment_config* world_pick_pass_color = &world_pick_pass.target.attachments[0];
+        world_pick_pass_color->type = RENDER_TARGET_ATTACHMENT_TYPE_COLOR;
+        world_pick_pass_color->source = RENDER_TARGET_ATTACHMENT_SOURCE_VIEW;  // Obtain attachment from the view
+        world_pick_pass_color->load_operation = RENDER_TARGET_ATTACHMENT_LOAD_OPERATION_DONT_CARE;
+        world_pick_pass_color->store_operation = RENDER_TARGET_ATTACHMENT_STORE_OPERATION_STORE;
+        world_pick_pass_color->present_after = false;
 
-    //     // Depth attachment
-    //     render_target_attachment_config* world_pick_pass_depth = &world_pick_pass.target.attachments[1];
-    //     world_pick_pass_depth->type = RENDER_TARGET_ATTACHMENT_TYPE_DEPTH;
-    //     world_pick_pass_depth->source = RENDER_TARGET_ATTACHMENT_SOURCE_VIEW;  // Obtain attachment from the view
-    //     world_pick_pass_depth->load_operation = RENDER_TARGET_ATTACHMENT_LOAD_OPERATION_DONT_CARE;
-    //     world_pick_pass_depth->store_operation = RENDER_TARGET_ATTACHMENT_STORE_OPERATION_STORE;
-    //     world_pick_pass_depth->present_after = false;
+        // Depth attachment
+        render_target_attachment_config* world_pick_pass_depth = &world_pick_pass.target.attachments[1];
+        world_pick_pass_depth->type = RENDER_TARGET_ATTACHMENT_TYPE_DEPTH;
+        world_pick_pass_depth->source = RENDER_TARGET_ATTACHMENT_SOURCE_VIEW;  // Obtain attachment from the view
+        world_pick_pass_depth->load_operation = RENDER_TARGET_ATTACHMENT_LOAD_OPERATION_DONT_CARE;
+        world_pick_pass_depth->store_operation = RENDER_TARGET_ATTACHMENT_STORE_OPERATION_STORE;
+        world_pick_pass_depth->present_after = false;
 
-    //     if (!renderer_renderpass_create(&world_pick_pass, &pick_view.passes[0]))
-    //     {
-    //         BERROR("Pick view - Failed to create renderpass '%s'", pick_view.passes[0].name);
-    //         return false;
-    //     }
+        if (!renderer_renderpass_create(&world_pick_pass, &pick_view.passes[0]))
+        {
+            BERROR("Pick view - Failed to create renderpass '%s'", pick_view.passes[0].name);
+            return false;
+        }
 
-    //     // UI pick pass
-    //     renderpass_config ui_pick_pass = {0};
-    //     ui_pick_pass.name = "Renderpass.Builtin.UIPick";
-    //     ui_pick_pass.clear_color = (vec4){1.0f, 1.0f, 1.0f, 1.0f};
-    //     ui_pick_pass.clear_flags = RENDERPASS_CLEAR_NONE_FLAG;
-    //     ui_pick_pass.depth = 1.0f;
-    //     ui_pick_pass.stencil = 0;
-    //     ui_pick_pass.target.attachment_count = 1;
-    //     ui_pick_pass.target.attachments = ballocate(sizeof(render_target_attachment_config) * ui_pick_pass.target.attachment_count, MEMORY_TAG_ARRAY);
-    //     ui_pick_pass.render_target_count = 1;  // NOTE: Not triple-buffering this
+        // UI pick pass
+        renderpass_config ui_pick_pass = {0};
+        ui_pick_pass.name = "Renderpass.Builtin.UIPick";
+        ui_pick_pass.clear_color = (vec4){1.0f, 1.0f, 1.0f, 1.0f};
+        ui_pick_pass.clear_flags = RENDERPASS_CLEAR_NONE_FLAG;
+        ui_pick_pass.depth = 1.0f;
+        ui_pick_pass.stencil = 0;
+        ui_pick_pass.target.attachment_count = 1;
+        ui_pick_pass.target.attachments = ballocate(sizeof(render_target_attachment_config) * ui_pick_pass.target.attachment_count, MEMORY_TAG_ARRAY);
+        ui_pick_pass.render_target_count = 1;  // NOTE: Not triple-buffering this
 
-    //     render_target_attachment_config* ui_pick_pass_attachment = &ui_pick_pass.target.attachments[0];
-    //     ui_pick_pass_attachment->type = RENDER_TARGET_ATTACHMENT_TYPE_COLOR;
-    //     // Obtain the attachment from the view
-    //     ui_pick_pass_attachment->source = RENDER_TARGET_ATTACHMENT_SOURCE_VIEW;
-    //     ui_pick_pass_attachment->load_operation = RENDER_TARGET_ATTACHMENT_LOAD_OPERATION_LOAD;
-    //     // Need to store it so it can be sampled afterward
-    //     ui_pick_pass_attachment->store_operation = RENDER_TARGET_ATTACHMENT_STORE_OPERATION_STORE;
-    //     ui_pick_pass_attachment->present_after = false;
+        render_target_attachment_config* ui_pick_pass_attachment = &ui_pick_pass.target.attachments[0];
+        ui_pick_pass_attachment->type = RENDER_TARGET_ATTACHMENT_TYPE_COLOR;
+        // Obtain the attachment from the view
+        ui_pick_pass_attachment->source = RENDER_TARGET_ATTACHMENT_SOURCE_VIEW;
+        ui_pick_pass_attachment->load_operation = RENDER_TARGET_ATTACHMENT_LOAD_OPERATION_LOAD;
+        // Need to store it so it can be sampled afterward
+        ui_pick_pass_attachment->store_operation = RENDER_TARGET_ATTACHMENT_STORE_OPERATION_STORE;
+        ui_pick_pass_attachment->present_after = false;
 
-    //     if (!renderer_renderpass_create(&ui_pick_pass, &pick_view.passes[1]))
-    //     {
-    //         BERROR("Pick view - Failed to create renderpass '%s'", pick_view.passes[1].name);
-    //         return false;
-    //     }
+        if (!renderer_renderpass_create(&ui_pick_pass, &pick_view.passes[1]))
+        {
+            BERROR("Pick view - Failed to create renderpass '%s'", pick_view.passes[1].name);
+            return false;
+        }
 
-    //     // Assign function pointers
-    //     pick_view.on_packet_build = render_view_pick_on_packet_build;
-    //     pick_view.on_packet_destroy = render_view_pick_on_packet_destroy;
-    //     pick_view.on_render = render_view_pick_on_render;
-    //     pick_view.on_registered = render_view_pick_on_registered;
-    //     pick_view.on_destroy = render_view_pick_on_destroy;
-    //     pick_view.on_resize = render_view_pick_on_resize;
-    //     pick_view.attachment_target_regenerate = render_view_pick_attachment_target_regenerate;
+        // Assign function pointers
+        pick_view.on_packet_build = render_view_pick_on_packet_build;
+        pick_view.on_packet_destroy = render_view_pick_on_packet_destroy;
+        pick_view.on_render = render_view_pick_on_render;
+        pick_view.on_registered = render_view_pick_on_registered;
+        pick_view.on_destroy = render_view_pick_on_destroy;
+        pick_view.on_resize = render_view_pick_on_resize;
+        pick_view.attachment_target_regenerate = render_view_pick_attachment_target_regenerate;
 
-    //     darray_push(config->views, pick_view);
-    // }
+        darray_push(config->views, pick_view);
+    }
 
     return true;
-}
+} */
 
 static b8 load_main_scene(struct application* game_inst)
 {

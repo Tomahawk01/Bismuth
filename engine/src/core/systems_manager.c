@@ -17,7 +17,6 @@
 #include "systems/job_system.h"
 #include "systems/light_system.h"
 #include "systems/material_system.h"
-#include "systems/render_view_system.h"
 #include "systems/resource_system.h"
 #include "systems/shader_system.h"
 #include "systems/texture_system.h"
@@ -267,7 +266,6 @@ static void shutdown_known_systems(systems_manager_state* state)
     state->systems[B_SYSTEM_TYPE_CAMERA].shutdown(state->systems[B_SYSTEM_TYPE_CAMERA].state);
     state->systems[B_SYSTEM_TYPE_FONT].shutdown(state->systems[B_SYSTEM_TYPE_FONT].state);
 
-    state->systems[B_SYSTEM_TYPE_RENDER_VIEW].shutdown(state->systems[B_SYSTEM_TYPE_RENDER_VIEW].state);
     state->systems[B_SYSTEM_TYPE_GEOMETRY].shutdown(state->systems[B_SYSTEM_TYPE_GEOMETRY].state);
     state->systems[B_SYSTEM_TYPE_MATERIAL].shutdown(state->systems[B_SYSTEM_TYPE_MATERIAL].state);
     state->systems[B_SYSTEM_TYPE_TEXTURE].shutdown(state->systems[B_SYSTEM_TYPE_TEXTURE].state);
@@ -312,26 +310,6 @@ static b8 register_known_systems_post_boot(systems_manager_state* state, applica
     {
         BERROR("Failed to register camera system");
         return false;
-    }
-
-    render_view_system_config render_view_sys_config = {};
-    render_view_sys_config.max_view_count = 251;
-    if (!systems_manager_register(state, B_SYSTEM_TYPE_RENDER_VIEW, render_view_system_initialize, render_view_system_shutdown, 0, &render_view_sys_config))
-    {
-        BERROR("Failed to register render view system");
-        return false;
-    }
-
-    // Load render views from app config
-    u32 view_count = darray_length(app_config->views);
-    for (u32 v = 0; v < view_count; ++v)
-    {
-        render_view* view = &app_config->views[v];
-        if (!render_view_system_register(view))
-        {
-            BFATAL("Failed to register view '%s'. Aborting application", view->name);
-            return false;
-        }
     }
 
     // Material system

@@ -2832,7 +2832,7 @@ b8 vulkan_renderer_render_target_create(renderer_plugin* plugin, u8 attachment_c
 {
     vulkan_context* context = (vulkan_context*)plugin->internal_context;
     // Max number of attachments
-    VkImageView attachment_views[32];
+    VkImageView attachment_views[32] = {0};
     for (u32 i = 0; i < attachment_count; ++i)
         attachment_views[i] = ((vulkan_image*)attachments[i].texture->internal_data)->view;
 

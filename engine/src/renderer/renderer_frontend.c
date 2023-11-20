@@ -15,7 +15,6 @@
 #include "resources/resource_types.h"
 #include "systems/camera_system.h"
 #include "systems/material_system.h"
-#include "systems/render_view_system.h"
 #include "systems/resource_system.h"
 #include "systems/shader_system.h"
 #include "systems/texture_system.h"
@@ -26,9 +25,6 @@ typedef struct renderer_system_state
     u8 window_render_target_count;
     u32 framebuffer_width;
     u32 framebuffer_height;
-
-    b8 resizing;
-    u8 frames_since_resize;
 
     viewport* active_viewport;
 } renderer_system_state;
@@ -44,8 +40,6 @@ b8 renderer_system_initialize(u64* memory_requirement, void* state, void* config
     // Default framebuffer size
     state_ptr->framebuffer_width = 1280;
     state_ptr->framebuffer_height = 720;
-    state_ptr->resizing = false;
-    state_ptr->frames_since_resize = 0;
     state_ptr->plugin = typed_config->plugin;
 
     // TODO: make this configurable     V
@@ -84,12 +78,9 @@ void renderer_on_resized(u16 width, u16 height)
     renderer_system_state* state_ptr = (renderer_system_state*)systems_manager_get_state(B_SYSTEM_TYPE_RENDERER);
     if (state_ptr)
     {
-        // Flag as resizing and store the change
-        state_ptr->resizing = true;
         state_ptr->framebuffer_width = width;
         state_ptr->framebuffer_height = height;
-        // Also reset frame count since last resize operation
-        state_ptr->frames_since_resize = 0;
+        state_ptr->plugin.resized(&state_ptr->plugin, width, height);
     }
     else
     {
@@ -102,33 +93,6 @@ b8 renderer_frame_prepare(struct frame_data* p_frame_data)
     renderer_system_state* state_ptr = (renderer_system_state*)systems_manager_get_state(B_SYSTEM_TYPE_RENDERER);
     state_ptr->plugin.frame_number++;
     state_ptr->plugin.draw_index = 0;
-
-    // Make sure window is not currently being resized by waiting a designated
-    // number of frames after the last resize operation before performing backend updates
-    if (state_ptr->resizing)
-    {
-        state_ptr->frames_since_resize++;
-
-        // If required number of frames have passed since resize, go ahead and perform actual updates
-        if (state_ptr->frames_since_resize >= 30)
-        {
-            f32 width = state_ptr->framebuffer_width;
-            f32 height = state_ptr->framebuffer_height;
-            render_view_system_on_window_resize(width, height);
-            state_ptr->plugin.resized(&state_ptr->plugin, width, height);
-
-            // Notify views of the resize
-            render_view_system_on_window_resize(width, height);
-
-            state_ptr->frames_since_resize = 0;
-            state_ptr->resizing = false;
-        }
-        else
-        {
-            // Skip rendering the frame and try again next time
-            return false;
-        }
-    }
 
     b8 result = state_ptr->plugin.frame_prepare(&state_ptr->plugin, p_frame_data);
 

@@ -19,9 +19,8 @@
 #include "renderer/renderer_types.h"
 #include "renderer/viewport.h"
 #include "renderer/camera.h"
-#include "systems/render_view_system.h"
-#include "systems/resource_system.h"
 #include "systems/light_system.h"
+#include "systems/resource_system.h"
 
 static void simple_scene_actual_unload(simple_scene* scene);
 
@@ -61,11 +60,6 @@ b8 simple_scene_create(void* config, simple_scene* out_scene)
         out_scene->config = ballocate(sizeof(simple_scene_config), MEMORY_TAG_SCENE);
         bcopy_memory(out_scene->config, config, sizeof(simple_scene_config));
     }
-
-    // NOTE: Starting with a reasonably high number to avoid reallocs in the beginning
-    out_scene->world_data.world_geometries = darray_reserve(geometry_render_data, 512);
-    out_scene->world_data.terrain_geometries = darray_create(geometry_render_data);
-    out_scene->world_data.debug_geometries = darray_create(geometry_render_data);
 
     debug_grid_config grid_config = {0};
     grid_config.orientation = DEBUG_GRID_ORIENTATION_XZ;
@@ -501,7 +495,7 @@ b8 simple_scene_update(simple_scene* scene, const struct frame_data* p_frame_dat
 
 b8 simple_scene_populate_render_packet(simple_scene* scene, struct camera* current_camera, viewport* v, struct frame_data* p_frame_data, struct render_packet* packet)
 {
-    if (!scene || !packet)
+    /* if (!scene || !packet)
         return false;
 
     // World render
@@ -655,7 +649,7 @@ b8 simple_scene_populate_render_packet(simple_scene* scene, struct camera* curre
             return false;
         }
     }
-
+*/
     return true;
 }
 
@@ -1148,6 +1142,98 @@ struct terrain* simple_scene_terrain_get(simple_scene* scene, const char* name)
     return 0;
 }
 
+b8 simple_scene_debug_render_data_query(simple_scene *scene, u32 *data_count, geometry_render_data **debug_geometries)
+{
+    if (!scene || !data_count)
+        return false;
+
+    *data_count = 0;
+
+    // TODO: Check if grid exists
+    {
+        if (debug_geometries)
+        {
+            geometry_render_data data = {0};
+            data.model = mat4_identity();
+            data.geometry = &scene->grid.geo;
+            data.unique_id = INVALID_ID;
+
+            (*debug_geometries)[(*data_count)] = data;
+        }
+        (*data_count)++;
+    }
+
+    // Directional light
+    {
+        if (scene->dir_light && scene->dir_light->debug_data)
+         {
+            if (debug_geometries)
+            {
+                simple_scene_debug_data *debug = scene->dir_light->debug_data;
+
+                // Debug line 3d
+                geometry_render_data data = {0};
+                data.model = transform_world_get(&debug->line.xform);
+                data.geometry = &debug->line.geo;
+                data.unique_id = debug->line.unique_id;
+
+                (*debug_geometries)[(*data_count)] = data;
+            }
+            (*data_count)++;
+        }
+    }
+
+    // Point lights
+    {
+        u32 point_light_count = darray_length(scene->point_lights);
+        for (u32 i = 0; i < point_light_count; ++i)
+        {
+            if (scene->point_lights[i].debug_data)
+            {
+                if (debug_geometries)
+                {
+                    simple_scene_debug_data *debug = (simple_scene_debug_data *)scene->point_lights[i].debug_data;
+
+                    // Debug box 3d
+                    geometry_render_data data = {0};
+                    data.model = transform_world_get(&debug->box.xform);
+                    data.geometry = &debug->box.geo;
+                    data.unique_id = debug->box.unique_id;
+
+                    (*debug_geometries)[(*data_count)] = data;
+                }
+                (*data_count)++;
+            }
+        }
+    }
+
+    // Mesh debug shapes
+    {
+        u32 mesh_count = darray_length(scene->meshes);
+        for (u32 i = 0; i < mesh_count; ++i)
+        {
+            if (scene->meshes[i].debug_data)
+            {
+                if (debug_geometries)
+                {
+                    simple_scene_debug_data *debug = (simple_scene_debug_data *)scene->meshes[i].debug_data;
+
+                    // Debug box 3d
+                    geometry_render_data data = {0};
+                    data.model = transform_world_get(&debug->box.xform);
+                    data.geometry = &debug->box.geo;
+                    data.unique_id = debug->box.unique_id;
+
+                    (*debug_geometries)[(*data_count)] = data;
+                }
+                (*data_count)++;
+            }
+        }
+    }
+
+    return true;
+}
+
 static void simple_scene_actual_unload(simple_scene* scene)
 {
     if (scene->sb)
@@ -1242,15 +1328,6 @@ static void simple_scene_actual_unload(simple_scene* scene)
 
     if (scene->terrains)
         darray_destroy(scene->terrains);
-
-    if(scene->world_data.world_geometries)
-        darray_destroy(scene->world_data.world_geometries);
-
-    if(scene->world_data.terrain_geometries)
-        darray_destroy(scene->world_data.terrain_geometries);
-    
-    if (scene->world_data.debug_geometries)
-        darray_destroy(scene->world_data.debug_geometries);
 
     bzero_memory(scene, sizeof(simple_scene));
 }
