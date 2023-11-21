@@ -3,6 +3,7 @@
 #include "core/logger.h"
 #include "core/bmemory.h"
 #include "core/bstring.h"
+#include "math/bmath.h"
 #include "platform/filesystem.h"
 #include "resources/resource_types.h"
 #include "systems/resource_system.h"
@@ -106,6 +107,7 @@ static b8 image_loader_load(struct resource_loader* self, const char* name, void
     resource_data->width = width;
     resource_data->height = height;
     resource_data->channel_count = required_channel_count;
+    resource_data->mip_levels = (u32)(bfloor(blog2(BMAX(width, height))) + 1);
 
     out_resource->data = resource_data;
     out_resource->data_size = sizeof(image_resource_data);

@@ -36,6 +36,16 @@ f32 babs(f32 x)
     return fabsf(x);
 }
 
+f32 bfloor(f32 x)
+{
+    return floorf(x);
+}
+
+f32 blog2(f32 x)
+{ 
+    return log2f(x);
+}
+
 i32 brandom(void)
 {
     if (!rand_seeded)

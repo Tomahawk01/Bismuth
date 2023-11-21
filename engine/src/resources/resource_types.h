@@ -46,6 +46,7 @@ typedef struct image_resource_data
     u32 width;
     u32 height;
     u8* pixels;
+    u32 mip_levels;
 } image_resource_data;
 
 typedef struct image_resource_params
@@ -101,6 +102,7 @@ typedef struct texture
     u32 generation;
     char name[TEXTURE_NAME_MAX_LENGTH];
     void* internal_data;
+    u32 mip_levels;
 } texture;
 
 typedef enum texture_filter
@@ -119,6 +121,8 @@ typedef enum texture_repeat
 
 typedef struct texture_map
 {
+    u32 generation;
+    u32 mip_levels;
     texture* texture;
     texture_filter filter_minify;
     texture_filter filter_magnify;

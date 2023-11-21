@@ -66,6 +66,8 @@ BAPI f32 btan(f32 x);
 BAPI f32 bacos(f32 x);
 BAPI f32 bsqrt(f32 x);
 BAPI f32 babs(f32 x);
+BAPI f32 bfloor(f32 x);
+BAPI f32 blog2(f32 x);
 
 /**
  * Indicates if the value is a power of 2. 0 is considered _not_ a power of 2.

@@ -93,9 +93,11 @@ typedef struct vulkan_image
     VkImageView view;
     VkMemoryRequirements memory_requirements;
     VkMemoryPropertyFlags memory_flags;
+    VkFormat format;
     u32 width;
     u32 height;
     char* name;
+    u32 mip_levels;
 } vulkan_image;
 
 typedef enum vulkan_render_pass_state
