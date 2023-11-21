@@ -24,6 +24,10 @@
 #include "vulkan_types.h"
 #include "vulkan_utils.h"
 
+// For runtime shader compilation
+#include <shaderc/shaderc.h>
+#include <shaderc/status.h>
+
 #include <renderer/renderer_types.h>
 #include <vulkan/vulkan_core.h>
 
@@ -458,6 +462,9 @@ b8 vulkan_renderer_backend_initialize(renderer_plugin* plugin, const renderer_ba
         context->geometries[i].id = INVALID_ID;
     }
 
+    // Create a shader compiler
+    context->shader_compiler = shaderc_compiler_initialize();
+
     BINFO("Vulkan renderer initialized successfully");
     return true;
 }
@@ -466,6 +473,13 @@ void vulkan_renderer_backend_shutdown(renderer_plugin* plugin)
 {
     vulkan_context* context = (vulkan_context*)plugin->internal_context;
     vkDeviceWaitIdle(context->device.logical_device);
+
+    // Destroy runtime shader compiler
+    if (context->shader_compiler)
+    {
+        shaderc_compiler_release(context->shader_compiler);
+        context->shader_compiler = 0;
+    }
 
     // Destroy in the opposite order of creation
     // Destroy buffers
@@ -1486,24 +1500,24 @@ b8 vulkan_renderer_shader_create(renderer_plugin* plugin, shader* s, const shade
     s->internal_data = ballocate(sizeof(vulkan_shader), MEMORY_TAG_RENDERER);
 
     // Translate stages
-    VkShaderStageFlags vk_stages[VULKAN_SHADER_MAX_STAGES];
+    // VkShaderStageFlags vk_stages[VULKAN_SHADER_MAX_STAGES];
     for (u8 i = 0; i < stage_count; ++i)
     {
         switch (stages[i])
         {
             case SHADER_STAGE_FRAGMENT:
-                vk_stages[i] = VK_SHADER_STAGE_FRAGMENT_BIT;
+                // vk_stages[i] = VK_SHADER_STAGE_FRAGMENT_BIT;
                 break;
             case SHADER_STAGE_VERTEX:
-                vk_stages[i] = VK_SHADER_STAGE_VERTEX_BIT;
+                // vk_stages[i] = VK_SHADER_STAGE_VERTEX_BIT;
                 break;
             case SHADER_STAGE_GEOMETRY:
                 BWARN("vulkan_renderer_shader_create: VK_SHADER_STAGE_GEOMETRY_BIT is set but not yet supported");
-                vk_stages[i] = VK_SHADER_STAGE_GEOMETRY_BIT;
+                // vk_stages[i] = VK_SHADER_STAGE_GEOMETRY_BIT;
                 break;
             case SHADER_STAGE_COMPUTE:
                 BWARN("vulkan_renderer_shader_create: SHADER_STAGE_COMPUTE is set but not yet supported");
-                vk_stages[i] = VK_SHADER_STAGE_COMPUTE_BIT;
+                // vk_stages[i] = VK_SHADER_STAGE_COMPUTE_BIT;
                 break;
             default:
                 BERROR("Unsupported stage type: %d", stages[i]);
@@ -2520,8 +2534,7 @@ b8 vulkan_renderer_uniform_set(renderer_plugin* plugin, shader* s, shader_unifor
             addr += s->bound_ubo_offset + uniform->offset;
             bcopy_memory((void*)addr, value, uniform->size);
             if (addr)
-            {
-            }
+            {}
         }
     }
     return true;
@@ -2530,27 +2543,92 @@ b8 vulkan_renderer_uniform_set(renderer_plugin* plugin, shader* s, shader_unifor
 static b8 create_shader_module(vulkan_context* context, vulkan_shader* shader, vulkan_shader_stage_config config, vulkan_shader_stage* shader_stage)
 {
     // Read resource
-    resource binary_resource;
-    if (!resource_system_load(config.file_name, RESOURCE_TYPE_BINARY, 0, &binary_resource))
+    resource text_resource;
+    if (!resource_system_load(config.file_name, RESOURCE_TYPE_TEXT, 0, &text_resource))
     {
-        BERROR("Unable to read shader module: %s", config.file_name);
+        BERROR("Unable to read shader file: %s", config.file_name);
         return false;
     }
 
+    shaderc_shader_kind shader_kind;
+    switch (config.stage)
+    {
+        case VK_SHADER_STAGE_VERTEX_BIT:
+            shader_kind = shaderc_glsl_default_vertex_shader;
+            break;
+        case VK_SHADER_STAGE_FRAGMENT_BIT:
+            shader_kind = shaderc_glsl_default_fragment_shader;
+            break;
+        case VK_SHADER_STAGE_COMPUTE_BIT:
+            shader_kind = shaderc_glsl_default_compute_shader;
+            break;
+        case VK_SHADER_STAGE_GEOMETRY_BIT:
+            shader_kind = shaderc_glsl_default_geometry_shader;
+            break;
+        default:
+            BERROR("Unsupported shader kind. Unable to create module");
+            return false;
+    }
+
+    BDEBUG("Compiling shader '%s'...", config.file_name);
+
+    // Attempt to compile the shader
+    shaderc_compilation_result_t compilation_result = shaderc_compile_into_spv(
+        context->shader_compiler,
+        text_resource.data,
+        text_resource.data_size,
+        shader_kind,
+        config.file_name,
+        "main",
+        0);
+
+    // Release the resource as it isn't needed anymore at this point
+    resource_system_unload(&text_resource);
+
+    if (!compilation_result)
+    {
+        BERROR("An unknown error occurred while trying to compile the shader. Unable to process futher");
+        return false;
+    }
+    shaderc_compilation_status status = shaderc_result_get_compilation_status(compilation_result);
+
+    // Handle errors
+    if (status != shaderc_compilation_status_success)
+    {
+        const char *error_message = shaderc_result_get_error_message(compilation_result);
+        u64 error_count = shaderc_result_get_num_errors(compilation_result);
+        BERROR("Error compiling shader with %llu errors", error_count);
+        BERROR("Error(s):\n%s", error_message);
+        shaderc_result_release(compilation_result);
+        return false;
+    }
+
+    BDEBUG("Shader compiled successfully");
+
+    // Output warnings if there are any
+    u64 warning_count = shaderc_result_get_num_warnings(compilation_result);
+    if (warning_count)
+        BWARN("%llu warnings were generated during shader compilation:\n%s", warning_count, shaderc_result_get_error_message(compilation_result));
+
+    // Extract the data from result
+    const char *bytes = shaderc_result_get_bytes(compilation_result);
+    size_t result_length = shaderc_result_get_length(compilation_result);
+    // Take a copy of the result data and cast it to a u32* as is required by Vulkan
+    u32* code = ballocate(result_length, MEMORY_TAG_RENDERER);
+    bcopy_memory(code, bytes, result_length);
+
+    // Release the compilation result
+    shaderc_result_release(compilation_result);
+
     bzero_memory(&shader_stage->create_info, sizeof(VkShaderModuleCreateInfo));
     shader_stage->create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    // Use resource's size and data directly
-    shader_stage->create_info.codeSize = binary_resource.data_size;
-    shader_stage->create_info.pCode = (u32*)binary_resource.data;
+    shader_stage->create_info.codeSize = result_length;
+    shader_stage->create_info.pCode = code;
 
-    VK_CHECK(vkCreateShaderModule(
-        context->device.logical_device,
-        &shader_stage->create_info,
-        context->allocator,
-        &shader_stage->handle));
+    VK_CHECK(vkCreateShaderModule(context->device.logical_device, &shader_stage->create_info, context->allocator, &shader_stage->handle));
 
-    // Release resource
-    resource_system_unload(&binary_resource);
+    // Release copy of the code
+    bfree(code, result_length, MEMORY_TAG_RENDERER);
 
     // Shader stage info
     bzero_memory(&shader_stage->shader_stage_create_info, sizeof(VkPipelineShaderStageCreateInfo));

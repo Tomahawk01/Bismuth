@@ -316,6 +316,9 @@ typedef struct vulkan_shader
     u8 local_uniform_count;
 } vulkan_shader;
 
+// Forward declare shaderc compiler
+struct shaderc_compiler;
+
 typedef struct vulkan_context
 {
     /** @brief Instance-level api major version */
@@ -393,4 +396,7 @@ typedef struct vulkan_context
     struct shader* bound_shader;
 
     renderbuffer staging;
+
+    // Used for dynamic compilation of vulkan shaders (using the shaderc lib)
+    struct shaderc_compiler* shader_compiler;
 } vulkan_context;
