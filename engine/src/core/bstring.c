@@ -272,6 +272,48 @@ i32 string_index_of(const char* str, char c)
     return -1;
 }
 
+i32 string_index_of_str(const char* str_0, const char* str_1)
+{
+    if (!str_0 || !str_1)
+        return -1;
+
+    u32 length_0 = string_length(str_0);
+    u32 length_1 = string_length(str_1);
+    const char* a = str_0;
+    const char* b = str_1;
+    if (length_1 > length_0)
+    {
+        u32 temp = length_0;
+        length_0 = length_1;
+        length_1 = temp;
+        a = str_1;
+        b = str_0;
+    }
+    if (length_0 > 0 && length_1 > 0)
+    {
+        for (u32 i = 0; i < length_0; ++i)
+        {
+            if (a[i] == b[0])
+            {
+                u32 start = i;
+                b8 keep_looking = false;
+                for (u32 j = 0; j < length_1; ++j)
+                {
+                    if (a[i + j] != b[j])
+                    {
+                        keep_looking = true;
+                        break;
+                    }
+                }
+                if (!keep_looking)
+                    return start;
+            }
+        }
+    }
+
+    return -1;
+}
+
 b8 string_to_transform(const char* str, transform* out_transform)
 {
     if (!str || !out_transform)

@@ -52,7 +52,7 @@ typedef struct job_system_config
 b8 job_system_initialize(u64* job_system_memory_requirement, void* state, void* config);
 void job_system_shutdown(void* state);
 
-b8 job_system_update(void* state, const struct frame_data* p_frame_data);
+b8 job_system_update(void* state, struct frame_data* p_frame_data);
 
 BAPI void job_system_submit(job_info info);
 

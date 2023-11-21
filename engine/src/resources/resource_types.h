@@ -17,6 +17,7 @@ typedef enum resource_type
     RESOURCE_TYPE_SYSTEM_FONT,
     RESOURCE_TYPE_SIMPLE_SCENE,
     RESOURCE_TYPE_TERRAIN,
+    RESOURCE_TYPE_AUDIO,
     RESOURCE_TYPE_CUSTOM
 } resource_type;
 

@@ -49,10 +49,12 @@
 // TODO: temp
 #include <core/identifier.h>
 #include <math/transform.h>
+#include <resources/loaders/audio_loader.h>
 #include <resources/mesh.h>
 #include <resources/simple_scene.h>
 #include <resources/skybox.h>
 #include <resources/ui_text.h>
+#include <systems/audio_system.h>
 #include <systems/geometry_system.h>
 #include <systems/light_system.h>
 #include <systems/material_system.h>
@@ -200,6 +202,37 @@ b8 game_on_debug_event(u16 code, void* sender, void* listener_inst, event_contex
             BDEBUG("Done");
         }
         return true;
+    }
+    else if (code == EVENT_CODE_DEBUG3)
+    {
+        if (state->test_audio_file)
+        {
+            // Cycle between first 5 channels
+            static i8 channel_id = -1;
+            channel_id++;
+            channel_id = channel_id % 5;
+            BTRACE("Playing sound on channel %u", channel_id);
+            audio_system_channel_play(channel_id, state->test_audio_file, false);
+        }
+    }
+    else if (code == EVENT_CODE_DEBUG4)
+    {
+        if (state->test_loop_audio_file)
+        {
+            static b8 playing = true;
+            playing = !playing;
+            if (playing)
+            {
+                // Play on channel 6
+                if (!audio_system_channel_emitter_play(6, &state->test_emitter))
+                    BERROR("Failed to play test emitter");
+            }
+            else
+            {
+                // Stop channel 6
+                audio_system_channel_stop(6);
+            }
+        }
     }
 
     return false;
@@ -482,6 +515,7 @@ b8 application_initialize(struct application* game_inst)
 
     // Register resource loaders
     resource_system_loader_register(simple_scene_resource_loader_create());
+    resource_system_loader_register(audio_resource_loader_create());
 
     testbed_game_state* state = ((testbed_game_state*)game_inst->state);
     state->selection.unique_id = INVALID_ID;
@@ -554,7 +588,7 @@ b8 application_initialize(struct application* game_inst)
     // Move debug text to new bottom of screen
     ui_text_position_set(&state->test_text, vec3_create(20, game_inst->app_config.start_height - 75, 0));
 
-    if (!ui_text_create("testbed_UTF_test_text", UI_TEXT_TYPE_SYSTEM, "Noto Sans CJK JP", 31, "Some system text 123, \n\thello!\n\n\tこんにちは", &state->test_sys_text))
+    if (!ui_text_create("testbed_UTF_test_text", UI_TEXT_TYPE_SYSTEM, "Noto Sans CJK JP", 31, "Press 'L' to load scene, \n\thello!\n\n\tこんにちは", &state->test_sys_text))
     {
         BERROR("Failed to load basic ui system text");
         return false;
@@ -622,6 +656,41 @@ b8 application_initialize(struct application* game_inst)
     bzero_memory(&state->update_clock, sizeof(clock));
     bzero_memory(&state->render_clock, sizeof(clock));
 
+    // Load up a test audio file
+    state->test_audio_file = audio_system_chunk_load("Test.ogg");
+    if (!state->test_audio_file)
+        BERROR("Failed to load test audio file");
+
+    // Looping audio file
+    state->test_loop_audio_file = audio_system_chunk_load("Fire Loop.mp3");
+    // Test music
+    state->test_music = audio_system_stream_load("bg_song1.mp3");
+    if (!state->test_music)
+        BERROR("Failed to load test music file");
+
+    // Setup a test emitter
+    state->test_emitter.file = state->test_loop_audio_file;
+    state->test_emitter.volume = 1.0f;
+    state->test_emitter.looping = true;
+    state->test_emitter.falloff = 1.0f;
+    state->test_emitter.position = vec3_create(10.0f, 0.8f, 20.0f);
+
+    // Set some channel volumes
+    audio_system_master_volume_set(0.7f);
+    audio_system_channel_volume_set(0, 1.0f);
+    audio_system_channel_volume_set(1, 0.75f);
+    audio_system_channel_volume_set(2, 0.50f);
+    audio_system_channel_volume_set(3, 0.25);
+    audio_system_channel_volume_set(4, 0.0f);
+
+    audio_system_channel_volume_set(7, 0.4f);
+
+    // Try playing the emitter
+    if (!audio_system_channel_emitter_play(6, &state->test_emitter))
+        BERROR("Failed to play test emitter");
+
+    audio_system_channel_play(7, state->test_music, true);
+
     state->running = true;
 
     return true;
@@ -665,6 +734,9 @@ b8 application_update(struct application* game_inst, struct frame_data* p_frame_
                 1.0f
             };
             state->p_light_1->data.position.z = 20.0f + bsin(p_frame_data->total_time);
+
+            // Make audio emitter follow it
+            state->test_emitter.position = vec3_from_vec4(state->p_light_1->data.position);
         }
     }
 
@@ -716,6 +788,10 @@ VSync: %s Drawn: %-5u Hovered: %s%u",
         ui_text_text_set(&state->test_text, text_buffer);
 
     debug_console_update(&((testbed_game_state*)game_inst->state)->debug_console);
+
+    vec3 forward = camera_forward(state->world_camera);
+    vec3 up = camera_up(state->world_camera);
+    audio_system_listener_orientation_set(pos, forward, up);
 
     clock_update(&state->update_clock);
     state->last_update_elapsed = state->update_clock.elapsed;
@@ -1204,6 +1280,8 @@ void application_register_events(struct application* game_inst)
         event_register(EVENT_CODE_DEBUG0, game_inst, game_on_debug_event);
         event_register(EVENT_CODE_DEBUG1, game_inst, game_on_debug_event);
         event_register(EVENT_CODE_DEBUG2, game_inst, game_on_debug_event);
+        event_register(EVENT_CODE_DEBUG3, game_inst, game_on_debug_event);
+        event_register(EVENT_CODE_DEBUG4, game_inst, game_on_debug_event);
         event_register(EVENT_CODE_OBJECT_HOVER_ID_CHANGED, game_inst, game_on_event);
         event_register(EVENT_CODE_SET_RENDER_MODE, game_inst, game_on_event);
         event_register(EVENT_CODE_BUTTON_RELEASED, game_inst->state, game_on_button);
@@ -1226,6 +1304,8 @@ void application_unregister_events(struct application* game_inst)
     event_unregister(EVENT_CODE_DEBUG0, game_inst, game_on_debug_event);
     event_unregister(EVENT_CODE_DEBUG1, game_inst, game_on_debug_event);
     event_unregister(EVENT_CODE_DEBUG2, game_inst, game_on_debug_event);
+    event_unregister(EVENT_CODE_DEBUG3, game_inst, game_on_debug_event);
+    event_unregister(EVENT_CODE_DEBUG4, game_inst, game_on_debug_event);
     event_unregister(EVENT_CODE_OBJECT_HOVER_ID_CHANGED, game_inst, game_on_event);
     event_unregister(EVENT_CODE_SET_RENDER_MODE, game_inst, game_on_event);
     event_unregister(EVENT_CODE_BUTTON_RELEASED, game_inst->state, game_on_button);

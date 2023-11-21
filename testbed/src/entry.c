@@ -6,7 +6,8 @@
 #include <containers/darray.h>
 #include <platform/platform.h>
 
-typedef b8 (*PFN_plugin_create)(renderer_plugin* out_plugin);
+typedef b8 (*PFN_renderer_plugin_create)(renderer_plugin* out_plugin);
+typedef b8 (*PFN_audio_plugin_create)(audio_plugin* out_plugin);
 typedef u64 (*PFN_application_state_size)(void);
 
 b8 load_game_lib(application* app)
@@ -136,6 +137,7 @@ b8 create_application(application* out_application)
     out_application->engine_state = 0;
     out_application->state = 0;
 
+    // Load Vulkan renderer plugin
     if (!platform_dynamic_library_load("vulkan_renderer", &out_application->renderer_library))
         return false;
 
@@ -143,8 +145,20 @@ b8 create_application(application* out_application)
         return false;
 
     // Create renderer plugin
-    PFN_plugin_create plugin_create = out_application->renderer_library.functions[0].pfn;
+    PFN_renderer_plugin_create plugin_create = out_application->renderer_library.functions[0].pfn;
     if (!plugin_create(&out_application->render_plugin))
+        return false;
+    
+    // Load OpenAL Audio plugin
+    if (!platform_dynamic_library_load("plugin_audio_openal", &out_application->audio_library))
+        return false;
+
+    if (!platform_dynamic_library_load_function("plugin_create", &out_application->audio_library))
+        return false;
+
+    // Create Audio plugin
+    PFN_audio_plugin_create audio_plugin_create = out_application->audio_library.functions[0].pfn;
+    if (!audio_plugin_create(&out_application->audio_plugin))
         return false;
 
     return true;

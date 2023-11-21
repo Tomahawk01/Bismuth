@@ -44,7 +44,8 @@ static const char* memory_tag_strings[MEMORY_TAG_MAX_TAGS] =
     "BITMAP_FONT ",
     "SYSTEM_FONT ",
     "KEYMAP      ",
-    "HASHTABLE   "
+    "HASHTABLE   ",
+    "AUDIO       "
 };
 
 typedef struct memory_system_state

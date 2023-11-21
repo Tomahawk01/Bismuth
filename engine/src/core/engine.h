@@ -1,6 +1,7 @@
 #pragma once
 
 #include "defines.h"
+#include "audio/audio_types.h"
 #include "systems/font_system.h"
 #include "renderer/renderer_types.h"
 
@@ -20,6 +21,7 @@ typedef struct application_config
     render_view* views;
 
     renderer_plugin renderer_plugin;
+    audio_plugin audio_plugin;
 
     u64 frame_allocator_size;
 
@@ -27,7 +29,6 @@ typedef struct application_config
 } application_config;
 
 BAPI b8 engine_create(struct application* game_inst);
-
 BAPI b8 engine_run(struct application* game_inst);
 
 void engine_on_event_system_initialized(void);

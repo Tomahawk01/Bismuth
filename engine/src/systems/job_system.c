@@ -284,7 +284,7 @@ static void process_queue(ring_queue* queue, bmutex* queue_mutex)
     }
 }
 
-b8 job_system_update(void* state, const struct frame_data* p_frame_data)
+b8 job_system_update(void* state, struct frame_data* p_frame_data)
 {
     if (!state_ptr || !state_ptr->running)
         return false;

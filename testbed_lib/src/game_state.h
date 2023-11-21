@@ -6,6 +6,7 @@
 #include <renderer/rendergraph.h>
 #include <systems/camera_system.h>
 
+#include "audio/audio_types.h"
 #include "editor/editor_gizmo.h"
 #include "renderer/viewport.h"
 #include "resources/simple_scene.h"
@@ -89,6 +90,11 @@ typedef struct testbed_game_state
     b8 using_gizmo;
 
     u32 render_mode;
+
+    struct audio_file* test_audio_file;
+    struct audio_file* test_loop_audio_file;
+    struct audio_file* test_music;
+    audio_emitter test_emitter;
     // TODO: end temp
 } testbed_game_state;
 

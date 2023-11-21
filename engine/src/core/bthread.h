@@ -10,15 +10,15 @@ typedef struct bthread
 
 typedef u32 (*pfn_thread_start)(void *);
 
-b8 bthread_create(pfn_thread_start start_function_ptr, void *params, b8 auto_detach, bthread *out_thread);
-void bthread_destroy(bthread *thread);
+BAPI b8 bthread_create(pfn_thread_start start_function_ptr, void *params, b8 auto_detach, bthread *out_thread);
+BAPI void bthread_destroy(bthread *thread);
 
-void bthread_detach(bthread *thread);
+BAPI void bthread_detach(bthread *thread);
 
-void bthread_cancel(bthread *thread);
+BAPI void bthread_cancel(bthread *thread);
 
-b8 bthread_is_active(bthread *thread);
+BAPI b8 bthread_is_active(bthread *thread);
 
-void bthread_sleep(bthread *thread, u64 ms);
+BAPI void bthread_sleep(bthread *thread, u64 ms);
 
-u64 platform_current_thread_id(void);
+BAPI u64 platform_current_thread_id(void);
