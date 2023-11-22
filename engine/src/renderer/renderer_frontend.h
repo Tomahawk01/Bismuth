@@ -91,7 +91,7 @@ BAPI b8 renderer_is_multithreaded(void);
 BAPI b8 renderer_flag_enabled_get(renderer_config_flags flag);
 BAPI void renderer_flag_enabled_set(renderer_config_flags flag, b8 enabled);
 
-BAPI b8 renderer_renderbuffer_create(const char* name, renderbuffer_type type, u64 total_size, b8 use_freelist, renderbuffer* out_buffer);
+BAPI b8 renderer_renderbuffer_create(const char* name, renderbuffer_type type, u64 total_size, renderbuffer_track_type track_type, renderbuffer* out_buffer);
 BAPI void renderer_renderbuffer_destroy(renderbuffer* buffer);
 
 BAPI b8 renderer_renderbuffer_bind(renderbuffer* buffer, u64 offset);

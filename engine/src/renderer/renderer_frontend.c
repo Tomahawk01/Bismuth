@@ -483,7 +483,7 @@ void renderer_flag_enabled_set(renderer_config_flags flag, b8 enabled)
     state_ptr->plugin.flag_enabled_set(&state_ptr->plugin, flag, enabled);
 }
 
-b8 renderer_renderbuffer_create(const char* name, renderbuffer_type type, u64 total_size, b8 use_freelist, renderbuffer* out_buffer)
+b8 renderer_renderbuffer_create(const char* name, renderbuffer_type type, u64 total_size, renderbuffer_track_type track_type, renderbuffer* out_buffer)
 {
     renderer_system_state* state_ptr = (renderer_system_state*)systems_manager_get_state(B_SYSTEM_TYPE_RENDERER);
     if (!out_buffer)
@@ -507,12 +507,18 @@ b8 renderer_renderbuffer_create(const char* name, renderbuffer_type type, u64 to
         out_buffer->name = string_duplicate(temp_name);
     }
 
+    out_buffer->track_type = track_type;
+
     // Create freelist, if needed
-    if (use_freelist)
+    if (track_type == RENDERBUFFER_TRACK_TYPE_FREELIST)
     {
         freelist_create(total_size, &out_buffer->freelist_memory_requirement, 0, 0);
         out_buffer->freelist_block = ballocate(out_buffer->freelist_memory_requirement, MEMORY_TAG_RENDERER);
         freelist_create(total_size, &out_buffer->freelist_memory_requirement, out_buffer->freelist_block, &out_buffer->buffer_freelist);
+    }
+    else if (track_type == RENDERBUFFER_TRACK_TYPE_LINEAR)
+    {
+        out_buffer->offset = 0;
     }
 
     // Create internal buffer from backend
@@ -530,11 +536,15 @@ void renderer_renderbuffer_destroy(renderbuffer* buffer)
     renderer_system_state* state_ptr = (renderer_system_state*)systems_manager_get_state(B_SYSTEM_TYPE_RENDERER);
     if (buffer)
     {
-        if (buffer->freelist_memory_requirement > 0)
+        if (buffer->track_type == RENDERBUFFER_TRACK_TYPE_FREELIST)
         {
             freelist_destroy(&buffer->buffer_freelist);
             bfree(buffer->freelist_block, buffer->freelist_memory_requirement, MEMORY_TAG_RENDERER);
             buffer->freelist_memory_requirement = 0;
+        }
+        else if (buffer->track_type == RENDERBUFFER_TRACK_TYPE_LINEAR)
+        {
+            buffer->offset = 0;
         }
 
         if (buffer->name)
@@ -601,7 +611,7 @@ b8 renderer_renderbuffer_resize(renderbuffer* buffer, u64 new_total_size)
         return false;
     }
 
-    if (buffer->freelist_memory_requirement > 0)
+    if (buffer->track_type == RENDERBUFFER_TRACK_TYPE_FREELIST)
     {
         // Resize freelist first, if used
         u64 new_memory_requirement = 0;
@@ -637,10 +647,16 @@ b8 renderer_renderbuffer_allocate(renderbuffer* buffer, u64 size, u64* out_offse
         return false;
     }
 
-    if (buffer->freelist_memory_requirement == 0)
+    if (buffer->track_type == RENDERBUFFER_TRACK_TYPE_NONE)
     {
         BWARN("renderer_renderbuffer_allocate called on a buffer not using freelists. Offset will not be valid. Call renderer_renderbuffer_load_range instead");
         *out_offset = 0;
+        return true;
+    }
+    else if (buffer->track_type == RENDERBUFFER_TRACK_TYPE_LINEAR)
+    {
+        *out_offset = buffer->offset;
+        buffer->offset += size;
         return true;
     }
     return freelist_allocate_block(&buffer->buffer_freelist, size, out_offset);
@@ -654,9 +670,9 @@ b8 renderer_renderbuffer_free(renderbuffer* buffer, u64 size, u64 offset)
         return false;
     }
 
-    if (buffer->freelist_memory_requirement == 0)
+    if (buffer->track_type != RENDERBUFFER_TRACK_TYPE_FREELIST)
     {
-        BWARN("renderer_renderbuffer_allocate called on a buffer not using freelists. Nothing was done");
+        BWARN("renderer_render_buffer_free called on a buffer not using freelists. Nothing was done");
         return true;
     }
     return freelist_free_block(&buffer->buffer_freelist, size, offset);
@@ -670,8 +686,10 @@ b8 renderer_renderbuffer_clear(renderbuffer* buffer, b8 zero_memory)
         return false;
     }
 
-    if (buffer->freelist_memory_requirement != 0)
+    if (buffer->track_type == RENDERBUFFER_TRACK_TYPE_FREELIST)
         freelist_clear(&buffer->buffer_freelist);
+    else if (buffer->track_type == RENDERBUFFER_TRACK_TYPE_LINEAR)
+        buffer->offset = 0;
 
     if (zero_memory)
     {

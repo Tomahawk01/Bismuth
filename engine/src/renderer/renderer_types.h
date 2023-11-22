@@ -141,15 +141,24 @@ typedef enum renderbuffer_type
     RENDERBUFFER_TYPE_STORAGE
 } renderbuffer_type;
 
+typedef enum renderbuffer_track_type
+{
+    RENDERBUFFER_TRACK_TYPE_NONE = 0,
+    RENDERBUFFER_TRACK_TYPE_FREELIST = 1,
+    RENDERBUFFER_TRACK_TYPE_LINEAR = 2
+} renderbuffer_track_type;
+
 typedef struct renderbuffer
 {
     char* name;
     renderbuffer_type type;
     u64 total_size;
+    renderbuffer_track_type track_type;
     u64 freelist_memory_requirement;
     freelist buffer_freelist;
     void* freelist_block;
     void* internal_data;
+    u64 offset;
 } renderbuffer;
 
 typedef enum renderer_config_flag_bits

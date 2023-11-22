@@ -52,7 +52,7 @@ b8 vulkan_device_create(vulkan_context* context)
         index_count++;
     if (!transfer_shares_graphics_queue)
         index_count++;
-    u32 indices[32];
+    i32 indices[32];
     u8 index = 0;
     indices[index++] = context->device.graphics_queue_index;
     if (!present_shares_graphics_queue)
@@ -61,18 +61,22 @@ b8 vulkan_device_create(vulkan_context* context)
         indices[index++] = context->device.transfer_queue_index;
 
     VkDeviceQueueCreateInfo queue_create_infos[32];
-    f32 queue_priority = 1.0f;
+    f32 queue_priorities[2] = {0.9f, 1.0f};
     for (u32 i = 0; i < index_count; ++i)
     {
         queue_create_infos[i].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
         queue_create_infos[i].queueFamilyIndex = indices[i];
         queue_create_infos[i].queueCount = 1;
+
+        if (present_shares_graphics_queue && indices[i] == context->device.present_queue_index)
+            queue_create_infos[i].queueCount = 2;
+
         // TODO: Enhance it in future
         // if (indices[i] == context->device.graphics_queue_index)
         //     queue_create_infos[i].queueCount = 2;
         queue_create_infos[i].flags = 0;
         queue_create_infos[i].pNext = 0;
-        queue_create_infos[i].pQueuePriorities = &queue_priority;
+        queue_create_infos[i].pQueuePriorities = queue_priorities;
     }
     
     // Request device features
@@ -224,7 +228,7 @@ b8 vulkan_device_create(vulkan_context* context)
     vkGetDeviceQueue(
         context->device.logical_device,
         context->device.present_queue_index,
-        0,
+        context->device.graphics_queue_index == context->device.present_queue_index ? 1 : 0,
         &context->device.present_queue);
 
     vkGetDeviceQueue(

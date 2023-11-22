@@ -59,7 +59,7 @@ b8 ui_text_create(const char* name, ui_text_type type, const char* font_name, u1
     // Generate vertex buffer
     char bufname[256] = {0};
     string_format(bufname, "renderbuffer_vertexbuffer_uitext_%s", out_text->name);
-    if (!renderer_renderbuffer_create(bufname, RENDERBUFFER_TYPE_VERTEX, text_length * quad_size, false, &out_text->vertex_buffer))
+    if (!renderer_renderbuffer_create(bufname, RENDERBUFFER_TYPE_VERTEX, text_length * quad_size, RENDERBUFFER_TRACK_TYPE_NONE, &out_text->vertex_buffer))
     {
         BERROR("ui_text_create failed to create vertex renderbuffer");
         return false;
@@ -74,7 +74,7 @@ b8 ui_text_create(const char* name, ui_text_type type, const char* font_name, u1
     bzero_memory(bufname, 256);
     string_format(bufname, "renderbuffer_indexbuffer_uitext_%s", out_text->name);
     static const u8 quad_index_size = sizeof(u32) * 6;
-    if (!renderer_renderbuffer_create(bufname, RENDERBUFFER_TYPE_INDEX, text_length * quad_index_size, false, &out_text->index_buffer))
+    if (!renderer_renderbuffer_create(bufname, RENDERBUFFER_TYPE_INDEX, text_length * quad_index_size, RENDERBUFFER_TRACK_TYPE_NONE, &out_text->index_buffer))
     {
         BERROR("ui_text_create failed to create index renderbuffer");
         return false;
