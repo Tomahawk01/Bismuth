@@ -87,8 +87,7 @@ static u32 job_thread_run(void* params)
 {
     u32 index = *(u32*)params;
     job_thread* thread = &state_ptr->job_threads[index];
-    u64 thread_id = thread->thread.thread_id;
-    BTRACE("Starting job thread #%i (id=%#x, type=%#x)", thread->index, thread_id, thread->type_mask);
+    BTRACE("Starting job thread #%i (id=%#x, type=%#x)", thread->index, thread->thread.thread_id, thread->type_mask);
 
     // Mutex to lock info for this thread
     if (!bmutex_create(&thread->info_mutex))

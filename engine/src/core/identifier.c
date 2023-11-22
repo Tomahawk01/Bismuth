@@ -1,45 +1,29 @@
 #include "identifier.h"
+
 #include "containers/darray.h"
 #include "core/logger.h"
+#include "math/mtwister.h"
 
-static void** owners = 0;
+#include <time.h>
 
-u32 identifier_aquire_new_id(void* owner)
+static b8 generator_created = false;
+static mtrand_state generator;
+
+identifier identifier_create(void)
 {
-    if (!owners)
+    if (!generator_created)
     {
-        owners = darray_reserve(void*, 100);
-        darray_push(owners, INVALID_ID_U64);
+        generator = mtrand_create(time(0));
+        generator_created = true;
     }
-    u64 length = darray_length(owners);
-    for (u64 i = 0; i < length; ++i)
-    {
-        if (owners[i] == 0)
-        {
-            owners[i] = owner;
-            return i;
-        }
-    }
-
-    darray_push(owners, owner);
-    length = darray_length(owners);
-    return length - 1;
+    identifier id;
+    id.uniqueid = mtrand_generate(&generator);
+    return id;
 }
 
-void identifier_release_id(u32 id)
+identifier identifier_from_u64(u64 uniqueid)
 {
-    if (!owners)
-    {
-        BERROR("identifier_release_id called before initialization. identifier_aquire_new_id should have been called first. Nothing was done");
-        return;
-    }
-
-    u64 length = darray_length(owners);
-    if (id > length)
-    {
-        BERROR("identifier_release_id: id '%u' out of range (max=%llu). Nothing was done", id, length);
-        return;
-    }
-
-    owners[id] = 0;
+    identifier id;
+    id.uniqueid = uniqueid;
+    return id;
 }

@@ -1,5 +1,6 @@
 #include "scene_pass.h"
 
+#include "defines.h"
 #include "core/bmemory.h"
 #include "core/logger.h"
 #include "renderer/renderer_frontend.h"
@@ -213,6 +214,7 @@ b8 scene_pass_execute(struct rendergraph_pass* self, struct frame_data* p_frame_
             return false;
         }
 
+        u32 current_material_id = INVALID_ID - 1;
         // Draw geometries
         u32 count = ext_data->geometry_count;
         for (u32 i = 0; i < count; ++i)
@@ -223,18 +225,23 @@ b8 scene_pass_execute(struct rendergraph_pass* self, struct frame_data* p_frame_
             else
                 m = material_system_get_default();
 
-            // Update material if it hasn't already been this frame
-            b8 needs_update = m->render_frame_number != p_frame_data->renderer_frame_number || m->render_draw_index != p_frame_data->draw_index;
-            if (!material_system_apply_instance(m, p_frame_data, needs_update))
+            // Only rebind/update the material if it's a new material. Duplicates can reuse already-bound material
+            if (m->internal_id != current_material_id)
             {
-                BWARN("Failed to apply material '%s'. Skipping draw", m->name);
-                continue;
-            }
-            else
-            {
-                // Sync frame number and draw index
-                m->render_frame_number = p_frame_data->renderer_frame_number;
-                m->render_draw_index = p_frame_data->draw_index;
+                // Update material if it hasn't already been this frame
+                b8 needs_update = m->render_frame_number != p_frame_data->renderer_frame_number || m->render_draw_index != p_frame_data->draw_index;
+                if (!material_system_apply_instance(m, p_frame_data, needs_update))
+                {
+                    BWARN("Failed to apply material '%s'. Skipping draw", m->name);
+                    continue;
+                }
+                else
+                {
+                    // Sync frame number and draw index
+                    m->render_frame_number = p_frame_data->renderer_frame_number;
+                    m->render_draw_index = p_frame_data->draw_index;
+                }
+                current_material_id = m->id;
             }
 
             // Apply locals

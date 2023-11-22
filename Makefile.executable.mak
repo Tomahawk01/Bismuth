@@ -39,10 +39,12 @@ endif
 # Defaults to debug unless release is specified
 ifeq ($(TARGET),release)
 # release
+DEFINES += -DBRELEASE
+COMPILER_FLAGS += -MD -O2
 else
 # debug
 DEFINES += -D_DEBUG
-COMPILER_FLAGS += -g -MD
+COMPILER_FLAGS += -g -MD -O0
 LINKER_FLAGS += -g
 endif
 

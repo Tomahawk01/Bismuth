@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/identifier.h"
 #include "math/math_types.h"
 
 #define TERRAIN_MAX_MATERIAL_COUNT 4
@@ -130,8 +131,8 @@ typedef struct texture_map
     texture_repeat repeat_u; // X
     texture_repeat repeat_v; // Y
     texture_repeat repeat_w; // Z
-    // Pointer to render API-specific data. Typically the internal sampler
-    void* internal_data;
+    // Identifier used for internal resource lookups/management
+    u32 internal_id;
 } texture_map;
 
 typedef struct font_glyph
@@ -217,7 +218,6 @@ struct material;
 typedef struct geometry
 {
     u32 id;
-    u32 internal_id;
     u16 generation;
     vec3 center;
     extents_3d extents;
@@ -225,10 +225,12 @@ typedef struct geometry
     u32 vertex_count;
     u32 vertex_element_size;
     void* vertices;
+    u64 vertex_buffer_offset;
 
     u32 index_count;
     u32 index_element_size;
     void* indices;
+    u64 index_buffer_offset;
 
     char name[GEOMETRY_NAME_MAX_LENGTH];
     struct material* material;
@@ -248,7 +250,7 @@ typedef struct mesh
 {
     char* name;
     mesh_config config;
-    u32 unique_id;
+    identifier id;
     u8 generation;
     u16 geometry_count;
     geometry** geometries;

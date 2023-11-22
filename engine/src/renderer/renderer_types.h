@@ -16,7 +16,7 @@ typedef struct geometry_render_data
 {
     mat4 model;
     geometry* geometry;
-    u32 unique_id;
+    u64 unique_id;
     b8 winding_inverted;
 } geometry_render_data;
 
@@ -220,12 +220,6 @@ typedef struct renderer_plugin
     void (*texture_write_data)(struct renderer_plugin* plugin, texture* t, u32 offset, u32 size, const u8* pixels);
     void (*texture_read_data)(struct renderer_plugin* plugin, texture* t, u32 offset, u32 size, void** out_memory);
     void (*texture_read_pixel)(struct renderer_plugin* plugin, texture* t, u32 x, u32 y, u8** out_rgba);
-
-    b8 (*geometry_create)(struct renderer_plugin* plugin, geometry* g);
-    b8 (*geometry_upload)(struct renderer_plugin* plugin, geometry* g, u32 vertex_offset, u32 vertex_size, u32 index_offset, u32 index_size);
-    void (*geometry_vertex_update)(struct renderer_plugin *plugin, geometry *g, u32 offset, u32 vertex_count, void *vertices);
-    void (*geometry_destroy)(struct renderer_plugin* plugin, geometry* g);
-    void (*geometry_draw)(struct renderer_plugin* plugin, geometry_render_data* data);
 
     b8 (*shader_create)(struct renderer_plugin* plugin, struct shader* shader, const shader_config* config, renderpass* pass, u8 stage_count, const char** stage_filenames, shader_stage* stages);
     void (*shader_destroy)(struct renderer_plugin* plugin, struct shader* shader);

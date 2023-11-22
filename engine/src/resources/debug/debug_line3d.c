@@ -20,12 +20,11 @@ b8 debug_line3d_create(vec3 point_0, vec3 point_1, transform *parent, debug_line
         transform_parent_set(&out_line->xform, parent);
     out_line->point_0 = point_0;
     out_line->point_1 = point_1;
-    out_line->unique_id = identifier_aquire_new_id(out_line);
+    out_line->id = identifier_create();
     out_line->color = vec4_one();  // white
 
     out_line->geo.id = INVALID_ID;
     out_line->geo.generation = INVALID_ID_U16;
-    out_line->geo.internal_id = INVALID_ID;
 
     return true;
 }
@@ -33,8 +32,7 @@ b8 debug_line3d_create(vec3 point_0, vec3 point_1, transform *parent, debug_line
 void debug_line3d_destroy(debug_line3d *line)
 {
     // TODO: zero out
-    identifier_release_id(line->unique_id);
-    line->unique_id = INVALID_ID;
+    line->id.uniqueid = INVALID_ID_U64;
 }
 
 void debug_line3d_parent_set(debug_line3d *line, transform *parent)

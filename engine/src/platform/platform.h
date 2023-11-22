@@ -58,12 +58,14 @@ void platform_console_write_error(const char* message, u8 color);
 
 f64 platform_get_absolute_time(void);
 
-// Sleep on the thread for the provided ms. This blocks the main thread.
+// Sleep on the thread for the provided ms. This blocks the main thread
 BAPI void platform_sleep(u64 ms);
 
 i32 platform_get_processor_count(void);
 
 BAPI void platform_get_handle_info(u64* out_size, void* memory);
+
+BAPI f32 platform_device_pixel_ratio(void);
 
 BAPI b8 platform_dynamic_library_load(const char* name, dynamic_library* out_library);
 BAPI b8 platform_dynamic_library_unload(dynamic_library* library);

@@ -2,7 +2,7 @@
     "tasks": [
         {
             "type": "shell",
-            "label": "Build Everything",
+            "label": "Build Everything (Debug)",
             "command": "${workspaceFolder}/build-all.sh",
             "windows": {
                 "command": "${workspaceFolder}/build-all.bat",
@@ -21,6 +21,28 @@
             "group": {
                 "kind": "build",
                 "isDefault": true
+            }
+        },
+        {
+            "type": "shell",
+            "label": "Build Everything (Release)",
+            "command": "${workspaceFolder}/build-all.sh",
+            "windows": {
+                "command": "${workspaceFolder}/build-all.bat",
+                "args": [
+                    "windows",
+                    "build",
+                    "release"
+                ]
+            },
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "group": {
+                "kind": "build",
             }
         },
         {

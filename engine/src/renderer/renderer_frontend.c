@@ -1,5 +1,6 @@
 #include "renderer_frontend.h"
 
+#include "defines.h"
 #include "containers/freelist.h"
 #include "core/frame_data.h"
 #include "core/bmemory.h"
@@ -27,6 +28,9 @@ typedef struct renderer_system_state
     u32 framebuffer_height;
 
     viewport* active_viewport;
+
+    renderbuffer geometry_vertex_buffer;
+    renderbuffer geometry_index_buffer;
 } renderer_system_state;
 
 b8 renderer_system_initialize(u64* memory_requirement, void* state, void* config)
@@ -61,6 +65,31 @@ b8 renderer_system_initialize(u64* memory_requirement, void* state, void* config
         return false;
     }
 
+    // Geometry vertex buffer
+    // TODO: make this configurable
+    char bufname[256];
+    bzero_memory(bufname, 256);
+    string_format(bufname, "renderbuffer_vertexbuffer_globalgeometry");
+    const u64 vertex_buffer_size = sizeof(vertex_3d) * 20 * 1024 * 1024;
+    if (!renderer_renderbuffer_create(bufname, RENDERBUFFER_TYPE_VERTEX, vertex_buffer_size, RENDERBUFFER_TRACK_TYPE_FREELIST, &state_ptr->geometry_vertex_buffer))
+    {
+        BERROR("Error creating vertex buffer");
+        return false;
+    }
+    renderer_renderbuffer_bind(&state_ptr->geometry_vertex_buffer, 0);
+
+    // Geometry index buffer
+    // TODO: Make this configurable
+    bzero_memory(bufname, 256);
+    string_format(bufname, "renderbuffer_indexbuffer_globalgeometry");
+    const u64 index_buffer_size = sizeof(u32) * 100 * 1024 * 1024;
+    if (!renderer_renderbuffer_create(bufname, RENDERBUFFER_TYPE_INDEX, index_buffer_size, RENDERBUFFER_TRACK_TYPE_FREELIST, &state_ptr->geometry_index_buffer))
+    {
+        BERROR("Error creating index buffer");
+        return false;
+    }
+    renderer_renderbuffer_bind(&state_ptr->geometry_index_buffer, 0);
+
     return true;
 }
 
@@ -69,6 +98,12 @@ void renderer_system_shutdown(void* state)
     if (state)
     {
         renderer_system_state* typed_state = (renderer_system_state*)state;
+
+        // Destroy buffers
+        renderer_renderbuffer_destroy(&typed_state->geometry_vertex_buffer);
+        renderer_renderbuffer_destroy(&typed_state->geometry_index_buffer);
+
+        // Shutdown the plugin
         typed_state->plugin.shutdown(&typed_state->plugin);
     }
 }
@@ -223,13 +258,13 @@ b8 renderer_geometry_create(geometry* g, u32 vertex_size, u32 vertex_count, cons
     g->material = 0;
 
     // Invalidate IDs
-    g->internal_id = INVALID_ID;
     g->generation = INVALID_ID_U16;
 
     // Take copy of the vertex data
     g->vertex_count = vertex_count;
     g->vertex_element_size = vertex_size;
     g->vertices = ballocate(vertex_size * vertex_count, MEMORY_TAG_RENDERER);
+    g->vertex_buffer_offset = INVALID_ID_U64;
     bcopy_memory(g->vertices, vertices, vertex_size * vertex_count);
 
     g->index_count = index_count;
@@ -241,9 +276,9 @@ b8 renderer_geometry_create(geometry* g, u32 vertex_size, u32 vertex_count, cons
         g->indices = ballocate(index_size * index_count, MEMORY_TAG_RENDERER);
         bcopy_memory(g->indices, indices, index_size * index_count);
     }
+    g->index_buffer_offset = INVALID_ID_U64;
 
-    renderer_system_state* state_ptr = (renderer_system_state*)systems_manager_get_state(B_SYSTEM_TYPE_RENDERER);
-    return state_ptr->plugin.geometry_create(&state_ptr->plugin, g);
+    return true;
 }
 
 b8 renderer_geometry_upload(geometry* g)
@@ -254,25 +289,113 @@ b8 renderer_geometry_upload(geometry* g)
         return false;
     }
     renderer_system_state* state_ptr = (renderer_system_state*)systems_manager_get_state(B_SYSTEM_TYPE_RENDERER);
-    return state_ptr->plugin.geometry_upload(&state_ptr->plugin, g, 0, g->vertex_element_size * g->vertex_count, 0, g->index_element_size * g->index_count);
+
+    b8 is_reupload = g->generation != INVALID_ID_U16;
+    u32 vertex_size = g->vertex_element_size * g->vertex_count;
+    u32 vertex_offset = 0;
+    u32 index_size = g->index_element_size * g->index_count;
+    u32 index_offset = 0;
+    // Vertex data
+    if (!is_reupload)
+    {
+        // Allocate space in the buffer
+        if (!renderer_renderbuffer_allocate(&state_ptr->geometry_vertex_buffer, vertex_size, &g->vertex_buffer_offset))
+        {
+            BERROR("vulkan_renderer_geometry_upload failed to allocate from the vertex buffer");
+            return false;
+        }
+    }
+
+    // Load data
+    if (!renderer_renderbuffer_load_range(&state_ptr->geometry_vertex_buffer, g->vertex_buffer_offset + vertex_offset, vertex_size, g->vertices + vertex_offset))
+    {
+        BERROR("vulkan_renderer_geometry_upload failed to upload to the vertex buffer");
+        return false;
+    }
+
+    // Index data, if applicable
+    if (index_size)
+    {
+        if (!is_reupload)
+        {
+            // Allocate space in the buffer
+            if (!renderer_renderbuffer_allocate(&state_ptr->geometry_index_buffer, index_size, &g->index_buffer_offset))
+            {
+                BERROR("vulkan_renderer_geometry_upload failed to allocate from the index buffer");
+                return false;
+            }
+        }
+
+        // Load data
+        if (!renderer_renderbuffer_load_range(&state_ptr->geometry_index_buffer, g->index_buffer_offset + index_offset, index_size, g->indices + index_offset))
+        {
+            BERROR("vulkan_renderer_geometry_upload failed to upload to the index buffer");
+            return false;
+        }
+    }
+
+    g->generation++;
+
+    return true;
 }
 
 void renderer_geometry_vertex_update(geometry* g, u32 offset, u32 vertex_count, void* vertices)
 {
     renderer_system_state* state_ptr = (renderer_system_state*)systems_manager_get_state(B_SYSTEM_TYPE_RENDERER);
-    state_ptr->plugin.geometry_vertex_update(&state_ptr->plugin, g, offset, vertex_count, vertices);
+    // Load the data
+    u32 size = g->vertex_element_size * vertex_count;
+    if (!renderer_renderbuffer_load_range(&state_ptr->geometry_vertex_buffer, g->vertex_buffer_offset + offset, size, vertices + offset))
+        BERROR("vulkan_renderer_geometry_vertex_update failed to upload to the vertex buffer");
 }
 
-void renderer_geometry_destroy(geometry* geometry)
+void renderer_geometry_destroy(geometry* g)
 {
     renderer_system_state* state_ptr = (renderer_system_state*)systems_manager_get_state(B_SYSTEM_TYPE_RENDERER);
-    state_ptr->plugin.geometry_destroy(&state_ptr->plugin, geometry);
+    if (g->generation != INVALID_ID_U16)
+    {
+        // Free vertex data
+        u64 vertex_data_size = g->vertex_element_size * g->vertex_count;
+        if (vertex_data_size)
+        {
+            if (!renderer_renderbuffer_free(&state_ptr->geometry_vertex_buffer, vertex_data_size, g->vertex_buffer_offset))
+                BERROR("vulkan_renderer_destroy_geometry failed to free vertex buffer range");
+        }
+
+        // Free index data, if applicable
+        u64 index_data_size = g->index_element_size * g->index_count;
+        if (index_data_size)
+        {
+            if (!renderer_renderbuffer_free(&state_ptr->geometry_index_buffer, index_data_size, g->index_buffer_offset))
+                BERROR("vulkan_renderer_destroy_geometry failed to free index buffer range");
+        }
+
+        g->generation = INVALID_ID_U16;
+    }
+
+    if (g->vertices)
+        bfree(g->vertices, g->vertex_element_size * g->vertex_count, MEMORY_TAG_RENDERER);
+    if (g->indices)
+        bfree(g->indices, g->index_element_size * g->index_count, MEMORY_TAG_RENDERER);
 }
 
 void renderer_geometry_draw(geometry_render_data* data)
 {
     renderer_system_state* state_ptr = (renderer_system_state*)systems_manager_get_state(B_SYSTEM_TYPE_RENDERER);
-    state_ptr->plugin.geometry_draw(&state_ptr->plugin, data);
+    b8 includes_index_data = data->geometry->index_count > 0;
+    if (!renderer_renderbuffer_draw(&state_ptr->geometry_vertex_buffer, data->geometry->vertex_buffer_offset, data->geometry->vertex_count, includes_index_data))
+    {
+        BERROR("vulkan_renderer_draw_geometry failed to draw vertex buffer");
+        return;
+    }
+
+    if (includes_index_data)
+    {
+        if (!renderer_renderbuffer_draw(&state_ptr->geometry_index_buffer, data->geometry->index_buffer_offset, data->geometry->index_count, !includes_index_data))
+        {
+            BERROR("vulkan_renderer_draw_geometry failed to draw index buffer");
+            return;
+        }
+    }
 }
 
 b8 renderer_renderpass_begin(renderpass* pass, render_target* target)

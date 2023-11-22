@@ -123,8 +123,7 @@ void geometry_deduplicate_vertices(u32 vertex_count, vertex_3d *vertices, u32 in
     // Destroy temp array
     bfree(unique_verts, sizeof(vertex_3d) * vertex_count, MEMORY_TAG_ARRAY);
 
-    u32 removed_count = vertex_count - *out_vertex_count;
-    BDEBUG("geometry_deduplicate_vertices: removed %d vertices, original/new %d/%d", removed_count, vertex_count, *out_vertex_count);
+    BDEBUG("geometry_deduplicate_vertices: removed %d vertices, original/new %d/%d", vertex_count - *out_vertex_count, vertex_count, *out_vertex_count);
 }
 
 void terrain_geometry_generate_normals(u32 vertex_count, terrain_vertex *vertices, u32 index_count, u32 *indices)

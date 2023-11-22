@@ -2,5 +2,11 @@
 
 #include "defines.h"
 
-BAPI u32 identifier_aquire_new_id(void* owner);
-BAPI void identifier_release_id(u32 id);
+typedef struct identifier
+{
+    // Actual internal identifier
+    u64 uniqueid;
+} identifier;
+
+BAPI identifier identifier_create(void);
+BAPI identifier identifier_from_u64(u64 uniqueid);

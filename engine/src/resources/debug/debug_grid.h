@@ -1,4 +1,5 @@
 #include "defines.h"
+#include "core/identifier.h"
 #include "math/math_types.h"
 #include "resources/resource_types.h"
 
@@ -25,7 +26,7 @@ typedef struct debug_grid_config
 
 typedef struct debug_grid
 {
-    u32 unique_id;
+    identifier id;
     char *name;
     debug_grid_orientation orientation;
     u32 tile_count_dim_0;

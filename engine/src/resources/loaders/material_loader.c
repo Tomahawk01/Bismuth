@@ -500,7 +500,7 @@ static b8 material_loader_load(struct resource_loader* self, const char* name, v
 
 static void material_loader_unload(struct resource_loader* self, resource* resource)
 {
-    if (!resource_unload(self, resource, MEMORY_TAG_MATERIAL_INSTANCE))
+    if (!resource_unload(self, resource, MEMORY_TAG_RESOURCE))
         BWARN("material_loader_unload called with nullptr for self or resource");
 }
 

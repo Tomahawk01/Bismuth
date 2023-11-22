@@ -1,8 +1,8 @@
 #include "terrain.h"
 
 #include "defines.h"
-#include "core/logger.h"
 #include "core/identifier.h"
+#include "core/logger.h"
 #include "core/bstring.h"
 #include "core/bmemory.h"
 #include "math/bmath.h"
@@ -73,7 +73,6 @@ b8 terrain_create(const terrain_config* config, terrain* out_terrain)
 
     // Invalidate geometry
     out_terrain->geo.id = INVALID_ID;
-    out_terrain->geo.internal_id = INVALID_ID;
     out_terrain->geo.generation = INVALID_ID_U16;
 
     return true;
@@ -192,7 +191,7 @@ b8 terrain_load(terrain* t)
 
     geometry* g = &t->geo;
 
-    t->unique_id = identifier_aquire_new_id(t);
+    t->id = identifier_create();
 
     if (!renderer_geometry_create(g, sizeof(terrain_vertex), t->vertex_count, t->vertices, sizeof(u32), t->index_count, t->indices))
         return false;
@@ -224,7 +223,7 @@ b8 terrain_unload(terrain* t)
     material_system_release(t->geo.material->name);
     renderer_geometry_destroy(&t->geo);
 
-    t->unique_id = 0;
+    t->id.uniqueid = INVALID_ID_U64;
 
     return true;
 }

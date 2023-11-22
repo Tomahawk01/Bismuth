@@ -5,6 +5,7 @@
 #include "renderer/renderer_types.h"
 #include "containers/freelist.h"
 #include "containers/hashtable.h"
+#include "vulkan/vulkan_core.h"
 
 #include <vulkan/vulkan.h>
 
@@ -202,22 +203,6 @@ typedef struct vulkan_pipeline
 // TODO: make configurable
 #define VULKAN_MAX_MATERIAL_COUNT 1024
 
-// Max number of simultaneously uploaded geometries
-// TODO: make configurable
-#define VULKAN_MAX_GEOMETRY_COUNT 4096
-
-/**
- * @brief Internal buffer data for geometry
- */
-typedef struct vulkan_geometry_data
-{
-    u32 id;
-    u32 generation;
-
-    u64 vertex_buffer_offset;
-    u64 index_buffer_offset;
-} vulkan_geometry_data;
-
 #define VULKAN_MAX_UI_COUNT 1024
 
 #define VULKAN_SHADER_MAX_STAGES 8
@@ -360,9 +345,6 @@ typedef struct vulkan_context
 
     vulkan_swapchain swapchain;
 
-    renderbuffer object_vertex_buffer;
-    renderbuffer object_index_buffer;
-
     // darray
     vulkan_command_buffer* graphics_command_buffers;
 
@@ -382,12 +364,12 @@ typedef struct vulkan_context
 
     b8 render_flag_changed;
 
-    // TODO: make dynamic
-    vulkan_geometry_data geometries[VULKAN_MAX_GEOMETRY_COUNT];
-
     render_target world_render_targets[3];
 
     b8 multithreading_enabled;
+
+    // Collection of samplers. darray
+    VkSampler* samplers;
 
     i32 (*find_memory_index)(struct vulkan_context* context, u32 type_filter, u32 property_flags);
 

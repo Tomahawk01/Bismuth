@@ -14,7 +14,6 @@
 #include "memory/linear_allocator.h"
 #include "platform/platform.h"
 #include "renderer/renderer_frontend.h"
-#include "version.h"
 
 // Systems
 #include "core/systems_manager.h"
@@ -137,9 +136,6 @@ b8 engine_create(application* game_inst)
         BFATAL("Post-boot system manager initialization failed");
         return false;
     }
-
-    // Report engine version
-    BINFO("Bismuth Engine v. %s", BVERSION);
 
     // Initialize the game
     game_inst->stage = APPLICATION_STAGE_INITIALIZING;

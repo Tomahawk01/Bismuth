@@ -1,4 +1,6 @@
 #include "debug_box3d.h"
+
+#include "defines.h"
 #include "core/bmemory.h"
 #include "core/identifier.h"
 #include "math/transform.h"
@@ -18,12 +20,11 @@ b8 debug_box3d_create(vec3 size, transform *parent, debug_box3d *out_box)
     if (parent)
         transform_parent_set(&out_box->xform, parent);
     out_box->size = size;
-    out_box->unique_id = identifier_aquire_new_id(out_box);
+    out_box->id = identifier_create();
     out_box->color = vec4_one();  // white
 
     out_box->geo.id = INVALID_ID;
     out_box->geo.generation = INVALID_ID_U16;
-    out_box->geo.internal_id = INVALID_ID;
 
     return true;
 }
@@ -31,8 +32,7 @@ b8 debug_box3d_create(vec3 size, transform *parent, debug_box3d *out_box)
 void debug_box3d_destroy(debug_box3d *box)
 {
     // TODO: zero out
-    identifier_release_id(box->unique_id);
-    box->unique_id = INVALID_ID;
+    box->id.uniqueid = INVALID_ID_U64;
 }
 
 void debug_box3d_parent_set(debug_box3d *box, transform *parent)

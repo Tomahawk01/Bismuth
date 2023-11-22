@@ -60,10 +60,12 @@ endif
 # Defaults to debug unless release is specified
 ifeq ($(TARGET),release)
 # release
+DEFINES += -DBRELEASE
+COMPILER_FLAGS += -MD -O2
 else
 # debug
 DEFINES += -D_DEBUG
-COMPILER_FLAGS += -g -MD
+COMPILER_FLAGS += -g -MD -O0
 LINKER_FLAGS += -g
 endif
 
@@ -79,19 +81,20 @@ else
 	@mkdir -p $(addprefix $(OBJ_DIR)/,$(DIRECTORIES))
 endif
 
-# TODO: reenable this
-# # Generate version file
-# ifeq ($(BUILD_PLATFORM),windows)
-# 	@if exist $(VERFILE) del $(VERFILE)
-# # Write out the version file
-# 	@echo $(VER_COMMENT)\n > $(VERFILE)
-# 	@echo #define BVERSION "$(BVERSION)" >> $(VERFILE)
-# else
-# 	@rm -rf $(VERFILE)
-# # Write out the version file
-# 	@echo $(VER_COMMENT)\n > $(VERFILE)
-# 	@echo "#define BVERSION \"$(BVERSION)\"" >> $(VERFILE)
-# endif
+# Generate version file
+ifeq ($(DO_VERSION),yes)
+ifeq ($(BUILD_PLATFORM),windows)
+	@if exist $(VERFILE) del $(VERFILE)
+# Write out the version file
+	@echo $(VER_COMMENT)\n > $(VERFILE)
+	@echo #define BVERSION "$(BVERSION)" >> $(VERFILE)
+else
+	@rm -rf $(VERFILE)
+# Write out the version file
+	@echo $(VER_COMMENT)\n > $(VERFILE)
+	@echo "#define BVERSION \"$(BVERSION)\"" >> $(VERFILE)
+endif
+endif
 
 .PHONY: link
 link: scaffold $(OBJ_FILES) # link

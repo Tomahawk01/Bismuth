@@ -62,6 +62,7 @@
         "geometry_system.h": "c",
         "hashtable.h": "c",
         "camera_system.h": "c",
-        "vulkan_utils.h": "c"
+        "vulkan_utils.h": "c",
+        "vulkan.h": "c"
     },
 }

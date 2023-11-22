@@ -152,7 +152,7 @@ b8 mesh_load(mesh* m)
     if (!m)
         return false;
 
-    m->unique_id = identifier_aquire_new_id(m);
+    m->id = identifier_create();
 
     if (m->config.resource_name)
     {

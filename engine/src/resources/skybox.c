@@ -118,6 +118,4 @@ void skybox_destroy(skybox* sb)
             BERROR("skybox_destroy() - Failed to successfully unload skybox before destruction");
         }
     }
-
-    bzero_memory(sb, sizeof(skybox));
 }
