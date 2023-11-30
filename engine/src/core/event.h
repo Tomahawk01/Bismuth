@@ -79,14 +79,17 @@ typedef enum system_event_code
     // Mouse button released
     EVENT_CODE_BUTTON_RELEASED = 0x05,
 
+    // Mouse button pressed then released
+    EVENT_CODE_BUTTON_CLICKED = 0x06,
+
     // Mouse moved
-    EVENT_CODE_MOUSE_MOVED = 0x06,
+    EVENT_CODE_MOUSE_MOVED = 0x07,
 
     // Mouse wheel moved
-    EVENT_CODE_MOUSE_WHEEL = 0x07,
+    EVENT_CODE_MOUSE_WHEEL = 0x08,
 
     // Resize/resolution changed from the OS
-    EVENT_CODE_RESIZED = 0x08,
+    EVENT_CODE_RESIZED = 0x09,
 
     // Change render mode for debugging purposes
     EVENT_CODE_SET_RENDER_MODE = 0x0A,

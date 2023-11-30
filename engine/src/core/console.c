@@ -203,7 +203,7 @@ b8 console_command_execute(const char* command)
 
     if (!command_found)
     {
-        BERROR("The command '%s' does not exist", parts[0]);
+        BERROR("The command '%s' does not exist", string_trim(parts[0]));
         has_error = true;
     }
 

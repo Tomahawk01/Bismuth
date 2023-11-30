@@ -223,11 +223,11 @@ static void create(vulkan_context* context, u32 width, u32 height, renderer_conf
     if (!swapchain->depth_textures)
         swapchain->depth_textures = (texture*)ballocate(sizeof(texture) * swapchain->image_count, MEMORY_TAG_RENDERER);
 
+    // Create depth/stencil images and its view
     for (u32 i = 0; i < context->swapchain.image_count; ++i)
     {
-        // Create depth image and its view
         char formatted_name[TEXTURE_NAME_MAX_LENGTH] = {0};
-        string_format(formatted_name, "swapchain_image_%u", i);
+        string_format(formatted_name, "__bismuth_default_depth_stencil_texture_%u", i);
 
         vulkan_image* image = ballocate(sizeof(vulkan_image), MEMORY_TAG_TEXTURE);
         vulkan_image_create(
@@ -240,14 +240,14 @@ static void create(vulkan_context* context, u32 width, u32 height, renderer_conf
             VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             true,
-            VK_IMAGE_ASPECT_DEPTH_BIT,
+            VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
             formatted_name,
             1,
             image);
 
         // Wrap it in texture
         texture_system_wrap_internal(
-            "__bismuth_default_depth_texture__",
+            formatted_name,
             swapchain_extent.width,
             swapchain_extent.height,
             context->device.depth_channel_count,

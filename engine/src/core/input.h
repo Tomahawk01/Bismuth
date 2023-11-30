@@ -171,6 +171,7 @@ void input_system_shutdown(void* state);
 void input_update(const struct frame_data* p_frame_data);
 
 // Keyboard input
+BAPI void input_key_repeats_enable(b8 enable);
 BAPI b8 input_is_key_down(keys key);
 BAPI b8 input_is_key_up(keys key);
 BAPI b8 input_was_key_down(keys key);

@@ -2,6 +2,24 @@
 
 #include "math_types.h"
 
+struct geometry;
+typedef struct nine_slice
+{
+    struct geometry *g;
+    // Actual corner w/h
+    vec2i corner_size;
+    // Sampled corner w/h
+    vec2i corner_px_size;
+
+    // Overall w/h of 9-slice
+    vec2i size;
+
+    vec2i atlas_px_min;
+    vec2i atlas_px_max;
+
+    vec2i atlas_px_size;
+} nine_slice;
+
 /**
  * @brief Calculates normals for the given vertex and index data. Modifies vertices in place.
  * 
@@ -10,7 +28,7 @@
  * @param index_count The number of indices.
  * @param indices An array of vertices.
  */
-void geometry_generate_normals(u32 vertex_count, vertex_3d* vertices, u32 index_count, u32* indices);
+BAPI void geometry_generate_normals(u32 vertex_count, vertex_3d* vertices, u32 index_count, u32* indices);
 
 /**
  * @brief Calculates tangents for the given vertex and index data. Modifies vertices in place.
@@ -20,7 +38,7 @@ void geometry_generate_normals(u32 vertex_count, vertex_3d* vertices, u32 index_
  * @param index_count The number of indices.
  * @param indices An array of vertices.
  */
-void geometry_generate_tangents(u32 vertex_count, vertex_3d* vertices, u32 index_count, u32* indices);
+BAPI void geometry_generate_tangents(u32 vertex_count, vertex_3d* vertices, u32 index_count, u32* indices);
 
 /**
  * @brief De-duplicates vertices, leaving only unique ones. Leaves original vertices array intact.
@@ -34,10 +52,17 @@ void geometry_generate_tangents(u32 vertex_count, vertex_3d* vertices, u32 index
  * @param out_vertex_count A pointer to hold the final vertex count.
  * @param out_vertices A pointer to hold the array of de-duplicated vertices.
  */
-void geometry_deduplicate_vertices(u32 vertex_count, vertex_3d* vertices, u32 index_count, u32* indices, u32* out_vertex_count, vertex_3d** out_vertices);
+BAPI void geometry_deduplicate_vertices(u32 vertex_count, vertex_3d* vertices, u32 index_count, u32* indices, u32* out_vertex_count, vertex_3d** out_vertices);
 
 struct terrain_vertex;
 
-void terrain_geometry_generate_normals(u32 vertex_count, struct terrain_vertex *vertices, u32 index_count, u32 *indices);
+BAPI void terrain_geometry_generate_normals(u32 vertex_count, struct terrain_vertex *vertices, u32 index_count, u32 *indices);
 
-void terrain_geometry_generate_tangents(u32 vertex_count, struct terrain_vertex *vertices, u32 index_count, u32 *indices);
+BAPI void terrain_geometry_generate_tangents(u32 vertex_count, struct terrain_vertex *vertices, u32 index_count, u32 *indices);
+
+struct geometry_config;
+BAPI void generate_uvs_from_image_coords(u32 img_width, u32 img_height, u32 px_x, u32 px_y, f32 *out_tx, f32 *out_ty);
+BAPI void generate_quad_2d(const char *name, f32 width, f32 height, f32 tx_min, f32 tx_max, f32 ty_min, f32 ty_max, struct geometry_config *out_config);
+
+BAPI b8 update_nine_slice(nine_slice *nslice, vertex_2d *vertices);
+BAPI b8 generate_nine_slice(const char *name, vec2i size, vec2i atlas_px_size, vec2i atlas_px_min, vec2i atlas_px_max, vec2i corner_px_size, vec2i corner_size, nine_slice *out_nine_slice);

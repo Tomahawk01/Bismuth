@@ -5,6 +5,9 @@
             "includePath": [
                 "${workspaceFolder}/engine/src/**",
                 "${workspaceFolder}/vulkan_renderer/src/**",
+                "${workspaceFolder}/standard_ui/src/**",
+                "${workspaceFolder}/testbed_lib/src/**",
+                "${workspaceFolder}/plugin_audio_openal/src/**",
                 "${VULKAN_SDK}/include"
             ],
             "defines": [
@@ -13,7 +16,7 @@
                 "_UNICODE",
                 "BEXPORT"
             ],
-            "windowsSdkVersion": "10.0.18362.0",
+            "windowsSdkVersion": "10.0.19041.0",
             "compilerPath": "C:\\Program Files\\LLVM\\bin\\clang.exe",
             "cStandard": "c17",
             "cppStandard": "c++17",

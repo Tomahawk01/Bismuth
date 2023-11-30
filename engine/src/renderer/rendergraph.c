@@ -498,7 +498,7 @@ static b8 regenerate_render_targets(rendergraph* graph, rendergraph_pass* pass, 
                 {
                     attachment->texture = renderer_window_attachment_get(i);
                 }
-                else if (attachment->type == RENDER_TARGET_ATTACHMENT_TYPE_DEPTH)
+                else if (attachment->type & RENDER_TARGET_ATTACHMENT_TYPE_DEPTH || attachment->type & RENDER_TARGET_ATTACHMENT_TYPE_STENCIL)
                 {
                     attachment->texture = renderer_depth_attachment_get(i);
                 }

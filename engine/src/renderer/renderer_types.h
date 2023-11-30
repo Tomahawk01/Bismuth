@@ -11,13 +11,23 @@ struct frame_data;
 struct terrain;
 struct viewport;
 struct camera;
+struct material;
 
 typedef struct geometry_render_data
 {
     mat4 model;
-    geometry* geometry;
+    struct material* material;
     u64 unique_id;
     b8 winding_inverted;
+    vec4 diffuse_color;
+
+    u32 vertex_count;
+    u32 vertex_element_size;
+    u64 vertex_buffer_offset;
+
+    u32 index_count;
+    u32 index_element_size;
+    u64 index_buffer_offset;
 } geometry_render_data;
 
 typedef enum renderer_debug_view_mode
@@ -58,6 +68,30 @@ typedef enum renderer_projection_matrix_type
     RENDERER_PROJECTION_MATRIX_TYPE_ORTHOGRAPHIC = 0x1,
     RENDERER_PROJECTION_MATRIX_TYPE_ORTHOGRAPHIC_CENTERED = 0x2
 } renderer_projection_matrix_type;
+
+typedef enum renderer_stencil_op
+{
+    RENDERER_STENCIL_OP_KEEP = 0,
+    RENDERER_STENCIL_OP_ZERO = 1,
+    RENDERER_STENCIL_OP_REPLACE = 2,
+    RENDERER_STENCIL_OP_INCREMENT_AND_CLAMP = 3,
+    RENDERER_STENCIL_OP_DECREMENT_AND_CLAMP = 4,
+    RENDERER_STENCIL_OP_INVERT = 5,
+    RENDERER_STENCIL_OP_INCREMENT_AND_WRAP = 6,
+    RENDERER_STENCIL_OP_DECREMENT_AND_WRAP = 7
+} renderer_stencil_op;
+
+typedef enum renderer_compare_op
+{
+    RENDERER_COMPARE_OP_NEVER = 0,
+    RENDERER_COMPARE_OP_LESS = 1,
+    RENDERER_COMPARE_OP_EQUAL = 2,
+    RENDERER_COMPARE_OP_LESS_OR_EQUAL = 3,
+    RENDERER_COMPARE_OP_GREATER = 4,
+    RENDERER_COMPARE_OP_NOT_EQUAL = 5,
+    RENDERER_COMPARE_OP_GREATER_OR_EQUAL = 6,
+    RENDERER_COMPARE_OP_ALWAYS = 7
+} renderer_compare_op;
 
 typedef struct render_target_attachment_config
 {
@@ -208,6 +242,14 @@ typedef struct renderer_plugin
     void (*scissor_reset)(struct renderer_plugin* plugin);
 
     void (*winding_set)(struct renderer_plugin* plugin, renderer_winding winding);
+
+    void (*set_stencil_test_enabled)(struct renderer_plugin* plugin, b8 enabled);
+    void (*set_depth_test_enabled)(struct renderer_plugin* plugin, b8 enabled);
+
+    void (*set_stencil_reference)(struct renderer_plugin* plugin, u32 reference);
+    void (*set_stencil_op)(struct renderer_plugin* plugin, renderer_stencil_op fail_op, renderer_stencil_op pass_op, renderer_stencil_op depth_fail_op, renderer_compare_op compare_op);
+    void (*set_stencil_compare_mask)(struct renderer_plugin* plugin, u32 compare_mask);
+    void (*set_stencil_write_mask)(struct renderer_plugin* plugin, u32 write_mask);
 
     b8 (*renderpass_begin)(struct renderer_plugin* plugin, renderpass* pass, render_target* target);
     b8 (*renderpass_end)(struct renderer_plugin* plugin, renderpass* pass);

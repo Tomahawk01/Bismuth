@@ -7,6 +7,7 @@
 
 struct application;
 struct frame_data;
+struct systems_manager_state;
 
 // Application configuration
 typedef struct application_config
@@ -34,3 +35,5 @@ BAPI b8 engine_run(struct application* game_inst);
 void engine_on_event_system_initialized(void);
 
 BAPI const struct frame_data* engine_frame_data_get(struct application* game_inst);
+
+BAPI struct systems_manager_state* engine_systems_manager_state_get(struct application* game_inst);

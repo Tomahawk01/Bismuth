@@ -1691,3 +1691,8 @@ BAPI b8 frustum_intersects_sphere(const frustum* f, const vec3* center, f32 radi
 BAPI b8 plane_intersects_aabb(const plane_3d* p, const vec3* center, const vec3* extents);
 
 BAPI b8 frustum_intersects_aabb(const frustum* f, const vec3* center, const vec3* extents);
+
+BINLINE b8 rect_2d_contains_point(rect_2d rect, vec2 point)
+{
+    return (point.x >= rect.x && point.x <= rect.x + rect.width) && (point.y >= rect.y && point.y <= rect.y + rect.height);
+}

@@ -63,6 +63,9 @@
         "hashtable.h": "c",
         "camera_system.h": "c",
         "vulkan_utils.h": "c",
-        "vulkan.h": "c"
+        "vulkan.h": "c",
+        "sui_textbox.h": "c",
+        "debug_console.h": "c",
+        "standard_ui_system.h": "c"
     },
 }

@@ -31,6 +31,16 @@ BAPI void renderer_scissor_reset(void);
 
 BAPI void renderer_winding_set(renderer_winding winding);
 
+BAPI void renderer_set_stencil_test_enabled(b8 enabled);
+
+BAPI void renderer_set_stencil_reference(u32 reference);
+
+BAPI void renderer_set_depth_test_enabled(b8 enabled);
+
+BAPI void renderer_set_stencil_op(renderer_stencil_op fail_op, renderer_stencil_op pass_op, renderer_stencil_op depth_fail_op, renderer_compare_op compare_op);
+BAPI void renderer_set_stencil_compare_mask(u32 compare_mask);
+BAPI void renderer_set_stencil_write_mask(u32 write_mask);
+
 BAPI void renderer_texture_create(const u8* pixels, struct texture* texture);
 BAPI void renderer_texture_destroy(struct texture* texture);
 
@@ -42,6 +52,8 @@ BAPI void renderer_texture_write_data(texture* t, u32 offset, u32 size, const u8
 
 BAPI void renderer_texture_read_data(texture* t, u32 offset, u32 size, void** out_memory);
 BAPI void renderer_texture_read_pixel(texture* t, u32 x, u32 y, u8** out_rgba);
+
+BAPI renderbuffer* renderer_renderbuffer_get(renderbuffer_type type);
 
 BAPI b8 renderer_geometry_create(geometry* geometry, u32 vertex_size, u32 vertex_count, const void* vertices, u32 index_size, u32 index_count, const void* indices);
 BAPI b8 renderer_geometry_upload(geometry* geometry);

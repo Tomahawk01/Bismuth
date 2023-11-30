@@ -14,7 +14,7 @@
 #include "systems/camera_system.h"
 #include "renderer/renderer_frontend.h"
 #include "renderer/viewport.h"
-#include "resources/ui_text.h"
+#include "renderer/renderer_types.h"
 
 typedef struct render_view_pick_shader_info
 {
@@ -321,7 +321,12 @@ b8 render_view_pick_on_packet_build(const struct render_view* self, struct frame
         for (u32 j = 0; j < m->geometry_count; ++j)
         {
             geometry_render_data render_data;
-            render_data.geometry = m->geometries[j];
+            geometry* g = m->geometries[j];
+            render_data.material = g->material;
+            render_data.vertex_count = g->vertex_count;
+            render_data.vertex_buffer_offset = g->vertex_buffer_offset;
+            render_data.index_count = g->index_count;
+            render_data.index_buffer_offset = g->index_buffer_offset;
             render_data.model = transform_world_get(&m->transform);
             render_data.unique_id = m->id.uniqueid;
             darray_push(out_packet->geometries, render_data);
@@ -333,11 +338,11 @@ b8 render_view_pick_on_packet_build(const struct render_view* self, struct frame
     }
 
     // Count texts as well
-    for (u32 i = 0; i < packet_data->text_count; ++i)
-    {
-        if (packet_data->texts[i]->id.uniqueid > highest_instance_id)
-            highest_instance_id = packet_data->texts[i]->id.uniqueid;
-    }
+    // for (u32 i = 0; i < packet_data->text_count; ++i)
+    // {
+    //     if (packet_data->texts[i]->id.uniqueid > highest_instance_id)
+    //         highest_instance_id = packet_data->texts[i]->id.uniqueid;
+    // }
 
     i32 required_instance_count = highest_instance_id + 1;
 
@@ -549,32 +554,32 @@ b8 render_view_pick_on_render(const struct render_view* self, const struct rende
         }
 
         // Draw bitmap text
-        for (u32 i = 0; i < packet_data->text_count; ++i)
-        {
-            ui_text* text = packet_data->texts[i];
-            current_instance_id = text->id.uniqueid;
-            shader_system_bind_instance(current_instance_id);
+        // for (u32 i = 0; i < packet_data->text_count; ++i)
+        // {
+        //     ui_text* text = packet_data->texts[i];
+        //     current_instance_id = text->id.uniqueid;
+        //     shader_system_bind_instance(current_instance_id);
 
-            // Get color based on id
-            vec3 id_color;
-            u32 r, g, b;
-            u32_to_rgb(text->id.uniqueid, &r, &g, &b);
-            rgb_u32_to_vec3(r, g, b, &id_color);
-            if (!shader_system_uniform_set_by_index(data->ui_shader_info.id_color_location, &id_color))
-            {
-                BERROR("Failed to apply id color uniform");
-                return false;
-            }
+        //     // Get color based on id
+        //     vec3 id_color;
+        //     u32 r, g, b;
+        //     u32_to_rgb(text->id.uniqueid, &r, &g, &b);
+        //     rgb_u32_to_vec3(r, g, b, &id_color);
+        //     if (!shader_system_uniform_set_by_index(data->ui_shader_info.id_color_location, &id_color))
+        //     {
+        //         BERROR("Failed to apply id color uniform");
+        //         return false;
+        //     }
 
-            shader_system_apply_instance(true);
+        //     shader_system_apply_instance(true);
 
-            // Apply locals
-            mat4 model = transform_world_get(&text->transform);
-            if (!shader_system_uniform_set_by_index(data->ui_shader_info.model_location, &model))
-                BERROR("Failed to apply model matrix for text");
+        //     // Apply locals
+        //     mat4 model = transform_world_get(&text->transform);
+        //     if (!shader_system_uniform_set_by_index(data->ui_shader_info.model_location, &model))
+        //         BERROR("Failed to apply model matrix for text");
 
-            ui_text_draw(text);
-        }
+        //     ui_text_draw(text);
+        // }
 
         if (!renderer_renderpass_end(pass))
         {
@@ -619,7 +624,7 @@ b8 render_view_pick_attachment_target_regenerate(struct render_view* self, u32 p
     {
         attachment->texture = &data->color_target_attachment_texture;
     }
-    else if (attachment->type == RENDER_TARGET_ATTACHMENT_TYPE_DEPTH)
+    else if (attachment->type & RENDER_TARGET_ATTACHMENT_TYPE_DEPTH || attachment->type & RENDER_TARGET_ATTACHMENT_TYPE_STENCIL)
     {
         attachment->texture = &data->depth_target_attachment_texture;
     }

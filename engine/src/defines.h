@@ -28,6 +28,14 @@ typedef struct range
     u64 size;
 } range;
 
+typedef struct range32
+{
+    // offset in bytes
+    i32 offset;
+    // size in bytes
+    i32 size;
+} range32;
+
 // Properly define static assertions
 #if defined(__clang__) || defined(__GNUC__)
 #define STATIC_ASSERT _Static_assert

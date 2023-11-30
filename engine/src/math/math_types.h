@@ -148,3 +148,52 @@ typedef struct frustum
     // Top, bottom, right, left, far, near
     plane_3d sides[6];
 } frustum;
+
+typedef union vec2i_t
+{
+    i32 elements[2];
+    struct
+    {
+        union
+        {
+            // First element
+            i32 x, r, s, u;
+        };
+        union
+        {
+            // Second element
+            i32 y, g, t, v;
+        };
+    };
+} vec2i;
+
+typedef union vec4i_t
+{
+    i32 elements[4];
+    union
+    {
+        struct
+        {
+            union
+            {
+                // First element
+                i32 x, r, s;
+            };
+            union
+            {
+                // Second element
+                i32 y, g, t;
+            };
+            union
+            {
+                // Third element
+                i32 z, b, p, width;
+            };
+            union
+            {
+                // Fourth element
+                i32 w, a, q, height;
+            };
+        };
+    };
+} vec4i;
