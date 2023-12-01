@@ -14,6 +14,7 @@ typedef struct texture_system_config
 #define DEFAULT_METALLIC_TEXTURE_NAME "default_metallic"
 #define DEFAULT_ROUGHNESS_TEXTURE_NAME "default_roughness"
 #define DEFAULT_AO_TEXTURE_NAME "default_ao"
+#define DEFAULT_CUBE_TEXTURE_NAME "default_cube"
 
 BAPI b8 texture_system_initialize(u64* memory_requirement, void* state, void* config);
 BAPI void texture_system_shutdown(void* state);
@@ -36,3 +37,4 @@ BAPI texture* texture_system_get_default_normal_texture(void);
 BAPI texture* texture_system_get_default_metallic_texture(void);
 BAPI texture* texture_system_get_default_roughness_texture(void);
 BAPI texture* texture_system_get_default_ao_texture(void);
+BAPI texture* texture_system_get_default_cube_texture(void);

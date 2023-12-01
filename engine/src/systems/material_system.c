@@ -32,6 +32,10 @@ typedef struct material_shader_uniform_locations
     u16 num_p_lights;
 } material_shader_uniform_locations;
 
+#ifndef PBR_MAP_COUNT
+#define PBR_MAP_COUNT 6
+#endif
+
 typedef struct pbr_shader_uniform_locations
 {
     u16 projection;
@@ -39,7 +43,7 @@ typedef struct pbr_shader_uniform_locations
     u16 ambient_color;
     u16 view_position;
     u16 properties;
-    u16 cube_texture;
+    u16 ibl_cube_texture;
     u16 albedo_texture;
     u16 normal_texture;
     u16 metallic_texture;
@@ -75,7 +79,7 @@ typedef struct terrain_shader_locations
     u16 num_p_lights;
 
     u16 properties;
-    u16 cube_texture;
+    u16 ibl_cube_texture;
     u16 samplers[TERRAIN_MAX_MATERIAL_COUNT * 5];  // albedo, normal, metallic, roughness, ao
 } terrain_shader_locations;
 
@@ -160,7 +164,7 @@ b8 material_system_initialize(u64* memory_requirement, void* state, void* config
     state_ptr->pbr_locations.view = INVALID_ID_U16;
     state_ptr->pbr_locations.projection = INVALID_ID_U16;
     state_ptr->pbr_locations.properties = INVALID_ID_U16;
-    state_ptr->pbr_locations.cube_texture = INVALID_ID_U16;
+    state_ptr->pbr_locations.ibl_cube_texture = INVALID_ID_U16;
     state_ptr->pbr_locations.albedo_texture = INVALID_ID_U16;
     state_ptr->pbr_locations.normal_texture = INVALID_ID_U16;
     state_ptr->pbr_locations.metallic_texture = INVALID_ID_U16;
@@ -181,7 +185,7 @@ b8 material_system_initialize(u64* memory_requirement, void* state, void* config
     state_ptr->terrain_locations.p_lights = INVALID_ID_U16;
     state_ptr->terrain_locations.num_p_lights = INVALID_ID_U16;
     state_ptr->terrain_locations.properties = INVALID_ID_U16;
-    state_ptr->terrain_locations.cube_texture = INVALID_ID_U16;
+    state_ptr->terrain_locations.ibl_cube_texture = INVALID_ID_U16;
     for (u32 i = 0; i < 5 * TERRAIN_MAX_MATERIAL_COUNT; ++i)
         state_ptr->terrain_locations.samplers[i] = INVALID_ID_U16;
 
@@ -255,8 +259,7 @@ b8 material_system_initialize(u64* memory_requirement, void* state, void* config
     state_ptr->pbr_locations.ambient_color = shader_system_uniform_index(s, "ambient_color");
     state_ptr->pbr_locations.view_position = shader_system_uniform_index(s, "view_position");
     state_ptr->pbr_locations.properties = shader_system_uniform_index(s, "properties");
-    // TODO: IBL
-    /* state_ptr->pbr_locations.cube_texture = shader_system_uniform_index(s, "cube_texture"); */
+    state_ptr->pbr_locations.ibl_cube_texture = shader_system_uniform_index(s, "ibl_cube_texture");
     state_ptr->pbr_locations.albedo_texture = shader_system_uniform_index(s, "albedo_texture");
     state_ptr->pbr_locations.normal_texture = shader_system_uniform_index(s, "normal_texture");
     state_ptr->pbr_locations.metallic_texture = shader_system_uniform_index(s, "metallic_texture");
@@ -282,8 +285,7 @@ b8 material_system_initialize(u64* memory_requirement, void* state, void* config
 
     state_ptr->terrain_locations.properties = shader_system_uniform_index(s, "properties");
 
-    // TODO: IBL
-    /* state_ptr->terrain_locations.cube_texture = shader_system_uniform_index(s, "cube_texture"); */
+    state_ptr->terrain_locations.ibl_cube_texture = shader_system_uniform_index(s, "ibl_cube_texture");
 
     u32 mat_index = 0;
     state_ptr->terrain_locations.samplers[(mat_index * 5) + 0] = shader_system_uniform_index(s, "albedo_texture_0");
@@ -455,8 +457,8 @@ material* material_system_acquire_terrain_material(const char* material_name, u3
         properties->padding = vec3_zero();
         properties->padding2 = vec4_zero();
 
-        // 5 maps per material for PBR. Allocate enough slots for all materials
-        u32 max_map_count = TERRAIN_MAX_MATERIAL_COUNT * 5;
+        // 5 maps per material for PBR. Allocate enough slots for all materials. Also 1 for irradiance map
+        u32 max_map_count = (TERRAIN_MAX_MATERIAL_COUNT * 5) + 1;
         m->maps = darray_reserve(texture_map, max_map_count);
         darray_length_set(m->maps, max_map_count);
 
@@ -506,6 +508,26 @@ material* material_system_acquire_terrain_material(const char* material_name, u3
                     BERROR("Failed to assign '%s' texture map for terrain material index %u", map_names[map_idx], material_idx);
                     return false;
                 }
+            }
+        }
+
+        // IBL - cubemap for irradiance
+        {
+            material_map map_config = {0};
+            char buf[MATERIAL_NAME_MAX_LENGTH] = {0};
+            map_config.name = buf;
+            string_copy(map_config.name, "ibl_cube");
+            map_config.repeat_u = TEXTURE_REPEAT_REPEAT;
+            map_config.repeat_v = TEXTURE_REPEAT_REPEAT;
+            map_config.repeat_w = TEXTURE_REPEAT_REPEAT;
+            map_config.filter_min = TEXTURE_FILTER_MODE_LINEAR;
+            map_config.filter_mag = TEXTURE_FILTER_MODE_LINEAR;
+            map_config.texture_name = "";
+            // Always assigned to the last index
+            if (!assign_map(&m->maps[(TERRAIN_MAX_MATERIAL_COUNT * 5)], &map_config, m->name, texture_system_get_default_cube_texture()))
+            {
+                BERROR("Failed to assign '%s' texture map for terrain irradiance map", map_config.name);
+                return false;
             }
         }
 
@@ -726,8 +748,8 @@ b8 material_system_apply_instance(material* m, struct frame_data* p_frame_data, 
             MATERIAL_APPLY_OR_FAIL(shader_system_uniform_set_by_index(state_ptr->pbr_locations.metallic_texture, &m->maps[2]));
             MATERIAL_APPLY_OR_FAIL(shader_system_uniform_set_by_index(state_ptr->pbr_locations.roughness_texture, &m->maps[3]));
             MATERIAL_APPLY_OR_FAIL(shader_system_uniform_set_by_index(state_ptr->pbr_locations.ao_texture, &m->maps[4]));
-            // TODO: IBL
-            /* MATERIAL_APPLY_OR_FAIL(shader_system_uniform_set_by_index(state_ptr->pbr_locations.cube_texture, &m->maps[4])); */
+            // IBL
+            MATERIAL_APPLY_OR_FAIL(shader_system_uniform_set_by_index(state_ptr->pbr_locations.ibl_cube_texture, &m->maps[5]));
 
             // Directional light
             directional_light* dir_light = light_system_directional_light_get();
@@ -763,8 +785,8 @@ b8 material_system_apply_instance(material* m, struct frame_data* p_frame_data, 
             for (u32 i = 0; i < map_count; ++i)
                 MATERIAL_APPLY_OR_FAIL(shader_system_uniform_set_by_index(state_ptr->terrain_locations.samplers[i], &m->maps[i]));
 
-            // TODO: IBL
-            /* MATERIAL_APPLY_OR_FAIL(shader_system_uniform_set_by_index(state_ptr->pbr_locations.cube_texture, &m->maps[0])); */
+            // Irradience map
+            MATERIAL_APPLY_OR_FAIL(shader_system_uniform_set_by_index(state_ptr->pbr_locations.ibl_cube_texture, &m->maps[TERRAIN_MAX_MATERIAL_COUNT * 5]));
 
             // Apply properties
             shader_system_uniform_set_by_index(state_ptr->terrain_locations.properties, m->properties);
@@ -991,16 +1013,17 @@ static b8 load_material(material_config* config, material* m)
         }
 
         // Maps. PBR expects a albedo, normal, metallic, roughness and AO
-        m->maps = darray_reserve(texture_map, 5);
-        darray_length_set(m->maps, 5);
-        u32 map_count = darray_length(config->maps);
+        m->maps = darray_reserve(texture_map, PBR_MAP_COUNT);
+        darray_length_set(m->maps, PBR_MAP_COUNT);
+        u32 configure_map_count = darray_length(config->maps);
 
         b8 albedo_assigned = false;
         b8 norm_assigned = false;
         b8 metallic_assigned = false;
         b8 roughness_assigned = false;
         b8 ao_assigned = false;
-        for (u32 i = 0; i < map_count; ++i)
+        b8 ibl_cube_assigned = false;
+        for (u32 i = 0; i < configure_map_count; ++i)
         {
             if (strings_equali(config->maps[i].name, "albedo"))
             {
@@ -1031,6 +1054,12 @@ static b8 load_material(material_config* config, material* m)
                 if (!assign_map(&m->maps[4], &config->maps[i], m->name, texture_system_get_default_ao_texture()))
                     return false;
                 ao_assigned = true;
+            }
+            else if (strings_equali(config->maps[i].name, "ibl_cube"))
+            {
+                if (!assign_map(&m->maps[5], &config->maps[i], m->name, texture_system_get_default_cube_texture()))
+                    return false;
+                ibl_cube_assigned = true;
             }
 
             // TODO: other maps
@@ -1091,7 +1120,17 @@ static b8 load_material(material_config* config, material* m)
             if (!assign_map(&m->maps[4], &map_config, m->name, texture_system_get_default_ao_texture()))
                 return false;
         }
-
+        if (!ibl_cube_assigned)
+        {
+            // Make sure the cube map is always assigned
+            material_map map_config = {0};
+            map_config.filter_mag = map_config.filter_min = TEXTURE_FILTER_MODE_LINEAR;
+            map_config.repeat_u = map_config.repeat_v = map_config.repeat_w = TEXTURE_REPEAT_REPEAT;
+            map_config.name = "ibl_cube";
+            map_config.texture_name = "";
+            if (!assign_map(&m->maps[5], &map_config, m->name, texture_system_get_default_cube_texture()))
+                return false;
+        }
     }
     else if (config->type == MATERIAL_TYPE_UI)
     {
@@ -1242,7 +1281,7 @@ static b8 load_material(material_config* config, material* m)
     else if (config->type == MATERIAL_TYPE_PBR)
     {
         // Map count for this type is known
-        map_count = 5;
+        map_count = PBR_MAP_COUNT;
     }
     else if (config->type == MATERIAL_TYPE_CUSTOM)
     {
@@ -1351,9 +1390,9 @@ static b8 create_default_pbr_material(material_system_state* state)
     material_phong_properties* properties = (material_phong_properties*)state->default_pbr_material.properties;
     properties->diffuse_color = vec4_one();  // white
     properties->shininess = 8.0f;
-    state->default_pbr_material.maps = darray_reserve(texture_map, 5);
-    darray_length_set(state->default_pbr_material.maps, 5);
-    for (u32 i = 0; i < 5; ++i)
+    state->default_pbr_material.maps = darray_reserve(texture_map, PBR_MAP_COUNT);
+    darray_length_set(state->default_pbr_material.maps, PBR_MAP_COUNT);
+    for (u32 i = 0; i < PBR_MAP_COUNT; ++i)
     {
         texture_map* map = &state->default_pbr_material.maps[i];
         map->filter_magnify = map->filter_minify = TEXTURE_FILTER_MODE_LINEAR;
@@ -1364,18 +1403,20 @@ static b8 create_default_pbr_material(material_system_state* state)
     state->default_pbr_material.maps[2].texture = texture_system_get_default_metallic_texture();
     state->default_pbr_material.maps[3].texture = texture_system_get_default_roughness_texture();
     state->default_pbr_material.maps[4].texture = texture_system_get_default_ao_texture();
+    state->default_pbr_material.maps[5].texture = texture_system_get_default_cube_texture();
 
     // NOTE: PBR material is default
-    texture_map* maps[5] = {
+    texture_map* maps[PBR_MAP_COUNT] = {
         &state->default_pbr_material.maps[0],
         &state->default_pbr_material.maps[1],
         &state->default_pbr_material.maps[2],
         &state->default_pbr_material.maps[3],
-        &state->default_pbr_material.maps[4]
+        &state->default_pbr_material.maps[4],
+        &state->default_pbr_material.maps[5]
     };
 
     shader* s = shader_system_get("Shader.PBRMaterial");
-    if (!renderer_shader_instance_resources_acquire(s, 5, maps, &state->default_pbr_material.internal_id))
+    if (!renderer_shader_instance_resources_acquire(s, PBR_MAP_COUNT, maps, &state->default_pbr_material.internal_id))
     {
         BFATAL("Failed to acquire renderer resources for default PBR material. Application cannot continue");
         return false;

@@ -1772,6 +1772,19 @@ b8 vulkan_renderer_shader_initialize(renderer_plugin* plugin, shader* s)
         VkDescriptorSetLayoutCreateInfo layout_info = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
         layout_info.bindingCount = internal_shader->config.descriptor_sets[i].binding_count;
         layout_info.pBindings = internal_shader->config.descriptor_sets[i].bindings;
+
+        // Partial binding is required for descriptor aliasing
+        VkDescriptorBindingFlags binding_flags = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT;
+        VkDescriptorSetLayoutBindingFlagsCreateInfoEXT extended_info = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO_EXT};
+        extended_info.bindingCount = internal_shader->config.descriptor_sets[i].binding_count;
+        // Max of 2, UBO and samplers
+        VkDescriptorBindingFlagsEXT descriptor_binding_flags[2] = {
+            0,
+            binding_flags
+        };
+        extended_info.pBindingFlags = descriptor_binding_flags;
+        layout_info.pNext = &extended_info;
+
         result = vkCreateDescriptorSetLayout(logical_device, &layout_info, vk_allocator, &internal_shader->descriptor_set_layouts[i]);
         if (!vulkan_result_is_success(result))
         {
