@@ -11,6 +11,9 @@ typedef struct texture_system_config
 #define DEFAULT_DIFFUSE_TEXTURE_NAME "default_diff"
 #define DEFAULT_SPECULAR_TEXTURE_NAME "default_spec"
 #define DEFAULT_NORMAL_TEXTURE_NAME "default_norm"
+#define DEFAULT_METALLIC_TEXTURE_NAME "default_metallic"
+#define DEFAULT_ROUGHNESS_TEXTURE_NAME "default_roughness"
+#define DEFAULT_AO_TEXTURE_NAME "default_ao"
 
 BAPI b8 texture_system_initialize(u64* memory_requirement, void* state, void* config);
 BAPI void texture_system_shutdown(void* state);
@@ -24,8 +27,12 @@ BAPI void texture_system_wrap_internal(const char* name, u32 width, u32 height, 
 BAPI b8 texture_system_set_internal(texture* t, void* internal_data);
 BAPI b8 texture_system_resize(texture* t, u32 width, u32 height, b8 regenerate_internal_data);
 BAPI b8 texture_system_write_data(texture* t, u32 offset, u32 size, void* data);
+BAPI b8 texture_system_is_default_texture(texture* t);
 
 BAPI texture* texture_system_get_default_texture(void);
 BAPI texture* texture_system_get_default_diffuse_texture(void);
 BAPI texture* texture_system_get_default_specular_texture(void);
 BAPI texture* texture_system_get_default_normal_texture(void);
+BAPI texture* texture_system_get_default_metallic_texture(void);
+BAPI texture* texture_system_get_default_roughness_texture(void);
+BAPI texture* texture_system_get_default_ao_texture(void);

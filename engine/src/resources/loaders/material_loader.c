@@ -414,7 +414,10 @@ static b8 material_loader_load(struct resource_loader* self, const char* name, v
                     if (strings_equali(trimmed_value, "phong"))
                         resource_data->type = MATERIAL_TYPE_PHONG;
                     else if (strings_equali(trimmed_value, "pbr"))
+                    {
                         resource_data->type = MATERIAL_TYPE_PBR;
+                        resource_data->shader_name = string_duplicate("Shader.PBRMaterial");
+                    }
                     else if (strings_equali(trimmed_value, "ui"))
                         resource_data->type = MATERIAL_TYPE_UI;
                     else if (strings_equali(trimmed_value, "terrain"))

@@ -57,13 +57,20 @@ layout(set = 1, binding = 0) uniform instance_uniform_object
     int num_p_lights;
 } instance_ubo;
 
-// Samplers, diffuse, spec
-const int SAMP_DIFFUSE_OFFSET = 0;
-const int SAMP_SPECULAR_OFFSET = 1;
-const int SAMP_NORMAL_OFFSET = 2;
 
-// diff, spec, normal etc...
-layout(set = 1, binding = 1) uniform sampler2D samplers[3 * MAX_TERRAIN_MATERIALS];
+// Samplers
+const int SAMP_ALBEDO_OFFSET = 0;
+const int SAMP_NORMAL_OFFSET = 1;
+const int SAMP_METALLIC_OFFSET = 2;
+const int SAMP_ROUGHNESS_OFFSET = 3;
+const int SAMP_AO_OFFSET = 4;
+
+const float PI = 3.14159265359;
+
+// Samplers. albedo, normal, metallic, roughness, ao ...
+layout(set = 1, binding = 1) uniform sampler2D samplers[(5 * MAX_TERRAIN_MATERIALS)];
+// TODO: IBL
+// layout(set = 1, binding = 1) uniform samplerCube cube_sampler;
 
 layout(location = 0) flat in int in_mode;
 // Data Transfer Object
@@ -81,8 +88,17 @@ layout(location = 1) in struct dto
 
 mat3 TBN;
 
-vec4 calculate_directional_light(directional_light light, vec3 normal, vec3 view_direction, vec4 diff_samp, vec4 spec_samp, material_phong_properties mat_info);
-vec4 calculate_point_light(point_light light, vec3 normal, vec3 frag_position, vec3 view_direction, vec4 diff_samp, vec4 spec_samp, material_phong_properties mat_info);
+// Based on a combination of GGX and Schlick-Beckmann approximation to calculate probability of overshadowing micro-facets
+float geometry_schlick_ggx(float normal_dot_direction, float roughness)
+{
+    roughness += 1.0;
+    float k = (roughness * roughness) / 8.0;
+    return normal_dot_direction / (normal_dot_direction * (1.0 - k) + k);
+}
+
+vec3 calculate_point_light_radiance(point_light light, vec3 view_direction, vec3 frag_position_xyz);
+vec3 calculate_directional_light_radiance(directional_light light, vec3 view_direction);
+vec3 calculate_reflectance(vec3 albedo, vec3 normal, vec3 view_direction, vec3 light_direction, float metallic, float roughness, vec3 base_reflectivity, vec3 radiance);
 
 void main()
 {
@@ -92,44 +108,104 @@ void main()
     vec3 bitangent = cross(in_dto.normal, in_dto.tangent);
     TBN = mat3(tangent, bitangent, normal);
 
+    // TODO: IBL
+    // vec4 ibl_sample = texture(cube_sampler, vec3(0));
+
     // Update normal to use a sample from the normal map
     vec3 normals[MAX_TERRAIN_MATERIALS];
-    vec4 diffuses[MAX_TERRAIN_MATERIALS];
-    vec4 specs[MAX_TERRAIN_MATERIALS];
+    vec4 albedos[MAX_TERRAIN_MATERIALS];
+    vec4 metallics[MAX_TERRAIN_MATERIALS];
+    vec4 roughnesses[MAX_TERRAIN_MATERIALS];
+    vec4 aos[MAX_TERRAIN_MATERIALS];
 
-    material_phong_properties mat;
-    mat.diffuse_color = vec4(0);
-    mat.shininess = 1.0;
-
-    // Manually sample first material
-    // TODO: This mix isn't quite right
-    vec4 diff = vec4(1);
-    vec4 spec = vec4(0.5);
-    vec3 norm = vec3(0, 0, 1);
+    // Sample each material
     for(int m = 0; m < instance_ubo.properties.num_materials; ++m)
     {
-        normals[m] = normalize(TBN * (2.0 * texture(samplers[(m * 3) + SAMP_NORMAL_OFFSET], in_dto.tex_coord).rgb - 1.0));
-        diffuses[m] = texture(samplers[(m * 3) + SAMP_DIFFUSE_OFFSET], in_dto.tex_coord);
-        specs[m] = texture(samplers[(m * 3) + SAMP_SPECULAR_OFFSET], in_dto.tex_coord);
-
-        norm = mix(norm, normals[m], in_dto.mat_weights[m]);
-        diff = mix(diff, diffuses[m], in_dto.mat_weights[m]);
-        spec = mix(spec, specs[m], in_dto.mat_weights[m]);
-
-        mat.diffuse_color = mix(mat.diffuse_color, instance_ubo.properties.materials[m].diffuse_color, in_dto.mat_weights[m]);
-        mat.shininess = mix(mat.shininess, instance_ubo.properties.materials[m].shininess, in_dto.mat_weights[m]);
+        int m_element = (m * 5);
+        albedos[m] = texture(samplers[m_element + SAMP_ALBEDO_OFFSET], in_dto.tex_coord);
+        albedos[m] = vec4(pow(albedos[m].rgb, vec3(2.2)), albedos[m].a);
+        vec3 local_normal = 2.0 * texture(samplers[m_element + SAMP_NORMAL_OFFSET], in_dto.tex_coord).rgb - 1.0;
+        normals[m] = normalize(TBN * local_normal);
+        metallics[m] = texture(samplers[m_element + SAMP_METALLIC_OFFSET], in_dto.tex_coord);
+        roughnesses[m] = texture(samplers[m_element + SAMP_ROUGHNESS_OFFSET], in_dto.tex_coord);
+        aos[m] = texture(samplers[m_element + SAMP_AO_OFFSET], in_dto.tex_coord);
     }
+
+    // Mix the materials by samp[0] * w[0] + samp[1] * w[1] ...
+    vec4 albedo = 
+        albedos[0] * in_dto.mat_weights[0] +
+        albedos[1] * in_dto.mat_weights[1] +
+        albedos[2] * in_dto.mat_weights[2] +
+        albedos[3] * in_dto.mat_weights[3];
+
+    // Set albedo to be fully opaque
+    albedo.a = 1.0;
+
+    normal = 
+        normals[0] * in_dto.mat_weights[0] +
+        normals[1] * in_dto.mat_weights[1] +
+        normals[2] * in_dto.mat_weights[2] +
+        normals[3] * in_dto.mat_weights[3];
+
+    float metallic = metallics[0].r * in_dto.mat_weights[0] +
+        metallics[1].r * in_dto.mat_weights[1] +
+        metallics[2].r * in_dto.mat_weights[2] +
+        metallics[3].r * in_dto.mat_weights[3];
+
+    float roughness = roughnesses[0].r * in_dto.mat_weights[0] +
+        roughnesses[1].r * in_dto.mat_weights[1] +
+        roughnesses[2].r * in_dto.mat_weights[2] +
+        roughnesses[3].r * in_dto.mat_weights[3];
+    
+    float ao = aos[0].r * in_dto.mat_weights[0] +
+        aos[1].r * in_dto.mat_weights[1] +
+        aos[2].r * in_dto.mat_weights[2] +
+        aos[3].r * in_dto.mat_weights[3];
+
+    // Calculate reflectance. If dia-electric (plastic) use base_reflectivity of 0.04, and if it's a metal use albedo color as base_reflectivity (metallic)
+    vec3 base_reflectivity = vec3(0.04); 
+    base_reflectivity = mix(base_reflectivity, albedo.xyz, metallic);
 
     if(in_mode == 0 || in_mode == 1)
     {
         vec3 view_direction = normalize(in_dto.view_position - in_dto.frag_position);
 
-        out_color = calculate_directional_light(global_ubo.dir_light, norm, view_direction, diff, spec, mat);
+        albedo.xyz += (vec3(1.0) * in_mode);         
+        albedo.xyz = clamp(albedo.xyz, vec3(0.0), vec3(1.0));
 
+        // Overall reflectance
+        vec3 total_reflectance = vec3(0.0);
+
+        // Directional light radiance
+        {
+            directional_light light = global_ubo.dir_light;
+            vec3 light_direction = normalize(-light.direction.xyz);
+            vec3 radiance = calculate_directional_light_radiance(light, view_direction);
+
+            total_reflectance += calculate_reflectance(albedo.xyz, normal, view_direction, light_direction, metallic, roughness, base_reflectivity, radiance);
+        }
+
+        // Point light radiance
         for(int i = 0; i < instance_ubo.num_p_lights; ++i)
         {
-            out_color += calculate_point_light(instance_ubo.p_lights[i], norm, in_dto.frag_position, view_direction, diff, spec, mat);
+            point_light light = instance_ubo.p_lights[i];
+            vec3 light_direction = normalize(light.position.xyz - in_dto.frag_position.xyz);
+            vec3 radiance = calculate_point_light_radiance(light, view_direction, in_dto.frag_position.xyz);
+
+            total_reflectance += calculate_reflectance(albedo.xyz, normal, view_direction, light_direction, metallic, roughness, base_reflectivity, radiance);
         }
+
+        // Add albedo and ambient occlusion
+        vec3 ambient = vec3(0.03) * albedo.xyz * ao; // will be replaced by IBL
+        vec3 color = ambient + total_reflectance;
+
+        // HDR tonemapping
+        color = color / (color + vec3(1.0));
+        // Gamma correction
+        color = pow(color, vec3(1.0 / 2.2));
+
+        // Ensure the alpha is based on the albedo's original alpha  value
+        out_color = vec4(color, albedo.a);
     }
     else if(in_mode == 2)
     {
@@ -137,52 +213,54 @@ void main()
     }
 }
 
-vec4 calculate_directional_light(directional_light light, vec3 normal, vec3 view_direction, vec4 diff_samp, vec4 spec_samp, material_phong_properties mat_info)
+vec3 calculate_reflectance(vec3 albedo, vec3 normal, vec3 view_direction, vec3 light_direction, float metallic, float roughness, vec3 base_reflectivity, vec3 radiance)
 {
-    float diffuse_factor = max(dot(normal, -light.direction.xyz), 0.0);
+    vec3 halfway = normalize(view_direction + light_direction);
 
-    vec3 half_direction = normalize(view_direction - light.direction.xyz);
-    float specular_factor = pow(max(dot(half_direction, normal), 0.0), mat_info.shininess);
+    // This is based off the Cook-Torrance BRDF (Bidirectional Reflective Distribution Function)
 
-    vec4 ambient = vec4(vec3(in_dto.ambient * mat_info.diffuse_color), diff_samp.a);
-    vec4 diffuse = vec4(vec3(light.color * diffuse_factor), diff_samp.a);
-    vec4 specular = vec4(vec3(light.color * specular_factor), diff_samp.a);
+    float roughness_sq = roughness*roughness;
+    float roughness_sq_sq = roughness_sq * roughness_sq;
+    float normal_dot_halfway = max(dot(normal, halfway), 0.0);
+    float normal_dot_halfway_squared = normal_dot_halfway * normal_dot_halfway;
+    float denom = (normal_dot_halfway_squared * (roughness_sq_sq - 1.0) + 1.0);
+    denom = PI * denom * denom;
+    float normal_distribution = (roughness_sq_sq / denom);
 
-    if(in_mode == 0)
-    {
-        diffuse *= diff_samp;
-        ambient *= diff_samp;
-        specular *= spec_samp;
-    }
+    // Geometry function which calculates self-shadowing on micro-facets (more pronounced on rough surfaces)
+    float normal_dot_view_direction = max(dot(normal, view_direction), 0.0);
+    // Scale the light by the dot product of normal and light_direction
+    float normal_dot_light_direction = max(dot(normal, light_direction), 0.0);
+    float ggx_0 = geometry_schlick_ggx(normal_dot_view_direction, roughness);
+    float ggx_1 = geometry_schlick_ggx(normal_dot_light_direction, roughness);
+    float geometry = ggx_1 * ggx_0;
 
-    return (ambient + diffuse + specular);
+    // Fresnel-Schlick approximation for the fresnel
+    float cos_theta = max(dot(halfway, view_direction), 0.0);
+    vec3 fresnel = base_reflectivity + (1.0 - base_reflectivity) * pow(clamp(1.0 - cos_theta, 0.0, 1.0), 5.0);
+
+    // Take Normal distribution * geometry * fresnel and calculate specular reflection
+    vec3 numerator = normal_distribution * geometry * fresnel;
+    float denominator = 4.0 * max(dot(normal, view_direction), 0.0) + 0.0001; // prevent div by 0 
+    vec3 specular = numerator / denominator;
+
+    vec3 refraction_diffuse = vec3(1.0) - fresnel;
+    refraction_diffuse *= 1.0 - metallic;	  
+
+    // End result is the radiance to be added to the overall, which is tracked by the caller
+    return (refraction_diffuse * albedo / PI + specular) * radiance * normal_dot_light_direction;  
 }
 
-vec4 calculate_point_light(point_light light, vec3 normal, vec3 frag_position, vec3 view_direction, vec4 diff_samp, vec4 spec_samp, material_phong_properties mat_info)
+vec3 calculate_point_light_radiance(point_light light, vec3 view_direction, vec3 frag_position_xyz)
 {
-    vec3 light_direction =  normalize(light.position.xyz - frag_position);
-    float diff = max(dot(normal, light_direction), 0.0);
-
-    vec3 reflect_direction = reflect(-light_direction, normal);
-    float spec = pow(max(dot(view_direction, reflect_direction), 0.0), mat_info.shininess);
-
-    // Calculate attenuation, or light falloff over distance
-    float distance = length(light.position.xyz - frag_position);
+    // Per-light radiance based on the point light's attenuation
+    float distance = length(light.position.xyz - frag_position_xyz);
     float attenuation = 1.0 / (light.constant_f + light.linear * distance + light.quadratic * (distance * distance));
+    return light.color.rgb * attenuation;
+}
 
-    vec4 ambient = in_dto.ambient;
-    vec4 diffuse = light.color * diff;
-    vec4 specular = light.color * spec;
-
-    if(in_mode == 0)
-    {
-        diffuse *= diff_samp;
-        ambient *= diff_samp;
-        specular *= spec_samp;
-    }
-
-    ambient *= attenuation;
-    diffuse *= attenuation;
-    specular *= attenuation;
-    return (ambient + diffuse + specular);
+vec3 calculate_directional_light_radiance(directional_light light, vec3 view_direction)
+{
+    // For directional lights, radiance is just the same as the light color itself
+    return light.color.rgb;
 }

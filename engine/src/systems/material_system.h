@@ -4,6 +4,7 @@
 #include "resources/resource_types.h"
 
 #define DEFAULT_MATERIAL_NAME "default"
+#define DEFAULT_PBR_MATERIAL_NAME "default_pbr"
 #define DEFAULT_TERRAIN_MATERIAL_NAME "default_terrain"
 
 typedef struct material_system_config
@@ -22,6 +23,7 @@ BAPI material* material_system_acquire_from_config(material_config* config);
 BAPI void material_system_release(const char* name);
 
 BAPI material* material_system_get_default(void);
+BAPI material* material_system_get_default_pbr(void);
 BAPI material* material_system_get_default_terrain(void);
 
 BAPI b8 material_system_apply_global(u32 shader_id, const struct frame_data* p_frame_data, const mat4* projection, const mat4* view, const vec4* ambient_color, const vec3* view_position, u32 render_mode);

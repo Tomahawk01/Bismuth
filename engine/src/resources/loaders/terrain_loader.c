@@ -163,7 +163,11 @@ static b8 terrain_loader_load(struct resource_loader *self, const char *name, vo
             u8 r = image_data->pixels[(i * 4) + 0];
             u8 g = image_data->pixels[(i * 4) + 1];
             u8 b = image_data->pixels[(i * 4) + 2];
-            f32 height = ((r + g + b)) / 255.0f;
+            // Need to base height off combined RGB value
+            u32 color_int = 0;
+            rgbu_to_u32(r, g, b, &color_int);
+            f32 height = (f32)color_int / 16777215;
+
             resource_data->vertex_datas[i].height = height;
         }
 

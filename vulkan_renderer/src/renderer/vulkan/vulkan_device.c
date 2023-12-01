@@ -123,11 +123,16 @@ b8 vulkan_device_create(vulkan_context* context)
     }
     bfree(available_extensions, sizeof(VkExtensionProperties) * available_extension_count, MEMORY_TAG_RENDERER);
 
-    // Setup an array of 3, even if we don't use them all
-    const char* extension_names[4];
+    // Setup an array large enough to hold all, even if we don't use them all
+    const char* extension_names[5];
     u32 ext_idx = 0;
     extension_names[ext_idx] = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
     ext_idx++;
+
+    // Dynamic indexing
+    extension_names[ext_idx] = VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME;
+    ext_idx++;
+
     // If portability is required add it
     if (portability_required)
     {
@@ -160,10 +165,17 @@ b8 vulkan_device_create(vulkan_context* context)
     device_create_info.enabledLayerCount = 0;
     device_create_info.ppEnabledLayerNames = 0;
 
+    // VK_EXT_descriptor_indexing
+    VkPhysicalDeviceDescriptorIndexingFeatures descriptor_indexing_features = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES_EXT};
+    descriptor_indexing_features.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
+    descriptor_indexing_features.runtimeDescriptorArray = VK_TRUE;
+    descriptor_indexing_features.descriptorBindingVariableDescriptorCount = VK_TRUE;
+    device_create_info.pNext = &descriptor_indexing_features;
+
     // VK_EXT_extended_dynamic_state
     VkPhysicalDeviceExtendedDynamicStateFeaturesEXT extended_dynamic_state = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_FEATURES_EXT};
     extended_dynamic_state.extendedDynamicState = VK_TRUE;
-    device_create_info.pNext = &extended_dynamic_state;
+    descriptor_indexing_features.pNext = &extended_dynamic_state;
 
     // Smooth line rasterisation, if supported
     VkPhysicalDeviceLineRasterizationFeaturesEXT line_rasterization_ext = {0};

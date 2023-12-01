@@ -76,6 +76,16 @@ f32 bfrandom_in_range(f32 min, f32 max)
     return min + ((float)brandom() / ((f32)RAND_MAX / (max - min)));
 }
 
+f32 battenuation_min_max(f32 min, f32 max, f32 x)
+{
+    f32 half_range = babs(max - min) * 0.5;
+    f32 mid = min + half_range;    // midpoint
+    f32 distance = babs(x - mid);  // dist from mid
+    // scale dist from midpoint to halfrange
+    f32 att = BCLAMP((half_range - distance) / half_range, 0, 1);
+    return att;
+}
+
 plane_3d plane_3d_create(vec3 p1, vec3 norm)
 {
     plane_3d p;

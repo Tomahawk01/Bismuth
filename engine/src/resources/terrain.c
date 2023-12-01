@@ -148,10 +148,10 @@ b8 terrain_initialize(terrain* t)
             v->texcoord.y = (f32)z;
 
             // NOTE: Assigning default weights based on overall height. Lower indices are lower in altitude
-            v->material_weights[0] = bsmoothstep(0.00f, 0.25f, t->vertex_datas[i].height);
-            v->material_weights[1] = bsmoothstep(0.25f, 0.50f, t->vertex_datas[i].height);
-            v->material_weights[2] = bsmoothstep(0.50f, 0.75f, t->vertex_datas[i].height);
-            v->material_weights[3] = bsmoothstep(0.75f, 1.00f, t->vertex_datas[i].height);
+            v->material_weights[0] = battenuation_min_max(-0.2f, 0.2f, t->vertex_datas[i].height);
+            v->material_weights[1] = battenuation_min_max(0.0f, 0.3f, t->vertex_datas[i].height);
+            v->material_weights[2] = battenuation_min_max(0.15f, 0.9f, t->vertex_datas[i].height);
+            v->material_weights[3] = battenuation_min_max(0.5f, 1.2f, t->vertex_datas[i].height);
         }
     }
 

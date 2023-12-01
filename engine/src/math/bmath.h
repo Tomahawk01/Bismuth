@@ -100,6 +100,16 @@ BINLINE f32 bsmoothstep(f32 edge_0, f32 edge_1, f32 x)
 }
 
 /**
+ * @brief Returns the attenuation of x based off distance from the midpoint of min and max
+ *
+ * @param min The minimum value
+ * @param max The maximum value
+ * @param x The value to attenuate
+ * @return The attenuation of x based on distance of the midpoint of min and max
+ */
+BAPI f32 battenuation_min_max(f32 min, f32 max, f32 x);
+
+/**
  * @brief Compares two floats and returns true if both are less than B_FLOAT_EPSILON; otherwise false
  */
 BINLINE b8 bfloat_compare(f32 f_0, f32 f_1)
@@ -1661,7 +1671,7 @@ BINLINE void u32_to_rgb(u32 rgbu, u32* out_r, u32* out_g, u32* out_b)
 {
     *out_r = (rgbu >> 16) & 0x0FF;
     *out_g = (rgbu >> 8) & 0x0FF;
-    *out_b = (rgbu)&0x0FF;
+    *out_b = (rgbu) & 0x0FF;
 }
 
 BINLINE void rgb_u32_to_vec3(u32 r, u32 g, u32 b, vec3* out_v)

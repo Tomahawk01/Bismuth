@@ -2129,7 +2129,12 @@ b8 vulkan_renderer_shader_apply_instance(renderer_plugin* plugin, shader* s, b8 
                 // Ensure texture is valid
                 if (t->generation == INVALID_ID)
                 {
-                    t = texture_system_get_default_texture();
+                    // Texture generations are always invalid for default textures, so check first if already using one
+                    if (!texture_system_is_default_texture(t))
+                    {
+                        // If not using one, grab default
+                        t = texture_system_get_default_texture();
+                    }
                     map->generation = INVALID_ID;
                 }
                 else
@@ -3038,6 +3043,11 @@ b8 vulkan_buffer_create_internal(renderer_plugin* plugin, renderbuffer* buffer)
 
     // Allocate memory
     VkResult result = vkAllocateMemory(context->device.logical_device, &allocate_info, context->allocator, &internal_buffer.memory);
+    if (!vulkan_result_is_success(result))
+    {
+        BERROR("Failed to allocate memory for buffer with error: %s", vulkan_result_string(result, true));
+        return false;
+    }
     VK_SET_DEBUG_OBJECT_NAME(context, VK_OBJECT_TYPE_DEVICE_MEMORY, internal_buffer.memory, buffer->name);
 
     // Determine if memory is on device heap

@@ -459,7 +459,7 @@ vec2 font_system_measure_string(font_data* font, const char* text)
     f32 y = 0;
 
     // Take length in chars and get correct codepoint from it
-    for (u32 c = 0, uc = 0; c < char_length; ++c)
+    for (u32 c = 0; c < char_length; ++c)
     {
         i32 codepoint = text[c];
 
@@ -470,15 +470,12 @@ vec2 font_system_measure_string(font_data* font, const char* text)
                 extents.x = x;
             x = 0;
             y += font->line_height;
-            // Increment utf-8 character count
-            uc++;
             continue;
         }
 
         if (codepoint == '\t')
         {
             x += font->tab_x_advance;
-            uc++;
             continue;
         }
 
@@ -548,15 +545,11 @@ vec2 font_system_measure_string(font_data* font, const char* text)
         else
         {
             BERROR("Unable to find unknown codepoint. Skipping...");
-            // Increment utf-8 character count
-            uc++;
             continue;
         }
 
         // Advance c
         c += advance - 1;
-        // Increment utf-8 character count
-        uc++;
     }
 
     // One last check in case of no more newlines
