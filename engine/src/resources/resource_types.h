@@ -468,6 +468,11 @@ typedef struct material
     /** @brief array of material property structures, which varies based on material type. e.g. material_phong_properties */
     void* properties;
 
+    /**
+     * @brief Explicitly-set irradiance texture for this material
+     */
+    texture *irradiance_texture;
+
     u32 shader_id;
 
     u64 render_frame_number;

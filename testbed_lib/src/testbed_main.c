@@ -1080,9 +1080,9 @@ b8 application_prepare_frame(struct application* app_inst, struct frame_data* p_
             state->scene_pass.pass_data.projection_matrix = state->world_viewport.projection;
 
             scene_pass_extended_data* ext_data = state->scene_pass.pass_data.ext_data;
-            // TODO: Get from scene
-            ext_data->ambient_color = (vec4){0.25f, 0.25f, 0.25f, 1.0f};
             ext_data->render_mode = state->render_mode;
+            // HACK: use the skybox cubemap as the irradiance texture for now
+            ext_data->irradiance_cube_texture = state->main_scene.sb->cubemap.texture;
 
             // Populate scene pass data
             viewport* v = &state->world_viewport;

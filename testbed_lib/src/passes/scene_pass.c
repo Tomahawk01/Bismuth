@@ -173,6 +173,9 @@ b8 scene_pass_execute(struct rendergraph_pass* self, struct frame_data* p_frame_
     scene_pass_internal_data* internal_data = self->internal_data;
     scene_pass_extended_data* ext_data = self->pass_data.ext_data;
 
+    if (!material_system_irradiance_set(ext_data->irradiance_cube_texture))
+        BERROR("Failed to set irradiance texture, check properties of texture");
+
     // Use appropriate shader and apply global uniforms
     u32 terrain_count = ext_data->terrain_geometry_count;
     if (terrain_count > 0)
@@ -228,7 +231,6 @@ b8 scene_pass_execute(struct rendergraph_pass* self, struct frame_data* p_frame_
         }
 
         // Apply globals
-        // TODO: Find generic way to request data such as ambient color and mode
         if (!material_system_apply_global(internal_data->pbr_shader->id, p_frame_data, &self->pass_data.projection_matrix, &self->pass_data.view_matrix, &ext_data->ambient_color, &self->pass_data.view_position, ext_data->render_mode))
         {
             BERROR("Failed to use apply globals for PBR shader. Render frame failed");

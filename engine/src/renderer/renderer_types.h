@@ -363,7 +363,6 @@ typedef struct render_view_packet
     mat4 view_matrix;
     mat4 projection_matrix;
     vec3 view_position;
-    vec4 ambient_color;
     skybox_packet_data skybox_data;
     u32 geometry_count;
     geometry_render_data* geometries;

@@ -6,6 +6,7 @@
 
 struct rendergraph_pass;
 struct frame_data;
+struct texture;
 
 struct geometry_render_data;
 
@@ -22,6 +23,8 @@ typedef struct scene_pass_extended_data
 
     u32 debug_geometry_count;
     struct geometry_render_data* debug_geometries;
+
+    struct texture* irradiance_cube_texture;
 } scene_pass_extended_data;
 
 b8 scene_pass_create(struct rendergraph_pass* self);
