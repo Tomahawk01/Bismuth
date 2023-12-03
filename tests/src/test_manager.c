@@ -3,7 +3,7 @@
 #include <containers/darray.h>
 #include <core/logger.h>
 #include <core/bstring.h>
-#include <core/clock.h>
+#include <core/bclock.h>
 
 typedef struct test_entry
 {
@@ -34,15 +34,15 @@ void test_manager_run_tests(void)
 
     u32 count = darray_length(tests);
 
-    clock total_time;
-    clock_start(&total_time);
+    bclock total_time;
+    bclock_start(&total_time);
 
     for (u32 i = 0; i < count; ++i)
     {
-        clock test_time;
-        clock_start(&test_time);
+        bclock test_time;
+        bclock_start(&test_time);
         u8 result = tests[i].func();
-        clock_update(&test_time);
+        bclock_update(&test_time);
 
         if (result == true)
         {
@@ -60,11 +60,11 @@ void test_manager_run_tests(void)
         }
         char status[20];
         string_format(status, failed ? "*** %d FAILED ***" : "SUCCESS", failed);
-        clock_update(&total_time);
+        bclock_update(&total_time);
         BINFO("Executed %d of %d (skipped %d) %s (%.6f sec / %.6f sec total", i + 1, count, skipped, status, test_time.elapsed, total_time.elapsed);
     }
 
-    clock_stop(&total_time);
+    bclock_stop(&total_time);
 
     BINFO("Results: %d passed, %d failed, %d skipped", passed, failed, skipped);
 }

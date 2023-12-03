@@ -72,6 +72,7 @@
         "vulkan.h": "c",
         "sui_textbox.h": "c",
         "debug_console.h": "c",
-        "standard_ui_system.h": "c"
+        "standard_ui_system.h": "c",
+        "bclock.h": "c"
     },
 }

@@ -2,7 +2,7 @@
 
 #include "application_types.h"
 #include "containers/darray.h"
-#include "core/clock.h"
+#include "core/bclock.h"
 #include "core/event.h"
 #include "core/frame_data.h"
 #include "core/input.h"
@@ -25,7 +25,7 @@ typedef struct engine_state_t
     b8 is_suspended;
     i16 width;
     i16 height;
-    clock clock;
+    bclock clock;
     f64 last_time;
 
     b8 resizing;
@@ -153,8 +153,8 @@ b8 engine_run(application* game_inst)
 {
     game_inst->stage = APPLICATION_STAGE_RUNNING;
     engine_state->is_running = true;
-    clock_start(&engine_state->clock);
-    clock_update(&engine_state->clock);
+    bclock_start(&engine_state->clock);
+    bclock_update(&engine_state->clock);
     engine_state->last_time = engine_state->clock.elapsed;
     // f64 running_time = 0;
     // u8 frame_count = 0;
@@ -171,7 +171,7 @@ b8 engine_run(application* game_inst)
         if (!engine_state->is_suspended)
         {
             // Update clock and get delta time
-            clock_update(&engine_state->clock);
+            bclock_update(&engine_state->clock);
             f64 current_time = engine_state->clock.elapsed;
             f64 delta = (current_time - engine_state->last_time);
             f64 frame_start_time = platform_get_absolute_time();
