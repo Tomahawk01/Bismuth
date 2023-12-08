@@ -7,6 +7,7 @@
 #include "resources/resource_types.h"
 
 struct application;
+struct texture;
 
 typedef enum rendergraph_source_type
 {
@@ -63,8 +64,11 @@ typedef struct rendergraph_pass
     b8 presents_after;
 
     b8 (*initialize)(struct rendergraph_pass* self);
+    b8 (*load_resources)(struct rendergraph_pass* self);
     b8 (*execute)(struct rendergraph_pass* self, struct frame_data* p_frame_data);
     void (*destroy)(struct rendergraph_pass* self);
+    b8 (*attachment_textures_regenerate)(struct rendergraph_pass* self, u16 width, u16 height);
+    struct texture* (*attachment_texture_get)(struct rendergraph_pass* self, enum render_target_attachment_type attachment_type, u8 frame_number);
 } rendergraph_pass;
 
 typedef struct rendergraph
@@ -87,13 +91,15 @@ BAPI void rendergraph_destroy(rendergraph* graph);
 BAPI b8 rendergraph_global_source_add(rendergraph* graph, const char* name, rendergraph_source_type type, rendergraph_source_origin origin);
 
 // pass functions
-BAPI b8 rendergraph_pass_create(rendergraph* graph, const char* name, b8 (*create_pfn)(struct rendergraph_pass* self), rendergraph_pass* out_pass);
+BAPI b8 rendergraph_pass_create(rendergraph* graph, const char* name, b8 (*create_pfn)(struct rendergraph_pass* self, void* config), void* config, rendergraph_pass* out_pass);
 BAPI b8 rendergraph_pass_source_add(rendergraph* graph, const char* pass_name, const char* source_name, rendergraph_source_type type, rendergraph_source_origin origin);
 BAPI b8 rendergraph_pass_sink_add(rendergraph* graph, const char* pass_name, const char* sink_name);
 
 BAPI b8 rendergraph_pass_set_sink_linkage(rendergraph* graph, const char* pass_name, const char* sink_name, const char* source_pass_name, const char* source_name);
 
 BAPI b8 rendergraph_finalize(rendergraph* graph);
+
+BAPI b8 rendergraph_load_resources(rendergraph* graph);
 
 BAPI b8 rendergraph_execute_frame(rendergraph* graph, frame_data* p_frame_data);
 

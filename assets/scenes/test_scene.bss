@@ -13,8 +13,8 @@ cubemap_name=skybox
 
 [DirectionalLight]
 name=sun
-color=1.0 1.0 0.9 1.0
-direction=-0.57735 -0.57735 -0.57735 0.0
+color=80.0 80.0 70.0 1.0
+direction=0.1 -1.0 0.1 1.0 
 [/DirectionalLight]
 
 [Mesh]
@@ -26,12 +26,12 @@ transform=0.0 -1.0 0.0 0.0 0.0 0.0 1.0 0.01 0.01 0.01
 [Mesh]
 name=falcon
 resource_name=falcon
-transform=10.0 0.8 20.0 0.0 0.0 0.0 1.0 0.35 0.35 0.35
+transform=9.5 0.8 14.0 0.0 0.0 0.0 1.0 0.35 0.35 0.35
 [/Mesh]
 
 [PointLight]
 name=point_light_0
-color=1.0 0.0 0.0 1.0
+color=100.0 0.0 0.0 1.0
 position=7.0 1.25 18.0 0.0
 constant_f=1.0
 linear=0.35
@@ -40,7 +40,7 @@ quadratic=0.44
 
 [PointLight]
 name=point_light_1
-color=0.0 0.0 1.0 1.0
+color=0.0 0.0 100.0 1.0
 position=7.0 1.25 20.0 0.0
 constant_f=1.0
 linear=0.35
@@ -49,7 +49,7 @@ quadratic=0.44
 
 [PointLight]
 name=point_light_2
-color=0.0 0.0 1.0 1.0
+color=0.0 0.0 100.0 1.0
 position=7.0 1.25 22.0 0.0
 constant_f=1.0
 linear=0.35

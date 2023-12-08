@@ -50,21 +50,7 @@ void rendergraph_destroy(rendergraph* graph)
                 {
                     render_target* target = &pass->pass.targets[p];
 
-                    // Destroy old target if it exists
-                    renderer_render_target_destroy(target, false);
-
-                    for (u32 a = 0; a < target->attachment_count; ++a)
-                    {
-                        render_target_attachment* attachment = &target->attachments[a];
-                        if (attachment->source == RENDER_TARGET_ATTACHMENT_SOURCE_VIEW)
-                        {
-                            // TODO: Self-owned attachments for rendergraph passes
-                            BERROR("Self-owned attachements not yet supported");
-                            continue;
-                        }
-                    }
-
-                    // Destroy underlying render target
+                    // Destroy the target if it exists
                     renderer_render_target_destroy(target, true);
                 }
 
@@ -100,7 +86,7 @@ b8 rendergraph_global_source_add(rendergraph* graph, const char* name, rendergra
 }
 
 // pass functions
-b8 rendergraph_pass_create(rendergraph* graph, const char* name, b8 (*create_pfn)(struct rendergraph_pass* self), rendergraph_pass* out_pass)
+b8 rendergraph_pass_create(rendergraph* graph, const char* name, b8 (*create_pfn)(struct rendergraph_pass* self, void* config), void* config, rendergraph_pass* out_pass)
 {
     if (!graph || !out_pass)
         return false;
@@ -120,7 +106,7 @@ b8 rendergraph_pass_create(rendergraph* graph, const char* name, b8 (*create_pfn
     out_pass->sources = darray_create(rendergraph_source);
     out_pass->sinks = darray_create(rendergraph_sink);
 
-    if (!create_pfn(out_pass))
+    if (!create_pfn(out_pass, config))
     {
         BERROR("Error creating rendergraph pass, See logs for details");
         return false;
@@ -408,6 +394,43 @@ b8 rendergraph_finalize(rendergraph* graph)
                     }
                 }
             }
+            else if (source->type == RENDERGRAPH_SOURCE_TYPE_RENDER_TARGET_DEPTH_STENCIL)
+            {
+                if (source->origin == RENDERGRAPH_SOURCE_ORIGIN_OTHER)
+                {
+                    // Other is a reference to the source output of another pass
+                    // Search all other pass' sinks to see if any have this source as a bound source
+                    for (u32 k = 0; k < pass_count; ++k)
+                    {
+                        rendergraph_pass* ref_check_pass = graph->passes[k];
+                        u32 sink_count = darray_length(ref_check_pass->sinks);
+                        b8 found = false;
+                        for (u32 s = 0; s < sink_count; ++s)
+                        {
+                            if (ref_check_pass->sinks[s].bound_source == source)
+                            {
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (!found) {
+                            BWARN("No source found with depth stencil texture available");
+                            break;
+                        }
+                    }
+                }
+                else if (source->origin == RENDERGRAPH_SOURCE_ORIGIN_SELF)
+                {
+                    // If the origin is self, hook up the textures to the source
+                    if (pass->attachment_texture_get)
+                    {
+                        u32 frame_count = renderer_window_attachment_count_get();
+                        source->textures = ballocate(sizeof(texture*) * frame_count, MEMORY_TAG_ARRAY);
+                        for (u32 ti = 0; ti < frame_count; ti++)
+                            source->textures[ti] = pass->attachment_texture_get(pass, RENDER_TARGET_ATTACHMENT_TYPE_DEPTH, ti);
+                    }
+                }
+            }
             if (graph->backbuffer_global_sink.bound_source)
                 break;
         }
@@ -437,6 +460,49 @@ b8 rendergraph_finalize(rendergraph* graph)
             BERROR("Failed to rengenerate render targets");
             return false;
         }
+    }
+
+    return true;
+}
+
+b8 rendergraph_load_resources(rendergraph* graph)
+{
+    if (!graph)
+        return false;
+
+    u32 pass_count = darray_length(graph->passes);
+    for (u32 i = 0; i < pass_count; ++i)
+    {
+        rendergraph_pass* pass = graph->passes[i];
+
+        // Before loading resources, ensure any self-sourced sources have textures loaded
+        u32 source_count = darray_length(pass->sources);
+        for (u32 j = 0; j < source_count; ++j)
+        {
+            rendergraph_source* source = &pass->sources[j];
+            if (source->origin == RENDERGRAPH_SOURCE_ORIGIN_SELF)
+            {
+                // If the origin is self, hook up the textures to the source
+                if (pass->attachment_texture_get)
+                {
+                    u32 texture_type = (source->type == RENDERGRAPH_SOURCE_TYPE_RENDER_TARGET_COLOR)
+                                           ? RENDER_TARGET_ATTACHMENT_TYPE_COLOR
+                                           : RENDER_TARGET_ATTACHMENT_TYPE_DEPTH | RENDER_TARGET_ATTACHMENT_TYPE_STENCIL;
+                    u32 frame_count = renderer_window_attachment_count_get();
+                    source->textures = ballocate(sizeof(texture*) * frame_count, MEMORY_TAG_ARRAY);
+                    for (u32 ti = 0; ti < frame_count; ti++)
+                        source->textures[ti] = pass->attachment_texture_get(pass, texture_type, ti);
+                }
+                else
+                {
+                    BERROR("Rendergraph pass '%s': source '%s' is set to RENDERGRAPH_SOURCE_ORIGIN_SELF but does not have attechment_texture_get defined");
+                    return false;
+                }
+            }
+        }
+
+        if (pass->load_resources)
+            pass->load_resources(pass);
     }
 
     return true;
@@ -489,6 +555,7 @@ static b8 regenerate_render_targets(rendergraph* graph, rendergraph_pass* pass, 
         // Destroy the old target if it exists
         renderer_render_target_destroy(target, false);
 
+        // Retrieve texture pointers for all attachments and frames
         for (u32 a = 0; a < target->attachment_count; ++a)
         {
             render_target_attachment* attachment = &target->attachments[a];
@@ -508,21 +575,37 @@ static b8 regenerate_render_targets(rendergraph* graph, rendergraph_pass* pass, 
                     return false;
                 }
             }
-            else if (attachment->source == RENDER_TARGET_ATTACHMENT_SOURCE_VIEW)
+            else if (attachment->source == RENDER_TARGET_ATTACHMENT_SOURCE_SELF)
             {
-                // TODO: Self-owned attachments for rendergraph passes
-                BFATAL("Self-owned attachements not yet supported");
-                return false;
+                // Regenerate, if needed/supported for this pass
+                if (pass->attachment_textures_regenerate)
+                {
+                    if (!pass->attachment_textures_regenerate(pass, width, height))
+                        BERROR("Failed to regenerate attachment textures for rendergraph pass'%s'", pass->name);
+                }
+                if (!pass->attachment_texture_get)
+                {
+                    BERROR("Attempted to get a self-owned attachment texture for a pass that does not implement attachment_texture_get");
+                    return false;
+                }
+                attachment->texture = pass->attachment_texture_get(pass, attachment->type, i);
+                if (!attachment->texture)
+                {
+                    BERROR("Unsupported attachment type: 0x%x", attachment->type);
+                    return false;
+                }
             }
         }
+
+        b8 use_custom_size = target->attachments[0].source == RENDER_TARGET_ATTACHMENT_SOURCE_SELF;
 
         // Create underlying render target
         renderer_render_target_create(
             target->attachment_count,
             target->attachments,
             &pass->pass,
-            width,
-            height,
+            use_custom_size ? target->attachments[0].texture->width : width,
+            use_custom_size ? target->attachments[0].texture->height : height,
             &pass->pass.targets[i]);
     }
 

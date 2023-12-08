@@ -30,7 +30,11 @@ BAPI b8 material_system_apply_global(u32 shader_id, const struct frame_data* p_f
 BAPI b8 material_system_apply_instance(material* m, struct frame_data* p_frame_data, b8 needs_update);
 BAPI b8 material_system_apply_local(material* m, const mat4* model);
 
+BAPI b8 material_system_shadow_map_set(texture* shadow_texture, u8 index);
+
 BAPI b8 material_system_irradiance_set(texture* irradiance_cube_texture);
+
+BAPI void material_system_directional_light_space_set(mat4 directional_light_space);
 
 /**
  * @brief Dumps all of the registered materials and their reference counts/handles

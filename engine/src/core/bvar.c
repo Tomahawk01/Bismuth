@@ -53,7 +53,7 @@ b8 bvar_int_create(const char* name, i32 value)
         bvar_int_entry* entry = &state_ptr->ints[i];
         if (entry->name && strings_equali(entry->name, name))
         {
-            BERROR("A int kvar named '%s' already exists", name);
+            BERROR("A int bvar named '%s' already exists", name);
             return false;
         }
     }
@@ -114,11 +114,11 @@ b8 bvar_int_set(const char* name, i32 value)
     return false;
 }
 
-static void kvar_console_command_int_create(console_command_context context)
+static void bvar_console_command_int_create(console_command_context context)
 {
     if (context.argument_count != 2)
     {
-        BERROR("kvar_console_command_int_create requires a context arg count of 2");
+        BERROR("bvar_console_command_int_create requires a context arg count of 2");
         return;
     }
 
@@ -135,11 +135,11 @@ static void kvar_console_command_int_create(console_command_context context)
         BERROR("Failed to create int bvar");
 }
 
-static void kvar_console_command_int_print(console_command_context context)
+static void bvar_console_command_int_print(console_command_context context)
 {
     if (context.argument_count != 1)
     {
-        BERROR("kvar_console_command_int_print requires a context arg count of 1");
+        BERROR("bvar_console_command_int_print requires a context arg count of 1");
         return;
     }
 
@@ -157,11 +157,11 @@ static void kvar_console_command_int_print(console_command_context context)
     console_write_line(LOG_LEVEL_INFO, val_str);
 }
 
-static void kvar_console_command_int_set(console_command_context context)
+static void bvar_console_command_int_set(console_command_context context)
 {
     if (context.argument_count != 2)
     {
-        BERROR("kvar_console_command_int_set requires a context arg count of 2");
+        BERROR("bvar_console_command_int_set requires a context arg count of 2");
         return;
     }
 
@@ -201,8 +201,8 @@ static void bvar_console_command_print_all(console_command_context context)
 
 static void bvar_console_commands_register(void)
 {
-    console_command_register("bvar_create_int", 2, kvar_console_command_int_create);
-    console_command_register("bvar_print_int", 1, kvar_console_command_int_print);
-    console_command_register("bvar_set_int", 2, kvar_console_command_int_set);
+    console_command_register("bvar_create_int", 2, bvar_console_command_int_create);
+    console_command_register("bvar_print_int", 1, bvar_console_command_int_print);
+    console_command_register("bvar_set_int", 2, bvar_console_command_int_set);
     console_command_register("bvar_print_all", 0, bvar_console_command_print_all);
 }

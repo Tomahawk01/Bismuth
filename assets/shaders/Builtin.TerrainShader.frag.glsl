@@ -28,10 +28,14 @@ layout(set = 0, binding = 0) uniform global_uniform_object
 {
     mat4 projection;
 	mat4 view;
+    mat4 light_space;
 	vec4 ambient_color;
+    directional_light dir_light;
 	vec3 view_position;
 	int mode;
-    directional_light dir_light;
+    int use_pcf;
+    float bias;
+    vec2 padding;
 } global_ubo;
 
 struct material_phong_properties
@@ -63,19 +67,25 @@ const int SAMP_NORMAL_OFFSET = 1;
 const int SAMP_METALLIC_OFFSET = 2;
 const int SAMP_ROUGHNESS_OFFSET = 3;
 const int SAMP_AO_OFFSET = 4;
-const int SAMP_IRRADIANCE_CUBE = 5 * MAX_TERRAIN_MATERIALS;
+// Shadow map comes after all materials
+const int SAMP_SHADOW_MAP = 20; //5 * MAX_TERRAIN_MATERIALS;
+// Irradience cube comes after shadow map
+const int SAMP_IRRADIANCE_CUBE = 21; //SAMP_SHADOW_MAP + 1;
 
 const float PI = 3.14159265359;
 
 // Samplers. albedo, normal, metallic, roughness, ao ...
-layout(set = 1, binding = 1) uniform sampler2D samplers[1 + (5 * MAX_TERRAIN_MATERIALS)];
+// One more sampler2D is at the end, which is the shadow map
+layout(set = 1, binding = 1) uniform sampler2D samplers[2 + (5 * MAX_TERRAIN_MATERIALS)];
 // IBL
-layout(set = 1, binding = 1) uniform samplerCube cube_samplers[1 + (5 * MAX_TERRAIN_MATERIALS)];
+layout(set = 1, binding = 1) uniform samplerCube cube_samplers[2 + (5 * MAX_TERRAIN_MATERIALS)];
 
 layout(location = 0) flat in int in_mode;
+layout(location = 1) flat in int use_pcf;
 // Data Transfer Object
-layout(location = 1) in struct dto
+layout(location = 2) in struct dto
 {
+    vec4 light_space_frag_pos;
     vec4 ambient;
 	vec2 tex_coord;
 	vec3 normal;
@@ -84,9 +94,56 @@ layout(location = 1) in struct dto
     vec4 color;
 	vec3 tangent;
     vec4 mat_weights;
+    float bias;
+    vec3 padding;
 } in_dto;
 
 mat3 TBN;
+
+// Percentage-Closer Filtering
+float calculate_pcf(vec3 projected)
+{
+    float shadow = 0.0;
+    vec2 texel_size = 1.0 / textureSize(samplers[SAMP_SHADOW_MAP], 0);
+    for (int x = -1; x <= 1; ++x)
+    {
+        for (int y = -1; y <= 1; ++y)
+        {
+            float pcf_depth = texture(samplers[SAMP_SHADOW_MAP], projected.xy + vec2(x, y) * texel_size).r;
+            shadow += projected.z - in_dto.bias > pcf_depth ? 1.0 : 0.0;
+        }
+    }
+    shadow /= 9;
+    return 1.0 - shadow;
+}
+
+float calculate_unfiltered(vec3 projected)
+{
+    // Sample the shadow map
+    float map_depth = texture(samplers[SAMP_SHADOW_MAP], projected.xy).r;
+
+    float shadow = projected.z - in_dto.bias > map_depth ? 0.0 : 1.0;
+    return shadow;
+}
+
+// Compare the fragment position against the depth buffer, and if it is further 
+// back than the shadow map, it's in shadow. 0.0 = in shadow, 1.0 = not
+float calculate_shadow(vec4 light_space_frag_pos, vec3 normal, directional_light light)
+{
+    // Perspective divide - note that while this is pointless for ortho projection, perspective will require this
+    vec3 projected = light_space_frag_pos.xyz / light_space_frag_pos.w;
+    // Need to reverse y
+    projected.y = 1.0-projected.y;
+
+    // projected.xy = projected.xy * 0.5 + 0.5;
+
+    if (use_pcf == 1)
+    {
+        return calculate_pcf(projected);
+    } 
+
+    return calculate_unfiltered(projected);
+}
 
 // Based on a combination of GGX and Schlick-Beckmann approximation to calculate probability of overshadowing micro-facets
 float geometry_schlick_ggx(float normal_dot_direction, float roughness)
@@ -116,13 +173,14 @@ void main()
     vec4 aos[MAX_TERRAIN_MATERIALS];
 
     // Sample each material
-    for(int m = 0; m < instance_ubo.properties.num_materials; ++m)
+    for (int m = 0; m < instance_ubo.properties.num_materials; ++m)
     {
         int m_element = (m * 5);
         albedos[m] = texture(samplers[m_element + SAMP_ALBEDO_OFFSET], in_dto.tex_coord);
         albedos[m] = vec4(pow(albedos[m].rgb, vec3(2.2)), albedos[m].a);
-        vec3 local_normal = 2.0 * texture(samplers[m_element + SAMP_NORMAL_OFFSET], in_dto.tex_coord).rgb - 1.0;
-        normals[m] = normalize(TBN * local_normal);
+        // vec3 local_normal = 2.0 * texture(samplers[m_element + SAMP_NORMAL_OFFSET], in_dto.tex_coord).rgb - 1.0;
+        // normals[m] = normalize(TBN * local_normal);
+        normals[m] = texture(samplers[m_element + SAMP_NORMAL_OFFSET], in_dto.tex_coord).rgb;
         metallics[m] = texture(samplers[m_element + SAMP_METALLIC_OFFSET], in_dto.tex_coord);
         roughnesses[m] = texture(samplers[m_element + SAMP_ROUGHNESS_OFFSET], in_dto.tex_coord);
         aos[m] = texture(samplers[m_element + SAMP_AO_OFFSET], in_dto.tex_coord);
@@ -138,11 +196,22 @@ void main()
     // Set albedo to be fully opaque
     albedo.a = 1.0;
 
+    // vec3 n0 = (normals[0] * 2 - 1) * in_dto.mat_weights[0];
+    // vec3 n1 = (normals[1] * 2 - 1) * in_dto.mat_weights[1];
+    // vec3 n2 = (normals[2] * 2 - 1) * in_dto.mat_weights[2];
+    // vec3 n3 = (normals[3] * 2 - 1) * in_dto.mat_weights[3];
+    // normal = normalize(vec3(n0.xy + n1.xy + n2.xy + n3.xy, n0.z));
+    // normal = normal * 0.25 + 0.5;
+
     normal = 
         normals[0] * in_dto.mat_weights[0] +
         normals[1] * in_dto.mat_weights[1] +
         normals[2] * in_dto.mat_weights[2] +
         normals[3] * in_dto.mat_weights[3];
+    normal = normalize(normal);
+
+    vec3 local_normal = 2.0 * normal - 1.0;
+    normal = normalize(TBN * local_normal);
 
     float metallic = metallics[0].r * in_dto.mat_weights[0] +
         metallics[1].r * in_dto.mat_weights[1] +
@@ -195,9 +264,15 @@ void main()
         // Irradiance holds all the scene's indirect diffuse light
         vec3 irradiance = texture(cube_samplers[SAMP_IRRADIANCE_CUBE], normal).rgb;
 
-        // Combine irradiance with albedo and ambient occlusion. Also add in total accumulated reflectance
+        // Generate shadow value based on current fragment position vs shadow map
+        // Light and normal are also taken in the case that a bias is to be used
+        float shadow = calculate_shadow(in_dto.light_space_frag_pos, normal, global_ubo.dir_light);
+
+        // Combine irradiance with albedo and ambient occlusion
+        // Also add in total accumulated reflectance
         vec3 ambient = irradiance * albedo.xyz * ao;
-        vec3 color = ambient + total_reflectance;
+        // Modify total reflectance by the generated shadow value
+        vec3 color = ambient + total_reflectance * shadow;
 
         // HDR tonemapping
         color = color / (color + vec3(1.0));
@@ -205,7 +280,7 @@ void main()
         color = pow(color, vec3(1.0 / 2.2));
 
         // Ensure the alpha is based on the albedo's original alpha  value
-        out_color = vec4(color, albedo.a);
+        out_color = vec4(color, 1.0);
     }
     else if(in_mode == 2)
     {
