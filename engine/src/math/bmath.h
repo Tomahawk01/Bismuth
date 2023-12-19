@@ -33,6 +33,9 @@
 // Smallest positive number where 1.0 + FLOAT_EPSILON != 0
 #define B_FLOAT_EPSILON 1.192092896e-07f
 
+#define B_FLOAT_MIN -3.40282e+38F
+#define B_FLOAT_MAX 3.40282e+38F
+
 // -------- General math functions --------
 BINLINE void bswapf(f32 *a, f32 *b)
 {
@@ -67,6 +70,7 @@ BAPI f32 bacos(f32 x);
 BAPI f32 bsqrt(f32 x);
 BAPI f32 babs(f32 x);
 BAPI f32 bfloor(f32 x);
+BAPI f32 bceil(f32 x);
 BAPI f32 blog2(f32 x);
 
 /**
@@ -545,6 +549,15 @@ BINLINE vec3 vec3_div(vec3 vector_0, vec3 vector_1)
         vector_0.z / vector_1.z};
 }
 
+BINLINE vec3 vec3_div_scalar(vec3 vector_0, f32 scalar)
+{
+    vec3 result;
+    for (u64 i = 0; i < 3; ++i)
+        result.elements[i] = vector_0.elements[i] / scalar;
+
+    return result;
+}
+
 /**
  * @brief Returns the squared length of the provided vector.
  * 
@@ -846,6 +859,15 @@ BINLINE vec4 vec4_div(vec4 vector_0, vec4 vector_1)
     vec4 result;
     for (u64 i = 0; i < 4; ++i)
         result.elements[i] = vector_0.elements[i] / vector_1.elements[i];
+    return result;
+}
+
+BINLINE vec4 vec4_div_scalar(vec4 vector_0, f32 scalar)
+{
+    vec4 result;
+    for (u64 i = 0; i < 4; ++i)
+        result.elements[i] = vector_0.elements[i] / scalar;
+
     return result;
 }
 
@@ -1380,6 +1402,22 @@ BINLINE vec3 mat4_right(mat4 matrix)
     return right;
 }
 
+/**
+ * @brief Returns the position relative to the provided matrix.
+ *
+ * @param matrix The matrix from which to base the vector.
+ * @return A 3-component positional vector.
+ */
+BINLINE vec3 mat4_position(mat4 matrix)
+{
+    vec3 pos;
+    pos.x = matrix.data[12];
+    pos.y = matrix.data[13];
+    pos.z = matrix.data[14];
+    vec3_normalize(&pos);
+    return pos;
+}
+
 BINLINE vec3 mat4_mul_vec3(mat4 m, vec3 v)
 {
     return (vec3) {
@@ -1691,6 +1729,8 @@ BINLINE void vec3_to_rgb_u32(vec3 v, u32* out_r, u32* out_g, u32* out_b)
 BAPI plane_3d plane_3d_create(vec3 p1, vec3 norm);
 
 BAPI frustum frustum_create(const vec3* position, const vec3* forward, const vec3* right, const vec3* up, f32 aspect, f32 fov, f32 near, f32 far);
+
+BAPI void frustum_corner_points_world_space(mat4 projection_view, vec4 *corners);
 
 BAPI f32 plane_signed_distance(const plane_3d* p, const vec3* position);
 

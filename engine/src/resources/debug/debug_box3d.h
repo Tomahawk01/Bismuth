@@ -1,3 +1,5 @@
+#pragma once
+
 #include "defines.h"
 #include "core/identifier.h"
 #include "math/math_types.h"
@@ -23,6 +25,7 @@ BAPI void debug_box3d_destroy(debug_box3d* box);
 BAPI void debug_box3d_parent_set(debug_box3d* box, transform* parent);
 BAPI void debug_box3d_color_set(debug_box3d* box, vec4 color);
 BAPI void debug_box3d_extents_set(debug_box3d* box, extents_3d extents);
+BAPI void debug_box3d_points_set(debug_box3d *box, vec4* points);
 
 BAPI b8 debug_box3d_initialize(debug_box3d* box);
 BAPI b8 debug_box3d_load(debug_box3d* box);

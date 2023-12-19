@@ -563,7 +563,7 @@ b8 application_initialize(struct application* game_inst)
     // Viewport setup
     // World Viewport
     rect_2d world_vp_rect = vec4_create(20.0f, 20.0f, 1280.0f - 40.0f, 720.0f - 40.0f);
-    if (!viewport_create(world_vp_rect, deg_to_rad(45.0f), 0.1f, 4000.0f, RENDERER_PROJECTION_MATRIX_TYPE_PERSPECTIVE, &state->world_viewport))
+    if (!viewport_create(world_vp_rect, deg_to_rad(45.0f), 0.1f, 400.0f, RENDERER_PROJECTION_MATRIX_TYPE_PERSPECTIVE, &state->world_viewport))
     {
         BERROR("Failed to create world viewport. Cannot start application");
         return false;
@@ -578,10 +578,10 @@ b8 application_initialize(struct application* game_inst)
     }
 
     // TODO: For test
-    rect_2d world_vp_rect2 = vec4_create(20.0f, 20.0f, 128.8f, 72.0f);
-    if (!viewport_create(world_vp_rect2, 0.015f, -4000.0f, 4000.0f, RENDERER_PROJECTION_MATRIX_TYPE_ORTHOGRAPHIC_CENTERED, &state->world_viewport2))
+    rect_2d world_vp_rect2 = vec4_create(20.0f, 20.0f, 1280.0f - 40.0f, 720.0f - 40.0f);
+    if (!viewport_create(world_vp_rect2, deg_to_rad(45.0f), 0.01f, 10.0f, RENDERER_PROJECTION_MATRIX_TYPE_PERSPECTIVE, &state->world_viewport2))
     {
-        BERROR("Failed to create wireframe viewport. Cannot start application");
+        BERROR("Failed to create world viewport 2. Cannot start application");
         return false;
     }
 
@@ -758,13 +758,13 @@ b8 application_initialize(struct application* game_inst)
     // TODO: end temp load/prepare stuff
 
     state->world_camera = camera_system_acquire("world");
-    camera_position_set(state->world_camera, (vec3){-24.5, 19.3f, 30.2f});
-    camera_rotation_euler_set(state->world_camera, (vec3){-24.0f, -42.5f, 0.0f});
+    camera_position_set(state->world_camera, (vec3){5.83f, 4.35f, 18.68f});
+    camera_rotation_euler_set(state->world_camera, (vec3){-29.43f, -42.41f, 0.0f});
 
     // TODO: temp test camera
     state->world_camera_2 = camera_system_acquire("world_2");
-    camera_position_set(state->world_camera_2, (vec3){8.0f, 0.0f, 10.0f});
-    camera_rotation_euler_set(state->world_camera_2, (vec3){0.0f, -90.0f, 0.0f});
+    camera_position_set(state->world_camera_2, (vec3){5.83f, 4.35f, 18.68f});
+    camera_rotation_euler_set(state->world_camera_2, (vec3){-29.43f, -42.41f, 0.0f});
 
     // bzero_memory(&game_inst->frame_data, sizeof(app_frame_data));
 
@@ -807,6 +807,51 @@ b8 application_initialize(struct application* game_inst)
     //     BERROR("Failed to play test emitter");
 
     // audio_system_channel_play(7, state->test_music, true);
+
+    // HACK: Begin frustum visualizations for the camera and shadow "camera"
+    {
+        // A box to visualize the center point of the perspective projection matrix
+        debug_box3d centerbox;
+        debug_box3d_create((vec3){1.0f, 1.0f, 1.0f}, 0, &centerbox);
+        debug_box3d_color_set(&centerbox, (vec4){0.0f, 0.0f, 1.0f, 1.0f});
+        debug_box3d_initialize(&centerbox);
+        debug_box3d_load(&centerbox);
+        darray_push(state->test_boxes, centerbox);
+        u32 box_count = darray_length(state->test_boxes);
+        state->proj_box_index = box_count - 1;
+
+        // Create debug lines for the perspective and shadow cameras
+        // 12 lines each - 4 for the near clip, 4 for the far clip, 4 connectors
+        // Perspective lines first, then shadow
+        for (u32 j = 0; j < 2; ++j)
+        {
+            for (u32 i = 0; i < 12; i++)
+            {
+                vec4 color = (vec4){0.0f, 1.0f, 0.0f, 1.0f};
+                if (i > 3 && i < 8)
+                {
+                    color.r = 1.0f;
+                    color.g = 0.0f;
+                    color.b = 0.0f;
+                }
+                else if (i > 7)
+                {
+                    color.r = 1.0f;
+                    color.g = 1.0f;
+                    color.b = 0.0f;
+                }
+
+                debug_line3d line;
+                debug_line3d_create(vec3_zero(), vec3_one(), 0, &line);
+                debug_line3d_color_set(&line, color);
+                debug_line3d_initialize(&line);
+                debug_line3d_load(&line);
+                darray_push(state->test_lines, line);
+                state->cam_proj_line_indices[(12 * j) + i] = darray_length(state->test_lines) - 1;
+            }
+        }
+    }
+    // HACK: End frustum visualization
 
     state->running = true;
 
@@ -1079,40 +1124,126 @@ b8 application_prepare_frame(struct application* app_inst, struct frame_data* p_
             skybox_pass_ext_data->sb = state->main_scene.sb;
         }
 
+        // Default values to use in the event there is no directional light
+        // These are required because the scene pass needs them
         mat4 shadow_camera_lookat = mat4_identity();
         mat4 shadow_camera_projection = mat4_identity();
+
         // Shadowmap pass - only runs if there is a directional light
         if (state->main_scene.dir_light)
         {
-            // TODO: This should be synced to the camera's position/rotation so that the frustums line up
-            vec3 light_dir = vec3_normalized(vec3_from_vec4(state->main_scene.dir_light->data.direction));
-            // Light direction is negative so we need to go up
-            vec3 shadow_cam_pos = vec3_mul_scalar(light_dir, -100.0f);
-            shadow_camera_lookat = mat4_look_at(shadow_cam_pos, vec3_zero(), vec3_up());
-
+            // Mark this pass as executable
             state->shadowmap_pass.pass_data.do_execute = true;
 
-            // NOTE: this pass will use its own viewport
-            /* state->shadowmap_pass.pass_data.vp = &state->world_viewport; */
-            // TODO: View matrix needs to be inverse
-            state->shadowmap_pass.pass_data.view_matrix = (shadow_camera_lookat);
-            // Extract the projection matrix
+            // Obtain the light direction
+            vec3 light_dir = vec3_normalized(vec3_from_vec4(state->main_scene.dir_light->data.direction));
 
-            // NOTE: this pass will use its own projection matrix
-            // state->shadowmap_pass.pass_data.projection_matrix = dont set
-
-            // viewport* v = state->shadowmap_pass.pass_data.vp;
-
+            // Setup the extended data for the pass
             shadow_map_pass_extended_data* ext_data = state->shadowmap_pass.pass_data.ext_data;
             ext_data->light = state->main_scene.dir_light;
-            // Read internal projection matrix
-            shadow_camera_projection = (ext_data->projection);
-            // shadow_camera_projection = mat4_mul(ext_data->projection, mat4_scale((vec3){1.0f, -1.0f, 1.0f}));
 
-            // vec3 forward = mat4_forward(shadow_camera_lookat);
-            // vec3 right = mat4_right(shadow_camera_lookat);
-            // vec3 up = mat4_up(shadow_camera_lookat);
-            // frustum f = frustum_create(&shadow_cam_pos, &forward, &right, &up, v->rect.width / v->rect.height, v->fov, v->near_clip, v->far_clip);
+            // NOTE: Each pass for cascades will need to do the following process
+
+            // Get the view-projection matrix
+            // HACK: change back to viewport 1/camera 1
+            b8 hack_enabled = true;
+            camera* view_camera = hack_enabled ? state->world_camera_2 : state->world_camera;
+            viewport* view_viewport = hack_enabled ? &state->world_viewport2 : &state->world_viewport;
+            mat4 cam_view_proj = mat4_transposed(mat4_mul(camera_view_get(view_camera), view_viewport->projection));
+
+            // HACK: Rotate the test view camera
+            if (hack_enabled)
+                camera_yaw(view_camera, 0.1f * p_frame_data->delta_time);
+
+            // Get the world-space corners of the view frustum
+            vec4 corners[8] = {0};
+            frustum_corner_points_world_space(cam_view_proj, corners);
+
+            // Calculate center of the camera's frustum by averaging the points
+            // This is also used as the lookat point for the shadow "camera"
+            vec3 center = vec3_zero();
+            for (u32 i = 0; i < 8; ++i)
+                center = vec3_add(center, vec3_from_vec4(corners[i]));
+            center = vec3_div_scalar(center, 8.0f);  // size
+
+            // Get the furthest-out point from the center and use that as the extents
+            f32 radius = 0.0f;
+            for (u32 i = 0; i < 8; ++i)
+            {
+                f32 distance = vec3_distance(vec3_from_vec4(corners[i]), center);
+                radius = BMAX(radius, distance);
+            }
+
+            // Calculate the extents by using the radius from above
+            extents_3d extents;
+            extents.max = vec3_create(radius, radius, radius);
+            extents.min = vec3_mul_scalar(extents.max, -1.0f);
+
+            // "Pull" the min inward and "push" the max outward on the z axis to make sure shadow casters outside the view are captured as well
+            // TODO: This should be adjustable per scene
+            f32 z_multiplier = 10.0f;
+            if (extents.min.z < 0)
+                extents.min.z *= z_multiplier;
+            else
+                extents.min.z /= z_multiplier;
+
+            if (extents.max.z < 0)
+                extents.max.z /= z_multiplier;
+            else
+                extents.max.z *= z_multiplier;
+
+            // Generate lookat by moving along the opposite direction of the directional light by the minimum extents
+            shadow_camera_lookat = mat4_look_at(vec3_sub(center, vec3_mul_scalar(light_dir, -extents.min.z)), center, vec3_up());
+
+            // Generate ortho projection based on extents
+            shadow_camera_projection = mat4_orthographic(extents.min.x, extents.max.x, extents.min.y, extents.max.y, extents.min.z, extents.max.z - extents.min.z);
+
+            // Save these off to the pass data
+            state->shadowmap_pass.pass_data.view_matrix = shadow_camera_lookat;
+            state->shadowmap_pass.pass_data.projection_matrix = shadow_camera_projection;
+
+            // HACK: Begin frustum visualizations for the camera and the shadow "camera"
+            {
+                mat4 shadow_proj_view = mat4_transposed(mat4_mul(shadow_camera_lookat, shadow_camera_projection));
+
+                vec4 shadow_corners[8] = {0};
+                frustum_corner_points_world_space(shadow_proj_view, shadow_corners);
+
+                // Place corners from both frustums in a 2d array for an indexable loop
+                vec4 all_corners[2][8];
+                bcopy_memory(all_corners[0], corners, sizeof(vec4) * 8);
+                bcopy_memory(all_corners[1], shadow_corners, sizeof(vec4) * 8);
+                for (u32 j = 0; j < 2; ++j)
+                {
+                    for (u32 i = 0; i < 4; ++i)
+                    {
+                        vec3 p0, p1;
+                        u32 i1, i2;
+                        // near
+                        i1 = i;
+                        i2 = (i + 1) % 4;
+                        p0 = vec3_from_vec4(all_corners[j][i1]);
+                        p1 = vec3_from_vec4(all_corners[j][i2]);
+                        debug_line3d_points_set(&state->test_lines[state->cam_proj_line_indices[(12 * j) + i]], p0, p1);
+                        // far
+                        i1 = (i + 4);
+                        i2 = (i + 1) % 4 + 4;
+                        p0 = vec3_from_vec4(all_corners[j][i1]);
+                        p1 = vec3_from_vec4(all_corners[j][i2]);
+                        debug_line3d_points_set(&state->test_lines[state->cam_proj_line_indices[(12 * j) + i + 4]], p0, p1);
+                        // connectors
+                        i1 = i;
+                        i2 = (i + 4) % 8;
+                        p0 = vec3_from_vec4(all_corners[j][i1]);
+                        p1 = vec3_from_vec4(all_corners[j][i2]);
+                        debug_line3d_points_set(&state->test_lines[state->cam_proj_line_indices[(12 * j) + i + 8]], p0, p1);
+                    }
+                }
+
+                // Also update a box visualization for the center of the perspective projection matrix
+                state->test_boxes[state->proj_box_index].xform = transform_from_position(center);
+            }
+            // HACK: End frustum visualization
 
             simple_scene* scene = &state->main_scene;
 
@@ -1450,7 +1581,8 @@ b8 application_prepare_frame(struct application* app_inst, struct frame_data* p_
     {
         // Don't run these passes if scene is not loaded
         state->scene_pass.pass_data.do_execute = false;
-        state->scene_pass.pass_data.do_execute = false;
+        state->shadowmap_pass.pass_data.do_execute = false;
+        state->editor_pass.pass_data.do_execute = false;
     }
 
     // UI
@@ -1541,7 +1673,7 @@ void application_on_resize(struct application* game_inst, u32 width, u32 height)
     if (!width || !height)
         return;
 
-    f32 half_width = state->width * 0.5f;
+    // f32 half_width = state->width * 0.5f;
 
     // Resize viewports
     // World Viewport (right side)
@@ -1553,7 +1685,7 @@ void application_on_resize(struct application* game_inst, u32 width, u32 height)
     viewport_resize(&state->ui_viewport, ui_vp_rect);
 
     // World viewport 2
-    rect_2d world_vp_rect2 = vec4_create(20.0f, 20.0f, half_width - 40.0f, state->height - 40.0f);
+    rect_2d world_vp_rect2 = vec4_create(0.0f, 0.0f, state->width, state->height);
     viewport_resize(&state->world_viewport2, world_vp_rect2);
 
     // TODO: temp
@@ -1734,14 +1866,8 @@ static b8 configure_rendergraph(application* app)
     // Shadowmap pass
     shadow_map_pass_config shadow_pass_config = {0};
     shadow_pass_config.resolution = 2048;
-    shadow_pass_config.fov = 0;
-    f32 area = 20;
-    shadow_pass_config.bounds = (rect_2d){-area, area, -area, area};
-    shadow_pass_config.near_clip = 1.0f;
-    shadow_pass_config.far_clip = 150;
-    shadow_pass_config.matrix_type = RENDERER_PROJECTION_MATRIX_TYPE_ORTHOGRAPHIC;
     RG_CHECK(rendergraph_pass_create(&state->frame_graph, "shadowmap_pass", shadow_map_pass_create, &shadow_pass_config, &state->shadowmap_pass));
-    RG_CHECK(rendergraph_pass_source_add(&state->frame_graph, "shadowmap_pass", "colourbuffer", RENDERGRAPH_SOURCE_TYPE_RENDER_TARGET_COLOR, RENDERGRAPH_SOURCE_ORIGIN_SELF));
+    RG_CHECK(rendergraph_pass_source_add(&state->frame_graph, "shadowmap_pass", "colorbuffer", RENDERGRAPH_SOURCE_TYPE_RENDER_TARGET_COLOR, RENDERGRAPH_SOURCE_ORIGIN_SELF));
     RG_CHECK(rendergraph_pass_source_add(&state->frame_graph, "shadowmap_pass", "depthbuffer", RENDERGRAPH_SOURCE_TYPE_RENDER_TARGET_DEPTH_STENCIL, RENDERGRAPH_SOURCE_ORIGIN_SELF));
 
     // Scene pass
