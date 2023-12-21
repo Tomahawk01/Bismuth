@@ -234,9 +234,8 @@ b8 scene_pass_execute(struct rendergraph_pass* self, struct frame_data* p_frame_
     // HACK: here until ambient color is removed
     vec4 ambient_color = (vec4){0.25, 0.5, 0.75, 0.99};
 
-    // mat4 light_space = mat4_mul((ext_data->directional_light_projection), (ext_data->directional_light_view));
-    mat4 light_space = mat4_mul((ext_data->directional_light_view), (ext_data->directional_light_projection));
-    material_system_directional_light_space_set((light_space));
+    mat4 light_space = mat4_mul(ext_data->directional_light_view, ext_data->directional_light_projection);
+    material_system_directional_light_space_set(light_space);
     material_system_shadow_map_set(internal_data->shadowmap_source->textures[p_frame_data->render_target_index], 0); // TODO: index on cascade
 
     // Use appropriate shader and apply global uniforms

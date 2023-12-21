@@ -8,6 +8,7 @@
 #include "core/frame_data.h"
 #include "core/bstring.h"
 #include "math/bmath.h"
+#include "math/math_types.h"
 #include "math/transform.h"
 #include "math/geometry_3d.h"
 #include "resources/resource_types.h"
@@ -21,6 +22,7 @@
 #include "renderer/camera.h"
 #include "systems/light_system.h"
 #include "systems/resource_system.h"
+#include "utils/bsort.h"
 
 static void simple_scene_actual_unload(simple_scene* scene);
 
@@ -31,6 +33,30 @@ typedef struct simple_scene_debug_data
     debug_box3d box;
     debug_line3d line;
 } simple_scene_debug_data;
+
+typedef struct geometry_distance
+{
+    // Geometry render data
+    geometry_render_data g;
+    // Distance from the camera
+    f32 distance;
+} geometry_distance;
+
+static i32 geometry_render_data_compare(void *a, void *b)
+{
+    geometry_render_data *a_typed = a;
+    geometry_render_data *b_typed = b;
+    if (!a_typed->material || !b_typed->material)
+        return 0;  // Don't sort invalid entries
+    return a_typed->material->id - b_typed->material->id;
+}
+
+static i32 geometry_distance_compare(void *a, void *b)
+{
+    geometry_distance *a_typed = a;
+    geometry_distance *b_typed = b;
+    return a_typed->distance - b_typed->distance;
+}
 
 b8 simple_scene_create(void* config, simple_scene* out_scene)
 {
@@ -1257,6 +1283,123 @@ b8 simple_scene_debug_render_data_query(simple_scene *scene, u32 *data_count, ge
             }
         }
     }
+
+    return true;
+}
+
+b8 simple_scene_mesh_render_data_query(const simple_scene *scene, const frustum *f, vec3 center, frame_data *p_frame_data, u32 *out_count, struct geometry_render_data *out_geometries)
+{
+    if (!scene || !f)
+        return false;
+
+    geometry_distance *transparent_geometries = darray_create_with_allocator(geometry_distance, &p_frame_data->allocator);
+
+    u32 mesh_count = darray_length(scene->meshes);
+    for (u32 i = 0; i < mesh_count; ++i)
+    {
+        mesh *m = &scene->meshes[i];
+        if (m->generation != INVALID_ID_U8)
+        {
+            mat4 model = transform_world_get(&m->transform);
+            b8 winding_inverted = m->transform.determinant < 0;
+
+            for (u32 j = 0; j < m->geometry_count; ++j)
+            {
+                geometry *g = m->geometries[j];
+
+                // AABB calculation
+                {
+                    // Translate/scale the extents
+                    vec3 extents_max = vec3_mul_mat4(g->extents.max, model);
+
+                    // Translate/scale the center
+                    vec3 center = vec3_mul_mat4(g->center, model);
+                    vec3 half_extents = {
+                        babs(extents_max.x - center.x),
+                        babs(extents_max.y - center.y),
+                        babs(extents_max.z - center.z),
+                    };
+
+                    if (frustum_intersects_aabb(f, &center, &half_extents))
+                    {
+                        // Add it to the list to be rendered
+                        geometry_render_data data = {0};
+                        data.model = model;
+                        data.material = g->material;
+                        data.vertex_count = g->vertex_count;
+                        data.vertex_buffer_offset = g->vertex_buffer_offset;
+                        data.index_count = g->index_count;
+                        data.index_buffer_offset = g->index_buffer_offset;
+                        data.unique_id = m->id.uniqueid;
+                        data.winding_inverted = winding_inverted;
+
+                        // Check if transparent
+                        b8 has_transparency = false;
+                        if (g->material->type == MATERIAL_TYPE_PHONG)
+                        {
+                            // Check diffuse map (slot 0)
+                            has_transparency = ((g->material->maps[0].texture->flags & TEXTURE_FLAG_HAS_TRANSPARENCY) != 0);
+                        }
+
+                        if (has_transparency)
+                        {
+                            // For meshes with transparency, add them to a separate list to be sorted by distance later
+                            vec3 geometry_center = vec3_transform(g->center, 1.0f, model);
+                            f32 distance = vec3_distance(geometry_center, center);
+
+                            geometry_distance gdist;
+                            gdist.distance = babs(distance);
+                            gdist.g = data;
+                            darray_push(transparent_geometries, gdist);
+                        }
+                        else
+                        {
+                            darray_push(out_geometries, data);
+                        }
+                        p_frame_data->drawn_mesh_count++;
+                    }
+                }
+            }
+        }
+    }
+
+    // Sort opaque geometries by material
+    bquick_sort(sizeof(geometry_render_data), out_geometries, 0, darray_length(out_geometries) - 1, geometry_render_data_compare);
+
+    // Sort transparent geometries, then add them to the ext_data->geometries array
+    u32 transparent_geometry_count = darray_length(transparent_geometries);
+    bquick_sort(sizeof(geometry_distance), transparent_geometries, 0, transparent_geometry_count - 1, geometry_distance_compare);
+    for (u32 i = 0; i < transparent_geometry_count; ++i)
+        darray_push(out_geometries, transparent_geometries[i].g);
+
+    *out_count = darray_length(out_geometries);
+
+    return true;
+}
+
+b8 simple_scene_terrain_render_data_query(const simple_scene *scene, const frustum *f, vec3 center, frame_data *p_frame_data, u32 *out_count, struct geometry_render_data *out_terrain_geometries)
+{
+    if (!scene || !f)
+        return false;
+
+    u32 terrain_count = darray_length(scene->terrains);
+    for (u32 i = 0; i < terrain_count; ++i)
+    {
+        // TODO: Frustum culling
+        geometry_render_data data = {0};
+        data.model = transform_world_get(&scene->terrains[i].xform);
+        geometry *g = &scene->terrains[i].geo;
+        data.material = g->material;
+        data.vertex_count = g->vertex_count;
+        data.vertex_buffer_offset = g->vertex_buffer_offset;
+        data.index_count = g->index_count;
+        data.index_buffer_offset = g->index_buffer_offset;
+        data.unique_id = scene->terrains[i].id.uniqueid;
+
+        darray_push(out_terrain_geometries, data);
+    }
+
+    *out_count = darray_length(out_terrain_geometries);
 
     return true;
 }

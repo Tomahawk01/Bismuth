@@ -74,6 +74,8 @@
         "debug_console.h": "c",
         "standard_ui_system.h": "c",
         "bclock.h": "c",
-        "math_types.h": "c"
+        "math_types.h": "c",
+        "stdlib.h": "c",
+        "bsort.h": "c"
     },
 }

@@ -66,6 +66,7 @@ BINLINE f32 bstep(f32 edge, f32 x)
 BAPI f32 bsin(f32 x);
 BAPI f32 bcos(f32 x);
 BAPI f32 btan(f32 x);
+BAPI f32 batan(f32 x);
 BAPI f32 bacos(f32 x);
 BAPI f32 bsqrt(f32 x);
 BAPI f32 babs(f32 x);
@@ -1729,6 +1730,8 @@ BINLINE void vec3_to_rgb_u32(vec3 v, u32* out_r, u32* out_g, u32* out_b)
 BAPI plane_3d plane_3d_create(vec3 p1, vec3 norm);
 
 BAPI frustum frustum_create(const vec3* position, const vec3* forward, const vec3* right, const vec3* up, f32 aspect, f32 fov, f32 near, f32 far);
+
+BAPI frustum frustum_from_view_projection(mat4 view_projection);
 
 BAPI void frustum_corner_points_world_space(mat4 projection_view, vec4 *corners);
 

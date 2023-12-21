@@ -1,4 +1,6 @@
 #include "bmath.h"
+
+#include "math/math_types.h"
 #include "platform/platform.h"
 
 #include <math.h>
@@ -6,50 +8,16 @@
 
 static b8 rand_seeded = false;
 
-f32 bsin(f32 x)
-{
-    return sinf(x);
-}
-
-f32 bcos(f32 x)
-{
-    return cosf(x);
-}
-
-f32 btan(f32 x)
-{
-    return tanf(x);
-}
-
-f32 bacos(f32 x)
-{
-    return acosf(x);
-}
-
-f32 bsqrt(f32 x)
-{
-    return sqrtf(x);
-}
-
-f32 babs(f32 x)
-{
-    return fabsf(x);
-}
-
-f32 bfloor(f32 x)
-{
-    return floorf(x);
-}
-
-f32 bceil(f32 x)
-{
-    return ceilf(x);
-}
-
-f32 blog2(f32 x)
-{ 
-    return log2f(x);
-}
+f32 bsin(f32 x) { return sinf(x); }
+f32 bcos(f32 x) { return cosf(x); }
+f32 btan(f32 x) { return tanf(x); }
+f32 batan(f32 x) { return atanf(x); }
+f32 bacos(f32 x) { return acosf(x); }
+f32 bsqrt(f32 x) { return sqrtf(x); }
+f32 babs(f32 x) { return fabsf(x); }
+f32 bfloor(f32 x) { return floorf(x); }
+f32 bceil(f32 x) { return ceilf(x); }
+f32 blog2(f32 x) { return log2f(x); }
 
 i32 brandom(void)
 {
@@ -99,6 +67,39 @@ plane_3d plane_3d_create(vec3 p1, vec3 norm)
     return p;
 }
 
+frustum frustum_from_view_projection(mat4 view_projection)
+{
+    frustum f;
+
+    // Get the inverse of the view_projection matrix
+    mat4 inv = mat4_inverse(view_projection);
+    f32 *md = inv.data;
+
+    // Extract the rows
+    vec4 mat0 = {md[0], md[1], md[2], md[3]};
+    vec4 mat1 = {md[4], md[5], md[6], md[7]};
+    vec4 mat2 = {md[8], md[9], md[10], md[11]};
+    vec4 mat3 = {md[12], md[13], md[14], md[15]};
+
+    // Calculate the projection planes and normalize them, including distances
+    vec4 sides[6];
+    sides[FRUSTUM_SIDE_LEFT] = vec4_normalized(vec4_add(mat3, mat0));
+    sides[FRUSTUM_SIDE_RIGHT] = vec4_normalized(vec4_sub(mat3, mat0));
+    sides[FRUSTUM_SIDE_TOP] = vec4_normalized(vec4_sub(mat3, mat1));
+    sides[FRUSTUM_SIDE_BOTTOM] = vec4_normalized(vec4_add(mat3, mat1));
+    sides[FRUSTUM_SIDE_NEAR] = vec4_normalized(vec4_add(mat3, mat2));
+    sides[FRUSTUM_SIDE_FAR] = vec4_normalized(vec4_sub(mat3, mat2));
+
+    // Extract normals and distances to planes
+    for (u32 i = 0; i < 6; ++i)
+    {
+        f.sides[i].normal = vec3_from_vec4(sides[i]);
+        f.sides[i].distance = sides[i].w;
+    }
+
+    return f;
+}
+
 frustum frustum_create(const vec3* position, const vec3* forward, const vec3* right, const vec3* up, f32 aspect, f32 fov, f32 near, f32 far)
 {
     frustum f;
@@ -107,14 +108,16 @@ frustum frustum_create(const vec3* position, const vec3* forward, const vec3* ri
     f32 half_h = half_v * aspect;
     vec3 fwd = *forward;
     vec3 forward_far = vec3_mul_scalar(fwd, far);
+    vec3 right_half_h = vec3_mul_scalar(*right, half_h);
+    vec3 up_half_v = vec3_mul_scalar(*up, half_v);
 
     // Top, bottom, right, left, far, near
-    f.sides[0] = plane_3d_create(vec3_add(vec3_mul_scalar(fwd, near), *position), fwd);
-    f.sides[1] = plane_3d_create(vec3_add(*position, forward_far), vec3_mul_scalar(fwd, -1.0f));
-    f.sides[2] = plane_3d_create(*position, vec3_cross(*up, vec3_add(forward_far, vec3_mul_scalar(*right, half_h))));
-    f.sides[3] = plane_3d_create(*position, vec3_cross(vec3_sub(forward_far, vec3_mul_scalar(*right, half_h)), *up));
-    f.sides[4] = plane_3d_create(*position, vec3_cross(*right, vec3_sub(forward_far, vec3_mul_scalar(*up, half_v))));
-    f.sides[5] = plane_3d_create(*position, vec3_cross(vec3_add(forward_far, vec3_mul_scalar(*up, half_v)), *right));
+    f.sides[FRUSTUM_SIDE_TOP] = plane_3d_create(vec3_add(vec3_mul_scalar(fwd, near), *position), fwd);
+    f.sides[FRUSTUM_SIDE_BOTTOM] = plane_3d_create(vec3_add(*position, forward_far), vec3_mul_scalar(fwd, -1.0f));
+    f.sides[FRUSTUM_SIDE_RIGHT] = plane_3d_create(*position, vec3_cross(*up, vec3_add(forward_far, right_half_h)));
+    f.sides[FRUSTUM_SIDE_LEFT] = plane_3d_create(*position, vec3_cross(vec3_sub(forward_far, right_half_h), *up));
+    f.sides[FRUSTUM_SIDE_FAR] = plane_3d_create(*position, vec3_cross(*right, vec3_sub(forward_far, up_half_v)));
+    f.sides[FRUSTUM_SIDE_NEAR] = plane_3d_create(*position, vec3_cross(vec3_add(forward_far, up_half_v), *right));
 
     return f;
 }
