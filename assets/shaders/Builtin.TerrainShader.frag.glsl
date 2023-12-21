@@ -23,12 +23,13 @@ struct point_light
 
 const int POINT_LIGHT_MAX = 10;
 const int MAX_TERRAIN_MATERIALS = 4;
+const int MAX_SHADOW_CASCADES = 4;
 
 layout(set = 0, binding = 0) uniform global_uniform_object
 {
     mat4 projection;
 	mat4 view;
-    mat4 light_space;
+    mat4 light_space[MAX_SHADOW_CASCADES];
 	vec4 ambient_color;
     directional_light dir_light;
 	vec3 view_position;
@@ -69,24 +70,27 @@ const int SAMP_ROUGHNESS_OFFSET = 3;
 const int SAMP_AO_OFFSET = 4;
 // Shadow map comes after all materials
 const int SAMP_SHADOW_MAP = 20; //5 * MAX_TERRAIN_MATERIALS;
+const int SAMP_SHADOW_MAP_1 = 21;
+const int SAMP_SHADOW_MAP_2 = 22;
+const int SAMP_SHADOW_MAP_3 = 23;
 // Irradience cube comes after shadow map
-const int SAMP_IRRADIANCE_CUBE = 21; //SAMP_SHADOW_MAP + 1;
+const int SAMP_IRRADIANCE_CUBE = 24; //SAMP_SHADOW_MAP + 4;
 
 const float PI = 3.14159265359;
 
 // Samplers. albedo, normal, metallic, roughness, ao ...
 // One more sampler2D is at the end, which is the shadow map
-layout(set = 1, binding = 1) uniform sampler2D samplers[2 + (5 * MAX_TERRAIN_MATERIALS)];
+layout(set = 1, binding = 1) uniform sampler2D samplers[5 + (5 * MAX_TERRAIN_MATERIALS)];
 // IBL
-layout(set = 1, binding = 1) uniform samplerCube cube_samplers[2 + (5 * MAX_TERRAIN_MATERIALS)];
+layout(set = 1, binding = 1) uniform samplerCube cube_samplers[5 + (5 * MAX_TERRAIN_MATERIALS)];
 
 layout(location = 0) flat in int in_mode;
 layout(location = 1) flat in int use_pcf;
 // Data Transfer Object
 layout(location = 2) in struct dto
 {
-    vec4 light_space_frag_pos;
-    vec4 ambient;
+    vec4 light_space_frag_pos[MAX_SHADOW_CASCADES];
+    vec4 cascade_splits;
 	vec2 tex_coord;
 	vec3 normal;
 	vec3 view_position;
@@ -101,15 +105,15 @@ layout(location = 2) in struct dto
 mat3 TBN;
 
 // Percentage-Closer Filtering
-float calculate_pcf(vec3 projected)
+float calculate_pcf(vec3 projected, int cascade_index)
 {
     float shadow = 0.0;
-    vec2 texel_size = 1.0 / textureSize(samplers[SAMP_SHADOW_MAP], 0);
+    vec2 texel_size = 1.0 / textureSize(samplers[SAMP_SHADOW_MAP + cascade_index], 0);
     for (int x = -1; x <= 1; ++x)
     {
         for (int y = -1; y <= 1; ++y)
         {
-            float pcf_depth = texture(samplers[SAMP_SHADOW_MAP], projected.xy + vec2(x, y) * texel_size).r;
+            float pcf_depth = texture(samplers[SAMP_SHADOW_MAP + cascade_index], projected.xy + vec2(x, y) * texel_size).r;
             shadow += projected.z - in_dto.bias > pcf_depth ? 1.0 : 0.0;
         }
     }
@@ -117,10 +121,10 @@ float calculate_pcf(vec3 projected)
     return 1.0 - shadow;
 }
 
-float calculate_unfiltered(vec3 projected)
+float calculate_unfiltered(vec3 projected, int cascade_index)
 {
     // Sample the shadow map
-    float map_depth = texture(samplers[SAMP_SHADOW_MAP], projected.xy).r;
+    float map_depth = texture(samplers[SAMP_SHADOW_MAP + cascade_index], projected.xy).r;
 
     float shadow = projected.z - in_dto.bias > map_depth ? 0.0 : 1.0;
     return shadow;
@@ -128,7 +132,7 @@ float calculate_unfiltered(vec3 projected)
 
 // Compare the fragment position against the depth buffer, and if it is further 
 // back than the shadow map, it's in shadow. 0.0 = in shadow, 1.0 = not
-float calculate_shadow(vec4 light_space_frag_pos, vec3 normal, directional_light light)
+float calculate_shadow(vec4 light_space_frag_pos, vec3 normal, directional_light light, int cascade_index)
 {
     // Perspective divide - note that while this is pointless for ortho projection, perspective will require this
     vec3 projected = light_space_frag_pos.xyz / light_space_frag_pos.w;
@@ -139,10 +143,10 @@ float calculate_shadow(vec4 light_space_frag_pos, vec3 normal, directional_light
 
     if (use_pcf == 1)
     {
-        return calculate_pcf(projected);
+        return calculate_pcf(projected, cascade_index);
     } 
 
-    return calculate_unfiltered(projected);
+    return calculate_unfiltered(projected, cascade_index);
 }
 
 // Based on a combination of GGX and Schlick-Beckmann approximation to calculate probability of overshadowing micro-facets
@@ -232,7 +236,7 @@ void main()
     vec3 base_reflectivity = vec3(0.04); 
     base_reflectivity = mix(base_reflectivity, albedo.xyz, metallic);
 
-    if(in_mode == 0 || in_mode == 1)
+    if(in_mode == 0 || in_mode == 1 || in_mode == 3)
     {
         vec3 view_direction = normalize(in_dto.view_position - in_dto.frag_position);
 
@@ -266,7 +270,23 @@ void main()
 
         // Generate shadow value based on current fragment position vs shadow map
         // Light and normal are also taken in the case that a bias is to be used
-        float shadow = calculate_shadow(in_dto.light_space_frag_pos, normal, global_ubo.dir_light);
+        vec4 frag_position_view_space = global_ubo.view * vec4(in_dto.frag_position, 1.0f);
+        float depth = abs(frag_position_view_space).z;
+        // Get the cascade index from the current fragment's position
+        int cascade_index = -1;
+        for(int i = 0; i < MAX_SHADOW_CASCADES; ++i)
+        {
+            if(depth < in_dto.cascade_splits[i])
+            {
+                cascade_index = i;
+                break;
+            }
+        }
+        if(cascade_index == -1)
+        {
+            cascade_index = MAX_SHADOW_CASCADES;
+        }
+        float shadow = calculate_shadow(in_dto.light_space_frag_pos[cascade_index], normal, global_ubo.dir_light, cascade_index);
 
         // Combine irradiance with albedo and ambient occlusion
         // Also add in total accumulated reflectance
@@ -278,6 +298,25 @@ void main()
         color = color / (color + vec3(1.0));
         // Gamma correction
         color = pow(color, vec3(1.0 / 2.2));
+
+        if(in_mode == 3)
+        {
+            switch(cascade_index)
+            {
+                case 0:
+                    color *= vec3(1.0, 0.25, 0.25);
+                    break;
+                case 1:
+                    color *= vec3(0.25, 1.0, 0.25);
+                    break;
+                case 2:
+                    color *= vec3(0.25, 0.25, 1.0);
+                    break;
+                case 3:
+                    color *= vec3(1.0, 1.0, 0.25);
+                    break;
+            }
+        }
 
         // Ensure the alpha is based on the albedo's original alpha  value
         out_color = vec4(color, 1.0);

@@ -34,7 +34,8 @@ typedef enum renderer_debug_view_mode
 {
     RENDERER_VIEW_MODE_DEFAULT = 0,
     RENDERER_VIEW_MODE_LIGHTING = 1,
-    RENDERER_VIEW_MODE_NORMALS = 2
+    RENDERER_VIEW_MODE_NORMALS = 2,
+    RENDERER_VIEW_MODE_CASCADES = 3
 } renderer_debug_view_mode;
 
 typedef enum render_target_attachment_type

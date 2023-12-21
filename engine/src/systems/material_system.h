@@ -34,7 +34,7 @@ BAPI b8 material_system_shadow_map_set(texture* shadow_texture, u8 index);
 
 BAPI b8 material_system_irradiance_set(texture* irradiance_cube_texture);
 
-BAPI void material_system_directional_light_space_set(mat4 directional_light_space);
+BAPI void material_system_directional_light_space_set(mat4 directional_light_space, u8 index);
 
 /**
  * @brief Dumps all of the registered materials and their reference counts/handles

@@ -2,6 +2,7 @@
 #define _SCENE_PASS_H_
 
 #include "defines.h"
+#include "game_state.h"
 #include "math/math_types.h"
 
 struct rendergraph_pass;
@@ -13,6 +14,7 @@ struct geometry_render_data;
 typedef struct scene_pass_extended_data
 {
     u32 render_mode;
+    vec4 cascade_splits;
 
     u32 geometry_count;
     struct geometry_render_data* geometries;
@@ -25,8 +27,8 @@ typedef struct scene_pass_extended_data
 
     struct texture* irradiance_cube_texture;
 
-    mat4 directional_light_view;
-    mat4 directional_light_projection;
+    mat4 directional_light_views[MAX_SHADOW_CASCADE_COUNT];
+    mat4 directional_light_projections[MAX_SHADOW_CASCADE_COUNT];
 } scene_pass_extended_data;
 
 b8 scene_pass_create(struct rendergraph_pass* self, void* config);

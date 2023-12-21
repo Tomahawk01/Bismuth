@@ -148,6 +148,10 @@ b8 game_on_event(u16 code, void* sender, void* listener_inst, event_context cont
                     BDEBUG("Renderer mode set to normals");
                     state->render_mode = RENDERER_VIEW_MODE_NORMALS;
                     break;
+                case RENDERER_VIEW_MODE_CASCADES:
+                    BDEBUG("Renderer mode set to cascades");
+                    state->render_mode = RENDERER_VIEW_MODE_CASCADES;
+                    break;
             }
             return true;
         }
@@ -1031,168 +1035,213 @@ b8 application_prepare_frame(struct application* app_inst, struct frame_data* p_
             skybox_pass_ext_data->sb = state->main_scene.sb;
         }
 
+        camera* view_camera = state->world_camera;
+        viewport* view_viewport = &state->world_viewport;
+
+        f32 near = view_viewport->near_clip;
+        f32 far = view_viewport->far_clip;
+        f32 clip_range = far - near;
+
+        f32 min_z = near;
+        f32 max_z = near + clip_range;
+        f32 range = max_z - min_z;
+        f32 ratio = max_z / min_z;
+
+        f32 cascade_split_multiplier = 0.95f;
+
+        // Calculate splits based on view camera frustum
+        vec4 splits;
+        for (u32 c = 0; c < MAX_SHADOW_CASCADE_COUNT; c++)
+        {
+            f32 p = (c + 1) / (f32)MAX_SHADOW_CASCADE_COUNT;
+            f32 log = min_z * bpow(ratio, p);
+            f32 uniform = min_z + range * p;
+            f32 d = cascade_split_multiplier * (log - uniform) + uniform;
+            splits.elements[c] = (d - near) / clip_range;
+        }
+
         // Default values to use in the event there is no directional light
         // These are required because the scene pass needs them
-        mat4 shadow_camera_lookat = mat4_identity();
-        mat4 shadow_camera_projection = mat4_identity();
+        mat4 shadow_camera_lookats[MAX_SHADOW_CASCADE_COUNT];
+        mat4 shadow_camera_projections[MAX_SHADOW_CASCADE_COUNT];
+        for (u32 i = 0; i < MAX_SHADOW_CASCADE_COUNT; ++i)
+        {
+            shadow_camera_lookats[i] = mat4_identity();
+            shadow_camera_projections[i] = mat4_identity();
+        }
 
         // Shadowmap pass - only runs if there is a directional light
         if (state->main_scene.dir_light)
         {
-            // Mark this pass as executable
-            state->shadowmap_pass.pass_data.do_execute = true;
-
-            // Obtain the light direction
-            vec3 light_dir = vec3_normalized(vec3_from_vec4(state->main_scene.dir_light->data.direction));
-
-            // Setup the extended data for the pass
-            shadow_map_pass_extended_data* ext_data = state->shadowmap_pass.pass_data.ext_data;
-            ext_data->light = state->main_scene.dir_light;
-
-            // NOTE: Each pass for cascades will need to do the following process
-
-            // Get the view-projection matrix
-            // HACK: change back to viewport 1/camera 1
-            b8 hack_enabled = false;
-            camera* view_camera = hack_enabled ? state->world_camera_2 : state->world_camera;
-            viewport* view_viewport = hack_enabled ? &state->world_viewport2 : &state->world_viewport;
-            mat4 cam_view_proj = mat4_transposed(mat4_mul(camera_view_get(view_camera), view_viewport->projection));
-
-            // HACK: Rotate the test view camera
-            if (hack_enabled)
-                camera_yaw(view_camera, 0.5f * p_frame_data->delta_time);
-
-            // Get the world-space corners of the view frustum
-            vec4 corners[8] = {0};
-            frustum_corner_points_world_space(cam_view_proj, corners);
-
-            // Calculate center of the camera's frustum by averaging the points
-            // This is also used as the lookat point for the shadow "camera"
-            vec3 center = vec3_zero();
-            for (u32 i = 0; i < 8; ++i)
-                center = vec3_add(center, vec3_from_vec4(corners[i]));
-            center = vec3_div_scalar(center, 8.0f);  // size
-
-            // Get the furthest-out point from the center and use that as the extents
-            f32 radius = 0.0f;
-            for (u32 i = 0; i < 8; ++i)
+            f32 last_split_dist = 0.0f;
+            for (u32 c = 0; c < MAX_SHADOW_CASCADE_COUNT; c++)
             {
-                f32 distance = vec3_distance(vec3_from_vec4(corners[i]), center);
-                radius = BMAX(radius, distance);
-            }
+                rendergraph_pass* cascade = &state->shadowmap_passes[c];
+                // Mark this pass as executable
+                cascade->pass_data.do_execute = true;
 
-            // Calculate the extents by using the radius from above
-            extents_3d extents;
-            extents.max = vec3_create(radius, radius, radius);
-            extents.min = vec3_mul_scalar(extents.max, -1.0f);
+                // Obtain the light direction
+                vec3 light_dir = vec3_normalized(vec3_from_vec4(state->main_scene.dir_light->data.direction));
 
-            // "Pull" the min inward and "push" the max outward on the z axis to make sure shadow casters outside the view are captured as well
-            // TODO: This should be adjustable per scene
-            f32 z_multiplier = 10.0f;
-            if (extents.min.z < 0)
-                extents.min.z *= z_multiplier;
-            else
-                extents.min.z /= z_multiplier;
+                // Setup the extended data for the pass
+                shadow_map_pass_extended_data* ext_data = cascade->pass_data.ext_data;
+                ext_data->light = state->main_scene.dir_light;
+                ext_data->cascade_index = c;
 
-            if (extents.max.z < 0)
-                extents.max.z /= z_multiplier;
-            else
-                extents.max.z *= z_multiplier;
+                // NOTE: Each pass for cascades will need to do the following process
 
-            // Generate lookat by moving along the opposite direction of the directional light by the minimum extents
-            vec3 shadow_camera_position = vec3_sub(center, vec3_mul_scalar(light_dir, -extents.min.z));
-            shadow_camera_lookat = mat4_look_at(shadow_camera_position, center, vec3_up());
+                // Get the view-projection matrix
+                mat4 cam_view_proj = mat4_transposed(mat4_mul(camera_view_get(view_camera), view_viewport->projection));
 
-            // Generate ortho projection based on extents
-            shadow_camera_projection = mat4_orthographic(extents.min.x, extents.max.x, extents.min.y, extents.max.y, extents.min.z, extents.max.z - extents.min.z);
+                // Get the world-space corners of the view frustum
+                vec4 corners[8] = {0};
+                frustum_corner_points_world_space(cam_view_proj, corners);
 
-            // Save these off to the pass data
-            state->shadowmap_pass.pass_data.view_matrix = shadow_camera_lookat;
-            state->shadowmap_pass.pass_data.projection_matrix = shadow_camera_projection;
-
-            // HACK: Begin frustum visualizations for the camera and the shadow "camera"
-            {
-                mat4 shadow_proj_view = mat4_transposed(mat4_mul(shadow_camera_lookat, shadow_camera_projection));
-
-                vec4 shadow_corners[8] = {0};
-                frustum_corner_points_world_space(shadow_proj_view, shadow_corners);
-
-                // Place corners from both frustums in a 2d array for an indexable loop
-                vec4 all_corners[2][8];
-                bcopy_memory(all_corners[0], corners, sizeof(vec4) * 8);
-                bcopy_memory(all_corners[1], shadow_corners, sizeof(vec4) * 8);
-                for (u32 j = 0; j < 2; ++j)
+                // Adjust the corners by pulling/pushing the near/far according to the current split
+                f32 split_dist = splits.elements[c];
+                for (u32 i = 0; i < 4; ++i)
                 {
-                    for (u32 i = 0; i < 4; ++i)
-                    {
-                        vec3 p0, p1;
-                        u32 i1, i2;
-                        // near
-                        i1 = i;
-                        i2 = (i + 1) % 4;
-                        p0 = vec3_from_vec4(all_corners[j][i1]);
-                        p1 = vec3_from_vec4(all_corners[j][i2]);
-                        debug_line3d_points_set(&state->test_lines[state->cam_proj_line_indices[(12 * j) + i]], p0, p1);
-                        // far
-                        i1 = (i + 4);
-                        i2 = (i + 1) % 4 + 4;
-                        p0 = vec3_from_vec4(all_corners[j][i1]);
-                        p1 = vec3_from_vec4(all_corners[j][i2]);
-                        debug_line3d_points_set(&state->test_lines[state->cam_proj_line_indices[(12 * j) + i + 4]], p0, p1);
-                        // connectors
-                        i1 = i;
-                        i2 = (i + 4) % 8;
-                        p0 = vec3_from_vec4(all_corners[j][i1]);
-                        p1 = vec3_from_vec4(all_corners[j][i2]);
-                        debug_line3d_points_set(&state->test_lines[state->cam_proj_line_indices[(12 * j) + i + 8]], p0, p1);
-                    }
+                    // far - near
+                    vec4 dist = vec4_sub(corners[i + 4], corners[i]);
+                    corners[i + 4] = vec4_add(corners[i], vec4_mul_scalar(dist, split_dist));
+                    corners[i] = vec4_add(corners[i], vec4_mul_scalar(dist, last_split_dist));
                 }
 
-                // Also update a box visualization for the center of the perspective projection matrix
-                state->test_boxes[state->proj_box_index].xform = transform_from_position(center);
-            }
-            // HACK: End frustum visualization
+                // Calculate the center of the camera's frustum by averaging the points
+                // This is also used as the lookat point for the shadow "camera"
+                vec3 center = vec3_zero();
+                for (u32 i = 0; i < 8; ++i)
+                    center = vec3_add(center, vec3_from_vec4(corners[i]));
+                center = vec3_div_scalar(center, 8.0f);  // size
 
-            // Shadow frustum culling and count
-            mat4 shadow_view = mat4_mul(shadow_camera_lookat, shadow_camera_projection);
-            frustum shadow_frustum = frustum_from_view_projection(shadow_view);
+                // Get the furthest-out point from the center and use that as the extents
+                f32 radius = 0.0f;
+                for (u32 i = 0; i < 8; ++i)
+                {
+                    f32 distance = vec3_distance(vec3_from_vec4(corners[i]), center);
+                    radius = BMAX(radius, distance);
+                }
 
-            simple_scene* scene = &state->main_scene;
+                // Calculate the extents by using the radius from above
+                extents_3d extents;
+                extents.max = vec3_create(radius, radius, radius);
+                extents.min = vec3_mul_scalar(extents.max, -1.0f);
 
-            // Iterate the scene and get a list of all geometries within the view of the light
-            ext_data->geometries = darray_reserve_with_allocator(geometry_render_data, 512, &p_frame_data->allocator);
-            // Query the scene for static meshes using the shadow frustum
-            if (!simple_scene_mesh_render_data_query(
-                    scene,
-                    &shadow_frustum,
-                    shadow_camera_position,
-                    p_frame_data,
-                    &ext_data->geometry_count, ext_data->geometries))
-            {
-                BERROR("Failed to query shadow map pass meshes");
-            }
+                // "Pull" the min inward and "push" the max outward on the z axis to make sure shadow casters outside the view are captured as well
+                // TODO: This should be adjustable/tuned per scene
+                f32 z_multiplier = 10.0f;
+                if (extents.min.z < 0)
+                    extents.min.z *= z_multiplier;
+                else
+                    extents.min.z /= z_multiplier;
 
-            // Track the number of meshes drawn in the shadow pass
-            p_frame_data->drawn_shadow_mesh_count = ext_data->geometry_count;
+                if (extents.max.z < 0)
+                    extents.max.z /= z_multiplier;
+                else
+                    extents.max.z *= z_multiplier;
 
-            // Add terrain(s)
-            ext_data->terrain_geometries = darray_reserve_with_allocator(geometry_render_data, 16, &p_frame_data->allocator);
+                // Generate lookat by moving along the opposite direction of the directional light by the minimum extents
+                vec3 shadow_camera_position = vec3_sub(center, vec3_mul_scalar(light_dir, -extents.min.z));
+                shadow_camera_lookats[c] = mat4_look_at(shadow_camera_position, center, vec3_up());
 
-            // Query the scene for terrain meshes using the camera frustum
-            if (!simple_scene_terrain_render_data_query(
-                    scene,
-                    &shadow_frustum,
-                    shadow_camera_position,
-                    p_frame_data,
-                    &ext_data->terrain_geometry_count, ext_data->terrain_geometries))
-            {
-                BERROR("Failed to query shadow map pass terrain geometries");
-            }
+                // Generate ortho projection based on extents
+                shadow_camera_projections[c] = mat4_orthographic(extents.min.x, extents.max.x, extents.min.y, extents.max.y, extents.min.z, extents.max.z - extents.min.z);
+
+                // Save these off to the pass data
+                cascade->pass_data.view_matrix = shadow_camera_lookats[c];
+                cascade->pass_data.projection_matrix = shadow_camera_projections[c];
+
+                // Store the split depth on the pass
+                ext_data->split_depth = (near + split_dist * clip_range) * 1.0f;
+
+                last_split_dist = split_dist;
+
+                // HACK: Begin frustum visualizations for the camera and the shadow "camera"
+                {
+                    mat4 shadow_proj_view = mat4_transposed(mat4_mul(shadow_camera_lookats[c], shadow_camera_projections[c]));
+
+                    vec4 shadow_corners[8] = {0};
+                    frustum_corner_points_world_space(shadow_proj_view, shadow_corners);
+
+                    // Place corners from both frustums in a 2d array for an indexable loop
+                    vec4 all_corners[2][8];
+                    bcopy_memory(all_corners[0], corners, sizeof(vec4) * 8);
+                    bcopy_memory(all_corners[1], shadow_corners, sizeof(vec4) * 8);
+                    for (u32 j = 0; j < 2; ++j)
+                    {
+                        for (u32 i = 0; i < 4; ++i)
+                        {
+                            vec3 p0, p1;
+                            u32 i1, i2;
+                            // near
+                            i1 = i;
+                            i2 = (i + 1) % 4;
+                            p0 = vec3_from_vec4(all_corners[j][i1]);
+                            p1 = vec3_from_vec4(all_corners[j][i2]);
+                            debug_line3d_points_set(&state->test_lines[state->cam_proj_line_indices[(12 * j) + i]], p0, p1);
+                            // far
+                            i1 = (i + 4);
+                            i2 = (i + 1) % 4 + 4;
+                            p0 = vec3_from_vec4(all_corners[j][i1]);
+                            p1 = vec3_from_vec4(all_corners[j][i2]);
+                            debug_line3d_points_set(&state->test_lines[state->cam_proj_line_indices[(12 * j) + i + 4]], p0, p1);
+                            // connectors
+                            i1 = i;
+                            i2 = (i + 4) % 8;
+                            p0 = vec3_from_vec4(all_corners[j][i1]);
+                            p1 = vec3_from_vec4(all_corners[j][i2]);
+                            debug_line3d_points_set(&state->test_lines[state->cam_proj_line_indices[(12 * j) + i + 8]], p0, p1);
+                        }
+                    }
+
+                    // Also update a box visualization for the center of the perspective projection matrix
+                    state->test_boxes[state->proj_box_index].xform = transform_from_position(center);
+                }
+                // HACK: End frustum visualization
+
+                // Shadow frustum culling and count
+                mat4 shadow_view = mat4_mul(shadow_camera_lookats[c], shadow_camera_projections[c]);
+                frustum shadow_frustum = frustum_from_view_projection(shadow_view);
+
+                simple_scene* scene = &state->main_scene;
+
+                // Iterate the scene and get a list of all geometries within the view of the light
+                ext_data->geometries = darray_reserve_with_allocator(geometry_render_data, 512, &p_frame_data->allocator);
+
+                // Query the scene for static meshes using the shadow frustum
+                b8 shadow_clipping_enabled = false;
+                if (!simple_scene_mesh_render_data_query(
+                        scene,
+                        shadow_clipping_enabled ? &shadow_frustum : 0,
+                        shadow_camera_position,
+                        p_frame_data,
+                        &ext_data->geometry_count, ext_data->geometries))
+                {
+                    BERROR("Failed to query shadow map pass meshes");
+                }
+
+                // Track the number of meshes drawn in the shadow pass
+                p_frame_data->drawn_shadow_mesh_count = ext_data->geometry_count;
+
+                // Add terrain(s)
+                ext_data->terrain_geometries = darray_reserve_with_allocator(geometry_render_data, 16, &p_frame_data->allocator);
+
+                // Query the scene for terrain meshes using the camera frustum
+                if (!simple_scene_terrain_render_data_query(
+                        scene,
+                        &shadow_frustum,
+                        shadow_camera_position,
+                        p_frame_data,
+                        &ext_data->terrain_geometry_count, ext_data->terrain_geometries))
+                {
+                    BERROR("Failed to query shadow map pass terrain geometries");
+                }
             
-            // TODO: Counter for terrain geometries
-            p_frame_data->drawn_shadow_mesh_count += ext_data->terrain_geometry_count;
+                // TODO: Counter for terrain geometries
+                p_frame_data->drawn_shadow_mesh_count += ext_data->terrain_geometry_count;
 
-            // end shadowmap pass
+                // end shadowmap pass
+            } // end cascade
         }
 
         // Scene pass
@@ -1209,9 +1258,15 @@ b8 application_prepare_frame(struct application* app_inst, struct frame_data* p_
             state->scene_pass.pass_data.projection_matrix = camera_projection;
 
             scene_pass_extended_data* ext_data = state->scene_pass.pass_data.ext_data;
-            // Pass over shadow map "camera" view and projection
-            ext_data->directional_light_view = shadow_camera_lookat;
-            ext_data->directional_light_projection = shadow_camera_projection;
+            // Pass over shadow map "camera" view and projection matrices (one per cascade)
+            for (u32 c = 0; c < MAX_SHADOW_CASCADE_COUNT; c++)
+            {
+                ext_data->directional_light_views[c] = shadow_camera_lookats[c];
+                ext_data->directional_light_projections[c] = shadow_camera_projections[c];
+
+                shadow_map_pass_extended_data* sp_ext_data = state->shadowmap_passes[c].pass_data.ext_data;
+                ext_data->cascade_splits.elements[c] = sp_ext_data->split_depth;
+            }
             ext_data->render_mode = state->render_mode;
             // HACK: use the skybox cubemap as the irradiance texture for now
             ext_data->irradiance_cube_texture = state->main_scene.sb->cubemap.texture;
@@ -1367,7 +1422,8 @@ b8 application_prepare_frame(struct application* app_inst, struct frame_data* p_
     {
         // Don't run these passes if scene is not loaded
         state->scene_pass.pass_data.do_execute = false;
-        state->shadowmap_pass.pass_data.do_execute = false;
+        for (u32 i = 0; i < MAX_SHADOW_CASCADE_COUNT; ++i)
+            state->shadowmap_passes[i].pass_data.do_execute = false;
         state->editor_pass.pass_data.do_execute = false;
     }
 
@@ -1601,11 +1657,14 @@ static void refresh_rendergraph_pfns(application* app)
     state->skybox_pass.execute = skybox_pass_execute;
     state->skybox_pass.destroy = skybox_pass_destroy;
 
-    state->shadowmap_pass.initialize = shadow_map_pass_initialize;
-    state->shadowmap_pass.execute = shadow_map_pass_execute;
-    state->shadowmap_pass.destroy = shadow_map_pass_destroy;
-    state->shadowmap_pass.load_resources = shadow_map_pass_load_resources;
-    state->shadowmap_pass.attachment_texture_get = shadow_map_pass_attachment_texture_get;
+    for (u32 i = 0; i < MAX_SHADOW_CASCADE_COUNT; ++i)
+    {
+        state->shadowmap_passes[i].initialize = shadow_map_pass_initialize;
+        state->shadowmap_passes[i].execute = shadow_map_pass_execute;
+        state->shadowmap_passes[i].destroy = shadow_map_pass_destroy;
+        state->shadowmap_passes[i].load_resources = shadow_map_pass_load_resources;
+        state->shadowmap_passes[i].attachment_texture_get = shadow_map_pass_attachment_texture_get;
+    }
 
     state->scene_pass.initialize = scene_pass_initialize;
     state->scene_pass.execute = scene_pass_execute;
@@ -1649,23 +1708,34 @@ static b8 configure_rendergraph(application* app)
     RG_CHECK(rendergraph_pass_source_add(&state->frame_graph, "skybox", "colorbuffer", RENDERGRAPH_SOURCE_TYPE_RENDER_TARGET_COLOR, RENDERGRAPH_SOURCE_ORIGIN_OTHER));
     RG_CHECK(rendergraph_pass_set_sink_linkage(&state->frame_graph, "skybox", "colorbuffer", 0, "colorbuffer"));
 
-    // Shadowmap pass
-    shadow_map_pass_config shadow_pass_config = {0};
-    shadow_pass_config.resolution = 2048;
-    RG_CHECK(rendergraph_pass_create(&state->frame_graph, "shadowmap_pass", shadow_map_pass_create, &shadow_pass_config, &state->shadowmap_pass));
-    RG_CHECK(rendergraph_pass_source_add(&state->frame_graph, "shadowmap_pass", "colorbuffer", RENDERGRAPH_SOURCE_TYPE_RENDER_TARGET_COLOR, RENDERGRAPH_SOURCE_ORIGIN_SELF));
-    RG_CHECK(rendergraph_pass_source_add(&state->frame_graph, "shadowmap_pass", "depthbuffer", RENDERGRAPH_SOURCE_TYPE_RENDER_TARGET_DEPTH_STENCIL, RENDERGRAPH_SOURCE_ORIGIN_SELF));
+    // Shadowmap passes - one per cascade
+    for (u32 i = 0; i < MAX_SHADOW_CASCADE_COUNT; ++i)
+    {
+        char name_buffer[256] = {0};
+        string_format(name_buffer, "shadowmap_pass_%u", i);
+        shadow_map_pass_config shadow_pass_config = {0};
+        shadow_pass_config.resolution = 2048;
+        RG_CHECK(rendergraph_pass_create(&state->frame_graph, name_buffer, shadow_map_pass_create, &shadow_pass_config, &state->shadowmap_passes[i]));
+        RG_CHECK(rendergraph_pass_source_add(&state->frame_graph, name_buffer, "colorbuffer", RENDERGRAPH_SOURCE_TYPE_RENDER_TARGET_COLOR, RENDERGRAPH_SOURCE_ORIGIN_SELF));
+        RG_CHECK(rendergraph_pass_source_add(&state->frame_graph, name_buffer, "depthbuffer", RENDERGRAPH_SOURCE_TYPE_RENDER_TARGET_DEPTH_STENCIL, RENDERGRAPH_SOURCE_ORIGIN_SELF));
+    }
 
     // Scene pass
     RG_CHECK(rendergraph_pass_create(&state->frame_graph, "scene", scene_pass_create, 0, &state->scene_pass));
     RG_CHECK(rendergraph_pass_sink_add(&state->frame_graph, "scene", "colorbuffer"));
     RG_CHECK(rendergraph_pass_sink_add(&state->frame_graph, "scene", "depthbuffer"));
-    RG_CHECK(rendergraph_pass_sink_add(&state->frame_graph, "scene", "shadowmap"));
+    RG_CHECK(rendergraph_pass_sink_add(&state->frame_graph, "scene", "shadowmap_0"));
+    RG_CHECK(rendergraph_pass_sink_add(&state->frame_graph, "scene", "shadowmap_1"));
+    RG_CHECK(rendergraph_pass_sink_add(&state->frame_graph, "scene", "shadowmap_2"));
+    RG_CHECK(rendergraph_pass_sink_add(&state->frame_graph, "scene", "shadowmap_3"));
     RG_CHECK(rendergraph_pass_source_add(&state->frame_graph, "scene", "colorbuffer", RENDERGRAPH_SOURCE_TYPE_RENDER_TARGET_COLOR, RENDERGRAPH_SOURCE_ORIGIN_OTHER));
     RG_CHECK(rendergraph_pass_source_add(&state->frame_graph, "scene", "depthbuffer", RENDERGRAPH_SOURCE_TYPE_RENDER_TARGET_DEPTH_STENCIL, RENDERGRAPH_SOURCE_ORIGIN_GLOBAL));
     RG_CHECK(rendergraph_pass_set_sink_linkage(&state->frame_graph, "scene", "colorbuffer", "skybox", "colorbuffer"));
     RG_CHECK(rendergraph_pass_set_sink_linkage(&state->frame_graph, "scene", "depthbuffer", 0, "depthbuffer"));
-    RG_CHECK(rendergraph_pass_set_sink_linkage(&state->frame_graph, "scene", "shadowmap", "shadowmap_pass", "depthbuffer"));
+    RG_CHECK(rendergraph_pass_set_sink_linkage(&state->frame_graph, "scene", "shadowmap_0", "shadowmap_pass_0", "depthbuffer"));
+    RG_CHECK(rendergraph_pass_set_sink_linkage(&state->frame_graph, "scene", "shadowmap_1", "shadowmap_pass_1", "depthbuffer"));
+    RG_CHECK(rendergraph_pass_set_sink_linkage(&state->frame_graph, "scene", "shadowmap_2", "shadowmap_pass_2", "depthbuffer"));
+    RG_CHECK(rendergraph_pass_set_sink_linkage(&state->frame_graph, "scene", "shadowmap_3", "shadowmap_pass_3", "depthbuffer"));
 
     // Editor pass
     RG_CHECK(rendergraph_pass_create(&state->frame_graph, "editor", editor_pass_create, 0, &state->editor_pass));

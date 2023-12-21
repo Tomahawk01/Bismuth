@@ -1289,7 +1289,7 @@ b8 simple_scene_debug_render_data_query(simple_scene *scene, u32 *data_count, ge
 
 b8 simple_scene_mesh_render_data_query(const simple_scene *scene, const frustum *f, vec3 center, frame_data *p_frame_data, u32 *out_count, struct geometry_render_data *out_geometries)
 {
-    if (!scene || !f)
+    if (!scene)
         return false;
 
     geometry_distance *transparent_geometries = darray_create_with_allocator(geometry_distance, &p_frame_data->allocator);
@@ -1320,7 +1320,7 @@ b8 simple_scene_mesh_render_data_query(const simple_scene *scene, const frustum 
                         babs(extents_max.z - center.z),
                     };
 
-                    if (frustum_intersects_aabb(f, &center, &half_extents))
+                    if (!f || frustum_intersects_aabb(f, &center, &half_extents))
                     {
                         // Add it to the list to be rendered
                         geometry_render_data data = {0};
@@ -1379,7 +1379,7 @@ b8 simple_scene_mesh_render_data_query(const simple_scene *scene, const frustum 
 
 b8 simple_scene_terrain_render_data_query(const simple_scene *scene, const frustum *f, vec3 center, frame_data *p_frame_data, u32 *out_count, struct geometry_render_data *out_terrain_geometries)
 {
-    if (!scene || !f)
+    if (!scene)
         return false;
 
     u32 terrain_count = darray_length(scene->terrains);

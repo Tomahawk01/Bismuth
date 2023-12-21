@@ -6,12 +6,14 @@ layout(location = 2) in vec2 in_texcoord;
 layout(location = 3) in vec4 in_color;
 layout(location = 4) in vec3 in_tangent;
 
+const int MAX_SHADOW_CASCADES = 4;
+
 layout(set = 0, binding = 0) uniform global_uniform_object
 {
     mat4 projection;
 	mat4 view;
-	mat4 light_space;
-	vec4 ambient_color;
+	mat4 light_space[MAX_SHADOW_CASCADES];
+	vec4 cascade_splits;
 	vec3 view_position;
 	int mode;
 	int use_pcf;
@@ -31,8 +33,8 @@ layout(location = 1) out int use_pcf;
 // Data Transfer Object
 layout(location = 2) out struct dto
 {
-	vec4 light_space_frag_pos;
-	vec4 ambient;
+	vec4 light_space_frag_pos[MAX_SHADOW_CASCADES];
+	vec4 cascade_splits;
 	vec2 tex_coord;
 	vec3 normal;
 	vec3 view_position;
@@ -61,12 +63,15 @@ void main()
 	mat3 m3_model = mat3(u_push_constants.model);
 	out_dto.normal = normalize(m3_model * in_normal);
 	out_dto.tangent = normalize(m3_model * in_tangent);
-	out_dto.ambient = global_ubo.ambient_color;
+	out_dto.cascade_splits = global_ubo.cascade_splits;
 	out_dto.view_position = global_ubo.view_position;
     gl_Position = global_ubo.projection * global_ubo.view * u_push_constants.model * vec4(in_position, 1.0);
 
-	// Get a light-space-transformed fragment position
-	out_dto.light_space_frag_pos = ((bias)*(global_ubo.light_space)) * vec4(out_dto.frag_position, 1.0);
+	// Get a light-space-transformed fragment positions
+	for(int i = 0; i < MAX_SHADOW_CASCADES; ++i)
+	{
+	    out_dto.light_space_frag_pos[i] = (bias * global_ubo.light_space[i]) * vec4(out_dto.frag_position, 1.0);
+    }
 
 	out_mode = global_ubo.mode;
 	use_pcf = global_ubo.use_pcf;
