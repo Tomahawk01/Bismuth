@@ -1,4 +1,5 @@
 #include "texture_system.h"
+
 #include "core/logger.h"
 #include "core/bstring.h"
 #include "core/bmemory.h"
@@ -15,9 +16,7 @@ typedef struct texture_system_state
     texture default_diffuse_texture;
     texture default_specular_texture;
     texture default_normal_texture;
-    texture default_metallic_texture;
-    texture default_roughness_texture;
-    texture default_ao_texture;
+    texture default_combined_texture;
     texture default_cube_texture;
 
     // Array of registered textures
@@ -328,9 +327,7 @@ b8 texture_system_is_default_texture(texture* t)
            (t == &state_ptr->default_diffuse_texture) ||
            (t == &state_ptr->default_normal_texture) ||
            (t == &state_ptr->default_specular_texture) ||
-           (t == &state_ptr->default_metallic_texture) ||
-           (t == &state_ptr->default_roughness_texture) ||
-           (t == &state_ptr->default_ao_texture) ||
+           (t == &state_ptr->default_combined_texture) ||
            (t == &state_ptr->default_cube_texture);
 }
 
@@ -354,19 +351,9 @@ texture* texture_system_get_default_normal_texture(void)
     RETURN_TEXT_PTR_OR_NULL(state_ptr->default_normal_texture, "texture_system_get_default_normal_texture");
 }
 
-texture* texture_system_get_default_metallic_texture(void)
+texture* texture_system_get_default_combined_texture(void)
 {
-    RETURN_TEXT_PTR_OR_NULL(state_ptr->default_metallic_texture, "texture_system_get_default_metallic_texture");
-}
-
-texture* texture_system_get_default_roughness_texture(void)
-{
-    RETURN_TEXT_PTR_OR_NULL(state_ptr->default_roughness_texture, "texture_system_get_default_roughness_texture");
-}
-
-texture* texture_system_get_default_ao_texture(void)
-{
-    RETURN_TEXT_PTR_OR_NULL(state_ptr->default_ao_texture, "texture_system_get_default_ao_texture");
+    RETURN_TEXT_PTR_OR_NULL(state_ptr->default_combined_texture, "texture_system_get_default_metallic_texture");
 }
 
 texture* texture_system_get_default_cube_texture(void)
@@ -529,38 +516,24 @@ static b8 create_default_textures(texture_system_state* state)
     }
     create_default_texture(&state->default_normal_texture, normal_pixels, 16, DEFAULT_NORMAL_TEXTURE_NAME);
 
-    // Metallic texture - default is black
-    // BTRACE("Creating default metallic texture...");
-    u8 metallic_pixels[16 * 16 * 4];  // w * h * channels
-    bset_memory(metallic_pixels, 0, sizeof(u8) * 16 * 16 * 4);
-    create_default_texture(&state->default_metallic_texture, metallic_pixels, 16, DEFAULT_METALLIC_TEXTURE_NAME);
+    // Combined texture
+    BTRACE("Creating default combined (metallic, roughness, AO) texture...");
+    u8 combined_pixels[16 * 16 * 4];  // w * h * channels
+    bset_memory(combined_pixels, 255, sizeof(u8) * 16 * 16 * 4);
 
-    // Roughness texture
-    // BTRACE("Creating default roughness texture...");
-    u8 roughness_pixels[16 * 16 * 4];  // w * h * channels
-    bset_memory(roughness_pixels, 255, sizeof(u8) * 16 * 16 * 4);
-
-    // Each pixel.
+    // Each pixel
     for (u64 row = 0; row < 16; ++row)
     {
         for (u64 col = 0; col < 16; ++col)
         {
             u64 index = (row * 16) + col;
             u64 index_bpp = index * channels;
-            // Set to medium gray
-            roughness_pixels[index_bpp + 0] = 128;
-            roughness_pixels[index_bpp + 1] = 128;
-            roughness_pixels[index_bpp + 2] = 128;
+            combined_pixels[index_bpp + 0] = 0;    // Default for metallic is black
+            combined_pixels[index_bpp + 1] = 128;  // Default for roughness is medium grey
+            combined_pixels[index_bpp + 2] = 255;  // Default for AO is white
         }
     }
-    create_default_texture(&state->default_roughness_texture, roughness_pixels, 16, DEFAULT_ROUGHNESS_TEXTURE_NAME);
-
-    // AO texture
-    // BTRACE("Creating default AO texture...");
-    // Set to white
-    u8 ao_pixels[16 * 16 * 4];  // w * h * channels
-    bset_memory(ao_pixels, 255, sizeof(u8) * 16 * 16 * 4);
-    create_default_texture(&state->default_ao_texture, ao_pixels, 16, DEFAULT_AO_TEXTURE_NAME);
+    create_default_texture(&state->default_combined_texture, combined_pixels, 16, DEFAULT_COMBINED_TEXTURE_NAME);
 
     // Cube texture
     // BTRACE("Creating default cube texture...");
@@ -577,9 +550,7 @@ static void destroy_default_textures(texture_system_state* state)
         destroy_texture(&state->default_diffuse_texture);
         destroy_texture(&state->default_specular_texture);
         destroy_texture(&state->default_normal_texture);
-        destroy_texture(&state->default_metallic_texture);
-        destroy_texture(&state->default_roughness_texture);
-        destroy_texture(&state->default_ao_texture);
+        destroy_texture(&state->default_combined_texture);
         destroy_texture(&state->default_cube_texture);
     }
 }

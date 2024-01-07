@@ -719,7 +719,8 @@ b8 vulkan_renderer_end(renderer_plugin *plugin, struct frame_data *p_frame_data)
 
     // For timing purposes, wait for the queue to complete
     // This gives an accurate picture of how long render takes including work submitted to the actual queue
-    vkWaitForFences(context->device.logical_device, 1, &context->in_flight_fences[context->current_frame], true, 0xffffffffffffffff);
+    // TODO: may want a semaphore here instead to monitor this
+    // vkWaitForFences(context->device.logical_device, 1, &context->in_flight_fences[context->current_frame], true, 0xffffffffffffffff);
 
     return true;
 }
@@ -738,7 +739,7 @@ b8 vulkan_renderer_present(renderer_plugin* plugin, struct frame_data* p_frame_d
     present_info.pImageIndices = &context->image_index;
     present_info.pResults = 0;
 
-    vkQueueWaitIdle(context->device.transfer_queue);
+    // vkQueueWaitIdle(context->device.transfer_queue);
     VkResult result = vkQueuePresentKHR(context->device.present_queue, &present_info);
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
     {
