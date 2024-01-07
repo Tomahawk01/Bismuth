@@ -1750,3 +1750,5 @@ BINLINE b8 rect_2d_contains_point(rect_2d rect, vec2 point)
 {
     return (point.x >= rect.x && point.x <= rect.x + rect.width) && (point.y >= rect.y && point.y <= rect.y + rect.height);
 }
+
+BAPI f32 vec3_distance_to_line(vec3 point, vec3 line_start, vec3 line_direction);

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/frame_data.h"
 #include "renderer_types.h"
 
 struct shader;
@@ -65,7 +66,7 @@ BAPI void renderer_geometry_draw(geometry_render_data* data);
 BAPI b8 renderer_renderpass_begin(renderpass* pass, render_target* target);
 BAPI b8 renderer_renderpass_end(renderpass* pass);
 
-BAPI b8 renderer_shader_create(struct shader* s, const shader_config* config, renderpass* pass, u8 stage_count, const char** stage_filenames, shader_stage* stages);
+BAPI b8 renderer_shader_create(struct shader* s, const shader_config* config, renderpass* pass);
 BAPI void renderer_shader_destroy(struct shader* s);
 
 BAPI b8 renderer_shader_initialize(struct shader* s);
@@ -75,18 +76,25 @@ BAPI b8 renderer_shader_use(struct shader* s);
 BAPI b8 renderer_shader_bind_globals(struct shader* s);
 BAPI b8 renderer_shader_bind_instance(struct shader* s, u32 instance_id);
 
-BAPI b8 renderer_shader_apply_globals(struct shader* s, b8 needs_update);
-BAPI b8 renderer_shader_apply_instance(struct shader* s, b8 needs_update);
+BAPI b8 renderer_shader_bind_local(struct shader* s);
 
-BAPI b8 renderer_shader_instance_resources_acquire(struct shader* s, u32 texture_map_count, texture_map** maps, u32* out_instance_id);
+BAPI b8 renderer_shader_apply_globals(struct shader* s, b8 needs_update, frame_data* p_frame_data);
+BAPI b8 renderer_shader_apply_instance(struct shader* s, b8 needs_update, frame_data* p_frame_data);
+
+BAPI b8 renderer_shader_instance_resources_acquire(struct shader* s, const shader_instance_resource_config* config, u32* out_instance_id);
 BAPI b8 renderer_shader_instance_resources_release(struct shader* s, u32 instance_id);
 
-BAPI b8 renderer_shader_uniform_set(struct shader* s, struct shader_uniform* uniform, const void* value);
+BAPI struct shader_uniform* renderer_shader_uniform_get_by_location(struct shader* s, u16 location);
+BAPI struct shader_uniform* renderer_shader_uniform_get(struct shader* s, const char* name);
+
+BAPI b8 renderer_shader_uniform_set(struct shader* s, struct shader_uniform* uniform, u32 array_index, const void* value);
+
+BAPI b8 renderer_shader_apply_local(struct shader* s, frame_data* p_frame_data);
 
 BAPI b8 renderer_texture_map_resources_acquire(struct texture_map* map);
 BAPI void renderer_texture_map_resources_release(struct texture_map* map);
 
-BAPI void renderer_render_target_create(u8 attachment_count, render_target_attachment* attachments, renderpass* pass, u32 width, u32 height, render_target* out_target);
+BAPI void renderer_render_target_create(u8 attachment_count, render_target_attachment* attachments, renderpass* pass, u32 width, u32 height, u16 layer_index, render_target* out_target);
 BAPI void renderer_render_target_destroy(render_target* target, b8 free_internal_memory);
 
 BAPI texture* renderer_window_attachment_get(u8 index);

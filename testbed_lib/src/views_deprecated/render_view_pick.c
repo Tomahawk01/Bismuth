@@ -82,20 +82,23 @@ static void acquire_shader_instances(const struct render_view* self)
     render_view_pick_internal_data* data = self->internal_data;
 
     u32 instance;
+    shader_instance_resource_config instance_resource_config = {0};
+    instance_resource_config.uniform_config_count = 0;
+    instance_resource_config.uniform_configs = 0;
     // UI shader
-    if (!renderer_shader_instance_resources_acquire(data->ui_shader_info.s, 0, 0, &instance))
+    if (!renderer_shader_instance_resources_acquire(data->ui_shader_info.s, &instance_resource_config, &instance))
     {
         BFATAL("render_view_pick failed to acquire UI shader resources");
         return;
     }
     // World shader
-    if (!renderer_shader_instance_resources_acquire(data->world_shader_info.s, 0, 0, &instance))
+    if (!renderer_shader_instance_resources_acquire(data->world_shader_info.s, &instance_resource_config, &instance))
     {
         BFATAL("render_view_pick failed to acquire World shader resources");
         return;
     }
     // Terrain shader
-    if (!renderer_shader_instance_resources_acquire(data->terrain_shader_info.s, 0, 0, &instance))
+    if (!renderer_shader_instance_resources_acquire(data->terrain_shader_info.s, &instance_resource_config, &instance))
     {
         BFATAL("render_view_pick failed to acquire Terrain shader resources");
         return;
@@ -156,10 +159,10 @@ b8 render_view_pick_on_registered(struct render_view* self)
         data->ui_shader_info.s = shader_system_get(ui_shader_name);
 
         // Extract uniform locations
-        data->ui_shader_info.id_color_location = shader_system_uniform_index(data->ui_shader_info.s, "id_color");
-        data->ui_shader_info.model_location = shader_system_uniform_index(data->ui_shader_info.s, "model");
-        data->ui_shader_info.projection_location = shader_system_uniform_index(data->ui_shader_info.s, "projection");
-        data->ui_shader_info.view_location = shader_system_uniform_index(data->ui_shader_info.s, "view");
+        data->ui_shader_info.id_color_location = shader_system_uniform_location(data->ui_shader_info.s, "id_color");
+        data->ui_shader_info.model_location = shader_system_uniform_location(data->ui_shader_info.s, "model");
+        data->ui_shader_info.projection_location = shader_system_uniform_location(data->ui_shader_info.s, "projection");
+        data->ui_shader_info.view_location = shader_system_uniform_location(data->ui_shader_info.s, "view");
 
         // Default UI properties
         data->ui_shader_info.view = mat4_identity();
@@ -181,10 +184,10 @@ b8 render_view_pick_on_registered(struct render_view* self)
         data->world_shader_info.s = shader_system_get(world_shader_name);
 
         // Extract uniform locations.
-        data->world_shader_info.id_color_location = shader_system_uniform_index(data->world_shader_info.s, "id_color");
-        data->world_shader_info.model_location = shader_system_uniform_index(data->world_shader_info.s, "model");
-        data->world_shader_info.projection_location = shader_system_uniform_index(data->world_shader_info.s, "projection");
-        data->world_shader_info.view_location = shader_system_uniform_index(data->world_shader_info.s, "view");
+        data->world_shader_info.id_color_location = shader_system_uniform_location(data->world_shader_info.s, "id_color");
+        data->world_shader_info.model_location = shader_system_uniform_location(data->world_shader_info.s, "model");
+        data->world_shader_info.projection_location = shader_system_uniform_location(data->world_shader_info.s, "projection");
+        data->world_shader_info.view_location = shader_system_uniform_location(data->world_shader_info.s, "view");
 
         // Default World properties
         data->world_shader_info.view = mat4_identity();
@@ -206,10 +209,10 @@ b8 render_view_pick_on_registered(struct render_view* self)
         data->terrain_shader_info.s = shader_system_get(terrain_shader_name);
 
         // Extract uniform locations
-        data->terrain_shader_info.id_color_location = shader_system_uniform_index(data->terrain_shader_info.s, "id_color");
-        data->terrain_shader_info.model_location = shader_system_uniform_index(data->terrain_shader_info.s, "model");
-        data->terrain_shader_info.projection_location = shader_system_uniform_index(data->terrain_shader_info.s, "projection");
-        data->terrain_shader_info.view_location = shader_system_uniform_index(data->terrain_shader_info.s, "view");
+        data->terrain_shader_info.id_color_location = shader_system_uniform_location(data->terrain_shader_info.s, "id_color");
+        data->terrain_shader_info.model_location = shader_system_uniform_location(data->terrain_shader_info.s, "model");
+        data->terrain_shader_info.projection_location = shader_system_uniform_location(data->terrain_shader_info.s, "projection");
+        data->terrain_shader_info.view_location = shader_system_uniform_location(data->terrain_shader_info.s, "view");
 
         // Default terrain properties
         data->terrain_shader_info.view = mat4_identity();
@@ -405,11 +408,11 @@ b8 render_view_pick_on_render(const struct render_view* self, const struct rende
 
         // Apply globals
         viewport* v = renderer_active_viewport_get();
-        if (!shader_system_uniform_set_by_index(data->world_shader_info.projection_location, &v->projection))
+        if (!shader_system_uniform_set_by_location(data->world_shader_info.projection_location, &v->projection))
             BERROR("Failed to apply projection matrix");
-        if (!shader_system_uniform_set_by_index(data->world_shader_info.view_location, &data->world_shader_info.view))
+        if (!shader_system_uniform_set_by_location(data->world_shader_info.view_location, &data->world_shader_info.view))
             BERROR("Failed to apply view matrix");
-        shader_system_apply_global(true);
+        shader_system_apply_global(true, p_frame_data);
 
         // Draw geometries. Start from 0 since world geometries are added first, and stop at the world geometry count
         u32 world_geometry_count = !packet_data->world_mesh_data ? 0 : darray_length(packet_data->world_mesh_data);
@@ -425,18 +428,18 @@ b8 render_view_pick_on_render(const struct render_view* self, const struct rende
             u32 r, g, b;
             u32_to_rgb(geo->unique_id, &r, &g, &b);
             rgb_u32_to_vec3(r, g, b, &id_color);
-            if (!shader_system_uniform_set_by_index(data->world_shader_info.id_color_location, &id_color))
+            if (!shader_system_uniform_set_by_location(data->world_shader_info.id_color_location, &id_color))
             {
                 BERROR("Failed to apply id color uniform");
                 return false;
             }
 
             b8 needs_update = !data->instance_updated[current_instance_id];
-            shader_system_apply_instance(needs_update);
+            shader_system_apply_instance(needs_update, p_frame_data);
             data->instance_updated[current_instance_id] = true;
 
             // Apply locals
-            if (!shader_system_uniform_set_by_index(data->world_shader_info.model_location, &geo->model))
+            if (!shader_system_uniform_set_by_location(data->world_shader_info.model_location, &geo->model))
             {
                 BERROR("Failed to apply model matrix for world geometry");
             }
@@ -453,11 +456,11 @@ b8 render_view_pick_on_render(const struct render_view* self, const struct rende
         }
 
         // Apply globals
-        if (!shader_system_uniform_set_by_index(data->terrain_shader_info.projection_location, &v->projection))
+        if (!shader_system_uniform_set_by_location(data->terrain_shader_info.projection_location, &v->projection))
             BERROR("Failed to apply projection matrix");
-        if (!shader_system_uniform_set_by_index(data->terrain_shader_info.view_location, &data->terrain_shader_info.view))
+        if (!shader_system_uniform_set_by_location(data->terrain_shader_info.view_location, &data->terrain_shader_info.view))
             BERROR("Failed to apply view matrix");
-        shader_system_apply_global(true);
+        shader_system_apply_global(true, p_frame_data);
 
         // Draw geometries. Start from 0 since terrain geometries are added first, and stop at the terrain geometry count
         u32 terrain_geometry_count = !packet_data->terrain_mesh_data ? 0 : darray_length(packet_data->terrain_mesh_data);
@@ -473,18 +476,18 @@ b8 render_view_pick_on_render(const struct render_view* self, const struct rende
             u32 r, g, b;
             u32_to_rgb(geo->unique_id, &r, &g, &b);
             rgb_u32_to_vec3(r, g, b, &id_color);
-            if (!shader_system_uniform_set_by_index(data->terrain_shader_info.id_color_location, &id_color))
+            if (!shader_system_uniform_set_by_location(data->terrain_shader_info.id_color_location, &id_color))
             {
                 BERROR("Failed to apply id color uniform");
                 return false;
             }
 
             b8 needs_update = !data->instance_updated[current_instance_id];
-            shader_system_apply_instance(needs_update);
+            shader_system_apply_instance(needs_update, p_frame_data);
             data->instance_updated[current_instance_id] = true;
 
             // Apply locals
-            if (!shader_system_uniform_set_by_index(data->terrain_shader_info.model_location, &geo->model))
+            if (!shader_system_uniform_set_by_location(data->terrain_shader_info.model_location, &geo->model))
             {
                 BERROR("Failed to apply model matrix for terrain geometry");
             }
@@ -517,11 +520,11 @@ b8 render_view_pick_on_render(const struct render_view* self, const struct rende
         // Apply globals
         // TODO: This won't work as a single view
         BFATAL("Cannot use pick pass without it being split into UI/World first due to viewport changes");
-        // if (!shader_system_uniform_set_by_index(data->ui_shader_info.projection_location, &data->ui_shader_info.projection))
+        // if (!shader_system_uniform_set_by_location(data->ui_shader_info.projection_location, &data->ui_shader_info.projection))
         //     BERROR("Failed to apply projection matrix");
-        if (!shader_system_uniform_set_by_index(data->ui_shader_info.view_location, &data->ui_shader_info.view))
+        if (!shader_system_uniform_set_by_location(data->ui_shader_info.view_location, &data->ui_shader_info.view))
             BERROR("Failed to apply view matrix");
-        shader_system_apply_global(true);
+        shader_system_apply_global(true, p_frame_data);
 
         // Draw geometries. Start off where world geometries left off
         for (u32 i = world_geometry_count; i < packet->geometry_count; ++i)
@@ -536,18 +539,18 @@ b8 render_view_pick_on_render(const struct render_view* self, const struct rende
             u32 r, g, b;
             u32_to_rgb(geo->unique_id, &r, &g, &b);
             rgb_u32_to_vec3(r, g, b, &id_color);
-            if (!shader_system_uniform_set_by_index(data->ui_shader_info.id_color_location, &id_color))
+            if (!shader_system_uniform_set_by_location(data->ui_shader_info.id_color_location, &id_color))
             {
                 BERROR("Failed to apply id color uniform");
                 return false;
             }
 
             b8 needs_update = !data->instance_updated[current_instance_id];
-            shader_system_apply_instance(needs_update);
+            shader_system_apply_instance(needs_update, p_frame_data);
             data->instance_updated[current_instance_id] = true;
 
             // Apply the locals
-            if (!shader_system_uniform_set_by_index(data->ui_shader_info.model_location, &geo->model))
+            if (!shader_system_uniform_set_by_location(data->ui_shader_info.model_location, &geo->model))
                 BERROR("Failed to apply model matrix for text");
 
             renderer_geometry_draw(&packet->geometries[i]);
@@ -565,7 +568,7 @@ b8 render_view_pick_on_render(const struct render_view* self, const struct rende
         //     u32 r, g, b;
         //     u32_to_rgb(text->id.uniqueid, &r, &g, &b);
         //     rgb_u32_to_vec3(r, g, b, &id_color);
-        //     if (!shader_system_uniform_set_by_index(data->ui_shader_info.id_color_location, &id_color))
+        //     if (!shader_system_uniform_set_by_location(data->ui_shader_info.id_color_location, &id_color))
         //     {
         //         BERROR("Failed to apply id color uniform");
         //         return false;
@@ -575,7 +578,7 @@ b8 render_view_pick_on_render(const struct render_view* self, const struct rende
 
         //     // Apply locals
         //     mat4 model = transform_world_get(&text->transform);
-        //     if (!shader_system_uniform_set_by_index(data->ui_shader_info.model_location, &model))
+        //     if (!shader_system_uniform_set_by_location(data->ui_shader_info.model_location, &model))
         //         BERROR("Failed to apply model matrix for text");
 
         //     ui_text_draw(text);

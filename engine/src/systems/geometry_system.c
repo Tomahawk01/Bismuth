@@ -396,7 +396,7 @@ geometry_config geometry_system_generate_plane_config(f32 width, f32 height, u32
     }
     else
     {
-        string_ncopy(config.material_name, DEFAULT_MATERIAL_NAME, MATERIAL_NAME_MAX_LENGTH);
+        string_ncopy(config.material_name, DEFAULT_PBR_MATERIAL_NAME, MATERIAL_NAME_MAX_LENGTH);
     }
 
     return config;
@@ -578,7 +578,7 @@ geometry_config geometry_system_generate_cube_config(f32 width, f32 height, f32 
     }
     else
     {
-        string_ncopy(config.material_name, DEFAULT_MATERIAL_NAME, MATERIAL_NAME_MAX_LENGTH);
+        string_ncopy(config.material_name, DEFAULT_PBR_MATERIAL_NAME, MATERIAL_NAME_MAX_LENGTH);
     }
 
     geometry_generate_tangents(config.vertex_count, config.vertices, config.index_count, config.indices);

@@ -776,7 +776,7 @@ static b8 import_obj_material_library_file(const char* mtl_file_path)
                 if (strings_nequali(substr, "newmtl", 6))
                 {
                     // Is a material name
-                    current_config.shader_name = "Shader.Builtin.Material";
+                    current_config.shader_name = "Shader.PBRMaterial";
                     if (hit_name)
                     {
                         //  Write out bmt file
@@ -809,7 +809,7 @@ static b8 import_obj_material_library_file(const char* mtl_file_path)
     }  // each line
 
     // Write out the remaining bmt file
-    current_config.shader_name = "Shader.Builtin.Material";
+    current_config.shader_name = "Shader.PBRMaterial";
     if (!write_bmt_file(mtl_file_path, &current_config)) 
     {
         BERROR("Unable to write bmt file");
@@ -988,9 +988,9 @@ static b8 write_bmt_file(const char* mtl_file_path, material_config* config)
                               config->properties[i].value_mat4.data[14],
                               config->properties[i].value_mat4.data[15]);
                 break;
-            case SHADER_UNIFORM_TYPE_SAMPLER:
             case SHADER_UNIFORM_TYPE_CUSTOM:
             default:
+                // NOTE: All sampler types are included in this
                 BERROR("Unsupported material property type");
                 break;
         }

@@ -217,6 +217,27 @@ typedef enum renderer_winding
     RENDERER_WINDING_CLOCKWISE = 1
 } renderer_winding;
 
+/**
+ * @brief Maps a uniform to a texture map/maps when acquiring instance resources
+ */
+typedef struct shader_instance_uniform_texture_config
+{
+    u16 uniform_location;
+    u32 texture_map_count;
+    /** @brief An array of pointers to texture maps to be mapped to the uniform */
+    texture_map** texture_maps;
+} shader_instance_uniform_texture_config;
+
+/**
+ * @brief Represents the configuration of texture map resources and mappings to uniforms required for instance-level shader data
+ */
+typedef struct shader_instance_resource_config
+{
+    u32 uniform_config_count;
+    /** @brief An array of uniform configurations */
+    shader_instance_uniform_texture_config* uniform_configs;
+} shader_instance_resource_config;
+
 typedef struct renderer_plugin
 {
     u64 frame_number;
@@ -264,7 +285,7 @@ typedef struct renderer_plugin
     void (*texture_read_data)(struct renderer_plugin* plugin, texture* t, u32 offset, u32 size, void** out_memory);
     void (*texture_read_pixel)(struct renderer_plugin* plugin, texture* t, u32 x, u32 y, u8** out_rgba);
 
-    b8 (*shader_create)(struct renderer_plugin* plugin, struct shader* shader, const shader_config* config, renderpass* pass, u8 stage_count, const char** stage_filenames, shader_stage* stages);
+    b8 (*shader_create)(struct renderer_plugin* plugin, struct shader* shader, const shader_config* config, renderpass* pass);
     void (*shader_destroy)(struct renderer_plugin* plugin, struct shader* shader);
 
     b8 (*shader_initialize)(struct renderer_plugin* plugin, struct shader* shader);
@@ -274,18 +295,22 @@ typedef struct renderer_plugin
     b8 (*shader_bind_globals)(struct renderer_plugin* plugin, struct shader* s);
     b8 (*shader_bind_instance)(struct renderer_plugin* plugin, struct shader* s, u32 instance_id);
 
-    b8 (*shader_apply_globals)(struct renderer_plugin* plugin, struct shader* s, b8 needs_update);
-    b8 (*shader_apply_instance)(struct renderer_plugin* plugin, struct shader* s, b8 needs_update);
+    b8 (*shader_bind_local)(struct renderer_plugin* plugin, struct shader* s);
 
-    b8 (*shader_instance_resources_acquire)(struct renderer_plugin* plugin, struct shader* s, u32 texture_map_count, texture_map** maps, u32* out_instance_id);
+    b8 (*shader_apply_globals)(struct renderer_plugin* plugin, struct shader* s, b8 needs_update, struct frame_data* p_frame_data);
+    b8 (*shader_apply_instance)(struct renderer_plugin* plugin, struct shader* s, b8 needs_update, struct frame_data* p_frame_data);
+
+    b8 (*shader_instance_resources_acquire)(struct renderer_plugin* plugin, struct shader* s, const shader_instance_resource_config* config, u32* out_instance_id);
     b8 (*shader_instance_resources_release)(struct renderer_plugin* plugin, struct shader* s, u32 instance_id);
 
-    b8 (*shader_uniform_set)(struct renderer_plugin* plugin, struct shader* frontend_shader, struct shader_uniform* uniform, const void* value);
+    b8 (*shader_uniform_set)(struct renderer_plugin* plugin, struct shader* frontend_shader, struct shader_uniform* uniform, u32 array_index, const void* value);
+
+    b8 (*shader_apply_local)(struct renderer_plugin* plugin, struct shader* s, struct frame_data* p_frame_data);
 
     b8 (*texture_map_resources_acquire)(struct renderer_plugin* plugin, struct texture_map* map);
     void (*texture_map_resources_release)(struct renderer_plugin* plugin, struct texture_map* map);
 
-    b8 (*render_target_create)(struct renderer_plugin* plugin, u8 attachment_count, render_target_attachment* attachments, renderpass* pass, u32 width, u32 height, render_target* out_target);
+    b8 (*render_target_create)(struct renderer_plugin* plugin, u8 attachment_count, render_target_attachment* attachments, renderpass* pass, u32 width, u32 height, u16 layer_index, render_target* out_target);
     void (*render_target_destroy)(struct renderer_plugin* plugin, render_target* target, b8 free_internal_memory);
 
     b8 (*renderpass_create)(struct renderer_plugin* plugin, const renderpass_config* config, renderpass* out_renderpass);

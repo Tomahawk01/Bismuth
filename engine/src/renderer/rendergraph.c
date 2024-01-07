@@ -422,12 +422,15 @@ b8 rendergraph_finalize(rendergraph* graph)
                 else if (source->origin == RENDERGRAPH_SOURCE_ORIGIN_SELF)
                 {
                     // If the origin is self, hook up the textures to the source
-                    if (pass->attachment_texture_get)
+                    if (pass->source_populate)
                     {
-                        u32 frame_count = renderer_window_attachment_count_get();
-                        source->textures = ballocate(sizeof(texture*) * frame_count, MEMORY_TAG_ARRAY);
-                        for (u32 ti = 0; ti < frame_count; ti++)
-                            source->textures[ti] = pass->attachment_texture_get(pass, RENDER_TARGET_ATTACHMENT_TYPE_DEPTH, ti);
+                        if (!pass->source_populate(pass, source))
+                            BERROR("Failed to populate source '%s'", source->name);
+                    }
+                    else
+                    {
+                        BERROR("Rendergraph pass '%s': source '%s' is set to RENDERGRAPH_SOURCE_ORIGIN_SELF but does not have source_populate defined");
+                        return false;
                     }
                 }
             }
@@ -483,19 +486,14 @@ b8 rendergraph_load_resources(rendergraph* graph)
             if (source->origin == RENDERGRAPH_SOURCE_ORIGIN_SELF)
             {
                 // If the origin is self, hook up the textures to the source
-                if (pass->attachment_texture_get)
+                if (pass->source_populate)
                 {
-                    u32 texture_type = (source->type == RENDERGRAPH_SOURCE_TYPE_RENDER_TARGET_COLOR)
-                                           ? RENDER_TARGET_ATTACHMENT_TYPE_COLOR
-                                           : RENDER_TARGET_ATTACHMENT_TYPE_DEPTH | RENDER_TARGET_ATTACHMENT_TYPE_STENCIL;
-                    u32 frame_count = renderer_window_attachment_count_get();
-                    source->textures = ballocate(sizeof(texture*) * frame_count, MEMORY_TAG_ARRAY);
-                    for (u32 ti = 0; ti < frame_count; ti++)
-                        source->textures[ti] = pass->attachment_texture_get(pass, texture_type, ti);
+                    if (!pass->source_populate(pass, source))
+                        BERROR("Failed to populate source '%s'", source->name);
                 }
                 else
                 {
-                    BERROR("Rendergraph pass '%s': source '%s' is set to RENDERGRAPH_SOURCE_ORIGIN_SELF but does not have attechment_texture_get defined");
+                    BERROR("Rendergraph pass '%s': source '%s' is set to RENDERGRAPH_SOURCE_ORIGIN_SELF but does not have source_populate defined");
                     return false;
                 }
             }
@@ -583,13 +581,12 @@ static b8 regenerate_render_targets(rendergraph* graph, rendergraph_pass* pass, 
                     if (!pass->attachment_textures_regenerate(pass, width, height))
                         BERROR("Failed to regenerate attachment textures for rendergraph pass'%s'", pass->name);
                 }
-                if (!pass->attachment_texture_get)
+                if (!pass->attachment_populate)
                 {
-                    BERROR("Attempted to get a self-owned attachment texture for a pass that does not implement attachment_texture_get");
+                    BERROR("Attempted to get a self-owned attachment texture for a pass that does not implement attachment_populate");
                     return false;
                 }
-                attachment->texture = pass->attachment_texture_get(pass, attachment->type, i);
-                if (!attachment->texture)
+                if (!pass->attachment_populate(pass, attachment))
                 {
                     BERROR("Unsupported attachment type: 0x%x", attachment->type);
                     return false;
@@ -606,6 +603,7 @@ static b8 regenerate_render_targets(rendergraph* graph, rendergraph_pass* pass, 
             &pass->pass,
             use_custom_size ? target->attachments[0].texture->width : width,
             use_custom_size ? target->attachments[0].texture->height : height,
+            0,
             &pass->pass.targets[i]);
     }
 

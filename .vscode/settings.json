@@ -76,6 +76,7 @@
         "bclock.h": "c",
         "math_types.h": "c",
         "stdlib.h": "c",
-        "bsort.h": "c"
+        "bsort.h": "c",
+        "vulkan_command_buffer.h": "c"
     },
 }

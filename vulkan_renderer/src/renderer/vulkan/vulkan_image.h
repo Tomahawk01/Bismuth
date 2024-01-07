@@ -7,6 +7,7 @@ void vulkan_image_create(
     texture_type type,
     u32 width,
     u32 height,
+    u16 layer_count,
     VkFormat format,
     VkImageTiling tiling,
     VkImageUsageFlags usage,
@@ -20,9 +21,12 @@ void vulkan_image_create(
 void vulkan_image_view_create(
     vulkan_context* context,
     texture_type type,
+    u16 layer_count,
+    i32 layer_index,
     VkFormat format,
     vulkan_image* image,
-    VkImageAspectFlags aspect_flags);
+    VkImageAspectFlags aspect_flags,
+    VkImageView* out_view);
 
 // Transitions provided image from old_layout to new_layout
 void vulkan_image_transition_layout(

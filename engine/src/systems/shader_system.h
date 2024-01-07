@@ -3,6 +3,9 @@
 #include "defines.h"
 #include "renderer/renderer_types.h"
 #include "containers/hashtable.h"
+#include "resources/resource_types.h"
+
+struct frame_data;
 
 typedef struct shader_system_config
 {
@@ -42,6 +45,7 @@ typedef struct shader_uniform
     shader_scope scope;
     // The type of uniform
     shader_uniform_type type;
+    u32 array_length;
 } shader_uniform;
 
 /**
@@ -98,10 +102,9 @@ typedef struct shader
     // The stride of the instance uniform buffer object
     u64 ubo_stride;
 
-    // The total size of all push constant ranges combined
-    u64 push_constant_size;
-    // The push constant stride, aligned to 4 bytes as required by Vulkan
-    u64 push_constant_stride;
+    u64 local_ubo_offset;
+    u64 local_ubo_size;
+    u64 local_ubo_stride;
 
     // An array of global texture map pointers
     texture_map** global_texture_maps;
@@ -124,16 +127,27 @@ typedef struct shader
     // An array of uniforms in this shader. Darray
     shader_uniform* uniforms;
 
+    // The number of global non-sampler uniforms
+    u8 global_uniform_count;
+    // The number of global sampler uniforms
+    u8 global_uniform_sampler_count;
+    // darray. Keeps the uniform indices of global samplers for fast lookups
+    u32* global_sampler_indices;
+    // The number of instance non-sampler uniforms
+    u8 instance_uniform_count;
+    // The number of instance sampler uniforms
+    u8 instance_uniform_sampler_count;
+    // darray. Keeps the uniform indices of instance samplers for fast lookups
+    u32* instance_sampler_indices;
+    // The number of local non-sampler uniforms
+    u8 local_uniform_count;
+
     // An array of attributes. Darray
     shader_attribute* attributes;
 
     // The internal state of the shader
     shader_state state;
 
-    // The number of push constant ranges
-    u8 push_constant_range_count;
-    // An array of push constant ranges
-    range push_constant_ranges[32];
     // The size of all attributes combined, a.k.a. the size of a vertex
     u16 attribute_stride;
 
@@ -141,6 +155,9 @@ typedef struct shader
     u64 render_frame_number;
 
     u8 draw_index;
+
+    u8 shader_stage_count;
+    shader_stage_config* stage_configs;
 
     // An opaque pointer to hold renderer API specific data. Renderer is responsible for creation and destruction of this
     void* internal_data;
@@ -215,13 +232,13 @@ BAPI b8 shader_system_use(const char* shader_name);
 BAPI b8 shader_system_use_by_id(u32 shader_id);
 
 /**
- * @brief Returns the uniform index for a uniform with the given name, if found.
+ * @brief Returns the uniform location for a uniform with the given name, if found.
  * 
- * @param s A pointer to the shader to obtain the index from.
+ * @param s A pointer to the shader to obtain the location from.
  * @param uniform_name The name of the uniform to search for.
- * @return The uniform index, if found; otherwise INVALID_ID_U16.
+ * @return The uniform location, if found; otherwise INVALID_ID_U16.
  */
-BAPI u16 shader_system_uniform_index(shader* s, const char* uniform_name);
+BAPI u16 shader_system_uniform_location(shader* s, const char* uniform_name);
 
 /**
  * @brief Sets the value of a uniform with the given name to the supplied value.
@@ -234,6 +251,17 @@ BAPI u16 shader_system_uniform_index(shader* s, const char* uniform_name);
 BAPI b8 shader_system_uniform_set(const char* uniform_name, const void* value);
 
 /**
+ * @brief Sets the value of an arrayed uniform with the given name to the supplied value.
+ * NOTE: Operates against the currently-used shader.
+ *
+ * @param uniform_name The name of the uniform to be set.
+ * @param array_index The index into the uniform array, if the uniform is in fact an array. Otherwise ignored.
+ * @param value The value to be set.
+ * @return True on success; otherwise false.
+ */
+BAPI b8 shader_system_uniform_set_arrayed(const char* uniform_name, u32 array_index, const void* value);
+
+/**
  * @brief Sets the texture of a sampler with the given name to the supplied texture.
  * NOTE: Operates against the currently-used shader.
  * 
@@ -244,24 +272,31 @@ BAPI b8 shader_system_uniform_set(const char* uniform_name, const void* value);
 BAPI b8 shader_system_sampler_set(const char* sampler_name, const texture* t);
 
 /**
- * @brief Sets a uniform value by index.
+ * @brief Sets the texture of an arrayed sampler with the given name to the supplied texture.
  * NOTE: Operates against the currently-used shader.
- * 
- * @param index The index of the uniform.
+ *
+ * @param uniform_name The name of the uniform to be set.
+ * @param array_index The index into the uniform array, if the uniform is in fact an array. Otherwise ignored.
+ * @param t A pointer to the texture to be set.
+ * @return True on success; otherwise false.
+ */
+BAPI b8 shader_system_sampler_set_arrayed(const char* sampler_name, u32 array_index, const texture* t);
+
+/**
+ * @brief Sets a uniform value by location.
+ * NOTE: Operates against the currently-used shader.
+ *
+ * @param index The location of the uniform.
  * @param value The value of the uniform.
  * @return True on success; otherwise false.
  */
-BAPI b8 shader_system_uniform_set_by_index(u16 index, const void* value);
+BAPI b8 shader_system_uniform_set_by_location(u16 location, const void* value);
 
-/**
- * @brief Sets a sampler value by index.
- * NOTE: Operates against the currently-used shader.
- * 
- * @param index The index of the uniform.
- * @param value A pointer to the texture to be set.
- * @return True on success; otherwise false.
- */
-BAPI b8 shader_system_sampler_set_by_index(u16 index, const struct texture* t);
+BAPI b8 shader_system_uniform_set_by_location_arrayed(u16 location, u32 array_index, const void* value);
+
+BAPI b8 shader_system_sampler_set_by_location(u16 location, const struct texture* t);
+
+BAPI b8 shader_system_sampler_set_by_location_arrayed(u16 location, u32 array_index, const struct texture* t);
 
 /**
  * @brief Applies global-scoped uniforms.
@@ -269,7 +304,7 @@ BAPI b8 shader_system_sampler_set_by_index(u16 index, const struct texture* t);
  * 
  * @return True on success; otherwise false.
  */
-BAPI b8 shader_system_apply_global(b8 needs_update);
+BAPI b8 shader_system_apply_global(b8 needs_update, struct frame_data* p_frame_data);
 
 /**
  * @brief Applies instance-scoped uniforms.
@@ -278,7 +313,7 @@ BAPI b8 shader_system_apply_global(b8 needs_update);
  * 
  * @return True on success; otherwise false.
  */
-BAPI b8 shader_system_apply_instance(b8 needs_update);
+BAPI b8 shader_system_apply_instance(b8 needs_update, struct frame_data* p_frame_data);
 
 /**
  * @brief Binds the instance with the given id for use. Must be done before setting
@@ -289,3 +324,19 @@ BAPI b8 shader_system_apply_instance(b8 needs_update);
  * @return True on success; otherwise false. 
  */
 BAPI b8 shader_system_bind_instance(u32 instance_id);
+
+/**
+ * @brief Applies local-scoped uniforms.
+ * NOTE: Operates against the currently-used shader.
+ *
+ * @return True on success; otherwise false.
+ */
+BAPI b8 shader_system_apply_local(struct frame_data* p_frame_data);
+
+/**
+ * @brief Binds the instance with the given id for use. Must be done before setting local-scoped uniforms.
+ * NOTE: Operates against the currently-used shader.
+ *
+ * @return True on success; otherwise false.
+ */
+BAPI b8 shader_system_bind_local(void);

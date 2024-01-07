@@ -3,7 +3,6 @@
 #include "defines.h"
 #include "resources/resource_types.h"
 
-#define DEFAULT_MATERIAL_NAME "default"
 #define DEFAULT_PBR_MATERIAL_NAME "default_pbr"
 #define DEFAULT_TERRAIN_MATERIAL_NAME "default_terrain"
 
@@ -26,9 +25,9 @@ BAPI material* material_system_get_default(void);
 BAPI material* material_system_get_default_pbr(void);
 BAPI material* material_system_get_default_terrain(void);
 
-BAPI b8 material_system_apply_global(u32 shader_id, const struct frame_data* p_frame_data, const mat4* projection, const mat4* view, const vec4* ambient_color, const vec3* view_position, u32 render_mode);
+BAPI b8 material_system_apply_global(u32 shader_id, struct frame_data* p_frame_data, const mat4* projection, const mat4* view, const vec4* ambient_color, const vec3* view_position, u32 render_mode);
 BAPI b8 material_system_apply_instance(material* m, struct frame_data* p_frame_data, b8 needs_update);
-BAPI b8 material_system_apply_local(material* m, const mat4* model);
+BAPI b8 material_system_apply_local(material* m, const mat4* model, struct frame_data* p_frame_data);
 
 BAPI b8 material_system_shadow_map_set(texture* shadow_texture, u8 index);
 

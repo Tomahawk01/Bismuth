@@ -4,10 +4,9 @@ layout(location = 0) in vec3 tex_coord;
 layout(location = 0) out vec4 out_color;
 
 // Samplers
-const int SAMP_DIFFUSE = 0;
-layout(set = 1, binding = 0) uniform samplerCube samplers[1];
+layout(set = 1, binding = 0) uniform samplerCube cube_texture;
 
 void main()
 {
-    out_color = texture(samplers[SAMP_DIFFUSE], tex_coord);
+    out_color = texture(cube_texture, tex_coord);
 }

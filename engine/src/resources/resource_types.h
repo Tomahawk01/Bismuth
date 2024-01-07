@@ -89,6 +89,7 @@ typedef u8 texture_flag_bits;
 typedef enum texture_type
 {
     TEXTURE_TYPE_2D,
+    TEXTURE_TYPE_2D_ARRAY,
     TEXTURE_TYPE_CUBE
 } texture_type;
 
@@ -100,6 +101,7 @@ typedef struct texture
     u32 width;
     u32 height;
     u8 channel_count;
+    u16 array_size;
     texture_flag_bits flags;
     u32 generation;
     char name[TEXTURE_NAME_MAX_LENGTH];
@@ -268,6 +270,15 @@ typedef enum shader_stage
     SHADER_STAGE_COMPUTE = 0x0000008
 } shader_stage;
 
+typedef struct shader_stage_config
+{
+    shader_stage stage;
+    const char *name;
+    const char *filename;
+    u32 source_length;
+    char *source;
+} shader_stage_config;
+
 // Available attribute types
 typedef enum shader_attribute_type
 {
@@ -298,7 +309,13 @@ typedef enum shader_uniform_type
     SHADER_UNIFORM_TYPE_INT32 = 8U,
     SHADER_UNIFORM_TYPE_UINT32 = 9U,
     SHADER_UNIFORM_TYPE_MATRIX_4 = 10U,
-    SHADER_UNIFORM_TYPE_SAMPLER = 11U,
+    SHADER_UNIFORM_TYPE_SAMPLER_1D = 11U,
+    SHADER_UNIFORM_TYPE_SAMPLER_2D = 12U,
+    SHADER_UNIFORM_TYPE_SAMPLER_3D = 13U,
+    SHADER_UNIFORM_TYPE_SAMPLER_CUBE = 14U,
+    SHADER_UNIFORM_TYPE_SAMPLER_1D_ARRAY = 15U,
+    SHADER_UNIFORM_TYPE_SAMPLER_2D_ARRAY = 16U,
+    SHADER_UNIFORM_TYPE_SAMPLER_CUBE_ARRAY = 17U,
     SHADER_UNIFORM_TYPE_CUSTOM = 255U
 } shader_uniform_type;
 
@@ -339,6 +356,8 @@ typedef struct shader_uniform_config
     u32 location;
     // The type of the uniform
     shader_uniform_type type;
+    // The array length, if uniform is an array
+    u32 array_length;
     // The scope of the uniform
     shader_scope scope;
 } shader_uniform_config;
@@ -367,12 +386,12 @@ typedef struct shader_config
 
     // The number of stages present in the shader
     u8 stage_count;
-    // The collection of stages. Darray
-    shader_stage* stages;
-    // The collection of stage names. Must align with stages array. Darray
-    char** stage_names;
-    // The collection of stage file names to be loaded (one per stage). Must align with stages array. Darray
-    char** stage_filenames;
+
+    // Collection of stage configs
+    shader_stage_config *stage_configs;
+
+    // Maximum number of instances allowed
+    u32 max_instances;
 
     // Flags set for this shader
     u32 flags;
@@ -382,10 +401,8 @@ typedef enum material_type
 {
     // Invalid
     MATERIAL_TYPE_UNKNOWN = 0,
-    MATERIAL_TYPE_PHONG = 1,
-    MATERIAL_TYPE_PBR = 2,
-    MATERIAL_TYPE_UI = 3,
-    MATERIAL_TYPE_TERRAIN = 4,
+    MATERIAL_TYPE_PBR = 1,
+    MATERIAL_TYPE_TERRAIN = 2,
     MATERIAL_TYPE_CUSTOM = 99
 } material_type;
 
@@ -439,11 +456,6 @@ typedef struct material_phong_properties
     vec3 padding;
     f32 shininess;
 } material_phong_properties;
-
-typedef struct material_ui_properties
-{
-    vec4 diffuse_color;
-} material_ui_properties;
 
 typedef struct material_terrain_properties
 {

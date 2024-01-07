@@ -88,11 +88,13 @@ typedef struct vulkan_image
     VkImage handle;
     VkDeviceMemory memory;
     VkImageView view;
+    VkImageView* layer_views;
     VkMemoryRequirements memory_requirements;
     VkMemoryPropertyFlags memory_flags;
     VkFormat format;
     u32 width;
     u32 height;
+    u16 layer_count;
     char* name;
     u32 mip_levels;
 } vulkan_image;
@@ -195,12 +197,6 @@ typedef struct vulkan_pipeline
     u32 supported_topology_types;
 } vulkan_pipeline;
 
-// Max number of material instances
-// TODO: make configurable
-#define VULKAN_MAX_MATERIAL_COUNT 1024
-
-#define VULKAN_MAX_UI_COUNT 1024
-
 #define VULKAN_SHADER_MAX_STAGES 8
 #define VULKAN_SHADER_MAX_GLOBAL_TEXTURES 31
 #define VULKAN_SHADER_MAX_INSTANCE_TEXTURES 31
@@ -208,27 +204,53 @@ typedef struct vulkan_pipeline
 
 #define VULKAN_SHADER_MAX_UNIFORMS 128
 
-#define VULKAN_SHADER_MAX_BINDINGS 2
 #define VULKAN_SHADER_MAX_PUSH_CONST_RANGES 32
-
-typedef struct vulkan_shader_stage_config
-{
-    VkShaderStageFlagBits stage;
-    char file_name[255];
-} vulkan_shader_stage_config;
 
 typedef struct vulkan_descriptor_set_config
 {
     u8 binding_count;
-    VkDescriptorSetLayoutBinding bindings[VULKAN_SHADER_MAX_BINDINGS];
-    u8 sampler_binding_index;
+    VkDescriptorSetLayoutBinding* bindings;
+    u8 sampler_binding_index_start;
 } vulkan_descriptor_set_config;
 
-typedef struct vulkan_shader_config
+typedef struct vulkan_descriptor_state
 {
-    u8 stage_count;
-    vulkan_shader_stage_config stages[VULKAN_SHADER_MAX_STAGES];
-    VkDescriptorPoolSize pool_sizes[2];
+    u8 generations[3];
+    u32 ids[3];
+} vulkan_descriptor_state;
+
+typedef struct vulkan_uniform_sampler_state
+{
+    struct shader_uniform* uniform;
+
+    struct texture_map** uniform_texture_maps;
+
+    vulkan_descriptor_state* descriptor_states;
+} vulkan_uniform_sampler_state;
+
+// Instance-level state for a shader
+typedef struct vulkan_shader_instance_state
+{
+    u32 id;
+    u64 offset;
+
+    // TODO: handle frame counts other than 3
+    VkDescriptorSet descriptor_sets[3];
+
+    // UBO descriptor
+    vulkan_descriptor_state ubo_descriptor_state;
+
+    // A mapping of sampler uniforms to descriptors and texture maps
+    vulkan_uniform_sampler_state* sampler_uniforms;
+} vulkan_shader_instance_state;
+
+typedef struct vulkan_shader
+{
+    void* mapped_uniform_buffer_block;
+    void* local_push_constant_block;
+
+    u32 id;
+
     u16 max_descriptor_set_count;
 
     u8 descriptor_set_count;
@@ -237,48 +259,32 @@ typedef struct vulkan_shader_config
     VkVertexInputAttributeDescription attributes[VULKAN_SHADER_MAX_ATTRIBUTES];
 
     face_cull_mode cull_mode;
-} vulkan_shader_config;
 
-typedef struct vulkan_descriptor_state
-{
-    u8 generations[3];
-    u32 ids[3];
-} vulkan_descriptor_state;
-
-typedef struct vulkan_shader_descriptor_set_state
-{
-    VkDescriptorSet descriptor_sets[3];
-
-    vulkan_descriptor_state descriptor_states[VULKAN_SHADER_MAX_BINDINGS];
-} vulkan_shader_descriptor_set_state;
-
-// Instance-level state for a shader
-typedef struct vulkan_shader_instance_state
-{
-    u32 id;
-    u64 offset;
-
-    vulkan_shader_descriptor_set_state descriptor_set_state;
-
-    struct texture_map** instance_texture_maps;
-} vulkan_shader_instance_state;
-
-typedef struct vulkan_shader
-{
-    void* mapped_uniform_buffer_block;
-
-    u32 id;
-
-    vulkan_shader_config config;
+    u32 max_instances;
 
     vulkan_renderpass* renderpass;
 
+    u8 stage_count;
+
     vulkan_shader_stage stages[VULKAN_SHADER_MAX_STAGES];
+
+    u32 pool_size_count;
+
+    VkDescriptorPoolSize pool_sizes[2];
 
     VkDescriptorPool descriptor_pool;
 
     VkDescriptorSetLayout descriptor_set_layouts[2];
+
+    // TODO: handle frame counts other than 3
     VkDescriptorSet global_descriptor_sets[3];
+
+    // UBO descriptor
+    vulkan_descriptor_state global_ubo_descriptor_state;
+
+    // A mapping of sampler uniforms to descriptors and texture maps
+    vulkan_uniform_sampler_state* global_sampler_uniforms;
+
     renderbuffer uniform_buffer;
 
     vulkan_pipeline** pipelines;
@@ -287,14 +293,7 @@ typedef struct vulkan_shader
     VkPrimitiveTopology current_topology;
 
     // TODO: make dynamic
-    u32 instance_count;
-    vulkan_shader_instance_state instance_states[VULKAN_MAX_MATERIAL_COUNT];
-
-    u8 global_uniform_count;
-    u8 global_uniform_sampler_count;
-    u8 instance_uniform_count;
-    u8 instance_uniform_sampler_count;
-    u8 local_uniform_count;
+    vulkan_shader_instance_state* instance_states;
 } vulkan_shader;
 
 // Forward declare shaderc compiler
