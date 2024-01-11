@@ -31,7 +31,6 @@ void vulkan_image_view_create(
 // Transitions provided image from old_layout to new_layout
 void vulkan_image_transition_layout(
     vulkan_context* context,
-    texture_type type,
     vulkan_command_buffer* command_buffer,
     vulkan_image* image,
     VkFormat format,
@@ -53,7 +52,6 @@ b8 vulkan_image_mipmaps_generate(
  */
 void vulkan_image_copy_from_buffer(
     vulkan_context* context,
-    texture_type type,
     vulkan_image* image,
     VkBuffer buffer,
     u64 offset,
@@ -61,14 +59,12 @@ void vulkan_image_copy_from_buffer(
 
 void vulkan_image_copy_to_buffer(
     vulkan_context* context,
-    texture_type type,
     vulkan_image* image,
     VkBuffer buffer,
     vulkan_command_buffer* command_buffer);
 
 void vulkan_image_copy_pixel_to_buffer(
     vulkan_context* context,
-    texture_type type,
     vulkan_image* image,
     VkBuffer buffer,
     u32 x,

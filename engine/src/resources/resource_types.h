@@ -90,7 +90,9 @@ typedef enum texture_type
 {
     TEXTURE_TYPE_2D,
     TEXTURE_TYPE_2D_ARRAY,
-    TEXTURE_TYPE_CUBE
+    TEXTURE_TYPE_CUBE,
+    TEXTURE_TYPE_CUBE_ARRAY, // NOTE: Cube array texture, used for arrays of cubemaps
+    TEXTURE_TYPE_COUNT
 } texture_type;
 
 #define TEXTURE_NAME_MAX_LENGTH 512
@@ -488,7 +490,7 @@ typedef struct material
     u32 shader_id;
 
     u64 render_frame_number;
-    u64 render_draw_index;
+    u8 render_draw_index;
 } material;
 
 typedef struct skybox_simple_scene_config

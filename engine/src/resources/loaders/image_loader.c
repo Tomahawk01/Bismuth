@@ -13,6 +13,9 @@
 #define STBI_NO_STDIO // use own filesystem
 #include "vendor/stb_image.h"
 
+#define IMAGE_EXTENSION_COUNT 4
+static char *supported_extensions[IMAGE_EXTENSION_COUNT] = {".tga", ".png", ".jpg", ".bmp"};
+
 static b8 image_loader_load(struct resource_loader* self, const char* name, void* params, resource* out_resource)
 {
     if (!self || !name || !out_resource)
@@ -26,12 +29,10 @@ static b8 image_loader_load(struct resource_loader* self, const char* name, void
     char full_file_path[512];
 
     // Try different extensions
-    #define IMAGE_EXTENSION_COUND 4
     b8 found = false;
-    char* extensions[IMAGE_EXTENSION_COUND] = {".tga", ".png", ".jpg", ".bmp"};
-    for (u32 i = 0; i < IMAGE_EXTENSION_COUND; ++i)
+    for (u32 i = 0; i < IMAGE_EXTENSION_COUNT; ++i)
     {
-        string_format(full_file_path, format_str, resource_system_base_path(), self->type_path, name, extensions[i]);
+        string_format(full_file_path, format_str, resource_system_base_path(), self->type_path, name, supported_extensions[i]);
         if (filesystem_exists(full_file_path))
         {
             found = true;
@@ -125,6 +126,98 @@ static void image_loader_unload(struct resource_loader* self, resource* resource
     stbi_image_free(((image_resource_data*)resource->data)->pixels);
     if (!resource_unload(self, resource, MEMORY_TAG_TEXTURE))
         BWARN("image_loader_unload called with nullptr for self or resource");
+}
+
+b8 image_loader_query_properties(const char *image_name, i32 *out_width, i32 *out_height, i32 *out_channels, u32 *out_mip_levels)
+{
+    // Query the resource system for the "base path by resource type" and pass image
+    const char* image_base_path = resource_system_base_path_for_type(RESOURCE_TYPE_IMAGE);
+    if (!image_base_path)
+    {
+        BERROR("Unable to query image base path. Cannot query image properties as a result");
+        return false;
+    }
+
+    char *format_str = "%s/%s%s";
+    stbi_set_flip_vertically_on_load_thread(true);
+    char full_file_path[512];
+
+    // Try each supported extension to see if the image file exists
+    b8 found = false;
+    for (u32 i = 0; i < IMAGE_EXTENSION_COUNT; ++i)
+    {
+        string_format(full_file_path, format_str, image_base_path, image_name, supported_extensions[i]);
+        if (filesystem_exists(full_file_path))
+        {
+            found = true;
+            break;
+        }
+    }
+    string_free((char *)image_base_path);
+
+    if (!found)
+    {
+        BERROR("Unable to find image named '%s'", image_name);
+        return false;
+    }
+
+    file_handle f;
+    if (!filesystem_open(full_file_path, FILE_MODE_READ, true, &f))
+    {
+        BERROR("Unable to read file: %s", full_file_path);
+        filesystem_close(&f);
+        return false;
+    }
+
+    u64 file_size = 0;
+    if (!filesystem_size(&f, &file_size))
+    {
+        BERROR("Unable to get size of file: %s", full_file_path);
+        filesystem_close(&f);
+        return false;
+    }
+
+    // The final result of all operations from here down
+    b8 final_result = true;
+
+    u8 *raw_data = ballocate(file_size, MEMORY_TAG_TEXTURE);
+    if (!raw_data)
+    {
+        BERROR("Unable to read file '%s'", full_file_path);
+        filesystem_close(&f);
+        final_result = false;
+        goto image_loader_query_return;
+    }
+
+    u64 bytes_read = 0;
+    b8 read_result = filesystem_read_all_bytes(&f, raw_data, &bytes_read);
+    filesystem_close(&f);
+
+    if (!read_result)
+    {
+        BERROR("Unable to read file: '%s'", full_file_path);
+        final_result = false;
+        goto image_loader_query_return;
+    }
+
+    i32 result = stbi_info_from_memory(raw_data, bytes_read, out_width, out_height, out_channels);
+    if (result == 0)
+    {
+        BERROR("Failed to query image data from memory");
+        final_result = false;
+        goto image_loader_query_return;
+    }
+
+    // The number of mip levels is calculated by first taking the largest dimension,
+    // figuring out how many times that number can be divided by 2,
+    // taking the floor value (rounding down) and adding 1 to represent the base level
+    *out_mip_levels = (u32)(bfloor(blog2(BMAX(*out_width, *out_height))) + 1);
+
+image_loader_query_return:
+    if (raw_data)
+        bfree(raw_data, file_size, MEMORY_TAG_TEXTURE);
+
+    return final_result;
 }
 
 resource_loader image_resource_loader_create(void)
