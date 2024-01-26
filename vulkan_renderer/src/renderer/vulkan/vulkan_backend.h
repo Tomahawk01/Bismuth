@@ -11,6 +11,8 @@ struct frame_data;
 b8 vulkan_renderer_backend_initialize(renderer_plugin* backend, const renderer_backend_config* config, u8* out_window_render_target_count);
 void vulkan_renderer_backend_shutdown(renderer_plugin* backend);
 void vulkan_renderer_backend_on_resized(renderer_plugin* backend, u16 width, u16 height);
+void vulkan_renderer_begin_debug_label(renderer_plugin* plugin, const char* label_text, vec3 color);
+void vulkan_renderer_end_debug_label(renderer_plugin* plugin);
 b8 vulkan_renderer_frame_prepare(renderer_plugin* backend, struct frame_data* p_frame_data);
 b8 vulkan_renderer_begin(renderer_plugin* plugin, struct frame_data* p_frame_data);
 b8 vulkan_renderer_end(renderer_plugin* plugin, struct frame_data* p_frame_data);
@@ -35,14 +37,16 @@ void vulkan_renderer_texture_create(renderer_plugin* backend, const u8* pixels, 
 void vulkan_renderer_texture_destroy(renderer_plugin* backend, texture* texture);
 void vulkan_renderer_texture_create_writeable(renderer_plugin* backend, texture* t);
 void vulkan_renderer_texture_resize(renderer_plugin* backend, texture* t, u32 new_width, u32 new_height);
-void vulkan_renderer_texture_write_data(renderer_plugin* backend, texture* t, u32 offset, u32 size, const u8* pixels);
+void vulkan_renderer_texture_write_data(renderer_plugin* backend, texture* t, u32 offset, u32 size, const u8* pixels, b8 include_in_frame_workload);
 void vulkan_renderer_texture_read_data(renderer_plugin* backend, texture* t, u32 offset, u32 size, void** out_memory);
 void vulkan_renderer_texture_read_pixel(renderer_plugin* backend, texture* t, u32 x, u32 y, u8** out_rgba);
 
 b8 vulkan_renderer_shader_create(renderer_plugin* backend, struct shader* shader, const shader_config* config, renderpass* pass);
 void vulkan_renderer_shader_destroy(renderer_plugin* backend, struct shader* shader);
 b8 vulkan_renderer_shader_initialize(renderer_plugin* backend, struct shader* shader);
+b8 vulkan_renderer_shader_reload(renderer_plugin* plugin, struct shader* s);
 b8 vulkan_renderer_shader_use(renderer_plugin* backend, struct shader* shader);
+b8 vulkan_renderer_shader_supports_wireframe(const renderer_plugin* plugin, const struct shader* s);
 b8 vulkan_renderer_shader_bind_globals(renderer_plugin* backend, struct shader* s);
 b8 vulkan_renderer_shader_bind_instance(renderer_plugin* backend, struct shader* s, u32 instance_id);
 b8 vulkan_renderer_shader_bind_local(renderer_plugin* backend, struct shader* s);
@@ -82,6 +86,6 @@ void* vulkan_buffer_map_memory(renderer_plugin* backend, renderbuffer* buffer, u
 void vulkan_buffer_unmap_memory(renderer_plugin* backend, renderbuffer* buffer, u64 offset, u64 size);
 b8 vulkan_buffer_flush(renderer_plugin* backend, renderbuffer* buffer, u64 offset, u64 size);
 b8 vulkan_buffer_read(renderer_plugin* backend, renderbuffer* buffer, u64 offset, u64 size, void** out_memory);
-b8 vulkan_buffer_load_range(renderer_plugin* backend, renderbuffer* buffer, u64 offset, u64 size, const void* data);
-b8 vulkan_buffer_copy_range(renderer_plugin* backend, renderbuffer* source, u64 source_offset, renderbuffer* dest, u64 dest_offset, u64 size);
+b8 vulkan_buffer_load_range(renderer_plugin* backend, renderbuffer* buffer, u64 offset, u64 size, const void* data, b8 include_in_frame_workload);
+b8 vulkan_buffer_copy_range(renderer_plugin* backend, renderbuffer* source, u64 source_offset, renderbuffer* dest, u64 dest_offset, u64 size, b8 include_in_frame_workload);
 b8 vulkan_buffer_draw(renderer_plugin* backend, renderbuffer* buffer, u64 offset, u32 element_count, b8 bind_only);

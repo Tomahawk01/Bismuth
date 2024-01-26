@@ -1090,6 +1090,7 @@ static b8 create_texture(texture* t, texture_type type, u32 width, u32 height, u
         switch (t->type)
         {
             case TEXTURE_TYPE_CUBE:
+            {
                 char texture_names[6][TEXTURE_NAME_MAX_LENGTH];
 
                 // +X,-X,+Y,-Y,+Z,-Z in _cubemap_ space, which is LH y-down
@@ -1105,18 +1106,21 @@ static b8 create_texture(texture* t, texture_type type, u32 width, u32 height, u
                     BERROR("Failed to load cube texture '%s'", t->name);
                     return false;
                 }
-                break;
+            } break;
             case TEXTURE_TYPE_2D:
             case TEXTURE_TYPE_2D_ARRAY:
+            {
                 if (!load_texture(t->name, t, layer_texture_names))
                 {
                     BERROR("Failed to load texture '%s'", t->name);
                     return false;
                 }
-                break;
+            } break;
             default:
+            {
                 BERROR("Unrecognized texture type %u. Cannot process texture reference", t->type);
                 return false;
+            }
         }
     }
 

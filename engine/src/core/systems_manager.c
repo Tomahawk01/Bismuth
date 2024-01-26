@@ -71,12 +71,23 @@ b8 systems_manager_update(systems_manager_state* state, struct frame_data* p_fra
     return true;
 }
 
+void systems_manager_renderer_frame_prepare(systems_manager_state* state, const struct frame_data* p_frame_data)
+{
+    for (u32 i = 0; i < B_SYSTEM_TYPE_MAX_COUNT; ++i)
+    {
+        b_system* s = &state->systems[i];
+        if (s->render_prepare_frame)
+            s->render_prepare_frame(s->state, p_frame_data);
+    }
+}
+
 b8 systems_manager_register(
     systems_manager_state* state,
     u16 type,
     PFN_system_initialize initialize,
     PFN_system_shutdown shutdown,
     PFN_system_update update,
+    PFN_system_render_prepare_frame prepare_frame,
     void* config)
 {
     b_system* sys = &state->systems[type];
@@ -111,6 +122,7 @@ b8 systems_manager_register(
 
     sys->shutdown = shutdown;
     sys->update = update;
+    sys->render_prepare_frame = prepare_frame;
 
     return true;
 }
@@ -126,35 +138,35 @@ void* systems_manager_get_state(u16 type)
 static b8 register_known_systems_pre_boot(systems_manager_state* state, application_config* app_config)
 {
     // Memory
-    if (!systems_manager_register(state, B_SYSTEM_TYPE_MEMORY, 0, memory_system_shutdown, 0, 0))
+    if (!systems_manager_register(state, B_SYSTEM_TYPE_MEMORY, 0, memory_system_shutdown, 0, 0, 0))
     {
         BERROR("Failed to register memory system");
         return false;
     }
 
     // Console
-    if (!systems_manager_register(state, B_SYSTEM_TYPE_CONSOLE, console_initialize, console_shutdown, 0, 0))
+    if (!systems_manager_register(state, B_SYSTEM_TYPE_CONSOLE, console_initialize, console_shutdown, 0, 0, 0))
     {
         BERROR("Failed to register console system");
         return false;
     }
 
     // BVars
-    if (!systems_manager_register(state, B_SYSTEM_TYPE_BVAR, bvar_initialize, bvar_shutdown, 0, 0))
+    if (!systems_manager_register(state, B_SYSTEM_TYPE_BVAR, bvar_initialize, bvar_shutdown, 0, 0, 0))
     {
         BERROR("Failed to register BVar system");
         return false;
     }
 
     // Events
-    if (!systems_manager_register(state, B_SYSTEM_TYPE_EVENT, event_system_initialize, event_system_shutdown, 0, 0))
+    if (!systems_manager_register(state, B_SYSTEM_TYPE_EVENT, event_system_initialize, event_system_shutdown, 0, 0, 0))
     {
         BERROR("Failed to register event system");
         return false;
     }
 
     // Logging
-    if (!systems_manager_register(state, B_SYSTEM_TYPE_LOGGING, logging_initialize, logging_shutdown, 0, 0))
+    if (!systems_manager_register(state, B_SYSTEM_TYPE_LOGGING, logging_initialize, logging_shutdown, 0, 0, 0))
     {
         BERROR("Failed to register logging system");
         return false;
@@ -169,7 +181,7 @@ static b8 register_known_systems_pre_boot(systems_manager_state* state, applicat
     BINFO("Bismuth Engine v. %s (%s)", BVERSION, build_type);
 
     // Input
-    if (!systems_manager_register(state, B_SYSTEM_TYPE_INPUT, input_system_initialize, input_system_shutdown, 0, 0))
+    if (!systems_manager_register(state, B_SYSTEM_TYPE_INPUT, input_system_initialize, input_system_shutdown, 0, 0, 0))
     {
         BERROR("Failed to register input system");
         return false;
@@ -182,7 +194,7 @@ static b8 register_known_systems_pre_boot(systems_manager_state* state, applicat
     plat_config.y = app_config->start_pos_y;
     plat_config.width = app_config->start_width;
     plat_config.height = app_config->start_height;
-    if (!systems_manager_register(state, B_SYSTEM_TYPE_PLATFORM, platform_system_startup, platform_system_shutdown, 0, &plat_config))
+    if (!systems_manager_register(state, B_SYSTEM_TYPE_PLATFORM, platform_system_startup, platform_system_shutdown, 0, 0, &plat_config))
     {
         BERROR("Failed to register platform system");
         return false;
@@ -192,7 +204,7 @@ static b8 register_known_systems_pre_boot(systems_manager_state* state, applicat
     resource_system_config resource_sys_config;
     resource_sys_config.asset_base_path = "../assets";
     resource_sys_config.max_loader_count = 32;
-    if (!systems_manager_register(state, B_SYSTEM_TYPE_RESOURCE, resource_system_initialize, resource_system_shutdown, 0, &resource_sys_config))
+    if (!systems_manager_register(state, B_SYSTEM_TYPE_RESOURCE, resource_system_initialize, resource_system_shutdown, 0, 0, &resource_sys_config))
     {
         BERROR("Failed to register resource system");
         return false;
@@ -204,7 +216,7 @@ static b8 register_known_systems_pre_boot(systems_manager_state* state, applicat
     shader_sys_config.max_uniform_count = 128;
     shader_sys_config.max_global_textures = 31;
     shader_sys_config.max_instance_textures = 31;
-    if (!systems_manager_register(state, B_SYSTEM_TYPE_SHADER, shader_system_initialize, shader_system_shutdown, 0, &shader_sys_config))
+    if (!systems_manager_register(state, B_SYSTEM_TYPE_SHADER, shader_system_initialize, shader_system_shutdown, 0, 0, &shader_sys_config))
     {
         BERROR("Failed to register shader system");
         return false;
@@ -214,7 +226,7 @@ static b8 register_known_systems_pre_boot(systems_manager_state* state, applicat
     renderer_system_config renderer_sys_config = {0};
     renderer_sys_config.application_name = app_config->name;
     renderer_sys_config.plugin = app_config->renderer_plugin;
-    if (!systems_manager_register(state, B_SYSTEM_TYPE_RENDERER, renderer_system_initialize, renderer_system_shutdown, 0, &renderer_sys_config))
+    if (!systems_manager_register(state, B_SYSTEM_TYPE_RENDERER, renderer_system_initialize, renderer_system_shutdown, 0, 0, &renderer_sys_config))
     {
         BERROR("Failed to register renderer system");
         return false;
@@ -268,7 +280,7 @@ static b8 register_known_systems_pre_boot(systems_manager_state* state, applicat
     job_system_config job_sys_config = {0};
     job_sys_config.max_job_thread_count = thread_count;
     job_sys_config.type_masks = job_thread_types;
-    if (!systems_manager_register(state, B_SYSTEM_TYPE_JOB, job_system_initialize, job_system_shutdown, job_system_update, &job_sys_config))
+    if (!systems_manager_register(state, B_SYSTEM_TYPE_JOB, job_system_initialize, job_system_shutdown, job_system_update, 0, &job_sys_config))
     {
         BERROR("Failed to register job system");
         return false;
@@ -278,7 +290,7 @@ static b8 register_known_systems_pre_boot(systems_manager_state* state, applicat
     audio_system_config audio_sys_config = {0};
     audio_sys_config.plugin = app_config->audio_plugin;
     audio_sys_config.audio_channel_count = 8;
-    if (!systems_manager_register(state, B_SYSTEM_TYPE_AUDIO, audio_system_initialize, audio_system_shutdown, audio_system_update, &audio_sys_config))
+    if (!systems_manager_register(state, B_SYSTEM_TYPE_AUDIO, audio_system_initialize, audio_system_shutdown, audio_system_update, 0, &audio_sys_config))
     {
         BERROR("Failed to register audio system");
         return false;
@@ -337,14 +349,14 @@ static b8 register_known_systems_post_boot(systems_manager_state* state, applica
     // Texture system
     texture_system_config texture_sys_config;
     texture_sys_config.max_texture_count = 65536;
-    if (!systems_manager_register(state, B_SYSTEM_TYPE_TEXTURE, texture_system_initialize, texture_system_shutdown, 0, &texture_sys_config))
+    if (!systems_manager_register(state, B_SYSTEM_TYPE_TEXTURE, texture_system_initialize, texture_system_shutdown, 0, 0, &texture_sys_config))
     {
         BERROR("Failed to register texture system");
         return false;
     }
 
     // Font system
-    if (!systems_manager_register(state, B_SYSTEM_TYPE_FONT, font_system_initialize, font_system_shutdown, 0, &app_config->font_config))
+    if (!systems_manager_register(state, B_SYSTEM_TYPE_FONT, font_system_initialize, font_system_shutdown, 0, 0, &app_config->font_config))
     {
         BERROR("Failed to register font system");
         return false;
@@ -353,7 +365,7 @@ static b8 register_known_systems_post_boot(systems_manager_state* state, applica
     // Camera
     camera_system_config camera_sys_config;
     camera_sys_config.max_camera_count = 61;
-    if (!systems_manager_register(state, B_SYSTEM_TYPE_CAMERA, camera_system_initialize, camera_system_shutdown, 0, &camera_sys_config))
+    if (!systems_manager_register(state, B_SYSTEM_TYPE_CAMERA, camera_system_initialize, camera_system_shutdown, 0, 0, &camera_sys_config))
     {
         BERROR("Failed to register camera system");
         return false;
@@ -362,7 +374,7 @@ static b8 register_known_systems_post_boot(systems_manager_state* state, applica
     // Material system
     material_system_config material_sys_config;
     material_sys_config.max_material_count = 4096;
-    if (!systems_manager_register(state, B_SYSTEM_TYPE_MATERIAL, material_system_initialize, material_system_shutdown, 0, &material_sys_config))
+    if (!systems_manager_register(state, B_SYSTEM_TYPE_MATERIAL, material_system_initialize, material_system_shutdown, 0, 0, &material_sys_config))
     {
         BERROR("Failed to register material system");
         return false;
@@ -371,14 +383,14 @@ static b8 register_known_systems_post_boot(systems_manager_state* state, applica
     // Geometry system
     geometry_system_config geometry_sys_config;
     geometry_sys_config.max_geometry_count = 4096;
-    if (!systems_manager_register(state, B_SYSTEM_TYPE_GEOMETRY, geometry_system_initialize, geometry_system_shutdown, 0, &geometry_sys_config))
+    if (!systems_manager_register(state, B_SYSTEM_TYPE_GEOMETRY, geometry_system_initialize, geometry_system_shutdown, 0, 0, &geometry_sys_config))
     {
         BERROR("Failed to register geometry system");
         return false;
     }
 
     // Light system
-    if (!systems_manager_register(state, B_SYSTEM_TYPE_LIGHT, light_system_initialize, light_system_shutdown, 0, 0))
+    if (!systems_manager_register(state, B_SYSTEM_TYPE_LIGHT, light_system_initialize, light_system_shutdown, 0, 0, 0))
     {
         BERROR("Failed to register light system");
         return false;

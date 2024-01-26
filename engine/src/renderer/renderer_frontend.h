@@ -19,6 +19,9 @@ BAPI void renderer_system_shutdown(void* state);
 
 BAPI void renderer_on_resized(u16 width, u16 height);
 
+BAPI void renderer_begin_debug_label(const char* label_text, vec3 color);
+BAPI void renderer_end_debug_label(void);
+
 BAPI b8 renderer_frame_prepare(struct frame_data* p_frame_data);
 BAPI b8 renderer_begin(struct frame_data* p_frame_data);
 BAPI b8 renderer_end(struct frame_data* p_frame_data);
@@ -58,7 +61,7 @@ BAPI renderbuffer* renderer_renderbuffer_get(renderbuffer_type type);
 
 BAPI b8 renderer_geometry_create(geometry* geometry, u32 vertex_size, u32 vertex_count, const void* vertices, u32 index_size, u32 index_count, const void* indices);
 BAPI b8 renderer_geometry_upload(geometry* geometry);
-BAPI void renderer_geometry_vertex_update(geometry* g, u32 offset, u32 vertex_count, void* vertices);
+BAPI void renderer_geometry_vertex_update(geometry* g, u32 offset, u32 vertex_count, void* vertices, b8 include_in_frame_workload);
 BAPI void renderer_geometry_destroy(geometry* geometry);
 
 BAPI void renderer_geometry_draw(geometry_render_data* data);
@@ -70,8 +73,11 @@ BAPI b8 renderer_shader_create(struct shader* s, const shader_config* config, re
 BAPI void renderer_shader_destroy(struct shader* s);
 
 BAPI b8 renderer_shader_initialize(struct shader* s);
+BAPI b8 renderer_shader_reload(struct shader* s);
 
 BAPI b8 renderer_shader_use(struct shader* s);
+
+BAPI b8 renderer_shader_set_wireframe(struct shader* s, b8 wireframe_enabled);
 
 BAPI b8 renderer_shader_bind_globals(struct shader* s);
 BAPI b8 renderer_shader_bind_instance(struct shader* s, u32 instance_id);
@@ -130,8 +136,8 @@ BAPI b8 renderer_renderbuffer_allocate(renderbuffer* buffer, u64 size, u64* out_
 BAPI b8 renderer_renderbuffer_free(renderbuffer* buffer, u64 size, u64 offset);
 BAPI b8 renderer_renderbuffer_clear(renderbuffer* buffer, b8 zero_memory);
 
-BAPI b8 renderer_renderbuffer_load_range(renderbuffer* buffer, u64 offset, u64 size, const void* data);
-BAPI b8 renderer_renderbuffer_copy_range(renderbuffer* source, u64 source_offset, renderbuffer* dest, u64 dest_offset, u64 size);
+BAPI b8 renderer_renderbuffer_load_range(renderbuffer* buffer, u64 offset, u64 size, const void* data, b8 include_in_frame_workload);
+BAPI b8 renderer_renderbuffer_copy_range(renderbuffer* source, u64 source_offset, renderbuffer* dest, u64 dest_offset, u64 size, b8 include_in_frame_workload);
 
 BAPI b8 renderer_renderbuffer_draw(renderbuffer* buffer, u64 offset, u32 element_count, b8 bind_only);
 

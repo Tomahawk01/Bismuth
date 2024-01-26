@@ -54,7 +54,7 @@ static i32 find_memory_index(vulkan_context* context, u32 type_filter, u32 prope
 static void create_command_buffers(vulkan_context* context);
 static b8 recreate_swapchain(vulkan_context* context);
 static b8 create_shader_module(vulkan_context *context, shader *s, shader_stage_config *config, vulkan_shader_stage *out_stage);
-static b8 vulkan_buffer_copy_range_internal(vulkan_context* context, VkBuffer source, u64 source_offset, VkBuffer dest, u64 dest_offset, u64 size);
+static b8 vulkan_buffer_copy_range_internal(vulkan_context* context, VkBuffer source, u64 source_offset, VkBuffer dest, u64 dest_offset, u64 size, b8 queue_wait);
 
 #if BVULKAN_USE_CUSTOM_ALLOCATOR == 1
 void* vulkan_alloc_allocation(void* user_data, size_t size, size_t alignment, VkSystemAllocationScope allocation_scope)
@@ -193,6 +193,8 @@ b8 vulkan_renderer_backend_initialize(renderer_plugin* plugin, const renderer_ba
     plugin->internal_context = ballocate(plugin->internal_context_size, MEMORY_TAG_RENDERER);
 
     vulkan_context* context = (vulkan_context*)plugin->internal_context;
+    if (config->flags & RENDERER_CONFIG_FLAG_ENABLE_VALIDATION)
+        context->validation_enabled = true;
 
     // Function pointers
     context->find_memory_index = find_memory_index;
@@ -281,49 +283,55 @@ b8 vulkan_renderer_backend_initialize(renderer_plugin* plugin, const renderer_ba
     // Validation layers
     const char** required_validation_layer_names = 0;
     u32 required_validation_layer_count = 0;
-// If validation should be done, get a list of the required validation layer names
-// and make sure they exist. Validation layers should only be enabled on non-release builds.
-#if defined(_DEBUG)
-    BINFO("Validation layers enabled. Enumerating...");
 
-    // The list of validation layers required.
-    required_validation_layer_names = darray_create(const char*);
-    darray_push(required_validation_layer_names, &"VK_LAYER_KHRONOS_validation");
-    required_validation_layer_count = darray_length(required_validation_layer_names);
-
-    // Obtain a list of available validation layers
-    u32 available_layer_count = 0;
-    VK_CHECK(vkEnumerateInstanceLayerProperties(&available_layer_count, 0));
-    VkLayerProperties* available_layers = darray_reserve(VkLayerProperties, available_layer_count);
-    VK_CHECK(vkEnumerateInstanceLayerProperties(&available_layer_count, available_layers));
-
-    // Verify all required layers are available.
-    for (u32 i = 0; i < required_validation_layer_count; ++i)
+    // If validation should be done, get a list of the required validation layer names and make sure they exist
+    // Validation layers should only be enabled on non-release builds
+    if (context->validation_enabled)
     {
-        b8 found = false;
-        for (u32 j = 0; j < available_layer_count; ++j)
+        BINFO("Validation layers enabled. Enumerating...");
+
+        // The list of validation layers required
+        required_validation_layer_names = darray_create(const char*);
+        darray_push(required_validation_layer_names, &"VK_LAYER_KHRONOS_validation");
+        required_validation_layer_count = darray_length(required_validation_layer_names);
+
+        // Obtain a list of available validation layers
+        u32 available_layer_count = 0;
+        VK_CHECK(vkEnumerateInstanceLayerProperties(&available_layer_count, 0));
+        VkLayerProperties* available_layers = darray_reserve(VkLayerProperties, available_layer_count);
+        VK_CHECK(vkEnumerateInstanceLayerProperties(&available_layer_count, available_layers));
+
+        // Verify all required layers are available
+        for (u32 i = 0; i < required_validation_layer_count; ++i)
         {
-            if (strings_equal(required_validation_layer_names[i], available_layers[j].layerName))
+            b8 found = false;
+            for (u32 j = 0; j < available_layer_count; ++j)
             {
-                found = true;
-                BINFO("Found validation layer: %s...", required_validation_layer_names[i]);
-                break;
+                if (strings_equal(required_validation_layer_names[i], available_layers[j].layerName))
+                {
+                    found = true;
+                    BINFO("Found validation layer: %s...", required_validation_layer_names[i]);
+                    break;
+                }
+            }
+
+            if (!found)
+            {
+                BFATAL("Required validation layer is missing: %s", required_validation_layer_names[i]);
+                return false;
             }
         }
 
-        if (!found)
-        {
-            BFATAL("Required validation layer is missing: %s", required_validation_layer_names[i]);
-            return false;
-        }
+        // Clean up
+        darray_destroy(available_extensions);
+        darray_destroy(available_layers);
+
+        BINFO("All required validation layers are present");
     }
-
-    // Clean up
-    darray_destroy(available_extensions);
-    darray_destroy(available_layers);
-
-    BINFO("All required validation layers are present");
-#endif
+    else
+    {
+        BINFO("Vulkan validation layers are not enabled");
+    }
 
     create_info.enabledLayerCount = required_validation_layer_count;
     create_info.ppEnabledLayerNames = required_validation_layer_names;
@@ -552,6 +560,25 @@ void vulkan_renderer_backend_on_resized(renderer_plugin* plugin, u16 width, u16 
     context->framebuffer_size_generation++;
 
     BINFO("Vulkan renderer plugin->resized: w/h/gen: %i/%i/%llu", width, height, context->framebuffer_size_generation);
+}
+
+void vulkan_renderer_begin_debug_label(renderer_plugin *plugin, const char *label_text, vec3 color)
+{
+#ifdef _DEBUG
+    vulkan_context *context = (vulkan_context *)plugin->internal_context;
+    vulkan_command_buffer *command_buffer = &context->graphics_command_buffers[context->image_index];
+    vec4 rgba = (vec4){color.r, color.g, color.b, 1.0f};
+#endif
+    VK_BEGIN_DEBUG_LABEL(context, command_buffer->handle, label_text, rgba);
+}
+
+void vulkan_renderer_end_debug_label(renderer_plugin *plugin)
+{
+#ifdef _DEBUG
+    vulkan_context *context = (vulkan_context *)plugin->internal_context;
+    vulkan_command_buffer *command_buffer = &context->graphics_command_buffers[context->image_index];
+#endif
+    VK_END_DEBUG_LABEL(context, command_buffer->handle);
 }
 
 b8 vulkan_renderer_frame_prepare(renderer_plugin *plugin, struct frame_data *p_frame_data)
@@ -1013,12 +1040,9 @@ b8 vulkan_renderer_renderpass_begin(renderer_plugin* plugin, renderpass* pass, r
     command_buffer->state = COMMAND_BUFFER_STATE_IN_RENDER_PASS;
 
 #ifdef _DEBUG
-    f32 r = bfrandom_in_range(0.0f, 1.0f);
-    f32 g = bfrandom_in_range(0.0f, 1.0f);
-    f32 b = bfrandom_in_range(0.0f, 1.0f);
-    vec4 color = (vec4){r, g, b, 1.0f};
+    vec3 rgba = (vec3){bfrandom_in_range(0.0f, 1.0f), bfrandom_in_range(0.0f, 1.0f), bfrandom_in_range(0.0f, 1.0f)};
 #endif
-    VK_BEGIN_DEBUG_LABEL(context, command_buffer->handle, pass->name, color);
+    vulkan_renderer_begin_debug_label(plugin, pass->name, rgba);
 
     return true;
 }
@@ -1029,7 +1053,7 @@ b8 vulkan_renderer_renderpass_end(renderer_plugin* plugin, renderpass* pass)
     vulkan_command_buffer* command_buffer = &context->graphics_command_buffers[context->image_index];
     // End renderpass
     vkCmdEndRenderPass(command_buffer->handle);
-    VK_END_DEBUG_LABEL(context, command_buffer->handle);
+    vulkan_renderer_end_debug_label(plugin);
 
     command_buffer->state = COMMAND_BUFFER_STATE_RECORDING;
     return true;
@@ -1188,7 +1212,7 @@ void vulkan_renderer_texture_create(renderer_plugin* plugin, const u8* pixels, t
         image);
 
     // Load data
-    vulkan_renderer_texture_write_data(plugin, t, 0, size, pixels);
+    vulkan_renderer_texture_write_data(plugin, t, 0, size, pixels, false);
 
     t->generation++;
 }
@@ -1291,7 +1315,7 @@ void vulkan_renderer_texture_resize(renderer_plugin* plugin, texture* t, u32 new
     }
 }
 
-void vulkan_renderer_texture_write_data(renderer_plugin* plugin, texture* t, u32 offset, u32 size, const u8* pixels)
+void vulkan_renderer_texture_write_data(renderer_plugin* plugin, texture* t, u32 offset, u32 size, const u8* pixels, b8 include_in_frame_workload)
 {
     vulkan_context* context = (vulkan_context*)plugin->internal_context;
     vulkan_image* image = (vulkan_image*)t->internal_data;
@@ -1301,7 +1325,7 @@ void vulkan_renderer_texture_write_data(renderer_plugin* plugin, texture* t, u32
     // Staging buffer
     u64 staging_offset = 0;
     renderer_renderbuffer_allocate(&context->staging, size, &staging_offset);
-    vulkan_buffer_load_range(plugin, &context->staging, staging_offset, size, pixels);
+    vulkan_buffer_load_range(plugin, &context->staging, staging_offset, size, pixels, include_in_frame_workload);
 
     vulkan_command_buffer temp_command_buffer;
     VkCommandPool pool = context->device.graphics_command_pool;
@@ -1664,6 +1688,8 @@ void vulkan_renderer_shader_destroy(renderer_plugin* plugin, shader* s)
         {
             if (shader->pipelines[i])
                 vulkan_pipeline_destroy(context, shader->pipelines[i]);
+            if (shader->wireframe_pipelines && shader->wireframe_pipelines[i])
+                vulkan_pipeline_destroy(context, shader->wireframe_pipelines[i]);
         }
 
         // Shader modules
@@ -1676,22 +1702,173 @@ void vulkan_renderer_shader_destroy(renderer_plugin* plugin, shader* s)
     }
 }
 
-b8 vulkan_renderer_shader_initialize(renderer_plugin* plugin, shader* s)
+static b8 shader_create_modules_and_pipelines(renderer_plugin* plugin, shader* s)
 {
     vulkan_context* context = (vulkan_context*)plugin->internal_context;
-    VkDevice logical_device = context->device.logical_device;
-    VkAllocationCallbacks* vk_allocator = context->allocator;
     vulkan_shader* internal_shader = (vulkan_shader*)s->internal_data;
 
+    b8 has_error = false;
+
+    // Only dynamic topology is supported. Create one pipeline per topology class
+    u32 pipeline_count = 3;
+
+    vulkan_pipeline *new_pipelines = ballocate(sizeof(vulkan_pipeline) * pipeline_count, MEMORY_TAG_ARRAY);
+    vulkan_pipeline *new_wireframe_pipelines = 0;
+    if (internal_shader->wireframe_pipelines)
+        new_wireframe_pipelines = ballocate(sizeof(vulkan_pipeline) * pipeline_count, MEMORY_TAG_ARRAY);
+
     // Create module for each stage
-    bzero_memory(internal_shader->stages, sizeof(vulkan_shader_stage) * VULKAN_SHADER_MAX_STAGES);
+    vulkan_shader_stage *new_stages = ballocate(sizeof(vulkan_shader_stage) * VULKAN_SHADER_MAX_STAGES, MEMORY_TAG_ARRAY);
     for (u32 i = 0; i < internal_shader->stage_count; ++i)
     {
-        if (!create_shader_module(context, s, &s->stage_configs[i], &internal_shader->stages[i]))
+        if (!create_shader_module(context, s, &s->stage_configs[i], &new_stages[i]))
         {
             BERROR("Unable to create %s shader module for '%s'. Shader will be destroyed", s->stage_configs[i].filename, s->name);
-            return false;
+            has_error = true;
+            goto shader_module_pipeline_cleanup;
         }
+    }
+
+    // Default viewport/scissor, can be dynamically overidden
+    VkViewport viewport;
+    viewport.x = 0.0f;
+    viewport.y = (f32)context->framebuffer_height;
+    viewport.width = (f32)context->framebuffer_width;
+    viewport.height = -(f32)context->framebuffer_height;
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+
+    // Scissor
+    VkRect2D scissor;
+    scissor.offset.x = scissor.offset.y = 0;
+    scissor.extent.width = context->framebuffer_width;
+    scissor.extent.height = context->framebuffer_height;
+
+    VkPipelineShaderStageCreateInfo stage_create_infos[VULKAN_SHADER_MAX_STAGES];
+    bzero_memory(stage_create_infos, sizeof(VkPipelineShaderStageCreateInfo) * VULKAN_SHADER_MAX_STAGES);
+    for (u32 i = 0; i < internal_shader->stage_count; ++i)
+        stage_create_infos[i] = new_stages[i].shader_stage_create_info;
+
+    // Loop through and config/create one pipeline per class. Null entries are skipped
+    for (u32 i = 0; i < pipeline_count; ++i)
+    {
+        if (!internal_shader->pipelines[i])
+            continue;
+
+        // Make sure the supported types are noted in the temp array pipelines
+        new_pipelines[i].supported_topology_types = internal_shader->pipelines[i]->supported_topology_types;
+        if (internal_shader->wireframe_pipelines)
+            new_wireframe_pipelines[i].supported_topology_types = internal_shader->wireframe_pipelines[i]->supported_topology_types;
+        
+        vulkan_pipeline_config pipeline_config = {0};
+        pipeline_config.renderpass = internal_shader->renderpass;
+        pipeline_config.stride = s->attribute_stride;
+        pipeline_config.attribute_count = darray_length(s->attributes);
+        pipeline_config.attributes = internal_shader->attributes;
+        pipeline_config.descriptor_set_layout_count = internal_shader->descriptor_set_count;
+        pipeline_config.descriptor_set_layouts = internal_shader->descriptor_set_layouts;
+        pipeline_config.stage_count = internal_shader->stage_count;
+        pipeline_config.stages = stage_create_infos;
+        pipeline_config.viewport = viewport;
+        pipeline_config.scissor = scissor;
+        pipeline_config.cull_mode = internal_shader->cull_mode;
+
+        // Strip the wireframe flag if it's there
+        shader_flag_bits flags = s->flags;
+        flags &= ~(SHADER_FLAG_WIREFRAME);
+        pipeline_config.shader_flags = flags;
+        // NOTE: Always one block for the push constant
+        pipeline_config.push_constant_range_count = 1;
+        range push_constant_range;
+        push_constant_range.offset = 0;
+        push_constant_range.size = s->local_ubo_stride;
+        pipeline_config.push_constant_ranges = &push_constant_range;
+        pipeline_config.name = string_duplicate(s->name);
+        pipeline_config.topology_types = s->topology_types;
+
+        b8 pipeline_result = vulkan_graphics_pipeline_create(context, &pipeline_config, &new_pipelines[i]);
+
+        // Create the wireframe version
+        if (pipeline_result && new_wireframe_pipelines)
+        {
+            // Use the same config, but make sure the wireframe flag is set
+            pipeline_config.shader_flags |= SHADER_FLAG_WIREFRAME;
+            pipeline_result = vulkan_graphics_pipeline_create(context, &pipeline_config, &new_wireframe_pipelines[i]);
+        }
+
+        bfree(pipeline_config.name, string_length(pipeline_config.name) + 1, MEMORY_TAG_STRING);
+
+        if (!pipeline_result)
+        {
+            BERROR("Failed to load graphics pipeline for shader: '%s'", s->name);
+            has_error = true;
+            break;
+        }
+    }
+
+    // If failed, cleanup
+    if (has_error)
+    {
+        for (u32 i = 0; i < pipeline_count; ++i)
+        {
+            vulkan_pipeline_destroy(context, &new_pipelines[i]);
+            if (new_wireframe_pipelines)
+                vulkan_pipeline_destroy(context, &new_wireframe_pipelines[i]);
+        }
+        for (u32 i = 0; i < internal_shader->stage_count; ++i)
+            vkDestroyShaderModule(context->device.logical_device, new_stages[i].handle, context->allocator);
+        goto shader_module_pipeline_cleanup;
+    }
+
+    // In success, destroy the old pipelines and move the new pipelines over
+    vkDeviceWaitIdle(context->device.logical_device);
+    for (u32 i = 0; i < pipeline_count; ++i)
+    {
+        if (internal_shader->pipelines[i])
+        {
+            vulkan_pipeline_destroy(context, internal_shader->pipelines[i]);
+            bcopy_memory(internal_shader->pipelines[i], &new_pipelines[i], sizeof(vulkan_pipeline));
+        }
+        if (new_wireframe_pipelines)
+        {
+            if (internal_shader->wireframe_pipelines[i])
+            {
+                vulkan_pipeline_destroy(context, internal_shader->wireframe_pipelines[i]);
+                bcopy_memory(internal_shader->wireframe_pipelines[i], &new_wireframe_pipelines[i], sizeof(vulkan_pipeline));
+            }
+        }
+    }
+
+    // Destroy the old shader modules and copy over the new ones
+    for (u32 i = 0; i < internal_shader->stage_count; ++i)
+    {
+        vkDestroyShaderModule(context->device.logical_device, internal_shader->stages[i].handle, context->allocator);
+        bcopy_memory(&internal_shader->stages[i], &new_stages[i], sizeof(vulkan_shader_stage));
+    }
+
+shader_module_pipeline_cleanup:
+    bfree(new_pipelines, sizeof(vulkan_pipeline) * pipeline_count, MEMORY_TAG_ARRAY);
+    if (new_wireframe_pipelines)
+        bfree(new_wireframe_pipelines, sizeof(vulkan_pipeline) * pipeline_count, MEMORY_TAG_ARRAY);
+
+    bfree(new_stages, sizeof(vulkan_shader_stage) * VULKAN_SHADER_MAX_STAGES, MEMORY_TAG_ARRAY);
+
+    return !has_error;
+}
+
+b8 vulkan_renderer_shader_initialize(renderer_plugin *plugin, shader *s)
+{
+    vulkan_context *context = (vulkan_context *)plugin->internal_context;
+    VkDevice logical_device = context->device.logical_device;
+    VkAllocationCallbacks *vk_allocator = context->allocator;
+    vulkan_shader *internal_shader = (vulkan_shader *)s->internal_data;
+
+    b8 needs_wireframe = (s->flags & SHADER_FLAG_WIREFRAME) != 0;
+    // Determine if the implementation supports this and set to false if not
+    if (!context->device.features.fillModeNonSolid)
+    {
+        BINFO("Renderer backend does not support fillModeNonSolid. Wireframe mode is not possible, but was requested for the shader '%s'", s->name);
+        needs_wireframe = false;
     }
 
     // Static lookup table for types->Vulkan
@@ -1760,33 +1937,18 @@ b8 vulkan_renderer_shader_initialize(renderer_plugin* plugin, shader* s)
             return false;
         }
     }
-
-    // Viewport
-    // Default viewport/scissor, can be dynamically overidden
-    VkViewport viewport;
-    viewport.x = 0.0f;
-    viewport.y = (f32)context->framebuffer_height;
-    viewport.width = (f32)context->framebuffer_width;
-    viewport.height = -(f32)context->framebuffer_height;
-    viewport.minDepth = 0.0f;
-    viewport.maxDepth = 1.0f;
-
-    // Scissor
-    VkRect2D scissor;
-    scissor.offset.x = scissor.offset.y = 0;
-    scissor.extent.width = context->framebuffer_width;
-    scissor.extent.height = context->framebuffer_height;
-
-    VkPipelineShaderStageCreateInfo stage_create_infos[VULKAN_SHADER_MAX_STAGES];
-    bzero_memory(stage_create_infos, sizeof(VkPipelineShaderStageCreateInfo) * VULKAN_SHADER_MAX_STAGES);
-    for (u32 i = 0; i < internal_shader->stage_count; ++i)
-        stage_create_infos[i] = internal_shader->stages[i].shader_stage_create_info;
     
     // Only dynamic topology is supported. Create one pipeline per topology class
     u32 pipeline_count = 3;
 
     // Create an array of pointers to pipelines, one per topology class. Null means not supported for this shader
     internal_shader->pipelines = ballocate(sizeof(vulkan_pipeline *) * pipeline_count, MEMORY_TAG_ARRAY);
+
+    // Do the same as above, but a wireframe version
+    if (needs_wireframe)
+        internal_shader->wireframe_pipelines = ballocate(sizeof(vulkan_pipeline *) * pipeline_count, MEMORY_TAG_ARRAY);
+    else
+        internal_shader->wireframe_pipelines = 0;
 
     // Create one pipeline per topology class
     // Point class
@@ -1795,6 +1957,14 @@ b8 vulkan_renderer_shader_initialize(renderer_plugin* plugin, shader* s)
         internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_POINT] = ballocate(sizeof(vulkan_pipeline), MEMORY_TAG_VULKAN);
         // Set supported types for this class
         internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_POINT]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_POINT_LIST;
+
+        // Wireframe versions
+        if (needs_wireframe)
+        {
+            internal_shader->wireframe_pipelines[VULKAN_TOPOLOGY_CLASS_POINT] = ballocate(sizeof(vulkan_pipeline), MEMORY_TAG_VULKAN);
+            // Set supported types for this class
+            internal_shader->wireframe_pipelines[VULKAN_TOPOLOGY_CLASS_POINT]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_POINT_LIST;
+        }
     }
 
     // Line class
@@ -1804,9 +1974,18 @@ b8 vulkan_renderer_shader_initialize(renderer_plugin* plugin, shader* s)
         // Set supported types for this class
         internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_LINE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_LINE_LIST;
         internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_LINE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_LINE_STRIP;
+
+        // Wireframe versions
+        if (needs_wireframe)
+        {
+            internal_shader->wireframe_pipelines[VULKAN_TOPOLOGY_CLASS_LINE] = ballocate(sizeof(vulkan_pipeline), MEMORY_TAG_VULKAN);
+            // Set supported types for this class
+            internal_shader->wireframe_pipelines[VULKAN_TOPOLOGY_CLASS_LINE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_LINE_LIST;
+            internal_shader->wireframe_pipelines[VULKAN_TOPOLOGY_CLASS_LINE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_LINE_STRIP;
+        }
     }
 
-    // Triangle class.
+    // Triangle class
     if (s->topology_types & PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_LIST ||
         s->topology_types & PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_STRIP ||
         s->topology_types & PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_FAN)
@@ -1816,45 +1995,22 @@ b8 vulkan_renderer_shader_initialize(renderer_plugin* plugin, shader* s)
         internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_TRIANGLE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_LIST;
         internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_TRIANGLE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_STRIP;
         internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_TRIANGLE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_FAN;
+
+        // Wireframe versions
+        if (needs_wireframe)
+        {
+            internal_shader->wireframe_pipelines[VULKAN_TOPOLOGY_CLASS_TRIANGLE] = ballocate(sizeof(vulkan_pipeline), MEMORY_TAG_VULKAN);
+            // Set the supported types for this class
+            internal_shader->wireframe_pipelines[VULKAN_TOPOLOGY_CLASS_TRIANGLE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_LIST;
+            internal_shader->wireframe_pipelines[VULKAN_TOPOLOGY_CLASS_TRIANGLE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_STRIP;
+            internal_shader->wireframe_pipelines[VULKAN_TOPOLOGY_CLASS_TRIANGLE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_FAN;
+        }
     }
 
-    // Loop through and config/create one pipeline per class. Null entries are skipped
-    for (u32 i = 0; i < pipeline_count; ++i)
+    if (!shader_create_modules_and_pipelines(plugin, s))
     {
-        if (!internal_shader->pipelines[i])
-            continue;
-
-        vulkan_pipeline_config pipeline_config = {0};
-        pipeline_config.renderpass = internal_shader->renderpass;
-        pipeline_config.stride = s->attribute_stride;
-        pipeline_config.attribute_count = darray_length(s->attributes);
-        pipeline_config.attributes = internal_shader->attributes;
-        pipeline_config.descriptor_set_layout_count = internal_shader->descriptor_set_count;
-        pipeline_config.descriptor_set_layouts = internal_shader->descriptor_set_layouts;
-        pipeline_config.stage_count = internal_shader->stage_count;
-        pipeline_config.stages = stage_create_infos;
-        pipeline_config.viewport = viewport;
-        pipeline_config.scissor = scissor;
-        pipeline_config.cull_mode = internal_shader->cull_mode;
-        pipeline_config.shader_flags = s->flags;
-        // NOTE: Always one block for the push constant
-        pipeline_config.push_constant_range_count = 1;
-        range push_constant_range;
-        push_constant_range.offset = 0;
-        push_constant_range.size = s->local_ubo_stride;
-        pipeline_config.push_constant_ranges = &push_constant_range;
-        pipeline_config.name = string_duplicate(s->name);
-        pipeline_config.topology_types = s->topology_types;
-
-        b8 pipeline_result = vulkan_graphics_pipeline_create(context, &pipeline_config, internal_shader->pipelines[i]);
-
-        bfree(pipeline_config.name, string_length(pipeline_config.name) + 1, MEMORY_TAG_STRING);
-
-        if (!pipeline_result)
-        {
-            BERROR("Failed to load graphics pipeline for shader: '%s'", s->name);
-            return false;
-        }
+        BERROR("Failed initial load on shader '%s'. See logs for details", s->name);
+        return false;
     }
 
     // TODO: Figure out what default should be here
@@ -1969,22 +2125,41 @@ b8 vulkan_renderer_shader_initialize(renderer_plugin* plugin, shader* s)
     return true;
 }
 
-b8 vulkan_renderer_shader_use(renderer_plugin* plugin, shader* shader)
+b8 vulkan_renderer_shader_reload(renderer_plugin *plugin, shader *s)
+{
+    return shader_create_modules_and_pipelines(plugin, s);
+}
+
+b8 vulkan_renderer_shader_use(renderer_plugin* plugin, shader* s)
 {
     vulkan_context* context = (vulkan_context*)plugin->internal_context;
-    vulkan_shader* s = shader->internal_data;
+    vulkan_shader* internal = s->internal_data;
     vulkan_command_buffer *command_buffer = &context->graphics_command_buffers[context->image_index];
-    vulkan_pipeline_bind(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s->pipelines[s->bound_pipeline_index]);
 
-    context->bound_shader = shader;
+    // Pick correct pipeline
+    vulkan_pipeline **pipeline_array = s->is_wireframe ? internal->wireframe_pipelines : internal->pipelines;
+    vulkan_pipeline_bind(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_array[internal->bound_pipeline_index]);
+
+    context->bound_shader = s;
 
     // Make sure to use current bound type as well
     if (context->device.support_flags & VULKAN_DEVICE_SUPPORT_FLAG_NATIVE_DYNAMIC_STATE_BIT)
-        vkCmdSetPrimitiveTopology(command_buffer->handle, s->current_topology);
+        vkCmdSetPrimitiveTopology(command_buffer->handle, internal->current_topology);
     else if (context->device.support_flags & VULKAN_DEVICE_SUPPORT_FLAG_DYNAMIC_STATE_BIT)
-        context->vkCmdSetPrimitiveTopologyEXT(command_buffer->handle, s->current_topology);
+        context->vkCmdSetPrimitiveTopologyEXT(command_buffer->handle, internal->current_topology);
 
     return true;
+}
+
+b8 vulkan_renderer_shader_supports_wireframe(const renderer_plugin *plugin, const shader *s)
+{
+    const vulkan_shader *internal = s->internal_data;
+
+    // If the array exists, this is supported
+    if (internal->wireframe_pipelines)
+        return true;
+
+    return false;
 }
 
 b8 vulkan_renderer_shader_bind_globals(renderer_plugin* plugin, shader* s)
@@ -2157,8 +2332,11 @@ b8 vulkan_renderer_shader_apply_globals(renderer_plugin *plugin, shader *s, b8 n
             vkUpdateDescriptorSets(context->device.logical_device, descriptor_write_count, descriptor_writes, 0, 0);
     }
 
+    // Pick the correct pipeline
+    vulkan_pipeline **pipeline_array = s->is_wireframe ? internal->wireframe_pipelines : internal->pipelines;
+
     // Bind global descriptor set to be updated
-    vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, internal->pipelines[internal->bound_pipeline_index]->pipeline_layout, 0, 1, &global_descriptor_set, 0, 0);
+    vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_array[internal->bound_pipeline_index]->pipeline_layout, 0, 1, &global_descriptor_set, 0, 0);
     return true;
 }
 
@@ -2329,9 +2507,12 @@ b8 vulkan_renderer_shader_apply_instance(renderer_plugin* plugin, shader* s, b8 
     b8 has_global = s->global_uniform_count > 0 || s->global_uniform_sampler_count > 0;
     if (!has_global)
         first_set = 0;
+    
+    // Pick the correct pipeline
+    vulkan_pipeline **pipeline_array = s->is_wireframe ? internal->wireframe_pipelines : internal->pipelines;
 
     // Bind descriptor set to be updated, or in case the shader changed
-    vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, internal->pipelines[internal->bound_pipeline_index]->pipeline_layout, first_set, 1, &instance_descriptor_set, 0, 0);
+    vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_array[internal->bound_pipeline_index]->pipeline_layout, first_set, 1, &instance_descriptor_set, 0, 0);
     return true;
 }
 
@@ -2695,9 +2876,13 @@ b8 vulkan_renderer_shader_apply_local(renderer_plugin *plugin, shader *s, frame_
     vulkan_context *context = (vulkan_context *)plugin->internal_context;
     vulkan_shader *internal = s->internal_data;
     VkCommandBuffer command_buffer = context->graphics_command_buffers[context->image_index].handle;
+
+    // Pick the correct pipeline
+    vulkan_pipeline **pipeline_array = s->is_wireframe ? internal->wireframe_pipelines : internal->pipelines;
+
     vkCmdPushConstants(
         command_buffer,
-        internal->pipelines[internal->bound_pipeline_index]->pipeline_layout,
+        pipeline_array[internal->bound_pipeline_index]->pipeline_layout,
         VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
         0, 128, internal->local_push_constant_block);
     return true;
@@ -3369,7 +3554,7 @@ b8 vulkan_buffer_resize(renderer_plugin* plugin, renderbuffer* buffer, u64 new_s
     VK_CHECK(vkBindBufferMemory(context->device.logical_device, new_buffer, new_memory, 0));
 
     // Copy over data
-    vulkan_buffer_copy_range_internal(context, internal_buffer->handle, 0, new_buffer, 0, buffer->total_size);
+    vulkan_buffer_copy_range_internal(context, internal_buffer->handle, 0, new_buffer, 0, buffer->total_size, false);
 
     // Make sure anything potentially using these is finished
     vkDeviceWaitIdle(context->device.logical_device);
@@ -3498,7 +3683,7 @@ b8 vulkan_buffer_read(renderer_plugin* plugin, renderbuffer* buffer, u64 offset,
         vulkan_buffer* read_internal = (vulkan_buffer*)read.internal_data;
 
         // Perform copy from device local to read buffer
-        vulkan_buffer_copy_range(plugin, buffer, offset, &read, 0, size);
+        vulkan_buffer_copy_range(plugin, buffer, offset, &read, 0, size, true);
 
         // Map/copy/unmap
         void* mapped_data;
@@ -3522,7 +3707,7 @@ b8 vulkan_buffer_read(renderer_plugin* plugin, renderbuffer* buffer, u64 offset,
     return true;
 }
 
-b8 vulkan_buffer_load_range(renderer_plugin* plugin, renderbuffer* buffer, u64 offset, u64 size, const void* data)
+b8 vulkan_buffer_load_range(renderer_plugin* plugin, renderbuffer* buffer, u64 offset, u64 size, const void* data, b8 include_in_frame_workload)
 {
     vulkan_context* context = (vulkan_context*)plugin->internal_context;
     if (!buffer || !buffer->internal_data || !size || !data)
@@ -3537,10 +3722,10 @@ b8 vulkan_buffer_load_range(renderer_plugin* plugin, renderbuffer* buffer, u64 o
         // Load data into staging buffer
         u64 staging_offset = 0;
         renderer_renderbuffer_allocate(&context->staging, size, &staging_offset);
-        vulkan_buffer_load_range(plugin, &context->staging, staging_offset, size, data);
+        vulkan_buffer_load_range(plugin, &context->staging, staging_offset, size, data, include_in_frame_workload);
 
         // Perform copy from staging to device local buffer
-        vulkan_buffer_copy_range(plugin, &context->staging, staging_offset, buffer, offset, size);
+        vulkan_buffer_copy_range(plugin, &context->staging, staging_offset, buffer, offset, size, include_in_frame_workload);
     }
     else
     {
@@ -3554,28 +3739,43 @@ b8 vulkan_buffer_load_range(renderer_plugin* plugin, renderbuffer* buffer, u64 o
     return true;
 }
 
-static b8 vulkan_buffer_copy_range_internal(vulkan_context* context, VkBuffer source, u64 source_offset, VkBuffer dest, u64 dest_offset, u64 size)
+static b8 vulkan_buffer_copy_range_internal(vulkan_context* context, VkBuffer source, u64 source_offset, VkBuffer dest, u64 dest_offset, u64 size, b8 include_in_frame_workload)
 {
     VkQueue queue = context->device.graphics_queue;
-    vkQueueWaitIdle(queue);
-    // Create one-time-use command buffer
     vulkan_command_buffer temp_command_buffer;
-    vulkan_command_buffer_allocate_and_begin_single_use(context, context->device.graphics_command_pool, &temp_command_buffer);
+    vulkan_command_buffer *command_buffer = 0;
+
+    // If not including in frame workload, then utilize a new temp command buffer as well. Otherwise this should be done as part of the current frame's work
+    if (!include_in_frame_workload)
+    {
+        vkQueueWaitIdle(queue);
+        // Create a one-time-use command buffer
+        vulkan_command_buffer_allocate_and_begin_single_use(context, context->device.graphics_command_pool, &temp_command_buffer);
+        command_buffer = &temp_command_buffer;
+    }
+    else
+    {
+        command_buffer = &context->graphics_command_buffers[context->image_index];
+    }
 
     // Prepare copy command and add it to command buffer
     VkBufferCopy copy_region;
     copy_region.srcOffset = source_offset;
     copy_region.dstOffset = dest_offset;
     copy_region.size = size;
-    vkCmdCopyBuffer(temp_command_buffer.handle, source, dest, 1, &copy_region);
+    vkCmdCopyBuffer(command_buffer->handle, source, dest, 1, &copy_region);
 
-    // Submit buffer for execution and wait for it to complete
-    vulkan_command_buffer_end_single_use(context, context->device.graphics_command_pool, &temp_command_buffer, queue);
+    if (!include_in_frame_workload)
+    {
+        // Submit buffer for execution and wait for it to complete
+        vulkan_command_buffer_end_single_use(context, context->device.graphics_command_pool, &temp_command_buffer, queue);
+    }
+    // NOTE: if not waiting, submission will be handled later
 
     return true;
 }
 
-b8 vulkan_buffer_copy_range(renderer_plugin* plugin, renderbuffer* source, u64 source_offset, renderbuffer* dest, u64 dest_offset, u64 size)
+b8 vulkan_buffer_copy_range(renderer_plugin* plugin, renderbuffer* source, u64 source_offset, renderbuffer* dest, u64 dest_offset, u64 size, b8 include_in_frame_workload)
 {
     vulkan_context* context = (vulkan_context*)plugin->internal_context;
     if (!source || !source->internal_data || !dest || !dest->internal_data || !size)
@@ -3586,11 +3786,8 @@ b8 vulkan_buffer_copy_range(renderer_plugin* plugin, renderbuffer* source, u64 s
 
     return vulkan_buffer_copy_range_internal(
         context,
-        ((vulkan_buffer*)source->internal_data)->handle,
-        source_offset,
-        ((vulkan_buffer*)dest->internal_data)->handle,
-        dest_offset,
-        size);
+        ((vulkan_buffer*)source->internal_data)->handle, source_offset,
+        ((vulkan_buffer*)dest->internal_data)->handle, dest_offset, size, include_in_frame_workload);
     return true;
 }
 

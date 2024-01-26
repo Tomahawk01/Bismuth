@@ -25,6 +25,7 @@ b8 debug_line3d_create(vec3 point_0, vec3 point_1, transform *parent, debug_line
 
     out_line->geo.id = INVALID_ID;
     out_line->geo.generation = INVALID_ID_U16;
+    out_line->is_dirty = true;
 
     return true;
 }
@@ -51,14 +52,7 @@ void debug_line3d_color_set(debug_line3d *line, vec4 color)
         if (line->geo.generation != INVALID_ID_U16 && line->vertex_count && line->vertices)
         {
             update_vert_color(line);
-
-            // Upload new vertex data
-            renderer_geometry_vertex_update(&line->geo, 0, line->vertex_count, line->vertices);
-
-            line->geo.generation++;
-
-            if (line->geo.generation == INVALID_ID_U16)
-                line->geo.generation = 0;
+            line->is_dirty = true;
         }
     }
 }
@@ -72,16 +66,26 @@ void debug_line3d_points_set(debug_line3d *line, vec3 point_0, vec3 point_1)
             line->point_0 = point_0;
             line->point_1 = point_1;
             recalculate_points(line);
-
-            // Upload new vertex data
-            renderer_geometry_vertex_update(&line->geo, 0, line->vertex_count, line->vertices);
-
-            line->geo.generation++;
-
-            if (line->geo.generation == INVALID_ID_U16)
-                line->geo.generation = 0;
+            line->is_dirty = true;
         }
     }
+}
+
+void debug_line3d_render_frame_prepare(debug_line3d *line, const struct frame_data *p_frame_data)
+{
+    if (!line || !line->is_dirty)
+        return;
+
+    // Upload the new vertex data
+    renderer_geometry_vertex_update(&line->geo, 0, line->vertex_count, line->vertices, true);
+
+    line->geo.generation++;
+
+    // Roll this over to zero so we don't lock ourselves out of updating
+    if (line->geo.generation == INVALID_ID_U16)
+        line->geo.generation = 0;
+
+    line->is_dirty = false;
 }
 
 b8 debug_line3d_initialize(debug_line3d *line)

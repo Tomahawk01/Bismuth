@@ -256,6 +256,11 @@ void main()
     {
         out_color = vec4(abs(normal), 1.0);
     }
+    else if(in_mode == 4)
+    {
+        // wireframe, just render a solid color
+        out_color = vec4(0.0, 1.0, 1.0, 1.0); // cyan
+    }
 }
 
 vec3 calculate_reflectance(vec3 albedo, vec3 normal, vec3 view_direction, vec3 light_direction, float metallic, float roughness, vec3 base_reflectivity, vec3 radiance)

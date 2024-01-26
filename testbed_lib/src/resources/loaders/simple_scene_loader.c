@@ -22,6 +22,10 @@ typedef enum simple_scene_parse_mode
     SIMPLE_SCENE_PARSE_MODE_TERRAIN
 } simple_scene_parse_mode;
 
+#define SHADOW_DISTANCE_DEFAULT 200.0f
+#define SHADOW_FADE_DISTANCE_DEFAULT 25.0f
+#define SHADOW_SPLIT_MULT_DEFAULT 0.95f;
+
 static b8 try_change_mode(const char* value, simple_scene_parse_mode* current, simple_scene_parse_mode expected_current, simple_scene_parse_mode target);
 
 static b8 simple_scene_loader_load(struct resource_loader* self, const char* name, void* params, resource* out_resource)
@@ -45,7 +49,10 @@ static b8 simple_scene_loader_load(struct resource_loader* self, const char* nam
     simple_scene_config* resource_data = ballocate(sizeof(simple_scene_config), MEMORY_TAG_RESOURCE);
     bzero_memory(resource_data, sizeof(simple_scene_config));
 
-    // Set some defaults, create arrays.
+    // Set some defaults, create arrays
+    resource_data->directional_light_config.shadow_fade_distance = SHADOW_FADE_DISTANCE_DEFAULT;
+    resource_data->directional_light_config.shadow_distance = SHADOW_DISTANCE_DEFAULT;
+    resource_data->directional_light_config.shadow_split_mult = SHADOW_SPLIT_MULT_DEFAULT;
     resource_data->description = 0;
     resource_data->name = string_duplicate(name);
     resource_data->point_lights = darray_create(point_light_simple_scene_config);
@@ -326,6 +333,59 @@ static b8 simple_scene_loader_load(struct resource_loader* self, const char* nam
                 else
                 {
                     BWARN("Format warning: Cannot process position in the current mode");
+                }
+            }
+            else if (strings_equali(trimmed_var_name, "shadow_distance"))
+            {
+                if (mode == SIMPLE_SCENE_PARSE_MODE_DIRECTIONAL_LIGHT)
+                {
+                    if (!string_to_f32(trimmed_value, &resource_data->directional_light_config.shadow_distance))
+                    {
+                        BWARN("Error parsing directional light shadow_distance as f32. Using default value");
+                        resource_data->directional_light_config.shadow_distance = SHADOW_DISTANCE_DEFAULT;
+                    }
+                }
+                else if (mode == SIMPLE_SCENE_PARSE_MODE_POINT_LIGHT)
+                {
+                    BWARN("Format warning: Cannot process shadow_distance in the current mode (point light)");
+                }
+                else
+                {
+                    BWARN("Format warning: Cannot process shadow_distance in the current mode");
+                }
+            }
+            else if (strings_equali(trimmed_var_name, "shadow_fade_distance"))
+            {
+                if (mode == SIMPLE_SCENE_PARSE_MODE_DIRECTIONAL_LIGHT)
+                {
+                    if (!string_to_f32(trimmed_value, &resource_data->directional_light_config.shadow_fade_distance))
+                    {
+                        BWARN("Error parsing directional light shadow_fade_distance as f32. Using default value");
+                        resource_data->directional_light_config.shadow_fade_distance = SHADOW_FADE_DISTANCE_DEFAULT;
+                    }
+                }
+                else if (mode == SIMPLE_SCENE_PARSE_MODE_POINT_LIGHT)
+                {
+                    BWARN("Format warning: Cannot process shadow_fade_distance in the current mode (point light)");
+                }
+                else
+                {
+                    BWARN("Format warning: Cannot process shadow_fade_distance in the current mode");
+                }
+            }
+            else if (strings_equali(trimmed_var_name, "shadow_split_mult"))
+            {
+                if (mode == SIMPLE_SCENE_PARSE_MODE_DIRECTIONAL_LIGHT)
+                {
+                    if (!string_to_f32(trimmed_value, &resource_data->directional_light_config.shadow_split_mult))
+                    {
+                        BWARN("Error parsing directional light shadow_split_mult as f32. Using default value");
+                        resource_data->directional_light_config.shadow_split_mult = SHADOW_SPLIT_MULT_DEFAULT;
+                    }
+                }
+                else
+                {
+                    BWARN("Format warning: Cannot process shadow_fade_distance in the current mode");
                 }
             }
             else if (strings_equali(trimmed_var_name, "transform"))

@@ -1,13 +1,17 @@
 #pragma once
 
 #include "defines.h"
-
 #include "math/math_types.h"
 
 typedef struct directional_light_data
 {
     vec4 color;
     vec4 direction;
+
+    f32 shadow_distance;
+    f32 shadow_fade_distance;
+    f32 shadow_split_mult;
+    f32 padding;
 } directional_light_data;
 
 typedef struct directional_light

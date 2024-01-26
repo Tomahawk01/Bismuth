@@ -288,6 +288,7 @@ typedef struct vulkan_shader
     renderbuffer uniform_buffer;
 
     vulkan_pipeline** pipelines;
+    vulkan_pipeline** wireframe_pipelines;
 
     u8 bound_pipeline_index;
     VkPrimitiveTopology current_topology;
@@ -356,6 +357,8 @@ typedef struct vulkan_context
     b8 recreating_swapchain;
 
     b8 render_flag_changed;
+
+    b8 validation_enabled;
 
     render_target world_render_targets[3];
 

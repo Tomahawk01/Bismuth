@@ -25,7 +25,6 @@
 #include "renderer/viewport.h"
 #include "resources/loaders/simple_scene_loader.h"
 #include "systems/camera_system.h"
-#include "testbed_types.h"
 
 // Standard UI
 #include <controls/sui_button.h>
@@ -67,6 +66,7 @@
 #include <systems/light_system.h>
 #include <systems/material_system.h>
 #include <systems/resource_system.h>
+#include <systems/shader_system.h>
 // Standard ui
 #include <core/systems_manager.h>
 #include <standard_ui_system.h>
@@ -152,6 +152,10 @@ b8 game_on_event(u16 code, void* sender, void* listener_inst, event_context cont
                     BDEBUG("Renderer mode set to cascades");
                     state->render_mode = RENDERER_VIEW_MODE_CASCADES;
                     break;
+                case RENDERER_VIEW_MODE_WIREFRAME:
+                    BDEBUG("Renderer mode set to wireframe");
+                    state->render_mode = RENDERER_VIEW_MODE_WIREFRAME;
+                    break;
             }
             return true;
         }
@@ -233,7 +237,11 @@ b8 game_on_debug_event(u16 code, void* sender, void* listener_inst, event_contex
     }
     else if (code == EVENT_CODE_DEBUG4)
     {
-        if (state->test_loop_audio_file)
+        shader* s = shader_system_get("Shader.Builtin.Terrain");
+        if (!shader_system_reload(s))
+            BERROR("Failed to reload terrain shader");
+
+        /* if (state->test_loop_audio_file)
         {
             static b8 playing = true;
             playing = !playing;
@@ -248,7 +256,7 @@ b8 game_on_debug_event(u16 code, void* sender, void* listener_inst, event_contex
                 // Stop channel 6
                 audio_system_channel_stop(6);
             }
-        }
+        } */
     }
 
     return false;
@@ -544,7 +552,7 @@ b8 application_initialize(struct application* game_inst)
     systems_manager_state* sys_mgr_state = engine_systems_manager_state_get(game_inst);
     standard_ui_system_config standard_ui_cfg = {0};
     standard_ui_cfg.max_control_count = 1024;
-    if (!systems_manager_register(sys_mgr_state, B_SYSTEM_TYPE_STANDARD_UI_EXT, standard_ui_system_initialize, standard_ui_system_shutdown, standard_ui_system_update, &standard_ui_cfg))
+    if (!systems_manager_register(sys_mgr_state, B_SYSTEM_TYPE_STANDARD_UI_EXT, standard_ui_system_initialize, standard_ui_system_shutdown, standard_ui_system_update, standard_ui_system_render_prepare_frame, &standard_ui_cfg))
     {
         BERROR("Failed to register standard ui system");
         return false;
@@ -567,7 +575,7 @@ b8 application_initialize(struct application* game_inst)
     // Viewport setup
     // World Viewport
     rect_2d world_vp_rect = vec4_create(20.0f, 20.0f, 1280.0f - 40.0f, 720.0f - 40.0f);
-    if (!viewport_create(world_vp_rect, deg_to_rad(45.0f), 0.1f, 400.0f, RENDERER_PROJECTION_MATRIX_TYPE_PERSPECTIVE, &state->world_viewport))
+    if (!viewport_create(world_vp_rect, deg_to_rad(45.0f), 0.1f, 1000.0f, RENDERER_PROJECTION_MATRIX_TYPE_PERSPECTIVE, &state->world_viewport))
     {
         BERROR("Failed to create world viewport. Cannot start application");
         return false;
@@ -589,8 +597,8 @@ b8 application_initialize(struct application* game_inst)
         return false;
     }
 
-    state->forward_move_speed = 5.0f;
-    state->backward_move_speed = 2.5f;
+    state->forward_move_speed = 5.0f * 5.0f;
+    state->backward_move_speed = 2.5f * 5.0f;
 
     // Setup editor gizmo
     if (!editor_gizmo_create(&state->gizmo))
@@ -775,7 +783,6 @@ b8 application_initialize(struct application* game_inst)
     bzero_memory(&state->update_clock, sizeof(bclock));
     bzero_memory(&state->prepare_clock, sizeof(bclock));
     bzero_memory(&state->render_clock, sizeof(bclock));
-    bzero_memory(&state->present_clock, sizeof(bclock));
 
     // Load up a test audio file
     state->test_audio_file = audio_system_chunk_load("Test.ogg");
@@ -834,10 +841,22 @@ b8 application_update(struct application* game_inst, struct frame_data* p_frame_
     button_height = 50.0f + (bsin(p_frame_data->total_time) * 20.0f);
     sui_button_control_height_set(&state->test_button, (i32)button_height);
 
+    // Update bitmap text with camera position. NOTE: just using the default camera for now
+    vec3 pos = camera_position_get(state->world_camera);
+    vec3 rot = camera_rotation_euler_get(state->world_camera);
+
+    viewport* view_viewport = &state->world_viewport;
+
+    f32 near_clip = view_viewport->near_clip;
+    f32 far_clip = view_viewport->far_clip;
+
     if (state->main_scene.state >= SIMPLE_SCENE_STATE_LOADED)
     {
         if (!simple_scene_update(&state->main_scene, p_frame_data))
             BWARN("Failed to update main scene");
+        
+        // Update LODs for the scene based on distance from the camera
+        simple_scene_update_lod_from_view_position(&state->main_scene, p_frame_data, pos, near_clip, far_clip);
         
         editor_gizmo_update(&state->gizmo);
 
@@ -870,10 +889,6 @@ b8 application_update(struct application* game_inst, struct frame_data* p_frame_
     state->prev_alloc_count = state->alloc_count;
     state->alloc_count = get_memory_alloc_count();
 
-    // Update bitmap text with camera position
-    vec3 pos = camera_position_get(state->world_camera);
-    vec3 rot = camera_rotation_euler_get(state->world_camera);
-
     // Also tack on current mouse state
     b8 left_down = input_is_button_down(BUTTON_LEFT);
     b8 right_down = input_is_button_down(BUTTON_RIGHT);
@@ -892,18 +907,15 @@ b8 application_update(struct application* game_inst, struct frame_data* p_frame_
     static f32 total_update_seconds = 0;
     static f32 total_prepare_seconds = 0;
     static f32 total_render_seconds = 0;
-    static f32 total_present_seconds = 0;
 
     static f32 total_update_avg_us = 0;
     static f32 total_prepare_avg_us = 0;
     static f32 total_render_avg_us = 0;
-    static f32 total_present_avg_us = 0;
     static f32 total_avg = 0;  // total average across the frame
 
     total_update_seconds += state->last_update_elapsed;
     total_prepare_seconds += state->prepare_clock.elapsed;
     total_render_seconds += state->render_clock.elapsed;
-    total_present_seconds += state->present_clock.elapsed;
     accumulated_ms += frame_time;
 
     // Once ~1 second has gone by, calculate average and wipe accumulators
@@ -912,12 +924,10 @@ b8 application_update(struct application* game_inst, struct frame_data* p_frame_
         total_update_avg_us = (total_update_seconds / accumulated_ms) * B_SEC_TO_US_MULTIPLIER;
         total_prepare_avg_us = (total_prepare_seconds / accumulated_ms) * B_SEC_TO_US_MULTIPLIER;
         total_render_avg_us = (total_render_seconds / accumulated_ms) * B_SEC_TO_US_MULTIPLIER;
-        total_present_avg_us = (total_present_seconds / accumulated_ms) * B_SEC_TO_US_MULTIPLIER;
-        total_avg = total_update_avg_us + total_prepare_avg_us + total_render_avg_us + total_present_avg_us;
+        total_avg = total_update_avg_us + total_prepare_avg_us + total_render_avg_us;
         total_render_seconds = 0;
         total_prepare_seconds = 0;
         total_update_seconds = 0;
-        total_present_seconds = 0;
         accumulated_ms = 0;
     }
 
@@ -927,7 +937,7 @@ b8 application_update(struct application* game_inst, struct frame_data* p_frame_
         text_buffer,
         "\
 FPS: %5.1f(%4.1fms)        Pos=[%7.3f %7.3f %7.3f] Rot=[%7.3f, %7.3f, %7.3f]\n\
-Upd: %8.3fus, Prep: %8.3fus, Rend: %8.3fus, Pres: %8.3fus, Tot: %8.3fus \n\
+Upd: %8.3fus, Prep: %8.3fus, Rend: %8.3fus, Total: %8.3fus \n\
 Mouse: X=%-5d Y=%-5d   L=%s R=%s   NDC: X=%.6f, Y=%.6f\n\
 VSync: %s Drawn: %-5u (%-5u shadow pass) Hovered: %s%u",
         fps,
@@ -937,7 +947,6 @@ VSync: %s Drawn: %-5u (%-5u shadow pass) Hovered: %s%u",
         total_update_avg_us,
         total_prepare_avg_us,
         total_render_avg_us,
-        total_present_avg_us,
         total_avg,
         mouse_x, mouse_y,
         left_down ? "Y" : "N",
@@ -986,6 +995,9 @@ b8 application_prepare_frame(struct application* app_inst, struct frame_data* p_
     // Tell our scene to generate relevant packet data. NOTE: Generates skybox and world packets
     if (state->main_scene.state == SIMPLE_SCENE_STATE_LOADED)
     {
+        editor_gizmo_render_frame_prepare(&state->gizmo, p_frame_data);
+        simple_scene_render_frame_prepare(&state->main_scene, p_frame_data);
+
         {
             skybox_pass_ext_data->sb = state->main_scene.sb;
         }
@@ -994,7 +1006,7 @@ b8 application_prepare_frame(struct application* app_inst, struct frame_data* p_
         viewport* view_viewport = &state->world_viewport;
 
         f32 near = view_viewport->near_clip;
-        f32 far = view_viewport->far_clip;
+        f32 far = state->main_scene.dir_light ? state->main_scene.dir_light->data.shadow_distance + state->main_scene.dir_light->data.shadow_fade_distance : 0;
         f32 clip_range = far - near;
 
         f32 min_z = near;
@@ -1002,7 +1014,7 @@ b8 application_prepare_frame(struct application* app_inst, struct frame_data* p_
         f32 range = max_z - min_z;
         f32 ratio = max_z / min_z;
 
-        f32 cascade_split_multiplier = 0.95f;
+        f32 cascade_split_multiplier = state->main_scene.dir_light ? state->main_scene.dir_light->data.shadow_split_mult : 0.95f;
 
         // Calculate splits based on view camera frustum
         vec4 splits;
@@ -1046,15 +1058,21 @@ b8 application_prepare_frame(struct application* app_inst, struct frame_data* p_
             vec3 culling_center;
             f32 culling_radius;
 
+            // Get view-projection matrix
+            // TODO: pull max shadow dist + fade dist for far clip from light
+            mat4 shadow_dist_projection = mat4_perspective(
+                view_viewport->fov,
+                view_viewport->rect.width / view_viewport->rect.height,
+                view_viewport->near_clip,
+                200.0f + 25.0f);
+            mat4 cam_view_proj = mat4_transposed(mat4_mul(camera_view_get(view_camera), shadow_dist_projection));
+
             for (u32 c = 0; c < MAX_SHADOW_CASCADE_COUNT; c++)
             {
                 shadow_map_cascade_data* cascade = &ext_data->cascades[c];
                 cascade->cascade_index = c;
 
                 // NOTE: Each pass for cascades will need to do the following process
-
-                // Get the view-projection matrix
-                mat4 cam_view_proj = mat4_transposed(mat4_mul(camera_view_get(view_camera), view_viewport->projection));
 
                 // Get the world-space corners of the view frustum
                 vec4 corners[8] = {0};
@@ -1125,56 +1143,38 @@ b8 application_prepare_frame(struct application* app_inst, struct frame_data* p_
             }
 
             // Gather the geometries to be rendered
-            for (u32 c = 0; c < MAX_SHADOW_CASCADE_COUNT; c++)
+            // Note that this only needs to happen once, since all geometries visible by the furthest-out cascase
+            // must also be drawn on the nearest cascade to ensure objects outside the view cast shadows into the view properly
+            simple_scene* scene = &state->main_scene;
+            ext_data->geometries = darray_reserve_with_allocator(geometry_render_data, 512, &p_frame_data->allocator);
+            if (!simple_scene_mesh_render_data_query_from_line(
+                    scene,
+                    light_dir,
+                    culling_center,
+                    culling_radius,
+                    p_frame_data,
+                    &ext_data->geometry_count, &ext_data->geometries))
             {
-                shadow_map_cascade_data* cascade = &ext_data->cascades[c];
+                BERROR("Failed to query shadow map pass meshes");
+            }
+            // Track the number of meshes drawn in the shadow pass
+            p_frame_data->drawn_shadow_mesh_count = ext_data->geometry_count;
 
-                // Shadow frustum culling and count
-                mat4 shadow_view = mat4_mul(shadow_camera_lookats[c], shadow_camera_projections[c]);
-                frustum shadow_frustum = frustum_from_view_projection(shadow_view);
-                /* if (c == MAX_CASCADE_COUNT - 1)
-                    culling_frustum = shadow_frustum; */
+            // Gather terrain geometries
+            ext_data->terrain_geometries = darray_reserve_with_allocator(geometry_render_data, 16, &p_frame_data->allocator);
+            if (!simple_scene_terrain_render_data_query_from_line(
+                    scene,
+                    light_dir,
+                    culling_center,
+                    culling_radius,
+                    p_frame_data,
+                    &ext_data->terrain_geometry_count, &ext_data->terrain_geometries))
+            {
+                BERROR("Failed to query shadow map pass terrain geometries");
+            }
 
-                simple_scene* scene = &state->main_scene;
-
-                // Iterate the scene and get a list of all geometries within the view of the light
-                cascade->geometries = darray_reserve_with_allocator(geometry_render_data, 512, &p_frame_data->allocator);
-
-                // Query the scene for static meshes using the shadow frustum
-                // b8 shadow_clipping_enabled = false;
-                if (!simple_scene_mesh_render_data_query_from_line(
-                        scene,
-                        light_dir,
-                        culling_center,
-                        culling_radius,
-                        p_frame_data,
-                        &cascade->geometry_count, cascade->geometries))
-                {
-                    BERROR("Failed to query shadow map pass meshes");
-                }
-
-                // Track the number of meshes drawn in the shadow pass
-                p_frame_data->drawn_shadow_mesh_count = cascade->geometry_count;
-
-                // Add terrain(s)
-                cascade->terrain_geometries = darray_reserve_with_allocator(geometry_render_data, 16, &p_frame_data->allocator);
-
-                // Query the scene for terrain meshes using the camera frustum
-                if (!simple_scene_terrain_render_data_query(
-                        scene,
-                        &shadow_frustum,
-                        shadow_camera_positions[c],
-                        p_frame_data,
-                        &cascade->terrain_geometry_count, cascade->terrain_geometries))
-                {
-                    BERROR("Failed to query shadow map pass terrain geometries");
-                }
-            
-                // TODO: Counter for terrain geometries
-                p_frame_data->drawn_shadow_mesh_count += cascade->terrain_geometry_count;
-
-                // end shadowmap pass
-            } // end cascade
+            // TODO: Counter for terrain geometries
+            p_frame_data->drawn_shadow_mesh_count += ext_data->terrain_geometry_count;
         }
 
         // Scene pass
@@ -1224,7 +1224,7 @@ b8 application_prepare_frame(struct application* app_inst, struct frame_data* p_
                     &camera_frustum,
                     current_camera->position,
                     p_frame_data,
-                    &ext_data->geometry_count, ext_data->geometries))
+                    &ext_data->geometry_count, &ext_data->geometries))
             {
                 BERROR("Failed to query scene pass meshes");
             }
@@ -1241,7 +1241,7 @@ b8 application_prepare_frame(struct application* app_inst, struct frame_data* p_
                     &camera_frustum,
                     current_camera->position,
                     p_frame_data,
-                    &ext_data->terrain_geometry_count, ext_data->terrain_geometries))
+                    &ext_data->terrain_geometry_count, &ext_data->terrain_geometries))
             {
                 BERROR("Failed to query scene pass terrain geometries");
             }
@@ -1407,10 +1407,6 @@ b8 application_render_frame(struct application* game_inst, struct frame_data* p_
         return true;
 
     bclock_start(&state->render_clock);
-    if (!renderer_begin(p_frame_data))
-    {
-        // ...
-    }
 
     if (!rendergraph_execute_frame(&state->frame_graph, p_frame_data))
     {
@@ -1418,18 +1414,7 @@ b8 application_render_frame(struct application* game_inst, struct frame_data* p_
         return false;
     }
 
-    renderer_end(p_frame_data);
-
-    // NOTE: Stopping the timer before presentation since that can greatly impact this timing
     bclock_update(&state->render_clock);
-
-    bclock_start(&state->present_clock);
-    if (!renderer_present(p_frame_data))
-    {
-        BERROR("The call to renderer_present failed. This is unrecoverable. Shutting down");
-        return false;
-    }
-    bclock_update(&state->present_clock);
 
     return true;
 }

@@ -183,6 +183,16 @@ void editor_gizmo_update(editor_gizmo* gizmo)
     }
 }
 
+void editor_gizmo_render_frame_prepare(editor_gizmo* gizmo, const struct frame_data* p_frame_data)
+{
+    if (gizmo && gizmo->is_dirty)
+    {
+        editor_gizmo_mode_data* data = &gizmo->mode_data[gizmo->mode];
+        renderer_geometry_vertex_update(&data->geo, 0, data->vertex_count, data->vertices, true);
+        gizmo->is_dirty = false;
+    }
+}
+
 void editor_gizmo_mode_set(editor_gizmo* gizmo, editor_gizmo_mode mode)
 {
     if (gizmo)
@@ -789,7 +799,7 @@ void editor_gizmo_handle_interaction(editor_gizmo* gizmo, struct camera* c, stru
                         data->vertices[15].color = b;
                     }
                 }
-                renderer_geometry_vertex_update(&data->geo, 0, data->vertex_count, data->vertices);
+                gizmo->is_dirty = true;
             }
         }
     }
@@ -1000,7 +1010,7 @@ void editor_gizmo_handle_interaction(editor_gizmo* gizmo, struct camera* c, stru
                         data->vertices[9].color = g;
                     }
                 }
-                renderer_geometry_vertex_update(&data->geo, 0, data->vertex_count, data->vertices);
+                gizmo->is_dirty = true;
             }
         }
     }
@@ -1125,8 +1135,7 @@ void editor_gizmo_handle_interaction(editor_gizmo* gizmo, struct camera* c, stru
                     }
                 }
             }
-
-            renderer_geometry_vertex_update(&data->geo, 0, data->vertex_count, data->vertices);
+            gizmo->is_dirty = true;
         }
     }
 }

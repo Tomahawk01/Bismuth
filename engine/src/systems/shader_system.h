@@ -159,8 +159,14 @@ typedef struct shader
     u8 shader_stage_count;
     shader_stage_config* stage_configs;
 
+    b8 is_wireframe;
+
     // An opaque pointer to hold renderer API specific data. Renderer is responsible for creation and destruction of this
     void* internal_data;
+
+#ifdef _DEBUG
+    u32* module_watch_ids;
+#endif
 } shader;
 
 /**
@@ -190,6 +196,8 @@ void shader_system_shutdown(void* state);
  * @return True on success; otherwise false.
  */
 BAPI b8 shader_system_create(renderpass* pass, const shader_config* config);
+
+BAPI b8 shader_system_reload(shader* s);
 
 /**
  * @brief Gets the identifier of a shader by name.
@@ -222,6 +230,8 @@ BAPI shader* shader_system_get(const char* shader_name);
  * @return True on success; otherwise false.
  */
 BAPI b8 shader_system_use(const char* shader_name);
+
+BAPI b8 shader_system_set_wireframe(shader* s, b8 wireframe_enabled);
 
 /**
  * @brief Uses the shader with the given identifier.

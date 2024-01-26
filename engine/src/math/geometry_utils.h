@@ -3,6 +3,8 @@
 #include "math_types.h"
 
 struct geometry;
+struct frame_data;
+
 typedef struct nine_slice
 {
     struct geometry *g;
@@ -18,6 +20,8 @@ typedef struct nine_slice
     vec2i atlas_px_max;
 
     vec2i atlas_px_size;
+
+    b8 is_dirty;
 } nine_slice;
 
 /**
@@ -65,4 +69,5 @@ BAPI void generate_uvs_from_image_coords(u32 img_width, u32 img_height, u32 px_x
 BAPI void generate_quad_2d(const char *name, f32 width, f32 height, f32 tx_min, f32 tx_max, f32 ty_min, f32 ty_max, struct geometry_config *out_config);
 
 BAPI b8 update_nine_slice(nine_slice *nslice, vertex_2d *vertices);
+BAPI void nine_slice_render_frame_prepare(nine_slice *nslice, const struct frame_data *p_frame_data);
 BAPI b8 generate_nine_slice(const char *name, vec2i size, vec2i atlas_px_size, vec2i atlas_px_min, vec2i atlas_px_max, vec2i corner_px_size, vec2i corner_size, nine_slice *out_nine_slice);

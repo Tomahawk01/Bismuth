@@ -47,7 +47,6 @@ typedef struct testbed_game_state
     bclock update_clock;
     bclock prepare_clock;
     bclock render_clock;
-    bclock present_clock;
     f64 last_update_elapsed;
 
     // TODO: temp

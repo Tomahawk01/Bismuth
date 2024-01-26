@@ -8,6 +8,7 @@ struct frame_data;
 typedef b8 (*PFN_system_initialize)(u64* memory_requirement, void* memory, void* config);
 typedef void (*PFN_system_shutdown)(void* state);
 typedef b8 (*PFN_system_update)(void* state, struct frame_data* p_frame_data);
+typedef void (*PFN_system_render_prepare_frame)(void* state, const struct frame_data* p_frame_data);
 
 typedef struct b_system
 {
@@ -17,6 +18,8 @@ typedef struct b_system
     PFN_system_shutdown shutdown;
     // Function pointer for the system's update routine, called every frame. Optional
     PFN_system_update update;
+    // Function pointer for the system's "prepare frame" routine, called every frame. Optional
+    PFN_system_render_prepare_frame render_prepare_frame;
 } b_system;
 
 #define B_SYSTEM_TYPE_MAX_COUNT 512
@@ -67,6 +70,7 @@ b8 systems_manager_initialize(systems_manager_state* state, struct application_c
 b8 systems_manager_post_boot_initialize(systems_manager_state* state, struct application_config* app_config);
 void systems_manager_shutdown(systems_manager_state* state);
 b8 systems_manager_update(systems_manager_state* state, struct frame_data* p_frame_data);
+void systems_manager_renderer_frame_prepare(systems_manager_state* state, const struct frame_data* p_frame_data);
 
 BAPI b8 systems_manager_register(
     systems_manager_state* state,
@@ -74,6 +78,7 @@ BAPI b8 systems_manager_register(
     PFN_system_initialize initialize,
     PFN_system_shutdown shutdown,
     PFN_system_update update,
+    PFN_system_render_prepare_frame prepare_frame,
     void* config);
 
 BAPI void* systems_manager_get_state(u16 type);

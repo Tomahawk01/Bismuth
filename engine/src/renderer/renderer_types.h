@@ -35,7 +35,8 @@ typedef enum renderer_debug_view_mode
     RENDERER_VIEW_MODE_DEFAULT = 0,
     RENDERER_VIEW_MODE_LIGHTING = 1,
     RENDERER_VIEW_MODE_NORMALS = 2,
-    RENDERER_VIEW_MODE_CASCADES = 3
+    RENDERER_VIEW_MODE_CASCADES = 3,
+    RENDERER_VIEW_MODE_WIREFRAME = 4
 } renderer_debug_view_mode;
 
 typedef enum render_target_attachment_type
@@ -201,6 +202,8 @@ typedef enum renderer_config_flag_bits
     RENDERER_CONFIG_FLAG_VSYNC_ENABLED_BIT = 0x1,
     // Configures the renderer backend in a way that conserves power where possible. (Usefull for mobile)
     RENDERER_CONFIG_FLAG_POWER_SAVING_BIT = 0x2,
+    // Enables advanced validation in the renderer backend, if supported
+    RENDERER_CONFIG_FLAG_ENABLE_VALIDATION = 0x4
 } renderer_config_flag_bits;
 
 typedef u32 renderer_config_flags;
@@ -250,6 +253,9 @@ typedef struct renderer_plugin
     b8 (*initialize)(struct renderer_plugin* plugin, const renderer_backend_config* config, u8* out_window_render_target_count);
     void (*shutdown)(struct renderer_plugin* plugin);
 
+    void (*begin_debug_label)(struct renderer_plugin* plugin, const char* label_text, vec3 color);
+    void (*end_debug_label)(struct renderer_plugin* plugin);
+
     void (*resized)(struct renderer_plugin* plugin, u16 width, u16 height);
 
     b8 (*frame_prepare)(struct renderer_plugin* plugin, struct frame_data* p_frame_data);
@@ -281,7 +287,7 @@ typedef struct renderer_plugin
 
     void (*texture_create_writeable)(struct renderer_plugin* plugin, texture* t);
     void (*texture_resize)(struct renderer_plugin* plugin, texture* t, u32 new_width, u32 new_height);
-    void (*texture_write_data)(struct renderer_plugin* plugin, texture* t, u32 offset, u32 size, const u8* pixels);
+    void (*texture_write_data)(struct renderer_plugin* plugin, texture* t, u32 offset, u32 size, const u8* pixels, b8 include_in_frame_workload);
     void (*texture_read_data)(struct renderer_plugin* plugin, texture* t, u32 offset, u32 size, void** out_memory);
     void (*texture_read_pixel)(struct renderer_plugin* plugin, texture* t, u32 x, u32 y, u8** out_rgba);
 
@@ -289,8 +295,11 @@ typedef struct renderer_plugin
     void (*shader_destroy)(struct renderer_plugin* plugin, struct shader* shader);
 
     b8 (*shader_initialize)(struct renderer_plugin* plugin, struct shader* shader);
+    b8 (*shader_reload)(struct renderer_plugin* plugin, struct shader* s);
 
     b8 (*shader_use)(struct renderer_plugin* plugin, struct shader* shader);
+
+    b8 (*shader_supports_wireframe)(const struct renderer_plugin* plugin, const struct shader* s);
 
     b8 (*shader_bind_globals)(struct renderer_plugin* plugin, struct shader* s);
     b8 (*shader_bind_instance)(struct renderer_plugin* plugin, struct shader* s, u32 instance_id);
@@ -342,9 +351,8 @@ typedef struct renderer_plugin
 
     b8 (*renderbuffer_resize)(struct renderer_plugin* plugin, renderbuffer* buffer, u64 new_total_size);
 
-    b8 (*renderbuffer_load_range)(struct renderer_plugin* plugin, renderbuffer* buffer, u64 offset, u64 size, const void* data);
-
-    b8 (*renderbuffer_copy_range)(struct renderer_plugin* plugin, renderbuffer* source, u64 source_offset, renderbuffer* dest, u64 dest_offset, u64 size);
+    b8 (*renderbuffer_load_range)(struct renderer_plugin* plugin, renderbuffer* buffer, u64 offset, u64 size, const void* data, b8 include_in_frame_workload);
+    b8 (*renderbuffer_copy_range)(struct renderer_plugin* plugin, renderbuffer* source, u64 source_offset, renderbuffer* dest, u64 dest_offset, u64 size, b8 include_in_frame_workload);
 
     b8 (*renderbuffer_draw)(struct renderer_plugin* plugin, renderbuffer* buffer, u64 offset, u32 element_count, b8 bind_only);
 } renderer_plugin;

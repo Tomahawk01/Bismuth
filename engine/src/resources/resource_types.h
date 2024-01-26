@@ -504,6 +504,9 @@ typedef struct directional_light_simple_scene_config
     char* name;
     vec4 color;
     vec4 direction;
+    f32 shadow_distance;
+    f32 shadow_fade_distance;
+    f32 shadow_split_mult;
 } directional_light_simple_scene_config;
 
 typedef struct point_light_simple_scene_config

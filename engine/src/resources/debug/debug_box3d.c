@@ -25,6 +25,7 @@ b8 debug_box3d_create(vec3 size, transform *parent, debug_box3d *out_box)
 
     out_box->geo.id = INVALID_ID;
     out_box->geo.generation = INVALID_ID_U16;
+    out_box->is_dirty = true;
 
     return true;
 }
@@ -51,14 +52,7 @@ void debug_box3d_color_set(debug_box3d *box, vec4 color)
         if (box->geo.generation != INVALID_ID_U16 && box->vertex_count && box->vertices)
         {
             update_vert_color(box);
-
-            // Upload new vertex data
-            renderer_geometry_vertex_update(&box->geo, 0, box->vertex_count, box->vertices);
-
-            box->geo.generation++;
-
-            if (box->geo.generation == INVALID_ID_U16)
-                box->geo.generation = 0;
+            box->is_dirty = true;
         }
     }
 }
@@ -70,14 +64,7 @@ void debug_box3d_extents_set(debug_box3d *box, extents_3d extents)
         if (box->geo.generation != INVALID_ID_U16 && box->vertex_count && box->vertices)
         {
             recalculate_extents(box, extents);
-
-            // Upload new vertex data
-            renderer_geometry_vertex_update(&box->geo, 0, box->vertex_count, box->vertices);
-
-            box->geo.generation++;
-
-            if (box->geo.generation == INVALID_ID_U16)
-                box->geo.generation = 0;
+            box->is_dirty = true;
         }
     }
 }
@@ -138,16 +125,26 @@ void debug_box3d_points_set(debug_box3d *box, vec4 *points)
                 box->vertices[23].position = points[5];
             }
 
-            // Upload new vertex data
-            renderer_geometry_vertex_update(&box->geo, 0, box->vertex_count, box->vertices);
-
-            box->geo.generation++;
-
-            // Roll this over to zero so we don't lock out of updating
-            if (box->geo.generation == INVALID_ID_U16)
-                box->geo.generation = 0;
+            box->is_dirty = true;
         }
     }
+}
+
+void debug_box3d_render_frame_prepare(debug_box3d *box, const struct frame_data *p_frame_data)
+{
+    if(!box || !box->is_dirty)
+        return;
+
+    // Upload the new vertex data
+    renderer_geometry_vertex_update(&box->geo, 0, box->vertex_count, box->vertices, true);
+
+     box->geo.generation++;
+
+    // Roll this over to zero so we don't lock ourselves out of updating
+    if (box->geo.generation == INVALID_ID_U16)
+        box->geo.generation = 0;
+
+    box->is_dirty = false;
 }
 
 b8 debug_box3d_initialize(debug_box3d *box)

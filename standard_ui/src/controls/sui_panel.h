@@ -10,6 +10,7 @@ typedef struct sui_panel_internal_data
     u32 instance_id;
     u64 frame_number;
     u8 draw_index;
+    b8 is_dirty;
 } sui_panel_internal_data;
 
 BAPI b8 sui_panel_control_create(const char* name, vec2 size, vec4 color, struct sui_control* out_control);
