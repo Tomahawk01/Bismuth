@@ -29,6 +29,8 @@ void rendergraph_destroy(rendergraph* graph)
 {
     if (graph)
     {
+        renderer_wait_for_idle();
+
         graph->app = 0;
 
         if (graph->name)

@@ -3237,6 +3237,8 @@ b8 vulkan_renderpass_create(renderer_plugin* plugin, const renderpass_config* co
 
     VK_CHECK(vkCreateRenderPass(context->device.logical_device, &render_pass_create_info, context->allocator, &internal_data->handle));
 
+    vulkan_set_debug_object_name(context, VK_OBJECT_TYPE_RENDER_PASS, internal_data->handle, out_renderpass->name);
+
     // Cleanup
     if (attachment_descriptions)
         darray_destroy(attachment_descriptions);
@@ -3817,5 +3819,14 @@ b8 vulkan_buffer_draw(renderer_plugin* plugin, renderbuffer* buffer, u64 offset,
     {
         BERROR("Cannot draw buffer of type: %i", buffer->type);
         return false;
+    }
+}
+
+void vulkan_renderer_wait_for_idle(renderer_plugin *plugin)
+{
+    if (plugin)
+    {
+        vulkan_context *context = plugin->internal_context;
+        VK_CHECK(vkDeviceWaitIdle(context->device.logical_device));
     }
 }

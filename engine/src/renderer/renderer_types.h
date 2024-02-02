@@ -355,6 +355,8 @@ typedef struct renderer_plugin
     b8 (*renderbuffer_copy_range)(struct renderer_plugin* plugin, renderbuffer* source, u64 source_offset, renderbuffer* dest, u64 dest_offset, u64 size, b8 include_in_frame_workload);
 
     b8 (*renderbuffer_draw)(struct renderer_plugin* plugin, renderbuffer* buffer, u64 offset, u32 element_count, b8 bind_only);
+
+    void (*wait_for_idle)(struct renderer_plugin* plugin);
 } renderer_plugin;
 
 struct render_view_packet;

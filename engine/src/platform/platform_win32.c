@@ -724,6 +724,10 @@ LRESULT CALLBACK win32_process_message(HWND hwnd, u32 msg, WPARAM w_param, LPARA
                 key = is_extended ? KEY_RCONTROL : KEY_LCONTROL;
             }
 
+            // HACK: This is windows keybind crap
+            if (key == VK_OEM_1)
+                key = KEY_SEMICOLON;
+
             // Pass to input subsystem for processing
             input_process_key(key, pressed);
 

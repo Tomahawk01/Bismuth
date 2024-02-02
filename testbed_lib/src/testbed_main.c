@@ -237,11 +237,7 @@ b8 game_on_debug_event(u16 code, void* sender, void* listener_inst, event_contex
     }
     else if (code == EVENT_CODE_DEBUG4)
     {
-        shader* s = shader_system_get("Shader.Builtin.Terrain");
-        if (!shader_system_reload(s))
-            BERROR("Failed to reload terrain shader");
-
-        /* if (state->test_loop_audio_file)
+        if (state->test_loop_audio_file)
         {
             static b8 playing = true;
             playing = !playing;
@@ -256,29 +252,9 @@ b8 game_on_debug_event(u16 code, void* sender, void* listener_inst, event_contex
                 // Stop channel 6
                 audio_system_channel_stop(6);
             }
-        } */
-    }
-
-    return false;
-}
-
-b8 game_on_key(u16 code, void* sender, void* listener_inst, event_context context)
-{
-    application* game_inst = (application*)listener_inst;
-    testbed_game_state* state = (testbed_game_state*)game_inst->state;
-    if (code == EVENT_CODE_KEY_RELEASED)
-    {
-        u16 key_code = context.data.u16[0];
-        // Change gizmo orientation
-        if (key_code == KEY_G)
-        {
-            editor_gizmo_orientation orientation = editor_gizmo_orientation_get(&state->gizmo);
-            orientation++;
-            if (orientation > EDITOR_GIZMO_ORIENTATION_MAX)
-                orientation = 0;
-            editor_gizmo_orientation_set(&state->gizmo, orientation);
         }
     }
+
     return false;
 }
 
@@ -1059,12 +1035,11 @@ b8 application_prepare_frame(struct application* app_inst, struct frame_data* p_
             f32 culling_radius;
 
             // Get view-projection matrix
-            // TODO: pull max shadow dist + fade dist for far clip from light
             mat4 shadow_dist_projection = mat4_perspective(
                 view_viewport->fov,
                 view_viewport->rect.width / view_viewport->rect.height,
-                view_viewport->near_clip,
-                200.0f + 25.0f);
+                near,
+                far);
             mat4 cam_view_proj = mat4_transposed(mat4_mul(camera_view_get(view_camera), shadow_dist_projection));
 
             for (u32 c = 0; c < MAX_SHADOW_CASCADE_COUNT; c++)
@@ -1529,9 +1504,6 @@ void application_register_events(struct application* game_inst)
         event_register(EVENT_CODE_MOUSE_DRAGGED, game_inst->state, game_on_drag);
         // TODO: end temp
 
-        event_register(EVENT_CODE_KEY_PRESSED, game_inst, game_on_key);
-        event_register(EVENT_CODE_KEY_RELEASED, game_inst, game_on_key);
-
         event_register(EVENT_CODE_BVAR_CHANGED, 0, game_on_bvar_changed);
     }
 }
@@ -1552,9 +1524,6 @@ void application_unregister_events(struct application* game_inst)
     event_unregister(EVENT_CODE_MOUSE_DRAG_END, game_inst->state, game_on_drag);
     event_unregister(EVENT_CODE_MOUSE_DRAGGED, game_inst->state, game_on_drag);
     // TODO: end temp
-
-    event_unregister(EVENT_CODE_KEY_PRESSED, game_inst, game_on_key);
-    event_unregister(EVENT_CODE_KEY_RELEASED, game_inst, game_on_key);
 
     event_unregister(EVENT_CODE_BVAR_CHANGED, 0, game_on_bvar_changed);
 }

@@ -143,3 +143,5 @@ BAPI b8 renderer_renderbuffer_draw(renderbuffer* buffer, u64 offset, u32 element
 
 BAPI struct viewport* renderer_active_viewport_get(void);
 BAPI void renderer_active_viewport_set(struct viewport* v);
+
+BAPI void renderer_wait_for_idle(void);

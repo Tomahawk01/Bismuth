@@ -1,6 +1,7 @@
 #include "stack.h"
-#include "core/logger.h"
+
 #include "core/bmemory.h"
+#include "core/logger.h"
 
 static void stack_ensure_allocated(stack* s, u32 count)
 {
@@ -53,6 +54,25 @@ b8 stack_push(stack* s, void* element_data)
     stack_ensure_allocated(s, s->element_count + 1);
     bcopy_memory((void*)((u64)s->memory + (s->element_count * s->element_size)), element_data, s->element_size);
     s->element_count++;
+    return true;
+}
+
+b8 stack_peek(const stack* s, void* out_element_data)
+{
+    if (!s || !out_element_data)
+    {
+        BERROR("stack_peek requires a pointer to a valid stack and to hold element data output");
+        return false;
+    }
+
+    if (s->element_count < 1)
+    {
+        BWARN("Cannot peek from an empty stack");
+        return false;
+    }
+
+    bcopy_memory(out_element_data, (void*)((u64)s->memory + ((s->element_count - 1) * s->element_size)), s->element_size);
+
     return true;
 }
 
