@@ -77,6 +77,9 @@
         "math_types.h": "c",
         "stdlib.h": "c",
         "bsort.h": "c",
-        "vulkan_command_buffer.h": "c"
+        "vulkan_command_buffer.h": "c",
+        "editor_pass.h": "c",
+        "forward_rendergraph.h": "c",
+        "debug_box3d.h": "c"
     },
 }
