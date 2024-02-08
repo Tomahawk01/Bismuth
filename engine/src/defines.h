@@ -18,7 +18,7 @@ typedef double f64;
 
 // Boolean types
 typedef int b32;
-typedef char b8;
+typedef _Bool b8;
 
 typedef struct range
 {

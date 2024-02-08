@@ -1,10 +1,14 @@
 #include "job_system.h"
-#include "core/bthread.h"
-#include "core/bmutex.h"
-#include "core/bmemory.h"
-#include "core/logger.h"
-#include "core/frame_data.h"
+
 #include "containers/ring_queue.h"
+#include "core/asserts.h"
+#include "core/frame_data.h"
+#include "core/bmemory.h"
+#include "core/bmutex.h"
+#include "core/bsemaphore.h"
+#include "core/bthread.h"
+#include "core/logger.h"
+#include "defines.h"
 
 typedef struct job_thread
 {
@@ -14,6 +18,9 @@ typedef struct job_thread
 
     // Mutex to guard access to this thread's info
     bmutex info_mutex;
+
+    // Used to cause a thread to block until work is available
+    bsemaphore semaphore;
 
     // Types of jobs this thread can handle
     u32 type_mask;
@@ -34,6 +41,11 @@ typedef struct job_system_state
     b8 running;
     u8 thread_count;
     job_thread job_threads[32];
+
+    u16 current_job_id;
+    // TODO: Combine 8 into each bool
+    b8* job_statuses;
+    bmutex job_status_mutex;
 
     ring_queue low_priority_queue;
     ring_queue normal_priority_queue;
@@ -96,11 +108,21 @@ static u32 job_thread_run(void* params)
         return 0;
     }
 
+    // Create a semaphore for the thread which will block until there is work to do
+    if (!bsemaphore_create(&thread->semaphore, 1, 1))
+    {
+        BERROR("Failed to create job thread semaphore! Aborting thread...");
+        return 0;
+    }
+
     // Run forever, waiting for jobs
     while (true)
     {
         if (!state_ptr || !state_ptr->running || !thread)
             break;
+        
+        // Wait for the semaphore to be signaled
+        bsemaphore_wait(&thread->semaphore, 0xFFFFFFFF);
 
         // Lock and grab copy of the info
         if (!bmutex_lock(&thread->info_mutex))
@@ -124,34 +146,41 @@ static u32 job_thread_run(void* params)
             if (info.result_data)
                 bfree(info.result_data, info.result_data_size, MEMORY_TAG_JOB);
 
+            // Update the job status for this job
+            if (!bmutex_lock(&state_ptr->job_status_mutex))
+                BERROR("Failed to lock job status mutex");
+            state_ptr->job_statuses[thread->info.id] = true;
+            if (!bmutex_unlock(&state_ptr->job_status_mutex))
+                BERROR("Failed to unlock job status mutex");
+
             // Lock and reset the thread's info object
             if (!bmutex_lock(&thread->info_mutex))
                 BERROR("Failed to obtain lock on job thread mutex");
+            if (thread->info.dependency_ids)
+                bfree(thread->info.dependency_ids, sizeof(u16) * thread->info.dependency_count, MEMORY_TAG_ARRAY);
             bzero_memory(&thread->info, sizeof(job_info));
             if (!bmutex_unlock(&thread->info_mutex))
                 BERROR("Failed to release lock on job thread mutex");
         }
 
-        if (state_ptr->running)
-        {
-            // TODO: Should find better way to do this
-            bthread_sleep(&thread->thread, 10);
-        }
-        else
-        {
+        // If no longer running shut down the thread
+        if (!state_ptr->running)
             break;
-        }
     }
 
     // Destroy mutex for this thread
     bmutex_destroy(&thread->info_mutex);
+
+    // Destroy semaphore
+    bsemaphore_destroy(&thread->semaphore);
+
     return 1;
 }
 
 b8 job_system_initialize(u64* job_system_memory_requirement, void* state, void* config)
 {
     job_system_config* typed_config = (job_system_config*)config;
-    *job_system_memory_requirement = sizeof(job_system_state);
+    *job_system_memory_requirement = sizeof(job_system_state) + (sizeof(u8) * (INVALID_ID_U16 - 1));
     if (state == 0)
         return true;
 
@@ -159,6 +188,7 @@ b8 job_system_initialize(u64* job_system_memory_requirement, void* state, void* 
 
     state_ptr = state;
     state_ptr->running = true;
+    state_ptr->job_statuses = (void*)((u64)state_ptr + sizeof(job_system_state));
 
     ring_queue_create(sizeof(job_info), 1024, 0, &state_ptr->low_priority_queue);
     ring_queue_create(sizeof(job_info), 1024, 0, &state_ptr->normal_priority_queue);
@@ -206,6 +236,11 @@ b8 job_system_initialize(u64* job_system_memory_requirement, void* state, void* 
         BERROR("Failed to create high priority queue mutex!");
         return false;
     }
+    if (!bmutex_create(&state_ptr->job_status_mutex))
+    {
+        BERROR("Failed to create job status mutex!");
+        return false;
+    }
 
     return true;
 }
@@ -230,6 +265,7 @@ void job_system_shutdown(void* state)
         bmutex_destroy(&state_ptr->low_pri_queue_mutex);
         bmutex_destroy(&state_ptr->normal_pri_queue_mutex);
         bmutex_destroy(&state_ptr->high_pri_queue_mutex);
+        bmutex_destroy(&state_ptr->job_status_mutex);
 
         state_ptr = 0;
     }
@@ -245,6 +281,24 @@ static void process_queue(ring_queue* queue, bmutex* queue_mutex)
         job_info info;
         if (!ring_queue_peek(queue, &info))
             break;
+        
+        // Verify dependencies are complete
+        b8 awaiting_dependency = false;
+        if (info.dependency_count)
+        {
+            for (u32 i = 0; i < info.dependency_count; ++i)
+            {
+                if (!job_system_query_job_complete(info.dependency_ids[i]))
+                {
+                    BTRACE("Note: Not starting job id %u because it's dependency (job id=%u) is still running", info.id, info.dependency_ids[i]);
+                    awaiting_dependency = true;
+                    break;
+                }
+            }
+        }
+
+        if (awaiting_dependency)
+            continue;
 
         b8 thread_found = false;
         for (u8 i = 0; i < thread_count; ++i)
@@ -267,6 +321,8 @@ static void process_queue(ring_queue* queue, bmutex* queue_mutex)
                 thread->info = info;
                 BTRACE("Assigning job to thread: %u", thread->index);
                 thread_found = true;
+                // Signal the thread's semaphore since there is work to be done
+                bsemaphore_signal(&thread->semaphore);
             }
             if (!bmutex_unlock(&thread->info_mutex))
                 BERROR("Failed to release lock on job thread mutex!");
@@ -389,12 +445,38 @@ job_info job_create_type(pfn_job_start entry_point, pfn_job_on_complete on_succe
 
 job_info job_create_priority(pfn_job_start entry_point, pfn_job_on_complete on_success, pfn_job_on_complete on_fail, void* param_data, u32 param_data_size, u32 result_data_size, job_type type, job_priority priority)
 {
+    return job_create_with_dependencies(entry_point, on_success, on_fail, param_data, param_data_size, result_data_size, type, priority, 0, 0);
+}
+
+job_info job_create_with_dependencies(
+    pfn_job_start entry_point,
+    pfn_job_on_complete on_success,
+    pfn_job_on_complete on_fail,
+    void* param_data,
+    u32 param_data_size,
+    u32 result_data_size,
+    job_type type,
+    job_priority priority,
+    u8 dependency_count,
+    u16* dependencies)
+{
     job_info job;
     job.entry_point = entry_point;
     job.on_success = on_success;
     job.on_fail = on_fail;
     job.type = type;
     job.priority = priority;
+
+    if (!bmutex_lock(&state_ptr->job_status_mutex))
+        BERROR("Failed to lock job status mutex!");
+
+    // TODO: Pack booleans
+    BASSERT_MSG(state_ptr->current_job_id < INVALID_ID_U16, "Job system identifier overflow - need to pack booleans");
+    job.id = state_ptr->current_job_id;
+    state_ptr->current_job_id++;
+    state_ptr->job_statuses[job.id] = false;
+    if (!bmutex_unlock(&state_ptr->job_status_mutex))
+        BERROR("Failed to unlock job status mutex!");
 
     job.param_data_size = param_data_size;
     if (param_data_size)
@@ -412,6 +494,34 @@ job_info job_create_priority(pfn_job_start entry_point, pfn_job_on_complete on_s
         job.result_data = ballocate(result_data_size, MEMORY_TAG_JOB);
     else
         job.result_data = 0;
+    
+    job.dependency_count = dependency_count;
+    if (dependency_count)
+    {
+        job.dependency_ids = ballocate(sizeof(u16) * dependency_count, MEMORY_TAG_ARRAY);
+        bcopy_memory(job.dependency_ids, dependencies, sizeof(u16) * dependency_count);
+    }
+    else
+    {
+        job.dependency_ids = 0;
+    }
 
     return job;
+}
+
+b8 job_system_query_job_complete(u16 job_id)
+{
+    b8 status = INVALID_ID;
+    if (!bmutex_lock(&state_ptr->job_status_mutex))
+        BERROR("Failed to lock job status mutex!");
+    status = state_ptr->job_statuses[job_id];
+    if (!bmutex_unlock(&state_ptr->job_status_mutex))
+        BERROR("Failed to unlock job status mutex!");
+
+    return status;
+}
+
+b8 job_system_wait_for_jobs(u8 job_count, u16 job_ids)
+{
+    return true;
 }

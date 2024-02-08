@@ -80,6 +80,8 @@
         "vulkan_command_buffer.h": "c",
         "editor_pass.h": "c",
         "forward_rendergraph.h": "c",
-        "debug_box3d.h": "c"
+        "debug_box3d.h": "c",
+        "threadpool.h": "c",
+        "worker_thread.h": "c"
     },
 }

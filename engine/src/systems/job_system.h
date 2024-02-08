@@ -26,6 +26,8 @@ typedef struct job_info
 {
     job_type type;
 
+    u16 id;
+
     job_priority priority;
 
     pfn_job_start entry_point;
@@ -41,6 +43,10 @@ typedef struct job_info
     void* result_data;
 
     u32 result_data_size;
+
+    u8 dependency_count;
+
+    u16* dependency_ids;
 } job_info;
 
 typedef struct job_system_config
@@ -61,3 +67,17 @@ BAPI job_info job_create(pfn_job_start entry_point, pfn_job_on_complete on_succe
 BAPI job_info job_create_type(pfn_job_start entry_point, pfn_job_on_complete on_success, pfn_job_on_complete on_fail, void* param_data, u32 param_data_size, u32 result_data_size, job_type type);
 
 BAPI job_info job_create_priority(pfn_job_start entry_point, pfn_job_on_complete on_success, pfn_job_on_complete on_fail, void* param_data, u32 param_data_size, u32 result_data_size, job_type type, job_priority priority);
+
+BAPI job_info job_create_with_dependencies(
+    pfn_job_start entry_point,
+    pfn_job_on_complete on_success,
+    pfn_job_on_complete on_fail,
+    void* param_data,
+    u32 param_data_size,
+    u32 result_data_size,
+    job_type type,
+    job_priority priority,
+    u8 dependency_count,
+    u16* dependencies);
+
+BAPI b8 job_system_query_job_complete(u16 job_id);

@@ -228,9 +228,10 @@ static void console_object_print(u8 indent, console_object* obj)
             BINFO("%s%f", indent_buffer, *((f32*)obj->block));
             break;
         case CONSOLE_OBJECT_TYPE_BOOL:
+        {
             b8 val = *((b8*)obj->block);
             BINFO("%s%s", indent_buffer, val ? "true" : "false");
-            break;
+        } break;
         case CONSOLE_OBJECT_TYPE_STRUCT:
             if (obj->properties)
             {
