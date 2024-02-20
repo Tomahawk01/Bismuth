@@ -13,6 +13,8 @@ struct memory_stats
 {
     u64 total_allocated;
     u64 tagged_allocations[MEMORY_TAG_MAX_TAGS];
+    u64 new_tagged_allocations[MEMORY_TAG_MAX_TAGS];
+    u64 new_tagged_deallocations[MEMORY_TAG_MAX_TAGS];
 };
 
 static const char* memory_tag_strings[MEMORY_TAG_MAX_TAGS] =
@@ -148,6 +150,7 @@ void* ballocate_aligned(u64 size, u16 alignment, memory_tag tag)
 
         state_ptr->stats.total_allocated += size;
         state_ptr->stats.tagged_allocations[tag] += size;
+        state_ptr->stats.new_tagged_allocations[tag] += size;
         state_ptr->alloc_count++;
 
         block = dynamic_allocator_allocate_aligned(&state_ptr->allocator, size, alignment);
@@ -181,6 +184,7 @@ void ballocate_report(u64 size, memory_tag tag)
     }
     state_ptr->stats.total_allocated += size;
     state_ptr->stats.tagged_allocations[tag] += size;
+    state_ptr->stats.new_tagged_allocations[tag] += size;
     state_ptr->alloc_count++;
     bmutex_unlock(&state_ptr->allocation_mutex);
 }
@@ -206,6 +210,7 @@ void bfree_aligned(void* block, u64 size, u16 alignment, memory_tag tag)
 
         state_ptr->stats.total_allocated -= size;
         state_ptr->stats.tagged_allocations[tag] -= size;
+        state_ptr->stats.new_tagged_deallocations[tag] += size;
         state_ptr->alloc_count--;
         b8 result = dynamic_allocator_free_aligned(&state_ptr->allocator, block);
 
@@ -234,6 +239,7 @@ void bfree_report(u64 size, memory_tag tag)
     }
     state_ptr->stats.total_allocated -= size;
     state_ptr->stats.tagged_allocations[tag] -= size;
+    state_ptr->stats.new_tagged_deallocations[tag] += size;
     state_ptr->alloc_count--;
     bmutex_unlock(&state_ptr->allocation_mutex);
 }
@@ -289,12 +295,19 @@ char* get_memory_usage_str(void)
     u64 offset = strlen(buffer);
     for (u32 i = 0; i < MEMORY_TAG_MAX_TAGS; ++i)
     {
-        f32 amount = 1.0f;
-        const char* unit = get_unit_for_size(state_ptr->stats.tagged_allocations[i], &amount);
+        f32 amounts[3] = {1.0f, 1.0f, 1.0f};
+        const char* units[3] = { 
+            get_unit_for_size(state_ptr->stats.tagged_allocations[i], &amounts[0]),
+            get_unit_for_size(state_ptr->stats.new_tagged_allocations[i], &amounts[1]),
+            get_unit_for_size(state_ptr->stats.new_tagged_deallocations[i], &amounts[2])
+        };
 
-        i32 length = snprintf(buffer + offset, 8000, "  %s: %.2f%s\n", memory_tag_strings[i], amount, unit);
+        i32 length = snprintf(buffer + offset, 8000, "  %s: %-7.2f %-3s [+ %-7.2f %-3s | - %-7.2f%-3s]\n", memory_tag_strings[i], amounts[0], units[0], amounts[1], units[1], amounts[2], units[2]);
         offset += length;
     }
+
+    bzero_memory(&state_ptr->stats.new_tagged_allocations, sizeof(state_ptr->stats.new_tagged_allocations));
+    bzero_memory(&state_ptr->stats.new_tagged_deallocations, sizeof(state_ptr->stats.new_tagged_deallocations));
 
     {
         // Compute total usage
