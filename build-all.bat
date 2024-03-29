@@ -44,7 +44,7 @@ make -f "Makefile.executable.mak" %ACTION% TARGET=%TARGET% ASSEMBLY=versiongen
 IF %ERRORLEVEL% NEQ 0 (echo Error:%ERRORLEVEL% && exit)
 
 REM Engine
-make -f "Makefile.library.mak" %ACTION% TARGET=%TARGET% ASSEMBLY=engine VER_MAJOR=0 VER_MINOR=6 DO_VERSION=%DO_VERSION% ADDL_LINK_FLAGS="%ENGINE_LINK%"
+make -f "Makefile.library.mak" %ACTION% TARGET=%TARGET% ASSEMBLY=engine VER_MAJOR=0 VER_MINOR=7 DO_VERSION=%DO_VERSION% ADDL_LINK_FLAGS="%ENGINE_LINK%"
 IF %ERRORLEVEL% NEQ 0 (echo Error:%ERRORLEVEL% && exit)
 
 REM Vulkan Renderer lib
@@ -67,9 +67,9 @@ REM Testbed
 make -f "Makefile.executable.mak" %ACTION% TARGET=%TARGET% ASSEMBLY=testbed ADDL_INC_FLAGS="-Iengine\src" ADDL_LINK_FLAGS="-lengine"
 IF %ERRORLEVEL% NEQ 0 (echo Error:%ERRORLEVEL% && exit)
 
-@REM REM Tests
-@REM make -f "Makefile.executable.mak" %ACTION% TARGET=%TARGET% ASSEMBLY=tests ADDL_INC_FLAGS=-Iengine\src ADDL_LINK_FLAGS=-lengine
-@REM IF %ERRORLEVEL% NEQ 0 (echo Error:%ERRORLEVEL% && exit)
+REM Tests
+make -f "Makefile.executable.mak" %ACTION% TARGET=%TARGET% ASSEMBLY=tests ADDL_INC_FLAGS=-Iengine\src ADDL_LINK_FLAGS=-lengine
+IF %ERRORLEVEL% NEQ 0 (echo Error:%ERRORLEVEL% && exit)
 
 REM REM Tools
 make -f "Makefile.executable.mak" %ACTION% TARGET=%TARGET% ASSEMBLY=tools ADDL_INC_FLAGS=-Iengine\src ADDL_LINK_FLAGS=-lengine

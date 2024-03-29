@@ -1,23 +1,23 @@
 #include "debug_line3d.h"
 
 #include "core/identifier.h"
+#include "core/bhandle.h"
 #include "core/bmemory.h"
 #include "math/bmath.h"
-#include "math/transform.h"
 #include "renderer/renderer_frontend.h"
+#include "systems/xform_system.h"
 
-static void recalculate_points(debug_line3d *line);
-static void update_vert_color(debug_line3d *line);
+static void recalculate_points(debug_line3d* line);
+static void update_vert_color(debug_line3d* line);
 
-b8 debug_line3d_create(vec3 point_0, vec3 point_1, transform *parent, debug_line3d *out_line)
+b8 debug_line3d_create(vec3 point_0, vec3 point_1, b_handle parent_xform, debug_line3d* out_line)
 {
     if (!out_line)
         return false;
     out_line->vertex_count = 0;
     out_line->vertices = 0;
-    out_line->xform = transform_create();
-    if (parent)
-        transform_parent_set(&out_line->xform, parent);
+    out_line->xform = xform_create();
+    out_line->xform_parent = parent_xform;
     out_line->point_0 = point_0;
     out_line->point_1 = point_1;
     out_line->id = identifier_create();
@@ -30,19 +30,19 @@ b8 debug_line3d_create(vec3 point_0, vec3 point_1, transform *parent, debug_line
     return true;
 }
 
-void debug_line3d_destroy(debug_line3d *line)
+void debug_line3d_destroy(debug_line3d* line)
 {
     // TODO: zero out
     line->id.uniqueid = INVALID_ID_U64;
 }
 
-void debug_line3d_parent_set(debug_line3d *line, transform *parent)
+void debug_line3d_parent_set(debug_line3d* line, b_handle parent_xform)
 {
     if (line)
-        transform_parent_set(&line->xform, parent);
+        line->xform_parent = parent_xform;
 }
 
-void debug_line3d_color_set(debug_line3d *line, vec4 color)
+void debug_line3d_color_set(debug_line3d* line, vec4 color)
 {
     if (line)
     {
@@ -57,7 +57,7 @@ void debug_line3d_color_set(debug_line3d *line, vec4 color)
     }
 }
 
-void debug_line3d_points_set(debug_line3d *line, vec3 point_0, vec3 point_1)
+void debug_line3d_points_set(debug_line3d* line, vec3 point_0, vec3 point_1)
 {
     if (line)
     {
@@ -71,7 +71,7 @@ void debug_line3d_points_set(debug_line3d *line, vec3 point_0, vec3 point_1)
     }
 }
 
-void debug_line3d_render_frame_prepare(debug_line3d *line, const struct frame_data *p_frame_data)
+void debug_line3d_render_frame_prepare(debug_line3d* line, const struct frame_data* p_frame_data)
 {
     if (!line || !line->is_dirty)
         return;
@@ -88,7 +88,7 @@ void debug_line3d_render_frame_prepare(debug_line3d *line, const struct frame_da
     line->is_dirty = false;
 }
 
-b8 debug_line3d_initialize(debug_line3d *line)
+b8 debug_line3d_initialize(debug_line3d* line)
 {
     if (!line)
         return false;
@@ -102,7 +102,7 @@ b8 debug_line3d_initialize(debug_line3d *line)
     return true;
 }
 
-b8 debug_line3d_load(debug_line3d *line)
+b8 debug_line3d_load(debug_line3d* line)
 {
     if (!renderer_geometry_create(&line->geo, sizeof(color_vertex_3d), line->vertex_count, line->vertices, 0, 0, 0))
         return false;
@@ -117,19 +117,19 @@ b8 debug_line3d_load(debug_line3d *line)
     return true;
 }
 
-b8 debug_line3d_unload(debug_line3d *line)
+b8 debug_line3d_unload(debug_line3d* line)
 {
     renderer_geometry_destroy(&line->geo);
 
     return true;
 }
 
-b8 debug_line3d_update(debug_line3d *line)
+b8 debug_line3d_update(debug_line3d* line)
 {
     return true;
 }
 
-static void recalculate_points(debug_line3d *line)
+static void recalculate_points(debug_line3d* line)
 {
     if (line)
     {
@@ -138,7 +138,7 @@ static void recalculate_points(debug_line3d *line)
     }
 }
 
-static void update_vert_color(debug_line3d *line)
+static void update_vert_color(debug_line3d* line)
 {
     if (line)
     {

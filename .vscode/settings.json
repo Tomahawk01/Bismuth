@@ -82,6 +82,18 @@
         "forward_rendergraph.h": "c",
         "debug_box3d.h": "c",
         "threadpool.h": "c",
-        "worker_thread.h": "c"
+        "worker_thread.h": "c",
+        "bhandle.h": "c",
+        "skybox_pass.h": "c",
+        "algorithm": "c",
+        "optional": "c",
+        "debug_grid.h": "c",
+        "bson_parser.h": "c",
+        "viewport.h": "c",
+        "xtr1common": "c",
+        "systems_manager.h": "c",
+        "xform_system.h": "c",
+        "linear_allocator_tests.h": "c",
+        "dynamic_allocator_tests.h": "c"
     },
 }

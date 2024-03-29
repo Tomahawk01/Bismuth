@@ -27,6 +27,8 @@ BAPI b8 resource_system_loader_register(resource_loader loader);
 BAPI b8 resource_system_load(const char* name, resource_type type, void* params, resource* out_resource);
 BAPI b8 resource_system_load_custom(const char* name, const char* custom_type, void* params, resource* out_resource);
 
+BAPI b8 resource_system_write(resource_type type, resource* r);
+
 BAPI const char* resource_system_base_path_for_type(resource_type type);
 
 BAPI void resource_system_unload(resource* resource);

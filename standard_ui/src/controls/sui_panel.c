@@ -5,7 +5,6 @@
 #include <core/systems_manager.h>
 #include <math/geometry_utils.h>
 #include <math/bmath.h>
-#include <math/transform.h>
 #include <renderer/renderer_frontend.h>
 #include <resources/resource_types.h>
 #include <systems/geometry_system.h>
@@ -113,7 +112,7 @@ b8 sui_panel_control_render(struct sui_control* self, struct frame_data* p_frame
         renderable.render_data.index_count = typed_data->g->index_count;
         renderable.render_data.index_element_size = typed_data->g->index_element_size;
         renderable.render_data.index_buffer_offset = typed_data->g->index_buffer_offset;
-        renderable.render_data.model = transform_world_get(&self->xform);
+        renderable.render_data.model = xform_world_get(self->xform);
         renderable.render_data.diffuse_color = typed_data->color;
 
         renderable.instance_id = &typed_data->instance_id;
@@ -159,7 +158,10 @@ static void sui_panel_control_render_frame_prepare(struct sui_control* self, con
     if (self)
     {
         sui_panel_internal_data* typed_data = self->internal_data;
-        renderer_geometry_vertex_update(typed_data->g, 0, typed_data->g->vertex_count, typed_data->g->vertices, true);
-        typed_data->is_dirty = false;
+        if (typed_data->is_dirty)
+        {
+            renderer_geometry_vertex_update(typed_data->g, 0, typed_data->g->vertex_count, typed_data->g->vertices, true);
+            typed_data->is_dirty = false;
+        }
     }
 }

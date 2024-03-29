@@ -438,14 +438,17 @@ b8 vulkan_renderer_backend_initialize(renderer_plugin* plugin, const renderer_ba
     // Samplers array
     context->samplers = darray_create(VkSampler);
 
-    // Staging buffer
+    // Staging buffers, one per frame-in-flight
     const u64 staging_buffer_size = 512 * 1000 * 1000;
-    if (!renderer_renderbuffer_create("staging", RENDERBUFFER_TYPE_STAGING, staging_buffer_size, RENDERBUFFER_TRACK_TYPE_LINEAR, &context->staging))
+    for (u32 i = 0; i < context->swapchain.max_frames_in_flight; ++i)
     {
-        BERROR("Failed to create staging buffer");
-        return false;
+        if (!renderer_renderbuffer_create("staging", RENDERBUFFER_TYPE_STAGING, staging_buffer_size, RENDERBUFFER_TRACK_TYPE_LINEAR, &context->staging[i]))
+        {
+            BERROR("Failed to create staging buffer");
+            return false;
+        }
+        renderer_renderbuffer_bind(&context->staging[i], 0);
     }
-    renderer_renderbuffer_bind(&context->staging, 0);
 
     // Create a shader compiler
     context->shader_compiler = shaderc_compiler_initialize();
@@ -468,7 +471,8 @@ void vulkan_renderer_backend_shutdown(renderer_plugin* plugin)
 
     // Destroy in the opposite order of creation
     // Destroy buffers
-    renderer_renderbuffer_destroy(&context->staging);
+    for (u32 i = 0; i < context->swapchain.max_frames_in_flight; ++i)
+        renderer_renderbuffer_destroy(&context->staging[i]);
 
     // Sync objects
     for (u8 i = 0; i < context->swapchain.max_frames_in_flight; ++i)
@@ -621,13 +625,6 @@ b8 vulkan_renderer_frame_prepare(renderer_plugin *plugin, struct frame_data *p_f
         return false;
     }
 
-    // Reset staging buffer
-    if (!renderer_renderbuffer_clear(&context->staging, false))
-    {
-        BERROR("Failed to clear staging buffer");
-        return false;
-    }
-
     // Wait for the execution of the current frame to complete. The fence being free will allow this one to move on
     VkResult result = vkWaitForFences(context->device.logical_device, 1, &context->in_flight_fences[context->current_frame], true, 0xffffffffffffffff);
     if (!vulkan_result_is_success(result))
@@ -658,6 +655,13 @@ b8 vulkan_renderer_frame_prepare(renderer_plugin *plugin, struct frame_data *p_f
 
     // Reset fence for use on the next frame
     VK_CHECK(vkResetFences(context->device.logical_device, 1, &context->in_flight_fences[context->current_frame]));
+
+    // Reset staging buffer
+    if (!renderer_renderbuffer_clear(&context->staging[context->current_frame], false))
+    {
+        BERROR("Failed to clear staging buffer");
+        return false;
+    }
 
     return true;
 }
@@ -1324,8 +1328,8 @@ void vulkan_renderer_texture_write_data(renderer_plugin* plugin, texture* t, u32
 
     // Staging buffer
     u64 staging_offset = 0;
-    renderer_renderbuffer_allocate(&context->staging, size, &staging_offset);
-    vulkan_buffer_load_range(plugin, &context->staging, staging_offset, size, pixels, include_in_frame_workload);
+    renderer_renderbuffer_allocate(&context->staging[context->current_frame], size, &staging_offset);
+    vulkan_buffer_load_range(plugin, &context->staging[context->current_frame], staging_offset, size, pixels, include_in_frame_workload);
 
     vulkan_command_buffer temp_command_buffer;
     VkCommandPool pool = context->device.graphics_command_pool;
@@ -1336,7 +1340,7 @@ void vulkan_renderer_texture_write_data(renderer_plugin* plugin, texture* t, u32
     vulkan_image_transition_layout(context, &temp_command_buffer, image, image_format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
     
     // Copy data from buffer
-    vulkan_image_copy_from_buffer(context, image, ((vulkan_buffer*)context->staging.internal_data)->handle, staging_offset, &temp_command_buffer);
+    vulkan_image_copy_from_buffer(context, image, ((vulkan_buffer*)context->staging[context->current_frame].internal_data)->handle, staging_offset, &temp_command_buffer);
 
     // Transition from optimal for data reciept to shader-read-only optimal layout
     if (t->mip_levels <= 1 || !vulkan_image_mipmaps_generate(context, image, &temp_command_buffer))
@@ -3723,11 +3727,11 @@ b8 vulkan_buffer_load_range(renderer_plugin* plugin, renderbuffer* buffer, u64 o
     {
         // Load data into staging buffer
         u64 staging_offset = 0;
-        renderer_renderbuffer_allocate(&context->staging, size, &staging_offset);
-        vulkan_buffer_load_range(plugin, &context->staging, staging_offset, size, data, include_in_frame_workload);
+        renderer_renderbuffer_allocate(&context->staging[context->current_frame], size, &staging_offset);
+        vulkan_buffer_load_range(plugin, &context->staging[context->current_frame], staging_offset, size, data, include_in_frame_workload);
 
         // Perform copy from staging to device local buffer
-        vulkan_buffer_copy_range(plugin, &context->staging, staging_offset, buffer, offset, size, include_in_frame_workload);
+        vulkan_buffer_copy_range(plugin, &context->staging[context->current_frame], staging_offset, buffer, offset, size, include_in_frame_workload);
     }
     else
     {

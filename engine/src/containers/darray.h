@@ -2,6 +2,14 @@
 
 #include "defines.h"
 
+typedef struct darray_header
+{
+    u64 capacity;
+    u64 length;
+    u64 stride;
+    struct frame_allocator_int* allocator;
+} darray_header;
+
 struct frame_allocator_int;
 
 BAPI void* _darray_create(u64 length, u64 stride, struct frame_allocator_int* frame_allocator);
@@ -13,7 +21,7 @@ BAPI void* _darray_insert_at(void* array, u64 index, void* value_ptr);
 #define DARRAY_RESIZE_FACTOR 2
 
 #define darray_create(type) \
-    _darray_create(DARRAY_DEFAULT_CAPACITY, sizeof(type), 0)
+    (type*)_darray_create(DARRAY_DEFAULT_CAPACITY, sizeof(type), 0)
 
 #define darray_create_with_allocator(type, allocator) \
     _darray_create(DARRAY_DEFAULT_CAPACITY, sizeof(type), allocator)

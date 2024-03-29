@@ -7,7 +7,6 @@
 #include "core/frame_data.h"
 #include "core/uuid.h"
 #include "math/bmath.h"
-#include "math/transform.h"
 #include "containers/darray.h"
 #include "systems/resource_system.h"
 #include "systems/shader_system.h"
@@ -15,6 +14,7 @@
 #include "renderer/renderer_frontend.h"
 #include "renderer/viewport.h"
 #include "renderer/renderer_types.h"
+#include "systems/xform_system.h"
 
 typedef struct render_view_pick_shader_info
 {
@@ -330,7 +330,8 @@ b8 render_view_pick_on_packet_build(const struct render_view* self, struct frame
             render_data.vertex_buffer_offset = g->vertex_buffer_offset;
             render_data.index_count = g->index_count;
             render_data.index_buffer_offset = g->index_buffer_offset;
-            render_data.model = transform_world_get(&m->transform);
+            // TODO: Get from hierarchy
+            // render_data.model = xform_world_get(m->xform);
             render_data.unique_id = m->id.uniqueid;
             darray_push(out_packet->geometries, render_data);
             out_packet->geometry_count++;

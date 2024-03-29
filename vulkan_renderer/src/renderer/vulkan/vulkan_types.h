@@ -378,7 +378,8 @@ typedef struct vulkan_context
     // Pointer to the currently bound shader
     struct shader* bound_shader;
 
-    renderbuffer staging;
+    // Resusable staging buffers (one per frame in flight) to transfer data from a resource to a GPU-only buffer
+    renderbuffer staging[2];
 
     // Used for dynamic compilation of vulkan shaders (using the shaderc lib)
     struct shaderc_compiler* shader_compiler;

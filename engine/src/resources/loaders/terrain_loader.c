@@ -30,7 +30,7 @@ static b8 terrain_loader_load(struct resource_loader *self, const char *name, vo
 
     out_resource->full_path = string_duplicate(full_file_path);
 
-    terrain_config *resource_data = ballocate(sizeof(terrain_config), MEMORY_TAG_RESOURCE);
+    terrain_resource *resource_data = ballocate(sizeof(terrain_resource), MEMORY_TAG_RESOURCE);
     // Set some defaults, create arrays
 
     // TODO: Materials
@@ -228,13 +228,13 @@ static b8 terrain_loader_load(struct resource_loader *self, const char *name, vo
 
 static void terrain_loader_unload(struct resource_loader *self, resource *resource)
 {
-    terrain_config *data = (terrain_config *)resource->data;
+    terrain_resource *data = (terrain_resource*)resource->data;
 
     darray_destroy(data->vertex_datas);
     if (data->name)
         bfree(data->name, sizeof(char) * (string_length(data->name) + 1), MEMORY_TAG_STRING);
 
-    bzero_memory(data, sizeof(shader_config));
+    bzero_memory(data, sizeof(terrain_resource));
 
     if (data->material_names)
     {

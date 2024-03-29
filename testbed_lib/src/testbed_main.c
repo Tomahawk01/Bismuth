@@ -19,11 +19,11 @@
 #include <resources/terrain.h>
 
 #include "core/engine.h"
+#include "core/bhandle.h"
 #include "defines.h"
 #include "game_state.h"
 #include "math/math_types.h"
 #include "renderer/viewport.h"
-#include "resources/loaders/simple_scene_loader.h"
 #include "systems/camera_system.h"
 
 // Standard UI
@@ -47,10 +47,9 @@
 
 // TODO: temp
 #include <core/identifier.h>
-#include <math/transform.h>
 #include <resources/loaders/audio_loader.h>
 #include <resources/mesh.h>
-#include <resources/simple_scene.h>
+#include <resources/scene.h>
 #include <resources/skybox.h>
 #include <systems/audio_system.h>
 #include <systems/geometry_system.h>
@@ -77,6 +76,7 @@ typedef struct geometry_distance
 void application_register_events(struct application* game_inst);
 void application_unregister_events(struct application* game_inst);
 static b8 load_main_scene(struct application* game_inst);
+static b8 save_main_scene(struct application* game_inst);
 static b8 create_rendergraphs(application* app);
 static b8 initialize_rendergraphs(application* app);
 static b8 prepare_rendergraphs(application* app, frame_data* p_frame_data);
@@ -130,27 +130,27 @@ b8 game_on_event(u16 code, void* sender, void* listener_inst, event_context cont
             i32 mode = context.data.i32[0];
             switch (mode)
             {
-                default:
-                case RENDERER_VIEW_MODE_DEFAULT:
-                    BDEBUG("Renderer mode set to default");
-                    state->render_mode = RENDERER_VIEW_MODE_DEFAULT;
-                    break;
-                case RENDERER_VIEW_MODE_LIGHTING:
-                    BDEBUG("Renderer mode set to lighting");
-                    state->render_mode = RENDERER_VIEW_MODE_LIGHTING;
-                    break;
-                case RENDERER_VIEW_MODE_NORMALS:
-                    BDEBUG("Renderer mode set to normals");
-                    state->render_mode = RENDERER_VIEW_MODE_NORMALS;
-                    break;
-                case RENDERER_VIEW_MODE_CASCADES:
-                    BDEBUG("Renderer mode set to cascades");
-                    state->render_mode = RENDERER_VIEW_MODE_CASCADES;
-                    break;
-                case RENDERER_VIEW_MODE_WIREFRAME:
-                    BDEBUG("Renderer mode set to wireframe");
-                    state->render_mode = RENDERER_VIEW_MODE_WIREFRAME;
-                    break;
+            default:
+            case RENDERER_VIEW_MODE_DEFAULT:
+                BDEBUG("Renderer mode set to default");
+                state->render_mode = RENDERER_VIEW_MODE_DEFAULT;
+                break;
+            case RENDERER_VIEW_MODE_LIGHTING:
+                BDEBUG("Renderer mode set to lighting");
+                state->render_mode = RENDERER_VIEW_MODE_LIGHTING;
+                break;
+            case RENDERER_VIEW_MODE_NORMALS:
+                BDEBUG("Renderer mode set to normals");
+                state->render_mode = RENDERER_VIEW_MODE_NORMALS;
+                break;
+            case RENDERER_VIEW_MODE_CASCADES:
+                BDEBUG("Renderer mode set to cascades");
+                state->render_mode = RENDERER_VIEW_MODE_CASCADES;
+                break;
+            case RENDERER_VIEW_MODE_WIREFRAME:
+                BDEBUG("Renderer mode set to wireframe");
+                state->render_mode = RENDERER_VIEW_MODE_WIREFRAME;
+                break;
             }
             return true;
         }
@@ -199,7 +199,7 @@ b8 game_on_debug_event(u16 code, void* sender, void* listener_inst, event_contex
     }
     else if (code == EVENT_CODE_DEBUG1)
     {
-        if (state->main_scene.state < SIMPLE_SCENE_STATE_LOADING)
+        if (state->main_scene.state < SCENE_STATE_LOADING)
         {
             BDEBUG("Loading main scene...");
             if (!load_main_scene(game_inst))
@@ -207,12 +207,22 @@ b8 game_on_debug_event(u16 code, void* sender, void* listener_inst, event_contex
         }
         return true;
     }
+    else if (code == EVENT_CODE_DEBUG5)
+    {
+        if (state->main_scene.state >= SCENE_STATE_LOADING)
+        {
+            BDEBUG("Saving main scene...");
+            if (!save_main_scene(game_inst))
+                BERROR("Error saving main scene");
+        }
+        return true;
+    }
     else if (code == EVENT_CODE_DEBUG2)
     {
-        if (state->main_scene.state == SIMPLE_SCENE_STATE_LOADED)
+        if (state->main_scene.state == SCENE_STATE_LOADED)
         {
             BDEBUG("Unloading scene...");
-            simple_scene_unload(&state->main_scene, false);
+            scene_unload(&state->main_scene, false);
             clear_debug_objects(game_inst);
             BDEBUG("Done");
         }
@@ -312,7 +322,7 @@ b8 game_on_button(u16 code, void* sender, void* listener_inst, event_context con
                 testbed_game_state* state = (testbed_game_state*)listener_inst;
 
                 // If scene isn't loaded, don't do anything else
-                if (state->main_scene.state < SIMPLE_SCENE_STATE_LOADED)
+                if (state->main_scene.state < SCENE_STATE_LOADED)
                     return false;
                 
                 // If "manipulating gizmo", don't do below logic
@@ -334,17 +344,17 @@ b8 game_on_button(u16 code, void* sender, void* listener_inst, event_context con
                         v->projection);
 
                     raycast_result r_result;
-                    if (simple_scene_raycast(&state->main_scene, &r, &r_result))
+                    if (scene_raycast(&state->main_scene, &r, &r_result))
                     {
                         u32 hit_count = darray_length(r_result.hits);
                         for (u32 i = 0; i < hit_count; ++i)
                         {
                             raycast_hit* hit = &r_result.hits[i];
-                            BINFO("Hit! id: %u, dist: %f", hit->unique_id, hit->distance);
+                            BINFO("Hit! id: %u, dist: %f", hit->node_handle.handle_index, hit->distance);
 
                             // Create a debug line where the ray cast starts and ends (at the intersection)
                             debug_line3d test_line;
-                            debug_line3d_create(r.origin, hit->position, 0, &test_line);
+                            debug_line3d_create(r.origin, hit->position, b_handle_invalid(), &test_line);
                             debug_line3d_initialize(&test_line);
                             debug_line3d_load(&test_line);
                             // Yellow for hits
@@ -355,7 +365,7 @@ b8 game_on_button(u16 code, void* sender, void* listener_inst, event_context con
                             // Create a debug box to show the intersection point
                             debug_box3d test_box;
 
-                            debug_box3d_create((vec3){0.1f, 0.1f, 0.1f}, 0, &test_box);
+                            debug_box3d_create((vec3){0.1f, 0.1f, 0.1f}, b_handle_invalid(), &test_box);
                             debug_box3d_initialize(&test_box);
                             debug_box3d_load(&test_box);
 
@@ -369,12 +379,13 @@ b8 game_on_button(u16 code, void* sender, void* listener_inst, event_context con
                             // Object selection
                             if (i == 0)
                             {
-                                state->selection.unique_id = hit->unique_id;
-                                state->selection.xform = simple_scene_transform_get_by_id(&state->main_scene, hit->unique_id);
-                                if (state->selection.xform)
+                                state->selection.node_handle = hit->node_handle;
+                                state->selection.xform_handle = hit->xform_handle;
+                                state->selection.xform_parent_handle = hit->xform_parent_handle;
+                                if (!b_handle_is_invalid(state->selection.xform_handle))
                                 {
-                                    BINFO("Selected object id %u", hit->unique_id);
-                                    editor_gizmo_selected_transform_set(&state->gizmo, state->selection.xform);
+                                    BINFO("Selected object id %u", hit->node_handle.handle_index);
+                                    editor_gizmo_selected_transform_set(&state->gizmo, state->selection.xform_handle, state->selection.xform_parent_handle);
                                 }
                             }
                         }
@@ -385,7 +396,7 @@ b8 game_on_button(u16 code, void* sender, void* listener_inst, event_context con
 
                         // Create a debug line where the ray cast starts and continues to
                         debug_line3d test_line;
-                        debug_line3d_create(r.origin, vec3_add(r.origin, vec3_mul_scalar(r.direction, 100.0f)), 0, &test_line);
+                        debug_line3d_create(r.origin, vec3_add(r.origin, vec3_mul_scalar(r.direction, 100.0f)), b_handle_invalid(), &test_line);
                         debug_line3d_initialize(&test_line);
                         debug_line3d_load(&test_line);
                         // Magenta for non-hits
@@ -393,19 +404,19 @@ b8 game_on_button(u16 code, void* sender, void* listener_inst, event_context con
 
                         darray_push(state->test_lines, test_line);
 
-                        if (state->selection.xform)
+                        if (b_handle_is_invalid(state->selection.xform_handle))
                         {
                             BINFO("Object deselected");
-                            state->selection.xform = 0;
-                            state->selection.unique_id = INVALID_ID;
+                            state->selection.xform_handle = b_handle_invalid();
+                            state->selection.node_handle = b_handle_invalid();
+                            state->selection.xform_parent_handle = b_handle_invalid();
 
-                            editor_gizmo_selected_transform_set(&state->gizmo, 0);
+                            editor_gizmo_selected_transform_set(&state->gizmo, state->selection.xform_handle, state->selection.xform_parent_handle);
                         }
 
                         // TODO: hide gizmo, disable input, etc
                     }
                 }
-
             } break;
         }
     }
@@ -525,11 +536,10 @@ b8 application_initialize(struct application* game_inst)
     application_register_events(game_inst);
 
     // Register resource loaders
-    resource_system_loader_register(simple_scene_resource_loader_create());
     resource_system_loader_register(audio_resource_loader_create());
 
-    state->selection.unique_id = INVALID_ID;
-    state->selection.xform = 0;
+    // Invalid handle == no selection
+    state->selection.xform_handle = b_handle_invalid();
 
     debug_console_load(&state->debug_console);
 
@@ -640,7 +650,7 @@ b8 application_initialize(struct application* game_inst)
         }
         else
         {
-            transform_translate(&state->test_panel.xform, (vec3){950, 350});
+            xform_translate(state->test_panel.xform, (vec3){950, 350});
             void* sui_state = systems_manager_get_state(B_SYSTEM_TYPE_STANDARD_UI_EXT);
             if (!standard_ui_system_register_control(sui_state, &state->test_panel))
             {
@@ -815,25 +825,15 @@ b8 application_update(struct application* game_inst, struct frame_data* p_frame_
     f32 near_clip = view_viewport->near_clip;
     f32 far_clip = view_viewport->far_clip;
 
-    if (state->main_scene.state >= SIMPLE_SCENE_STATE_LOADED)
+    if (state->main_scene.state >= SCENE_STATE_LOADED)
     {
-        if (!simple_scene_update(&state->main_scene, p_frame_data))
+        if (!scene_update(&state->main_scene, p_frame_data))
             BWARN("Failed to update main scene");
         
         // Update LODs for the scene based on distance from the camera
-        simple_scene_update_lod_from_view_position(&state->main_scene, p_frame_data, pos, near_clip, far_clip);
+        scene_update_lod_from_view_position(&state->main_scene, p_frame_data, pos, near_clip, far_clip);
         
         editor_gizmo_update(&state->gizmo);
-
-        // // Perform small rotation on first mesh
-        // quat rotation = quat_from_axis_angle((vec3){0, 1, 0}, -0.5f * p_frame_data->delta_time, false);
-        // transform_rotate(&state->meshes[0].transform, rotation);
-
-        // // Perform similar rotation on second mesh, if it exists
-        // transform_rotate(&state->meshes[1].transform, rotation);
-
-        // // Perform similar rotation on third mesh, if it exists
-        // transform_rotate(&state->meshes[2].transform, rotation);
 
         if (state->p_light_1)
         {
@@ -854,77 +854,82 @@ b8 application_update(struct application* game_inst, struct frame_data* p_frame_
     state->prev_alloc_count = state->alloc_count;
     state->alloc_count = get_memory_alloc_count();
 
-    // Also tack on current mouse state
-    b8 left_down = input_is_button_down(BUTTON_LEFT);
-    b8 right_down = input_is_button_down(BUTTON_RIGHT);
-    i32 mouse_x, mouse_y;
-    input_get_mouse_position(&mouse_x, &mouse_y);
-
-    // Convert to NDC(Native Device Coordinates)
-    f32 mouse_x_ndc = range_convert_f32((f32)mouse_x, 0.0f, (f32)state->width, -1.0f, 1.0f);
-    f32 mouse_y_ndc = range_convert_f32((f32)mouse_y, 0.0f, (f32)state->height, -1.0f, 1.0f);
-
-    f64 fps, frame_time;
-    metrics_frame(&fps, &frame_time);
-
-    // Keep a running average of update and render timers over the last ~1 second
-    static f64 accumulated_ms = 0;
-    static f32 total_update_seconds = 0;
-    static f32 total_prepare_seconds = 0;
-    static f32 total_render_seconds = 0;
-
-    static f32 total_update_avg_us = 0;
-    static f32 total_prepare_avg_us = 0;
-    static f32 total_render_avg_us = 0;
-    static f32 total_avg = 0;  // total average across the frame
-
-    total_update_seconds += state->last_update_elapsed;
-    total_prepare_seconds += state->prepare_clock.elapsed;
-    total_render_seconds += state->render_clock.elapsed;
-    accumulated_ms += frame_time;
-
-    // Once ~1 second has gone by, calculate average and wipe accumulators
-    if (accumulated_ms >= 1000.0f)
+    // Only track these things once actually running
+    if (state->running)
     {
-        total_update_avg_us = (total_update_seconds / accumulated_ms) * B_SEC_TO_US_MULTIPLIER;
-        total_prepare_avg_us = (total_prepare_seconds / accumulated_ms) * B_SEC_TO_US_MULTIPLIER;
-        total_render_avg_us = (total_render_seconds / accumulated_ms) * B_SEC_TO_US_MULTIPLIER;
-        total_avg = total_update_avg_us + total_prepare_avg_us + total_render_avg_us;
-        total_render_seconds = 0;
-        total_prepare_seconds = 0;
-        total_update_seconds = 0;
-        accumulated_ms = 0;
-    }
+        // Also tack on current mouse state
+        b8 left_down = input_is_button_down(BUTTON_LEFT);
+        b8 right_down = input_is_button_down(BUTTON_RIGHT);
+        i32 mouse_x, mouse_y;
+        input_get_mouse_position(&mouse_x, &mouse_y);
 
-    char* vsync_text = renderer_flag_enabled_get(RENDERER_CONFIG_FLAG_VSYNC_ENABLED_BIT) ? "YES" : " NO";
-    char text_buffer[2048];
-    string_format(
-        text_buffer,
-        "\
+        // Convert to NDC (Native Device Coordinates)
+        f32 mouse_x_ndc = range_convert_f32((f32)mouse_x, 0.0f, (f32)state->width, -1.0f, 1.0f);
+        f32 mouse_y_ndc = range_convert_f32((f32)mouse_y, 0.0f, (f32)state->height, -1.0f, 1.0f);
+
+        f64 fps, frame_time;
+        metrics_frame(&fps, &frame_time);
+
+        // Keep a running average of update and render timers over the last ~1 second
+        static f64 accumulated_ms = 0;
+        static f32 total_update_seconds = 0;
+        static f32 total_prepare_seconds = 0;
+        static f32 total_render_seconds = 0;
+
+        static f32 total_update_avg_us = 0;
+        static f32 total_prepare_avg_us = 0;
+        static f32 total_render_avg_us = 0;
+        static f32 total_avg = 0; // total average across the frame
+
+        total_update_seconds += state->last_update_elapsed;
+        total_prepare_seconds += state->prepare_clock.elapsed;
+        total_render_seconds += state->render_clock.elapsed;
+        accumulated_ms += frame_time;
+
+        // Once ~1 second has gone by, calculate the average and wipe the accumulators
+        if (accumulated_ms >= 1000.0f)
+        {
+            total_update_avg_us = (total_update_seconds / accumulated_ms) * B_SEC_TO_US_MULTIPLIER;
+            total_prepare_avg_us = (total_prepare_seconds / accumulated_ms) * B_SEC_TO_US_MULTIPLIER;
+            total_render_avg_us = (total_render_seconds / accumulated_ms) * B_SEC_TO_US_MULTIPLIER;
+            total_avg = total_update_avg_us + total_prepare_avg_us + total_render_avg_us;
+            total_render_seconds = 0;
+            total_prepare_seconds = 0;
+            total_update_seconds = 0;
+            accumulated_ms = 0;
+        }
+
+        char* vsync_text = renderer_flag_enabled_get(RENDERER_CONFIG_FLAG_VSYNC_ENABLED_BIT) ? "YES" : " NO";
+        char text_buffer[2048] = {0};
+        string_format(
+            text_buffer,
+            "\
 FPS: %5.1f(%4.1fms)        Pos=[%7.3f %7.3f %7.3f] Rot=[%7.3f, %7.3f, %7.3f]\n\
 Upd: %8.3fus, Prep: %8.3fus, Rend: %8.3fus, Total: %8.3fus \n\
 Mouse: X=%-5d Y=%-5d   L=%s R=%s   NDC: X=%.6f, Y=%.6f\n\
 VSync: %s Drawn: %-5u (%-5u shadow pass) Hovered: %s%u",
-        fps,
-        frame_time,
-        pos.x, pos.y, pos.z,
-        rad_to_deg(rot.x), rad_to_deg(rot.y), rad_to_deg(rot.z),
-        total_update_avg_us,
-        total_prepare_avg_us,
-        total_render_avg_us,
-        total_avg,
-        mouse_x, mouse_y,
-        left_down ? "Y" : "N",
-        right_down ? "Y" : "N",
-        mouse_x_ndc,
-        mouse_y_ndc,
-        vsync_text,
-        p_frame_data->drawn_mesh_count,
-        p_frame_data->drawn_shadow_mesh_count,
-        state->hovered_object_id == INVALID_ID ? "none" : "",
-        state->hovered_object_id == INVALID_ID ? 0 : state->hovered_object_id);
-    if (state->running)
+            fps,
+            frame_time,
+            pos.x, pos.y, pos.z,
+            rad_to_deg(rot.x), rad_to_deg(rot.y), rad_to_deg(rot.z),
+            total_update_avg_us,
+            total_prepare_avg_us,
+            total_render_avg_us,
+            total_avg,
+            mouse_x, mouse_y,
+            left_down ? "Y" : "N",
+            right_down ? "Y" : "N",
+            mouse_x_ndc,
+            mouse_y_ndc,
+            vsync_text,
+            p_frame_data->drawn_mesh_count,
+            p_frame_data->drawn_shadow_mesh_count,
+            state->hovered_object_id == INVALID_ID ? "none" : "",
+            state->hovered_object_id == INVALID_ID ? 0 : state->hovered_object_id);
+
+        // Update text control
         sui_label_text_set(&state->test_text, text_buffer);
+    }
 
     debug_console_update(&((testbed_game_state*)game_inst->state)->debug_console);
 
@@ -1023,11 +1028,11 @@ void application_shutdown(struct application* game_inst)
     testbed_game_state* state = (testbed_game_state*)game_inst->state;
     state->running = false;
 
-    if (state->main_scene.state == SIMPLE_SCENE_STATE_LOADED)
+    if (state->main_scene.state == SCENE_STATE_LOADED)
     {
         BDEBUG("Unloading scene...");
 
-        simple_scene_unload(&state->main_scene, true);
+        scene_unload(&state->main_scene, true);
         clear_debug_objects(game_inst);
 
         BDEBUG("Done");
@@ -1083,6 +1088,7 @@ void application_register_events(struct application* game_inst)
         event_register(EVENT_CODE_DEBUG2, game_inst, game_on_debug_event);
         event_register(EVENT_CODE_DEBUG3, game_inst, game_on_debug_event);
         event_register(EVENT_CODE_DEBUG4, game_inst, game_on_debug_event);
+        event_register(EVENT_CODE_DEBUG5, game_inst, game_on_debug_event);
         event_register(EVENT_CODE_OBJECT_HOVER_ID_CHANGED, game_inst, game_on_event);
         event_register(EVENT_CODE_SET_RENDER_MODE, game_inst, game_on_event);
         event_register(EVENT_CODE_BUTTON_RELEASED, game_inst->state, game_on_button);
@@ -1243,30 +1249,44 @@ static b8 load_main_scene(struct application* game_inst)
 
     // Load config file
     // TODO: clean up resource
-    resource simple_scene_resource;
-    if (!resource_system_load("test_scene", RESOURCE_TYPE_SIMPLE_SCENE, 0, &simple_scene_resource))
+    resource scene_resource;
+    if (!resource_system_load("test_scene", RESOURCE_TYPE_scene, 0, &scene_resource))
     {
         BERROR("Failed to load scene file, check logs");
         return false;
     }
 
-    simple_scene_config* scene_config = (simple_scene_config*)simple_scene_resource.data;
+    scene_config* scene_cfg = (scene_config*)scene_resource.data;
+    scene_cfg->resource_name = string_duplicate(scene_resource.name);
+    scene_cfg->resource_full_path = string_duplicate(scene_resource.full_path);
 
-    // TODO: temp load/prepare stuff
-    if (!simple_scene_create(scene_config, &state->main_scene))
+    // Create the scene
+    scene_flags scene_load_flags = 0;
+    /* scene_load_flags |= SCENE_FLAG_READONLY;  // NOTE: to enable "editor mode", turn this flag off. */
+    if (!scene_create(scene_cfg, scene_load_flags, &state->main_scene))
     {
         BERROR("Failed to create main scene");
         return false;
     }
 
     // Initialize
-    if (!simple_scene_initialize(&state->main_scene))
+    if (!scene_initialize(&state->main_scene))
     {
         BERROR("Failed initialize main scene, aborting game");
         return false;
     }
 
-    state->p_light_1 = simple_scene_point_light_get(&state->main_scene, "point_light_1");
+    state->p_light_1 = 0;
 
-    return simple_scene_load(&state->main_scene);
+    return scene_load(&state->main_scene);
+}
+
+static b8 save_main_scene(struct application* game_inst)
+{
+    if (!game_inst)
+        return false;
+
+    testbed_game_state* state = (testbed_game_state*)game_inst->state;
+
+    return scene_save(&state->main_scene);
 }

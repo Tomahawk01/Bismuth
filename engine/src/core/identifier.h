@@ -10,3 +10,4 @@ typedef struct identifier
 
 BAPI identifier identifier_create(void);
 BAPI identifier identifier_from_u64(u64 uniqueid);
+BAPI b8 identifiers_equal(identifier a, identifier b);

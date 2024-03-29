@@ -4,7 +4,7 @@
 #include "core/bmemory.h"
 #include "core/logger.h"
 #include "math/bmath.h"
-#include "math/transform.h"
+#include "resources/resource_types.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -107,6 +107,65 @@ b8 bytes_to_codepoint(const char* bytes, u32 offset, i32* out_codepoint, u8* out
     }
 }
 
+b8 char_is_whitespace(char c)
+{
+    // Source of whitespace characters:
+    switch (c)
+    {
+        case 0x0009:  // character tabulation (\t)
+        case 0x000A:  // line feed (\n)
+        case 0x000B:  // line tabulation/vertical tab (\v)
+        case 0x000C:  // form feed (\f)
+        case 0x000D:  // carriage return (\r)
+        case 0x0020:  // space (' ')
+            return true;
+        default:
+            return false;
+    }
+}
+
+b8 codepoint_is_whitespace(i32 codepoint)
+{
+    // Source of whitespace characters:
+    switch (codepoint)
+    {
+        case 0x0009:  //  character tabulation (\t)
+        case 0x000A:  // line feed (\n)
+        case 0x000B:  // line tabulation/vertical tab (\v)
+        case 0x000C:  // form feed (\f)
+        case 0x000D:  // carriage return (\r)
+        case 0x0020:  // space (' ')
+        case 0x0085:  // next line
+        case 0x00A0:  // no-break space
+        case 0x1680:  // ogham space mark
+        case 0x180E:  // mongolian vowel separator
+        case 0x2000:  // en quad
+        case 0x2001:  // em quad
+        case 0x2002:  // en space
+        case 0x2003:  // em space
+        case 0x2004:  // three-per-em space
+        case 0x2005:  // four-per-em space
+        case 0x2006:  // six-per-em space
+        case 0x2007:  // figure space
+        case 0x2008:  // punctuation space
+        case 0x2009:  // thin space
+        case 0x200A:  // hair space
+        case 0x200B:  // zero width space
+        case 0x200C:  // zero width non-joiner
+        case 0x200D:  // zero width joiner
+        case 0x2028:  // line separator
+        case 0x2029:  // paragraph separator
+        case 0x202F:  // narrow no-break space
+        case 0x205F:  // medium mathematical space
+        case 0x2060:  // word joiner
+        case 0x3000:  // ideographic space
+        case 0xFEFF:  // zero width non-breaking space
+            return true;
+        default:
+            return false;
+    }
+}
+
 char* string_duplicate(const char* str)
 {
     u64 length = string_length(str);
@@ -120,14 +179,8 @@ void string_free(char* str)
 {
     if (str)
     {
-        u64 size = 0;
-        u16 alignment = 0;
-        if (bmemory_get_size_alignment(str, &size, &alignment))
-            bfree_aligned(str, size, alignment, MEMORY_TAG_STRING);
-        else
-        {
-            // TODO: report failure?
-        }
+        u64 length = string_length(str);
+        bfree(str, length + 1, MEMORY_TAG_STRING);
     }
     else
     {
@@ -231,8 +284,14 @@ char* string_trim(char* str)
 
 void string_mid(char* dest, const char* source, i32 start, i32 length)
 {
-    if (length == 0)
+    if (!source || !dest)
         return;
+    if (length == 0)
+    {
+        BTRACE("Tried to perform mid on zero-length string");
+        dest[0] = 0;
+        return;
+    }
     i32 src_length = (i32)string_length(source);
     if (start >= src_length)
     {
@@ -241,9 +300,10 @@ void string_mid(char* dest, const char* source, i32 start, i32 length)
     }
     if (length > 0)
     {
-        for (i32 i = start, j = 0; j < length && source[i]; ++i, ++j)
+        i32 j = 0;
+        for (i32 i = start; j < length && source[i]; ++i, ++j)
             dest[j] = source[i];
-        dest[start + length] = 0;
+        dest[j] = 0;
     }
     else
     {
@@ -251,7 +311,7 @@ void string_mid(char* dest, const char* source, i32 start, i32 length)
         u64 j = 0;
         for (u64 i = start; source[i]; ++i, ++j)
             dest[j] = source[i];
-        dest[start + j] = 0;
+        dest[j] = 0;
     }
 }
 
@@ -377,53 +437,53 @@ void string_remove_at(char* dest, const char* src, u32 pos, u32 length)
     dest[original_length - length] = 0;
 }
 
-b8 string_to_transform(const char* str, transform* out_transform)
+b8 string_to_xform_config(const char* str, scene_xform_config* out_xform)
 {
-    if (!str || !out_transform)
+    if (!str || !out_xform)
         return false;
 
-    bzero_memory(out_transform, sizeof(transform));
+    bzero_memory(out_xform, sizeof(scene_xform_config));
     f32 values[7] = {0};
 
     i32 count = sscanf(
         str,
         "%f %f %f %f %f %f %f %f %f %f",
-        &out_transform->position.x, &out_transform->position.y, &out_transform->position.z,
+        &out_xform->position.x, &out_xform->position.y, &out_xform->position.z,
         &values[0], &values[1], &values[2], &values[3], &values[4], &values[5], &values[6]);
 
     if (count == 10)
     {
         // Treat as quat, load directly
-        out_transform->rotation.x = values[0];
-        out_transform->rotation.y = values[1];
-        out_transform->rotation.z = values[2];
-        out_transform->rotation.w = values[3];
+        out_xform->rotation.x = values[0];
+        out_xform->rotation.y = values[1];
+        out_xform->rotation.z = values[2];
+        out_xform->rotation.w = values[3];
 
         // Set scale
-        out_transform->scale.x = values[4];
-        out_transform->scale.y = values[5];
-        out_transform->scale.z = values[6];
+        out_xform->scale.x = values[4];
+        out_xform->scale.y = values[5];
+        out_xform->scale.z = values[6];
     }
     else if (count == 9)
     {
         quat x_rot = quat_from_axis_angle((vec3){1.0f, 0, 0}, deg_to_rad(values[0]), true);
         quat y_rot = quat_from_axis_angle((vec3){0, 1.0f, 0}, deg_to_rad(values[1]), true);
         quat z_rot = quat_from_axis_angle((vec3){0, 0, 1.0f}, deg_to_rad(values[2]), true);
-        out_transform->rotation = quat_mul(x_rot, quat_mul(y_rot, z_rot));
+        out_xform->rotation = quat_mul(x_rot, quat_mul(y_rot, z_rot));
 
         // Set scale
-        out_transform->scale.x = values[3];
-        out_transform->scale.y = values[4];
-        out_transform->scale.z = values[5];
+        out_xform->scale.x = values[3];
+        out_xform->scale.y = values[4];
+        out_xform->scale.z = values[5];
     }
     else
     {
-        BWARN("Format error: invalid transform provided. Identity transform will be used");
-        *out_transform = transform_create();
+        BWARN("Format error: invalid xform provided. Identity transform will be used");
+        out_xform->position = vec3_zero();
+        out_xform->rotation = quat_identity();
+        out_xform->scale = vec3_one();
         return false;
     }
-
-    out_transform->is_dirty = true;
 
     return true;
 }
@@ -454,6 +514,31 @@ b8 string_to_mat4(const char* str, mat4* out_mat)
     return result != -1;
 }
 
+const char* mat4_to_string(mat4 m)
+{
+    char buffer[512];
+    bzero_memory(buffer, sizeof(char) * 512);
+    f32* d = m.data;
+    string_format(buffer, "%f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f",
+                  d[0],
+                  d[1],
+                  d[2],
+                  d[3],
+                  d[4],
+                  d[5],
+                  d[6],
+                  d[7],
+                  d[8],
+                  d[9],
+                  d[10],
+                  d[11],
+                  d[12],
+                  d[13],
+                  d[14],
+                  d[15]);
+    return string_duplicate(buffer);
+}
+
 b8 string_to_vec4(const char* str, vec4* out_vector)
 {
     if (!str || !out_vector)
@@ -462,6 +547,14 @@ b8 string_to_vec4(const char* str, vec4* out_vector)
     bzero_memory(out_vector, sizeof(vec4));
     i32 result = sscanf(str, "%f %f %f %f", &out_vector->x, &out_vector->y, &out_vector->z, &out_vector->w);
     return result != -1;
+}
+
+const char* vec4_to_string(vec4 v)
+{
+    char buffer[100];
+    bzero_memory(buffer, sizeof(char) * 100);
+    string_format(buffer, "%f %f %f %f", v.x, v.y, v.z, v.w);
+    return string_duplicate(buffer);
 }
 
 b8 string_to_vec3(const char* str, vec3* out_vector)
@@ -474,6 +567,14 @@ b8 string_to_vec3(const char* str, vec3* out_vector)
     return result != -1;
 }
 
+const char* vec3_to_string(vec3 v)
+{
+    char buffer[75];
+    bzero_memory(buffer, sizeof(char) * 75);
+    string_format(buffer, "%f %f %f", v.x, v.y, v.z);
+    return string_duplicate(buffer);
+}
+
 b8 string_to_vec2(const char* str, vec2* out_vector)
 {
     if (!str || !out_vector)
@@ -482,6 +583,14 @@ b8 string_to_vec2(const char* str, vec2* out_vector)
     bzero_memory(out_vector, sizeof(vec2));
     i32 result = sscanf(str, "%f %f", &out_vector->x, &out_vector->y);
     return result != -1;
+}
+
+const char* vec2_to_string(vec2 v)
+{
+    char buffer[50];
+    bzero_memory(buffer, sizeof(char) * 50);
+    string_format(buffer, "%f %f", v.x, v.y);
+    return string_duplicate(buffer);
 }
 
 b8 string_to_f32(const char* str, f32* f)
@@ -494,6 +603,14 @@ b8 string_to_f32(const char* str, f32* f)
     return result != -1;
 }
 
+const char* f32_to_string(f32 f)
+{
+    char buffer[20];
+    bzero_memory(buffer, sizeof(char) * 20);
+    string_format(buffer, "%f", f);
+    return string_duplicate(buffer);
+}
+
 b8 string_to_f64(const char* str, f64* f)
 {
     if (!str || !f)
@@ -502,6 +619,14 @@ b8 string_to_f64(const char* str, f64* f)
     *f = 0;
     i32 result = sscanf(str, "%lf", f);
     return result != -1;
+}
+
+const char* f64_to_string(f64 f)
+{
+    char buffer[25];
+    bzero_memory(buffer, sizeof(char) * 25);
+    string_format(buffer, "%f", f);
+    return string_duplicate(buffer);
 }
 
 b8 string_to_i8(const char* str, i8* i)
@@ -514,6 +639,14 @@ b8 string_to_i8(const char* str, i8* i)
     return result != -1;
 }
 
+const char* i8_to_string(const char* str, i8 i)
+{
+    char buffer[25];
+    bzero_memory(buffer, sizeof(char) * 25);
+    string_format(buffer, "%hhi", i);
+    return string_duplicate(buffer);
+}
+
 b8 string_to_i16(const char* str, i16* i)
 {
     if (!str || !i)
@@ -522,6 +655,14 @@ b8 string_to_i16(const char* str, i16* i)
     *i = 0;
     i32 result = sscanf(str, "%hi", i);
     return result != -1;
+}
+
+const char* i16_to_string(const char* str, i16 i)
+{
+    char buffer[25];
+    bzero_memory(buffer, sizeof(char) * 25);
+    string_format(buffer, "%hi", i);
+    return string_duplicate(buffer);
 }
 
 b8 string_to_i32(const char* str, i32* i)
@@ -534,6 +675,14 @@ b8 string_to_i32(const char* str, i32* i)
     return result != -1;
 }
 
+const char* i32_to_string(const char* str, i32 i)
+{
+    char buffer[25];
+    bzero_memory(buffer, sizeof(char) * 25);
+    string_format(buffer, "%i", i);
+    return string_duplicate(buffer);
+}
+
 b8 string_to_i64(const char* str, i64* i)
 {
     if (!str || !i)
@@ -542,6 +691,14 @@ b8 string_to_i64(const char* str, i64* i)
     *i = 0;
     i32 result = sscanf(str, "%lli", i);
     return result != -1;
+}
+
+const char* i64_to_string(const char* str, i64 i)
+{
+    char buffer[25];
+    bzero_memory(buffer, sizeof(char) * 25);
+    string_format(buffer, "%lli", i);
+    return string_duplicate(buffer);
 }
 
 b8 string_to_u8(const char* str, u8* u)
@@ -554,6 +711,14 @@ b8 string_to_u8(const char* str, u8* u)
     return result != -1;
 }
 
+const char* u8_to_string(const char* str, u8 u)
+{
+    char buffer[25];
+    bzero_memory(buffer, sizeof(char) * 25);
+    string_format(buffer, "%hhu", u);
+    return string_duplicate(buffer);
+}
+
 b8 string_to_u16(const char* str, u16* u)
 {
     if (!str || !u)
@@ -562,6 +727,14 @@ b8 string_to_u16(const char* str, u16* u)
     *u = 0;
     i32 result = sscanf(str, "%hu", u);
     return result != -1;
+}
+
+const char* u16_to_string(const char* str, u16 u)
+{
+    char buffer[25];
+    bzero_memory(buffer, sizeof(char) * 25);
+    string_format(buffer, "%hu", u);
+    return string_duplicate(buffer);
 }
 
 b8 string_to_u32(const char* str, u32* u)
@@ -574,6 +747,14 @@ b8 string_to_u32(const char* str, u32* u)
     return result != -1;
 }
 
+const char* u32_to_string(const char* str, u32 u)
+{
+    char buffer[25];
+    bzero_memory(buffer, sizeof(char) * 25);
+    string_format(buffer, "%u", u);
+    return string_duplicate(buffer);
+}
+
 b8 string_to_u64(const char* str, u64* u)
 {
     if (!str || !u)
@@ -584,13 +765,26 @@ b8 string_to_u64(const char* str, u64* u)
     return result != -1;
 }
 
+const char* u64_to_string(const char* str, u64 u)
+{
+    char buffer[25];
+    bzero_memory(buffer, sizeof(char) * 25);
+    string_format(buffer, "%llu", u);
+    return string_duplicate(buffer);
+}
+
 b8 string_to_bool(const char* str, b8* b)
 {
     if (!str || !b)
         return false;
 
     *b = strings_equal(str, "1") || strings_equali(str, "true");
-    return *b;
+    return true;
+}
+
+const char* bool_to_string(const char* str, b8 b)
+{
+    return string_duplicate(b == false ? "false" : "true");
 }
 
 u32 string_split(const char* str, char delimiter, char*** str_darray, b8 trim_entries, b8 include_empty)

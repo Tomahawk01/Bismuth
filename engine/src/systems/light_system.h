@@ -17,6 +17,8 @@ typedef struct directional_light_data
 typedef struct directional_light
 {
     char* name;
+    // Generation of the light, incremented on change. Can be used to tell when a shader upload is required
+    u32 generation;
     directional_light_data data;
     void* debug_data;
 } directional_light;
@@ -37,8 +39,12 @@ typedef struct point_light_data
 typedef struct point_light
 {
     char* name;
+    // The generation of the light, incremented on every update. Can be used to detect when a shader upload is required
+    u32 generation;
     point_light_data data;
     void* debug_data;
+
+    vec4 position;
 } point_light;
 
 b8 light_system_initialize(u64* memory_requirement, void* memory, void* config);

@@ -103,7 +103,7 @@ static b8 image_loader_load(struct resource_loader* self, const char* name, void
         goto image_loader_load_return;
     }
 
-    image_resource_data* resource_data = ballocate(sizeof(image_resource_data), MEMORY_TAG_TEXTURE);
+    image_resource_data* resource_data = ballocate(sizeof(image_resource_data), MEMORY_TAG_RESOURCE);
     resource_data->pixels = data;
     resource_data->width = width;
     resource_data->height = height;
@@ -124,7 +124,7 @@ image_loader_load_return:
 static void image_loader_unload(struct resource_loader* self, resource* resource)
 {
     stbi_image_free(((image_resource_data*)resource->data)->pixels);
-    if (!resource_unload(self, resource, MEMORY_TAG_TEXTURE))
+    if (!resource_unload(self, resource, MEMORY_TAG_RESOURCE))
         BWARN("image_loader_unload called with nullptr for self or resource");
 }
 

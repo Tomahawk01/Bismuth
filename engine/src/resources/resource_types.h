@@ -16,7 +16,7 @@ typedef enum resource_type
     RESOURCE_TYPE_MESH,
     RESOURCE_TYPE_BITMAP_FONT,
     RESOURCE_TYPE_SYSTEM_FONT,
-    RESOURCE_TYPE_SIMPLE_SCENE,
+    RESOURCE_TYPE_scene,
     RESOURCE_TYPE_TERRAIN,
     RESOURCE_TYPE_AUDIO,
     RESOURCE_TYPE_CUSTOM
@@ -243,24 +243,32 @@ typedef struct geometry
 struct geometry_config;
 typedef struct mesh_config
 {
-    char* name;
-    char* parent_name;
     char* resource_name;
     u16 geometry_count;
     struct geometry_config* g_configs;
 } mesh_config;
 
+typedef enum mesh_state
+{
+    MESH_STATE_UNDEFINED,
+    MESH_STATE_CREATED,
+    MESH_STATE_INITIALIZED,
+    MESH_STATE_LOADING,
+    MESH_STATE_LOADED
+} mesh_state;
+
 typedef struct mesh
 {
     char* name;
-    mesh_config config;
+    char* resource_name;
+    mesh_state state;
     identifier id;
     u8 generation;
     u16 geometry_count;
+    struct geometry_config* g_configs;
     geometry** geometries;
-    transform transform;
     extents_3d extents;
-    void *debug_data;
+    void* debug_data;
 } mesh;
 
 // Shader stages available in the system
@@ -275,10 +283,10 @@ typedef enum shader_stage
 typedef struct shader_stage_config
 {
     shader_stage stage;
-    const char *name;
-    const char *filename;
+    const char* name;
+    const char* filename;
     u32 source_length;
-    char *source;
+    char* source;
 } shader_stage_config;
 
 // Available attribute types
@@ -390,7 +398,7 @@ typedef struct shader_config
     u8 stage_count;
 
     // Collection of stage configs
-    shader_stage_config *stage_configs;
+    shader_stage_config* stage_configs;
 
     // Maximum number of instances allowed
     u32 max_instances;
@@ -485,7 +493,7 @@ typedef struct material
     /**
      * @brief Explicitly-set irradiance texture for this material
      */
-    texture *irradiance_texture;
+    texture* irradiance_texture;
 
     u32 shader_id;
 
@@ -493,60 +501,87 @@ typedef struct material
     u8 render_draw_index;
 } material;
 
-typedef struct skybox_simple_scene_config
+typedef enum scene_node_attachment_type
 {
-    char* name;
-    char* cubemap_name;
-} skybox_simple_scene_config;
+    SCENE_NODE_ATTACHMENT_TYPE_UNKNOWN,
+    SCENE_NODE_ATTACHMENT_TYPE_STATIC_MESH,
+    SCENE_NODE_ATTACHMENT_TYPE_TERRAIN,
+    SCENE_NODE_ATTACHMENT_TYPE_SKYBOX,
+    SCENE_NODE_ATTACHMENT_TYPE_DIRECTIONAL_LIGHT,
+    SCENE_NODE_ATTACHMENT_TYPE_POINT_LIGHT
+} scene_node_attachment_type;
 
-typedef struct directional_light_simple_scene_config
+// Static mesh attachment
+typedef struct scene_node_attachment_static_mesh
+{
+    char* resource_name;
+} scene_node_attachment_static_mesh;
+
+// Terrain attachment
+typedef struct scene_node_attachment_terrain
 {
     char* name;
+    char* resource_name;
+} scene_node_attachment_terrain;
+
+// Skybox attachment
+typedef struct scene_node_attachment_skybox
+{
+    char* cubemap_name;
+} scene_node_attachment_skybox;
+
+// Directional light attachment
+typedef struct scene_node_attachment_directional_light
+{
     vec4 color;
     vec4 direction;
     f32 shadow_distance;
     f32 shadow_fade_distance;
     f32 shadow_split_mult;
-} directional_light_simple_scene_config;
+} scene_node_attachment_directional_light;
 
-typedef struct point_light_simple_scene_config
+typedef struct scene_node_attachment_point_light
 {
-    char* name;
     vec4 color;
     vec4 position;
     f32 constant_f;
     f32 linear;
     f32 quadratic;
-} point_light_simple_scene_config;
+} scene_node_attachment_point_light;
 
-typedef struct mesh_simple_scene_config
+typedef struct scene_node_attachment_config
+{
+    scene_node_attachment_type type;
+    void* attachment_data;
+} scene_node_attachment_config;
+
+typedef struct scene_xform_config
+{
+    vec3 position;
+    quat rotation;
+    vec3 scale;
+} scene_xform_config;
+
+typedef struct scene_node_config
 {
     char* name;
-    char* resource_name;
-    transform transform;
-    char* parent_name;  // optional
-} mesh_simple_scene_config;
 
-typedef struct terrain_simple_scene_config
-{
-    char* name;
-    char* resource_name;
-    transform xform;
-} terrain_simple_scene_config;
+    // Pointer to a config if one exists, otherwise 0
+    scene_xform_config* xform;
+    // darray
+    scene_node_attachment_config* attachments;
+    // darray
+    struct scene_node_config* children;
+} scene_node_config;
 
-typedef struct simple_scene_config
+typedef struct scene_config
 {
+    u32 version;
     char* name;
     char* description;
-    skybox_simple_scene_config skybox_config;
-    directional_light_simple_scene_config directional_light_config;
+    char* resource_name;
+    char* resource_full_path;
 
     // darray
-    point_light_simple_scene_config* point_lights;
-
-    // darray
-    mesh_simple_scene_config* meshes;
-
-    // darray
-    terrain_simple_scene_config* terrains;
-} simple_scene_config;
+    scene_node_config* nodes;
+} scene_config;

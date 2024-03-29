@@ -8,13 +8,25 @@
 typedef struct skybox_config
 {
     const char* cubemap_name;
-    geometry_config g_config;
 } skybox_config;
+
+typedef enum skybox_state
+{
+    SKYBOX_STATE_UNDEFINED,
+    SKYBOX_STATE_CREATED,
+    SKYBOX_STATE_INITIALIZED,
+    SKYBOX_STATE_LOADING,
+    SKYBOX_STATE_LOADED
+} skybox_state;
 
 typedef struct skybox
 {
-    skybox_config config;
+    skybox_state state;
+
+    const char* cubemap_name;
     texture_map cubemap;
+
+    geometry_config g_config;
     geometry* g;
     u32 instance_id;
     u64 render_frame_number;

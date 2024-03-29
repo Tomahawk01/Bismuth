@@ -4,14 +4,6 @@
 #include "core/bmemory.h"
 #include "core/logger.h"
 
-typedef struct darray_header
-{
-    u64 capacity;
-    u64 length;
-    u64 stride;
-    frame_allocator_int* allocator;
-} darray_header;
-
 void* _darray_create(u64 length, u64 stride, frame_allocator_int* allocator)
 {
     u64 header_size = sizeof(darray_header);
@@ -72,8 +64,10 @@ void* _darray_push(void* array, const void* value_ptr)
     u64 header_size = sizeof(darray_header);
     darray_header* header = (darray_header*)((u8*)array - header_size);
     if (header->length >= header->capacity)
+    {
         array = _darray_resize(array);
-    header = (darray_header*)((u8*)array - header_size);
+        header = (darray_header*)((u8*)array - header_size);
+    }
 
     u64 addr = (u64)array;
     addr += (header->length * header->stride);

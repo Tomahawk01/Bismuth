@@ -4,6 +4,8 @@
 #include <math/math_types.h>
 #include <resources/resource_types.h>
 
+#include "core/bhandle.h"
+
 #ifdef _DEBUG
 #include <resources/debug/debug_line3d.h>
 #endif
@@ -62,8 +64,9 @@ typedef enum editor_gizmo_orientation
 
 typedef struct editor_gizmo
 {
-    transform xform;
-    transform* selected_xform;
+    b_handle xform_handle;
+    b_handle selected_xform_handle;
+    b_handle selected_xform_parent_handle;
     editor_gizmo_mode mode;
 
     f32 scale_scalar;
@@ -91,7 +94,7 @@ BAPI b8 editor_gizmo_unload(editor_gizmo* gizmo);
 BAPI void editor_gizmo_refresh(editor_gizmo* gizmo);
 BAPI editor_gizmo_orientation editor_gizmo_orientation_get(editor_gizmo* gizmo);
 BAPI void editor_gizmo_orientation_set(editor_gizmo* gizmo, editor_gizmo_orientation orientation);
-BAPI void editor_gizmo_selected_transform_set(editor_gizmo* gizmo, transform* xform);
+BAPI void editor_gizmo_selected_transform_set(editor_gizmo* gizmo, b_handle xform_handle, b_handle parent_xform_handle);
 
 BAPI void editor_gizmo_update(editor_gizmo* gizmo);
 
@@ -102,3 +105,5 @@ BAPI void editor_gizmo_mode_set(editor_gizmo* gizmo, editor_gizmo_mode mode);
 BAPI void editor_gizmo_interaction_begin(editor_gizmo* gizmo, struct camera* c, struct ray* r, editor_gizmo_interaction_type interaction_type);
 BAPI void editor_gizmo_interaction_end(editor_gizmo* gizmo);
 BAPI void editor_gizmo_handle_interaction(editor_gizmo* gizmo, struct camera* c, struct ray* r, editor_gizmo_interaction_type interaction_type);
+
+BAPI mat4 editor_gizmo_model_get(editor_gizmo* gizmo);

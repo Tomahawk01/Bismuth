@@ -7,7 +7,7 @@
 #include "renderer/renderer_types.h"
 #include "renderer/rendergraph.h"
 #include "renderer/viewport.h"
-#include "resources/simple_scene.h"
+#include "resources/scene.h"
 #include "resources/skybox.h"
 #include "systems/light_system.h"
 
@@ -15,6 +15,7 @@
 #include "renderer/passes/scene_pass.h"
 #include "renderer/passes/shadow_map_pass.h"
 #include "renderer/passes/skybox_pass.h"
+#include "systems/texture_system.h"
 
 b8 forward_rendergraph_create(const forward_rendergraph_config* config, forward_rendergraph* out_graph)
 {
@@ -105,7 +106,7 @@ b8 forward_rendergraph_update(forward_rendergraph* graph, struct frame_data* p_f
     return true;
 }
 
-b8 forward_rendergraph_frame_prepare(forward_rendergraph* graph, struct frame_data* p_frame_data, struct camera* current_camera, struct viewport* current_viewport, struct simple_scene* scene, u32 render_mode)
+b8 forward_rendergraph_frame_prepare(forward_rendergraph* graph, struct frame_data* p_frame_data, struct camera* current_camera, struct viewport* current_viewport, struct scene* scene, u32 render_mode)
 {
     // Skybox pass
     // NOTE: This pass must always run, as it is what clears the screen
@@ -119,11 +120,13 @@ b8 forward_rendergraph_frame_prepare(forward_rendergraph* graph, struct frame_da
 
     // Tell scene to generate relevant packet data
     // NOTE: Generates skybox and world packets
-    if (scene->state == SIMPLE_SCENE_STATE_LOADED)
+    if (scene->state == SCENE_STATE_LOADED)
     {
-        simple_scene_render_frame_prepare(scene, p_frame_data);
+        scene_render_frame_prepare(scene, p_frame_data);
 
-        directional_light* dir_light = scene->dir_light;
+        // HACK: Using the first light in the collection for now
+        // TODO: Support for multiple directional lights with priority sorting
+        directional_light* dir_light = scene->dir_lights ? &scene->dir_lights[0] : 0;
 
         // Global setup
         f32 near = current_viewport->near_clip;
@@ -161,7 +164,13 @@ b8 forward_rendergraph_frame_prepare(forward_rendergraph* graph, struct frame_da
 
         // Skybox pass
         {
-            skybox_pass_ext_data->sb = scene->sb;
+            // HACK: Just use the first one for now
+            // TODO: Support for multiple skyboxes, possibly transition between them
+            if (scene->skyboxes)
+            {
+                u32 skybox_count = darray_length(scene->skyboxes);
+                skybox_pass_ext_data->sb = skybox_count ? &scene->skyboxes[0] : 0;
+            }
         }
 
         // Shadowmap pass
@@ -268,7 +277,7 @@ b8 forward_rendergraph_frame_prepare(forward_rendergraph* graph, struct frame_da
 
             // Gather the geometries to be rendered
             ext_data->geometries = darray_reserve_with_allocator(geometry_render_data, 512, &p_frame_data->allocator);
-            if (!simple_scene_mesh_render_data_query_from_line(
+            if (!scene_mesh_render_data_query_from_line(
                     scene,
                     light_dir,
                     culling_center,
@@ -283,7 +292,7 @@ b8 forward_rendergraph_frame_prepare(forward_rendergraph* graph, struct frame_da
 
             // Gather terrain geometries
             ext_data->terrain_geometries = darray_reserve_with_allocator(geometry_render_data, 16, &p_frame_data->allocator);
-            if (!simple_scene_terrain_render_data_query_from_line(
+            if (!scene_terrain_render_data_query_from_line(
                     scene,
                     light_dir,
                     culling_center,
@@ -322,7 +331,9 @@ b8 forward_rendergraph_frame_prepare(forward_rendergraph* graph, struct frame_da
             }
             ext_data->render_mode = render_mode;
             // HACK: use the skybox cubemap as the irradiance texture for now
-            ext_data->irradiance_cube_texture = scene->sb->cubemap.texture;
+            // HACK: #2 Support for multiple skyboxes, but using the first one for now.
+            // TODO: Support multiple skyboxes/irradiance maps
+            ext_data->irradiance_cube_texture = scene->skyboxes ? scene->skyboxes[0].cubemap.texture : texture_system_get_default_cube_texture();
 
             // Camera frustum culling and count
             viewport* v = current_viewport;
@@ -336,7 +347,7 @@ b8 forward_rendergraph_frame_prepare(forward_rendergraph* graph, struct frame_da
             ext_data->geometries = darray_reserve_with_allocator(geometry_render_data, 512, &p_frame_data->allocator);
 
             // Query the scene for static meshes using the camera frustum
-            if (!simple_scene_mesh_render_data_query(
+            if (!scene_mesh_render_data_query(
                     scene,
                     &camera_frustum,
                     current_camera->position,
@@ -353,7 +364,7 @@ b8 forward_rendergraph_frame_prepare(forward_rendergraph* graph, struct frame_da
             ext_data->terrain_geometries = darray_reserve_with_allocator(geometry_render_data, 16, &p_frame_data->allocator);
 
             // Query the scene for terrain meshes using the camera frustum
-            if (!simple_scene_terrain_render_data_query(
+            if (!scene_terrain_render_data_query(
                     scene,
                     &camera_frustum,
                     current_camera->position,
@@ -367,14 +378,14 @@ b8 forward_rendergraph_frame_prepare(forward_rendergraph* graph, struct frame_da
             p_frame_data->drawn_mesh_count += ext_data->terrain_geometry_count;
 
             // Debug geometry
-            if (!simple_scene_debug_render_data_query(scene, &ext_data->debug_geometry_count, 0))
+            if (!scene_debug_render_data_query(scene, &ext_data->debug_geometry_count, 0))
             {
                 BERROR("Failed to obtain count of debug render objects");
                 return false;
             }
             ext_data->debug_geometries = darray_reserve_with_allocator(geometry_render_data, ext_data->debug_geometry_count, &p_frame_data->allocator);
 
-            if (!simple_scene_debug_render_data_query(scene, &ext_data->debug_geometry_count, &ext_data->debug_geometries))
+            if (!scene_debug_render_data_query(scene, &ext_data->debug_geometry_count, &ext_data->debug_geometries))
             {
                 BERROR("Failed to obtain debug render objects");
                 return false;

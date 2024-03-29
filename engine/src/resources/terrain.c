@@ -6,7 +6,6 @@
 #include "core/bstring.h"
 #include "core/bmemory.h"
 #include "math/bmath.h"
-#include "math/transform.h"
 #include "math/geometry_utils.h"
 #include "renderer/renderer_frontend.h"
 #include "renderer/renderer_types.h"
@@ -14,9 +13,10 @@
 #include "systems/shader_system.h"
 #include "systems/light_system.h"
 #include "systems/material_system.h"
+#include "systems/resource_system.h"
 
-static void terrain_chunk_destroy(terrain *t, terrain_chunk *chunk);
-static void terrain_chunk_calculate_geometry(terrain *t, terrain_chunk *chunk, u32 chunk_offset_x, u32 chunk_offset_z);
+static void terrain_chunk_destroy(terrain* t, terrain_chunk* chunk);
+static void terrain_chunk_calculate_geometry(terrain* t, terrain_chunk* chunk, u32 chunk_offset_x, u32 chunk_offset_z);
 
 typedef enum terrain_skirt_side
 {
@@ -32,102 +32,20 @@ b8 terrain_create(const terrain_config* config, terrain* out_terrain)
     if (!out_terrain)
     {
         BERROR("terrain_create requires a valid pointer to out_terrain");
+        out_terrain->state = TERRAIN_STATE_UNDEFINED;
         return false;
     }
 
     out_terrain->name = string_duplicate(config->name);
-
-    if (!config->tile_count_x)
-    {
-        BERROR("Tile count x cannot be less than one");
-        return false;
-    }
-
-    if (!config->tile_count_z)
-    {
-        BERROR("Tile count z cannot be less than one");
-        return false;
-    }
-
-    if (!config->chunk_size)
-    {
-        BERROR("Chunk size cannot be less than one");
-        return false;
-    }
-
-    out_terrain->xform = config->xform;
-
-    out_terrain->extents = (extents_3d){0};
-    out_terrain->origin = vec3_zero();
-
-    out_terrain->tile_count_x = config->tile_count_x;
-    out_terrain->tile_count_z = config->tile_count_z;
-    out_terrain->tile_scale_x = config->tile_scale_x;
-    out_terrain->tile_scale_z = config->tile_scale_z;
-
-    out_terrain->scale_y = config->scale_y;
-
-    out_terrain->chunk_size = config->chunk_size;
-
-    // Invalidate the terrain so it doesn't get rendered before it's ready
-    out_terrain->generation = INVALID_ID;
-
-    // The number of detail levels (LOD) is calculated by first taking the dimension
-    // figuring out how many times that number can be divided
-    // by 2, taking the floor value (rounding down) and adding 1 to represent the base level.
-    // This always leaves a value of at least 1
-    out_terrain->lod_count = (u32)(bfloor(blog2(config->chunk_size)) + 1);
-
-    // Setup memory for the chunks
-    out_terrain->chunk_count = (config->tile_count_x / config->chunk_size) * (config->tile_count_z / config->chunk_size);
-    out_terrain->chunks = ballocate(sizeof(terrain_chunk) * out_terrain->chunk_count, MEMORY_TAG_ARRAY);
-    for (u32 i = 0; i < out_terrain->chunk_count; ++i)
-    {
-        terrain_chunk *chunk = &out_terrain->chunks[i];
-
-        // NOTE: Account for one more row/column at the end so there are chunk_size number of tiles
-        u32 vertex_stride = out_terrain->chunk_size + 1;
-        chunk->surface_vertex_count = vertex_stride * vertex_stride;
-        // Total vertex count includes side skirts
-        chunk->total_vertex_count = chunk->surface_vertex_count + (vertex_stride * 4);
-        chunk->vertices = ballocate(sizeof(terrain_vertex) * chunk->total_vertex_count, MEMORY_TAG_ARRAY);
-
-        chunk->lods = ballocate(sizeof(terrain_chunk_lod) * out_terrain->lod_count, MEMORY_TAG_ARRAY);
-        for (u32 j = 0; j < out_terrain->lod_count; ++j)
-        {
-            terrain_chunk_lod *lod = &chunk->lods[j];
-
-            u32 lod_tile_stride = (j == 0 ? out_terrain->chunk_size : (u32)(out_terrain->chunk_size * (1.0f / (j * 2))));
-            lod->surface_index_count = (lod_tile_stride * lod_tile_stride) * 6;
-            lod->total_index_count = lod->surface_index_count + (lod_tile_stride * 6 * 4);
-            lod->indices = ballocate(sizeof(u32) * lod->total_index_count, MEMORY_TAG_ARRAY);
-        }
-
-        // Invalidate the chunk
-        chunk->generation = INVALID_ID_U16;
-    }
-
-    // Height data
-    out_terrain->vertex_data_length = config->vertex_data_length;
-    out_terrain->vertex_datas = ballocate(sizeof(terrain_vertex_data) * out_terrain->vertex_data_length, MEMORY_TAG_ARRAY);
-    bcopy_memory(out_terrain->vertex_datas, config->vertex_datas, config->vertex_data_length * sizeof(terrain_vertex_data));
-
-    out_terrain->material_count = config->material_count;
-    if (out_terrain->material_count)
-    {
-        out_terrain->material_names = ballocate(sizeof(char*) * out_terrain->material_count, MEMORY_TAG_ARRAY);
-        bcopy_memory(out_terrain->material_names, config->material_names, sizeof(char*) * out_terrain->material_count);
-    }
-    else
-    {
-        out_terrain->material_names = 0;
-    }
+    out_terrain->resource_name = string_duplicate(config->resource_name);
+    out_terrain->state = TERRAIN_STATE_CREATED;
 
     return true;
 }
 
 void terrain_destroy(terrain* t)
 {
+    t->state = TERRAIN_STATE_UNDEFINED;
     // If the terrain is still loaded, unload it first
     if (t->generation != INVALID_ID)
     {
@@ -146,7 +64,7 @@ void terrain_destroy(terrain* t)
     {
         for (u32 i = 0; i < t->chunk_count; ++i)
         {
-            terrain_chunk *chunk = &t->chunks[i];
+            terrain_chunk* chunk = &t->chunks[i];
             terrain_chunk_destroy(t, chunk);
         }
 
@@ -188,6 +106,112 @@ b8 terrain_initialize(terrain* t)
         return false;
     }
 
+    t->state = TERRAIN_STATE_INITIALIZED;
+    return true;
+}
+
+b8 terrain_load(terrain* t)
+{
+    if (!t)
+    {
+        BERROR("terrain_load requires a valid pointer to a terrain");
+        return false;
+    }
+    t->state = TERRAIN_STATE_LOADING;
+
+    // Load the terrain resource
+    resource terr_resource;
+    if (!resource_system_load(t->resource_name, RESOURCE_TYPE_TERRAIN, 0, &terr_resource))
+    {
+        BWARN("Failed to load terrain resource");
+        return false;
+    }
+
+    terrain_resource* typed_resource = (terrain_resource*)terr_resource.data;
+
+    if (!typed_resource->tile_count_x)
+    {
+        BERROR("Tile count x cannot be less than one");
+        return false;
+    }
+
+    if (!typed_resource->tile_count_z)
+    {
+        BERROR("Tile count z cannot be less than one");
+        return false;
+    }
+
+    if (!typed_resource->chunk_size)
+    {
+        BERROR("Chunk size cannot be less than one");
+        return false;
+    }
+
+    t->extents = (extents_3d){0};
+    t->origin = vec3_zero();
+
+    t->tile_count_x = typed_resource->tile_count_x;
+    t->tile_count_z = typed_resource->tile_count_z;
+    t->tile_scale_x = typed_resource->tile_scale_x;
+    t->tile_scale_z = typed_resource->tile_scale_z;
+
+    t->scale_y = typed_resource->scale_y;
+
+    t->chunk_size = typed_resource->chunk_size;
+
+    // Invalidate the terrain so it doesn't get rendered before it's ready
+    t->generation = INVALID_ID;
+
+    t->lod_count = (u32)(bfloor(blog2(typed_resource->chunk_size)) + 1);
+
+    // Setup memory for the chunks
+    t->chunk_count = (typed_resource->tile_count_x / typed_resource->chunk_size) * (typed_resource->tile_count_z / typed_resource->chunk_size);
+    t->chunks = ballocate(sizeof(terrain_chunk) * t->chunk_count, MEMORY_TAG_ARRAY);
+    for (u32 i = 0; i < t->chunk_count; ++i)
+    {
+        terrain_chunk* chunk = &t->chunks[i];
+
+        // NOTE: Account for one more row/column at the end so there are chunk_size number of tiles
+        u32 vertex_stride = t->chunk_size + 1;
+        chunk->surface_vertex_count = vertex_stride * vertex_stride;
+        // Total vertex count includes side skirts
+        chunk->total_vertex_count = chunk->surface_vertex_count + (vertex_stride * 4);
+        chunk->vertices = ballocate(sizeof(terrain_vertex) * chunk->total_vertex_count, MEMORY_TAG_ARRAY);
+
+        chunk->lods = ballocate(sizeof(terrain_chunk_lod) * t->lod_count, MEMORY_TAG_ARRAY);
+        for (u32 j = 0; j < t->lod_count; ++j)
+        {
+            terrain_chunk_lod* lod = &chunk->lods[j];
+
+            u32 lod_tile_stride = (j == 0 ? t->chunk_size : (u32)(t->chunk_size * (1.0f / (j * 2))));
+            lod->surface_index_count = (lod_tile_stride * lod_tile_stride) * 6;
+            lod->total_index_count = lod->surface_index_count + (lod_tile_stride * 6 * 4);
+            lod->indices = ballocate(sizeof(u32) * lod->total_index_count, MEMORY_TAG_ARRAY);
+        }
+
+        // Invalidate the chunk
+        chunk->generation = INVALID_ID_U16;
+    }
+
+    // Height data
+    t->vertex_data_length = typed_resource->vertex_data_length;
+    t->vertex_datas = ballocate(sizeof(terrain_vertex_data) * t->vertex_data_length, MEMORY_TAG_ARRAY);
+    bcopy_memory(t->vertex_datas, typed_resource->vertex_datas, typed_resource->vertex_data_length * sizeof(terrain_vertex_data));
+
+    t->material_count = typed_resource->material_count;
+    if (t->material_count)
+    {
+        t->material_names = ballocate(sizeof(char*) * t->material_count, MEMORY_TAG_ARRAY);
+        bcopy_memory(t->material_names, typed_resource->material_names, sizeof(char*) * t->material_count);
+    }
+    else
+    {
+        t->material_names = 0;
+    }
+
+    // Unload the terrain typed resource
+    resource_system_unload(&terr_resource);
+
     u32 chunk_row_count = t->tile_count_z / t->chunk_size;
     u32 chunk_col_count = t->tile_count_x / t->chunk_size;
 
@@ -204,17 +228,6 @@ b8 terrain_initialize(terrain* t)
 
     t->id = identifier_create();
 
-    return true;
-}
-
-b8 terrain_load(terrain* t)
-{
-    if (!t)
-    {
-        BERROR("terrain_load requires a valid pointer to a terrain");
-        return false;
-    }
-
     for (u32 i = 0; i < t->chunk_count; ++i)
     {
         if (!terrain_chunk_load(t, &t->chunks[i]))
@@ -229,15 +242,16 @@ b8 terrain_load(terrain* t)
     // Mark it as valid for rendering
     t->generation++;
 
+    t->state = TERRAIN_STATE_LOADED;
     return true;
 }
 
-b8 terrain_chunk_load(terrain *t, terrain_chunk *chunk)
+b8 terrain_chunk_load(terrain* t, terrain_chunk* chunk)
 {
     // NOTE: Instead of using geometry here, which essentially wraps a single set of vertex and index data, these will be handled manually for terrains
 
     // Upload vertex data
-    renderbuffer *vertex_buffer = renderer_renderbuffer_get(RENDERBUFFER_TYPE_VERTEX);
+    renderbuffer* vertex_buffer = renderer_renderbuffer_get(RENDERBUFFER_TYPE_VERTEX);
     u64 total_vertex_size = sizeof(terrain_vertex) * chunk->total_vertex_count;
     if (!renderer_renderbuffer_allocate(vertex_buffer, total_vertex_size, &chunk->vertex_buffer_offset))
     {
@@ -252,10 +266,10 @@ b8 terrain_chunk_load(terrain *t, terrain_chunk *chunk)
     }
 
     // Upload index data for all LODs
-    renderbuffer *index_buffer = renderer_renderbuffer_get(RENDERBUFFER_TYPE_INDEX);
+    renderbuffer* index_buffer = renderer_renderbuffer_get(RENDERBUFFER_TYPE_INDEX);
     for (u32 i = 0; i < t->lod_count; ++i)
     {
-        terrain_chunk_lod *lod = &chunk->lods[i];
+        terrain_chunk_lod* lod = &chunk->lods[i];
         u32 total_size = sizeof(u32) * lod->total_index_count;
         if (!renderer_renderbuffer_allocate(index_buffer, total_size, &lod->index_buffer_offset))
         {
@@ -275,7 +289,7 @@ b8 terrain_chunk_load(terrain *t, terrain_chunk *chunk)
     char terrain_material_name[MATERIAL_NAME_MAX_LENGTH] = {0};
     string_format(terrain_material_name, "terrain_mat_%s", t->name);
     // NOTE: While terrain could technically hold the material, doing this here lends the ability for each chunk to have a separate material
-    chunk->material = material_system_acquire_terrain_material(terrain_material_name, t->material_count, (const char **)t->material_names, true);
+    chunk->material = material_system_acquire_terrain_material(terrain_material_name, t->material_count, (const char**)t->material_names, true);
     if (!chunk->material)
     {
         BWARN("Failed to acquire terrain material. Using defualt instead");
@@ -295,6 +309,7 @@ b8 terrain_unload(terrain* t)
         BERROR("terrain_unload requires a valid pointer to a terrain");
         return false;
     }
+    t->state = TERRAIN_STATE_UNDEFINED;
 
     // Invalidate the terrain
     t->generation = INVALID_ID;
@@ -303,7 +318,7 @@ b8 terrain_unload(terrain* t)
     // Unload all chunks
     for (u32 i = 0; i < t->chunk_count; ++i)
     {
-        terrain_chunk *chunk = &t->chunks[i];
+        terrain_chunk* chunk = &t->chunks[i];
         if (!terrain_chunk_unload(t, chunk))
         {
             BERROR("Failed to unload terrain chunk. See logs for details");
@@ -314,7 +329,7 @@ b8 terrain_unload(terrain* t)
     return !has_error;
 }
 
-b8 terrain_chunk_unload(terrain *t, terrain_chunk *chunk)
+b8 terrain_chunk_unload(terrain* t, terrain_chunk* chunk)
 {
     if (!t || !chunk)
     {
@@ -334,7 +349,7 @@ b8 terrain_chunk_unload(terrain *t, terrain_chunk *chunk)
     if (chunk->vertices)
     {
         // NOTE: since geometry is not used here, need to release vertex and index data manually
-        renderbuffer *vertex_buffer = renderer_renderbuffer_get(RENDERBUFFER_TYPE_VERTEX);
+        renderbuffer* vertex_buffer = renderer_renderbuffer_get(RENDERBUFFER_TYPE_VERTEX);
         if (!renderer_renderbuffer_free(vertex_buffer, sizeof(terrain_vertex) * chunk->total_vertex_count, chunk->vertex_buffer_offset))
         {
             BERROR("Error freeing vertex data for terrain chunk. See logs for details");
@@ -345,10 +360,10 @@ b8 terrain_chunk_unload(terrain *t, terrain_chunk *chunk)
     // Release each LOD
     if (chunk->lods)
     {
-        renderbuffer *index_buffer = renderer_renderbuffer_get(RENDERBUFFER_TYPE_INDEX);
+        renderbuffer* index_buffer = renderer_renderbuffer_get(RENDERBUFFER_TYPE_INDEX);
         for (u32 j = 0; j < t->lod_count; ++j)
         {
-            terrain_chunk_lod *lod = &chunk->lods[j];
+            terrain_chunk_lod* lod = &chunk->lods[j];
             if (lod->indices)
             {
                 if (!renderer_renderbuffer_free(index_buffer, sizeof(u32) * lod->total_index_count, lod->index_buffer_offset))
@@ -368,7 +383,7 @@ b8 terrain_update(terrain* t)
     return true;
 }
 
-static void terrain_chunk_destroy(terrain *t, terrain_chunk *chunk)
+static void terrain_chunk_destroy(terrain* t, terrain_chunk* chunk)
 {
     if (!t || !chunk)
         return;
@@ -393,7 +408,7 @@ static void terrain_chunk_destroy(terrain *t, terrain_chunk *chunk)
     {
         for (u32 j = 0; j < t->lod_count; ++j)
         {
-            terrain_chunk_lod *lod = &chunk->lods[j];
+            terrain_chunk_lod* lod = &chunk->lods[j];
             if (lod->indices)
                 bfree(lod->indices, sizeof(u32) * lod->total_index_count, MEMORY_TAG_ARRAY);
         }
@@ -403,7 +418,7 @@ static void terrain_chunk_destroy(terrain *t, terrain_chunk *chunk)
     }
 }
 
-static void terrain_chunk_calculate_geometry(terrain *t, terrain_chunk *chunk, u32 chunk_offset_x, u32 chunk_offset_z)
+static void terrain_chunk_calculate_geometry(terrain* t, terrain_chunk* chunk, u32 chunk_offset_x, u32 chunk_offset_z)
 {
     // The base x/z position of the first vertex within the chunk
     f32 chunk_base_pos_x = chunk_offset_x * t->chunk_size * t->tile_scale_x;
@@ -419,7 +434,7 @@ static void terrain_chunk_calculate_geometry(terrain *t, terrain_chunk *chunk, u
     {
         for (u32 x = 0; x < vertex_stride; ++x, ++i)
         {
-            terrain_vertex *v = &chunk->vertices[i];
+            terrain_vertex* v = &chunk->vertices[i];
             v->position.x = chunk_base_pos_x + (x * t->tile_scale_x);
             v->position.z = chunk_base_pos_z + (z * t->tile_scale_z);
 
@@ -437,7 +452,7 @@ static void terrain_chunk_calculate_geometry(terrain *t, terrain_chunk *chunk, u
             if (global_terrain_index < 0)
                 global_terrain_index = 0;
 
-            terrain_vertex_data *vert_data = &t->vertex_datas[global_terrain_index];
+            terrain_vertex_data* vert_data = &t->vertex_datas[global_terrain_index];
             f32 point_height = vert_data->height;
 
             v->position.y = point_height * t->scale_y;
@@ -467,7 +482,7 @@ static void terrain_chunk_calculate_geometry(terrain *t, terrain_chunk *chunk, u
         for (u32 i = 0; i < vertex_stride; ++i, ++vvi)
         {
             // Source vertex
-            terrain_vertex *sv;
+            terrain_vertex* sv;
             if (s == TSS_LEFT)
                 sv = &chunk->vertices[i * vertex_stride];
             else if (s == TSS_RIGHT)
@@ -478,7 +493,7 @@ static void terrain_chunk_calculate_geometry(terrain *t, terrain_chunk *chunk, u
                 sv = &chunk->vertices[i + (vertex_stride * t->chunk_size)];
 
             // Target vertex
-            terrain_vertex *v = &chunk->vertices[vvi];
+            terrain_vertex* v = &chunk->vertices[vvi];
 
             // Copy source vertex data to the target, then change the height
             bcopy_memory(v, sv, sizeof(terrain_vertex));
@@ -499,7 +514,7 @@ static void terrain_chunk_calculate_geometry(terrain *t, terrain_chunk *chunk, u
     // Generate indices for each LOD
     for (u32 j = 0; j < t->lod_count; ++j)
     {
-        terrain_chunk_lod *lod = &chunk->lods[j];
+        terrain_chunk_lod* lod = &chunk->lods[j];
 
         // The number of vertices that loops move forward per loop for this LOD
         u32 lod_skip_rate = (1 << j);

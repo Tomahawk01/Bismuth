@@ -126,17 +126,6 @@ typedef struct color_vertex_3d
     vec4 color;
 } color_vertex_3d;
 
-typedef struct transform
-{
-    vec3 position;
-    quat rotation;
-    vec3 scale;
-    b8 is_dirty;
-    mat4 local;
-    f32 determinant;
-    struct transform* parent;
-} transform;
-
 typedef struct plane_3d
 {
     vec3 normal;

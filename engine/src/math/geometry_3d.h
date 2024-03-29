@@ -1,3 +1,4 @@
+#include "core/bhandle.h"
 #include "math_types.h"
 
 typedef struct ray
@@ -15,7 +16,9 @@ typedef enum raycast_hit_type
 typedef struct raycast_hi
  {
     raycast_hit_type type;
-    u64 unique_id;
+    b_handle xform_handle;
+    b_handle node_handle;
+    b_handle xform_parent_handle;
     vec3 position;
     f32 distance;
 } raycast_hit;

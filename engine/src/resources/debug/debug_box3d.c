@@ -3,22 +3,22 @@
 #include "defines.h"
 #include "core/bmemory.h"
 #include "core/identifier.h"
-#include "math/transform.h"
+#include "core/bhandle.h"
 #include "math/bmath.h"
 #include "renderer/renderer_frontend.h"
+#include "systems/xform_system.h"
 
-static void recalculate_extents(debug_box3d *box, extents_3d extents);
-static void update_vert_color(debug_box3d *box);
+static void recalculate_extents(debug_box3d* box, extents_3d extents);
+static void update_vert_color(debug_box3d* box);
 
-b8 debug_box3d_create(vec3 size, transform *parent, debug_box3d *out_box)
+b8 debug_box3d_create(vec3 size, b_handle parent_xform, debug_box3d* out_box)
 {
     if (!out_box)
         return false;
     out_box->vertex_count = 0;
     out_box->vertices = 0;
-    out_box->xform = transform_create();
-    if (parent)
-        transform_parent_set(&out_box->xform, parent);
+    out_box->xform = xform_create();
+    out_box->parent_xform = parent_xform;
     out_box->size = size;
     out_box->id = identifier_create();
     out_box->color = vec4_one();  // white
@@ -30,19 +30,19 @@ b8 debug_box3d_create(vec3 size, transform *parent, debug_box3d *out_box)
     return true;
 }
 
-void debug_box3d_destroy(debug_box3d *box)
+void debug_box3d_destroy(debug_box3d* box)
 {
     // TODO: zero out
     box->id.uniqueid = INVALID_ID_U64;
 }
 
-void debug_box3d_parent_set(debug_box3d *box, transform *parent)
+void debug_box3d_parent_set(debug_box3d* box, b_handle parent_xform)
 {
     if (box)
-        transform_parent_set(&box->xform, parent);
+        box->parent_xform = parent_xform;
 }
 
-void debug_box3d_color_set(debug_box3d *box, vec4 color)
+void debug_box3d_color_set(debug_box3d* box, vec4 color)
 {
     if (box)
     {
@@ -57,7 +57,7 @@ void debug_box3d_color_set(debug_box3d *box, vec4 color)
     }
 }
 
-void debug_box3d_extents_set(debug_box3d *box, extents_3d extents)
+void debug_box3d_extents_set(debug_box3d* box, extents_3d extents)
 {
     if (box)
     {
@@ -69,7 +69,7 @@ void debug_box3d_extents_set(debug_box3d *box, extents_3d extents)
     }
 }
 
-void debug_box3d_points_set(debug_box3d *box, vec4 *points)
+void debug_box3d_points_set(debug_box3d* box, vec4* points)
 {
     if (box && points)
     {
@@ -130,9 +130,9 @@ void debug_box3d_points_set(debug_box3d *box, vec4 *points)
     }
 }
 
-void debug_box3d_render_frame_prepare(debug_box3d *box, const struct frame_data *p_frame_data)
+void debug_box3d_render_frame_prepare(debug_box3d* box, const struct frame_data* p_frame_data)
 {
-    if(!box || !box->is_dirty)
+    if (!box || !box->is_dirty)
         return;
 
     // Upload the new vertex data
@@ -147,7 +147,7 @@ void debug_box3d_render_frame_prepare(debug_box3d *box, const struct frame_data 
     box->is_dirty = false;
 }
 
-b8 debug_box3d_initialize(debug_box3d *box)
+b8 debug_box3d_initialize(debug_box3d* box)
 {
     if (!box)
         return false;
@@ -169,7 +169,7 @@ b8 debug_box3d_initialize(debug_box3d *box)
     return true;
 }
 
-b8 debug_box3d_load(debug_box3d *box)
+b8 debug_box3d_load(debug_box3d* box)
 {
     if (!renderer_geometry_create(&box->geo, sizeof(color_vertex_3d), box->vertex_count, box->vertices, 0, 0, 0))
         return false;
@@ -184,19 +184,19 @@ b8 debug_box3d_load(debug_box3d *box)
     return true;
 }
 
-b8 debug_box3d_unload(debug_box3d *box)
+b8 debug_box3d_unload(debug_box3d* box)
 {
     renderer_geometry_destroy(&box->geo);
 
     return true;
 }
 
-b8 debug_box3d_update(debug_box3d *box)
+b8 debug_box3d_update(debug_box3d* box)
 {
     return true;
 }
 
-static void recalculate_extents(debug_box3d *box, extents_3d extents)
+static void recalculate_extents(debug_box3d* box, extents_3d extents)
 {
     // Front lines
     {
@@ -249,7 +249,7 @@ static void recalculate_extents(debug_box3d *box, extents_3d extents)
     }
 }
 
-static void update_vert_color(debug_box3d *box)
+static void update_vert_color(debug_box3d* box)
 {
     if (box)
     {

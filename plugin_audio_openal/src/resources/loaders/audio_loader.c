@@ -4,7 +4,6 @@
 #include "core/bstring.h"
 #include "core/logger.h"
 #include "defines.h"
-#include "math/bmath.h"
 #include "resources/resource_types.h"
 #include "systems/resource_system.h"
 
@@ -214,7 +213,7 @@ static void audio_loader_unload(struct resource_loader* self, resource* resource
         }
     }
 
-    if (!resource_unload(self, resource, MEMORY_TAG_ARRAY))
+    if (!resource_unload(self, resource, MEMORY_TAG_RESOURCE))
         BWARN("binary_loader_unload called with nullptr for self or resource");
 }
 

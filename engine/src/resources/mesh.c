@@ -9,6 +9,7 @@
 #include "systems/resource_system.h"
 #include "systems/geometry_system.h"
 #include "renderer/renderer_types.h"
+#include "resources/resource_types.h"
 
 typedef struct mesh_load_params
 {
@@ -71,6 +72,7 @@ static void mesh_load_job_success(void* params)
     }
     
     mesh_params->out_mesh->generation++;
+    mesh_params->out_mesh->state = MESH_STATE_LOADED;
 
     BTRACE("Successfully loaded mesh '%s'", mesh_params->resource_name);
 
@@ -119,10 +121,16 @@ b8 mesh_create(mesh_config config, mesh* out_mesh)
 
     bzero_memory(out_mesh, sizeof(mesh));
 
-    out_mesh->config = config;
+    if (config.resource_name)
+        out_mesh->resource_name = string_duplicate(config.resource_name);
+    if (config.g_configs && config.geometry_count > 0)
+    {
+        out_mesh->geometry_count = config.geometry_count;
+        out_mesh->g_configs = ballocate(sizeof(geometry_config) * out_mesh->geometry_count, MEMORY_TAG_ARRAY);
+        bcopy_memory(out_mesh->g_configs, config.g_configs, sizeof(geometry_config) * out_mesh->geometry_count);
+    }
     out_mesh->generation = INVALID_ID_U8;
-    if (config.name)
-        out_mesh->name = string_duplicate(config.name);
+    out_mesh->state = MESH_STATE_CREATED;
 
     return true;
 }
@@ -132,18 +140,20 @@ b8 mesh_initialize(mesh* m)
     if (!m)
         return false;
 
-    if (m->config.resource_name)
+    if (m->resource_name)
     {
         return true;
     }
     else
     {
-        if (!m->config.g_configs)
+        if (!m->g_configs)
+        {
+            BERROR("Cannot initialize a mesh without either a resource name or at least one geometry configuration");
             return false;
-
-        m->geometry_count = m->config.geometry_count;
-        m->geometries = ballocate(sizeof(geometry*), MEMORY_TAG_ARRAY);
+        }
     }
+
+    m->state = MESH_STATE_INITIALIZED;
     return true;
 }
 
@@ -152,26 +162,33 @@ b8 mesh_load(mesh* m)
     if (!m)
         return false;
 
+    m->state = MESH_STATE_LOADING;
+
     m->id = identifier_create();
 
-    if (m->config.resource_name)
+    if (m->resource_name)
     {
-        return mesh_load_from_resource(m->config.resource_name, m);
+        return mesh_load_from_resource(m->resource_name, m);
     }
     else
     {
-        if (!m->config.g_configs)
-            return false;
-
-        for (u32 i = 0; i < m->config.geometry_count; ++i)
+        if (!m->g_configs)
         {
-            m->geometries[i] = geometry_system_acquire_from_config(m->config.g_configs[i], true);
+            BERROR("Cannot load a mesh without either a resource name or at least one geometry configuration");
+            return false;
+        }
+
+        for (u32 i = 0; i < m->geometry_count; ++i)
+        {
+            m->geometries[i] = geometry_system_acquire_from_config(m->g_configs[i], true);
             m->generation = 0;
 
             // Clean up allocations for geometry config
             // TODO: Do this during unload/destroy
-            geometry_system_config_dispose(&m->config.g_configs[i]);
+            geometry_system_config_dispose(&m->g_configs[i]);
         }
+
+        m->state = MESH_STATE_LOADED;
     }
 
     return true;
@@ -188,6 +205,7 @@ b8 mesh_unload(mesh* m)
         bzero_memory(m, sizeof(mesh));
 
         m->generation = INVALID_ID_U8;
+        m->state = MESH_STATE_UNDEFINED;
 
         return true;
     }
@@ -215,20 +233,10 @@ b8 mesh_destroy(mesh* m)
         m->name = 0;
     }
 
-    if (m->config.name)
+    if (m->resource_name)
     {
-        bfree(m->config.name, string_length(m->config.name) + 1, MEMORY_TAG_STRING);
-        m->config.name = 0;
-    }
-    if (m->config.resource_name)
-    {
-        bfree(m->config.resource_name, string_length(m->config.resource_name) + 1, MEMORY_TAG_STRING);
-        m->config.resource_name = 0;
-    }
-    if (m->config.parent_name)
-    {
-        bfree(m->config.parent_name, string_length(m->config.parent_name) + 1, MEMORY_TAG_STRING);
-        m->config.parent_name = 0;
+        bfree(m->resource_name, string_length(m->resource_name) + 1, MEMORY_TAG_STRING);
+        m->resource_name = 0;
     }
 
     return true;
