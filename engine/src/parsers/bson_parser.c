@@ -73,7 +73,7 @@ static void _populate_token_content(bson_token* t, const char* source)
 #define POPULATE_TOKEN_CONTENT(t, source) _populate_token_content(t, source)
 #else
 // No-op
-#define POPULATE_CURRENT_TOKEN_CONTENT(t, source)
+#define POPULATE_TOKEN_CONTENT(t, source)
 #endif
 
 // Pushes the current token, if not of unknown type

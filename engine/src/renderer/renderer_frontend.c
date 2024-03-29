@@ -544,7 +544,7 @@ b8 renderer_shader_create(shader* s, const shader_config* config, renderpass* pa
     // TODO: Implement #include directives here at this level so it's handled the same regardless of what backend is being used
 
     s->stage_configs = ballocate(sizeof(shader_stage_config) * config->stage_count, MEMORY_TAG_ARRAY);
-    s->module_watch_ids = ballocate(sizeof(u32) * config->stage_count, MEMORY_TAG_ARRAY);
+
     // Each stage
     for (u8 i = 0; i < config->stage_count; ++i)
     {
@@ -564,6 +564,7 @@ b8 renderer_shader_create(shader* s, const shader_config* config, renderpass* pa
         // This should recursively replace #includes with the file content in-place and adjust the source length along the way
 
 #ifdef _DEBUG
+    s->module_watch_ids = ballocate(sizeof(u32) * config->stage_count, MEMORY_TAG_ARRAY);
         // Allow shader hot-reloading in debug builds
         if (!platform_watch_file(text_resource.full_path, &s->module_watch_ids[i]))
             BWARN("Failed to watch shader source file '%s'", text_resource.full_path);
