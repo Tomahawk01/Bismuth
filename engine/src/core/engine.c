@@ -2,10 +2,11 @@
 
 #include "application_types.h"
 #include "containers/darray.h"
-#include "core/bclock.h"
 #include "core/event.h"
 #include "core/frame_data.h"
 #include "core/input.h"
+#include "core/bclock.h"
+#include "core/bhandle.h"
 #include "core/bmemory.h"
 #include "core/bstring.h"
 #include "core/logger.h"
@@ -17,6 +18,7 @@
 
 // Systems
 #include "core/systems_manager.h"
+#include "systems/timeline_system.h"
 
 typedef struct engine_state_t
 {
@@ -163,6 +165,7 @@ b8 engine_run(application* game_inst)
 
     BINFO(get_memory_usage_str());
     
+    void* timeline_state = systems_manager_get_state(B_SYSTEM_TYPE_TIMELINE);
     while (engine_state->is_running)
     {
         if (!platform_pump_messages())
@@ -176,14 +179,13 @@ b8 engine_run(application* game_inst)
             f64 delta = (current_time - engine_state->last_time);
             f64 frame_start_time = platform_get_absolute_time();
 
-            engine_state->p_frame_data.total_time = current_time;
-            engine_state->p_frame_data.delta_time = (f32)delta;
-
             // Reset frame allocator
             engine_state->p_frame_data.allocator.free_all();
 
             // Update systems
             systems_manager_update(&engine_state->sys_manager_state, &engine_state->p_frame_data);
+            // Update timelines
+            timeline_system_update(timeline_state, delta);
 
             // Update metrics
             metrics_update(frame_elapsed_time);

@@ -21,6 +21,7 @@
 #include "systems/resource_system.h"
 #include "systems/shader_system.h"
 #include "systems/texture_system.h"
+#include "systems/timeline_system.h"
 
 // Version reporting
 #include "version.h"
@@ -198,6 +199,15 @@ static b8 register_known_systems_pre_boot(systems_manager_state* state, applicat
     if (!systems_manager_register(state, B_SYSTEM_TYPE_PLATFORM, platform_system_startup, platform_system_shutdown, 0, 0, &plat_config))
     {
         BERROR("Failed to register platform system");
+        return false;
+    }
+
+    // Timeline system
+    timeline_system_config timeline_config = {0};
+    timeline_config.dummy = 1; // TODO: expose to app config
+    if (!systems_manager_register(state, B_SYSTEM_TYPE_TIMELINE, timeline_system_initialize, timeline_system_shutdown, 0, 0, &timeline_config))
+    {
+        BERROR("Failed to register timeline system");
         return false;
     }
 

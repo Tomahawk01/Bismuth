@@ -13,12 +13,6 @@ typedef struct frame_allocator_int
 
 typedef struct frame_data
 {
-    // Time in seconds since last frame
-    f32 delta_time;
-
-    // Total amount of time in seconds application has been running
-    f64 total_time;
-
     // Number of meshes drawn in the last frame
     u32 drawn_mesh_count;
 

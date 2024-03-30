@@ -45,6 +45,7 @@ typedef enum b_system_type
     B_SYSTEM_TYPE_GEOMETRY,
     B_SYSTEM_TYPE_LIGHT,
     B_SYSTEM_TYPE_AUDIO,
+    B_SYSTEM_TYPE_TIMELINE,
 
     // NOTE: Anything between 127-254 is extension space
     B_SYSTEM_TYPE_KNOWN_MAX = 127,

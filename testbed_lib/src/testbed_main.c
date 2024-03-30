@@ -25,6 +25,7 @@
 #include "math/math_types.h"
 #include "renderer/viewport.h"
 #include "systems/camera_system.h"
+#include "systems/timeline_system.h"
 
 // Standard UI
 #include <controls/sui_button.h>
@@ -83,6 +84,12 @@ static b8 prepare_rendergraphs(application* app, frame_data* p_frame_data);
 static b8 execute_rendergraphs(application* app, frame_data* p_frame_data);
 static void destroy_rendergraphs(application* app);
 static void refresh_rendergraph_pfns(application* app);
+
+static f32 get_engine_delta_time(void)
+{
+    b_handle engine = timeline_system_get_engine();
+    return timeline_system_delta_get(engine);
+}
 
 static void clear_debug_objects(struct application* game_inst)
 {
@@ -813,7 +820,7 @@ b8 application_update(struct application* game_inst, struct frame_data* p_frame_
 
     // TODO: testing resize
     static f32 button_height = 50.0f;
-    button_height = 50.0f + (bsin(p_frame_data->total_time) * 20.0f);
+    button_height = 50.0f + (bsin(get_engine_delta_time()) * 20.0f);
     sui_button_control_height_set(&state->test_button, (i32)button_height);
 
     // Update bitmap text with camera position. NOTE: just using the default camera for now
@@ -838,12 +845,12 @@ b8 application_update(struct application* game_inst, struct frame_data* p_frame_
         if (state->p_light_1)
         {
             state->p_light_1->data.color = (vec4){
-                BCLAMP(bsin(p_frame_data->total_time) * 75.0f + 50.0f, 0.0f, 100.0f),
-                BCLAMP(bsin(p_frame_data->total_time - (B_2PI / 3)) * 75.0f + 50.0f, 0.0f, 100.0f),
-                BCLAMP(bsin(p_frame_data->total_time - (B_4PI / 3)) * 75.0f + 50.0f, 0.0f, 100.0f),
+                BCLAMP(bsin(get_engine_delta_time()) * 75.0f + 50.0f, 0.0f, 100.0f),
+                BCLAMP(bsin(get_engine_delta_time() - (B_2PI / 3)) * 75.0f + 50.0f, 0.0f, 100.0f),
+                BCLAMP(bsin(get_engine_delta_time() - (B_4PI / 3)) * 75.0f + 50.0f, 0.0f, 100.0f),
                 1.0f
             };
-            state->p_light_1->data.position.z = 20.0f + bsin(p_frame_data->total_time);
+            state->p_light_1->data.position.z = 20.0f + bsin(get_engine_delta_time());
 
             // Make audio emitter follow it
             state->test_emitter.position = vec3_from_vec4(state->p_light_1->data.position);

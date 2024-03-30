@@ -52,25 +52,22 @@ b8 memory_system_initialize(memory_system_configuration config);
 void memory_system_shutdown(void* state);
 
 BAPI void* ballocate(u64 size, memory_tag tag);
-
 BAPI void* ballocate_aligned(u64 size, u16 alignment, memory_tag tag);
-
 BAPI void ballocate_report(u64 size, memory_tag tag);
 
+BAPI void* breallocate(void* block, u64 old_size, u64 new_size, memory_tag tag);
+BAPI void* breallocate_aligned(void* block, u64 old_size, u64 new_size, u16 alignment, memory_tag tag);
+BAPI void breallocate_report(u64 old_size, u64 new_size, memory_tag tag);
+
 BAPI void bfree(void* block, u64 size, memory_tag tag);
-
 BAPI void bfree_aligned(void* block, u64 size, u16 alignment, memory_tag tag);
-
 BAPI void bfree_report(u64 size, memory_tag tag);
 
 BAPI b8 bmemory_get_size_alignment(void* block, u64* out_size, u16* out_alignment);
 
 BAPI void* bzero_memory(void* block, u64 size);
-
 BAPI void* bcopy_memory(void* dest, const void* source, u64 size);
-
 BAPI void* bset_memory(void* dest, i32 value, u64 size);
 
 BAPI char* get_memory_usage_str(void);
-
 BAPI u64 get_memory_alloc_count(void);
