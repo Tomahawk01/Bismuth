@@ -528,7 +528,7 @@ b8 bsemaphore_create(bsemaphore* out_semaphore, u32 max_count, u32 start_count)
     if (!out_semaphore)
         return false;
 
-    out_semaphore->internal_data = CreateSemaphore(0, start_count, max_count, "semaphore");
+    out_semaphore->internal_data = CreateSemaphore(0, start_count, max_count, 0);
 
     return true;
 }
