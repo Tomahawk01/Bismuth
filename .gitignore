@@ -2,4 +2,5 @@ bin/
 obj/
 *.spv
 
-engine/src/version.h
+bismuth.core/src/version.h
+bismuth.runtime/src/version.h
