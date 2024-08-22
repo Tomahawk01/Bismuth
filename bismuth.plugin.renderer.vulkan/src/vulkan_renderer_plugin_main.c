@@ -105,8 +105,9 @@ b8 bplugin_create(bruntime_plugin* out_plugin)
 
 void bplugin_destroy(bruntime_plugin* plugin)
 {
-    if (plugin && plugin->plugin_state)
-        bfree(plugin->plugin_state, plugin->plugin_state_size, MEMORY_TAG_RENDERER);
+    // NOTE: this is taken care of internally
+    // if (plugin && plugin->plugin_state)
+    //     bfree(plugin->plugin_state, plugin->plugin_state_size, MEMORY_TAG_RENDERER);
 
-    bzero_memory(plugin, sizeof(bruntime_plugin));
+    // bzero_memory(plugin, sizeof(bruntime_plugin));
 }

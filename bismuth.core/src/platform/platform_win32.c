@@ -200,6 +200,7 @@ b8 platform_window_create(const bwindow_config* config, struct bwindow* window, 
         return false;
     }
 
+    // Register the window internally
     darray_push(state_ptr->windows, window);
 
     if (show_immediately)
@@ -221,7 +222,7 @@ void platform_window_destroy(struct bwindow* window)
                 DestroyWindow(window->platform_state->hwnd);
                 window->platform_state->hwnd = 0;
                 state_ptr->windows[i] = 0;
-                break;
+                return;
             }
         }
         BERROR("Destroying a window that was somehow not registered with the platform layer");

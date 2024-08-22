@@ -250,6 +250,10 @@ void standard_ui_system_shutdown(standard_ui_state* state)
             c->destroy(state, c);
         }
 
+        // Release texture map for UI atlas
+        renderer_texture_map_resources_release(&state->ui_atlas);
+
+        // Release texture for UI atlas
         if (state->ui_atlas.texture)
         {
             texture_system_release(state->ui_atlas.texture->name);

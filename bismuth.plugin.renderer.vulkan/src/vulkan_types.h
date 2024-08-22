@@ -243,9 +243,9 @@ typedef struct vulkan_descriptor_set_config
 
 typedef struct vulkan_descriptor_state
 {
-    u8 generations[3];
-    u32 ids[3];
-    u64 frame_numbers[3];
+    u8* generations;
+    u32* ids;
+    u64* frame_numbers;
 } vulkan_descriptor_state;
 
 typedef struct vulkan_uniform_sampler_state
@@ -263,8 +263,7 @@ typedef struct vulkan_shader_instance_state
     u32 id;
     u64 offset;
 
-    // TODO: handle frame counts other than 3
-    VkDescriptorSet descriptor_sets[3];
+    VkDescriptorSet* descriptor_sets;
 
     // UBO descriptor
     vulkan_descriptor_state ubo_descriptor_state;
@@ -275,7 +274,9 @@ typedef struct vulkan_shader_instance_state
 
 typedef struct vulkan_shader
 {
-    void* mapped_uniform_buffer_block;
+    /** @brief The block of memory mapped to the each per-swapchain-image uniform buffer */
+    void** mapped_uniform_buffer_blocks;
+    /** @brief The block of memory used for push constants, 128B */
     void* local_push_constant_block;
 
     u32 id;
@@ -303,8 +304,7 @@ typedef struct vulkan_shader
 
     VkDescriptorSetLayout descriptor_set_layouts[2];
 
-    // TODO: handle frame counts other than 3
-    VkDescriptorSet global_descriptor_sets[3];
+    VkDescriptorSet* global_descriptor_sets;
 
     // UBO descriptor
     vulkan_descriptor_state global_ubo_descriptor_state;
@@ -312,7 +312,9 @@ typedef struct vulkan_shader
     // A mapping of sampler uniforms to descriptors and texture maps
     vulkan_uniform_sampler_state* global_sampler_uniforms;
 
-    renderbuffer uniform_buffer;
+    /** @brief The uniform buffers used by this shader, one per swapchain image */
+    renderbuffer* uniform_buffers;
+    u32 uniform_buffer_count;
 
     vulkan_pipeline** pipelines;
     vulkan_pipeline** wireframe_pipelines;
@@ -320,7 +322,6 @@ typedef struct vulkan_shader
     u8 bound_pipeline_index;
     VkPrimitiveTopology current_topology;
 
-    // TODO: make dynamic
     vulkan_shader_instance_state* instance_states;
 } vulkan_shader;
 

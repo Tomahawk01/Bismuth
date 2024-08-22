@@ -317,8 +317,8 @@ shader* shader_system_get(const char* shader_name)
         BERROR("Failed to load shader resource for shader '%s'", shader_name);
         return 0;
     }
-    shader_config* pbr_config = (shader_config*)shader_config_resource.data;
-    if (!shader_system_create(pbr_config))
+    shader_config* config = (shader_config*)shader_config_resource.data;
+    if (!shader_system_create(config))
     {
         BERROR("Failed to create shader '%s'", shader_name);
         return 0;
