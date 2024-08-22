@@ -8,11 +8,15 @@
 #include "memory/bmemory.h"
 #include "parsers/bson_parser.h"
 #include "renderer/renderer_frontend.h"
-#include "renderer/rendergraph_nodes/clear_color_rendergraph_node.h"
-#include "renderer/rendergraph_nodes/clear_depth_rendergraph_node.h"
 #include "strings/bstring.h"
 
 // Known node types
+#include "renderer/rendergraph_nodes/clear_color_rendergraph_node.h"
+#include "renderer/rendergraph_nodes/clear_depth_rendergraph_node.h"
+#include "renderer/rendergraph_nodes/debug_rendergraph_node.h"
+#include "renderer/rendergraph_nodes/forward_rendergraph_node.h"
+#include "renderer/rendergraph_nodes/shadow_rendergraph_node.h"
+#include "renderer/rendergraph_nodes/skybox_rendergraph_node.h"
 #include "rendergraph_nodes/frame_begin_rendergraph_node.h"
 #include "rendergraph_nodes/frame_end_rendergraph_node.h"
 
@@ -75,7 +79,7 @@ b8 rendergraph_create(const char* config_str, struct texture* global_colorbuffer
     if (!out_graph)
         return false;
 
-    if (!config_str || string_length(config_str))
+    if (!config_str || !string_length(config_str))
     {
         BERROR("rendergraph_create requires a valid configuration string (BSON)");
         return false;
@@ -86,6 +90,8 @@ b8 rendergraph_create(const char* config_str, struct texture* global_colorbuffer
         BERROR("rendergraph_create requires valid pointers to global color and depthbuffers");
         return false;
     }
+    out_graph->global_colorbuffer = global_colorbuffer;
+    out_graph->global_depthbuffer = global_depthbuffer;
 
     // Process config
     rendergraph_config config = {0};
@@ -185,7 +191,7 @@ void rendergraph_destroy(rendergraph* graph)
         }
         
         // Destroy all nodes
-        for (u32 i = 0; graph->node_count; ++i)
+        for (u32 i = 0; i < graph->node_count; ++i)
         {
             rendergraph_node* node = &graph->nodes[i];
             if (node->destroy)
@@ -280,10 +286,10 @@ b8 rendergraph_finalize(rendergraph* graph)
     graph->dep_graph = dep_graph_create(graph);
 
     // Ensure all nodes are resolved
-    for (u32 i = 0; graph->node_count; ++i)
+    for (u32 i = 0; i < graph->node_count; ++i)
     {
         rendergraph_node* node = &graph->nodes[i];
-        if (rendergraph_node_resolve(graph, node))
+        if (!rendergraph_node_resolve(graph, node))
         {
             BERROR("Unable to resolve references for node '%s'. See logs for details", node->name);
             return false;
@@ -306,6 +312,28 @@ b8 rendergraph_finalize(rendergraph* graph)
     // Perform topological sorting based on dependencies
     if (!rg_dep_graph_topological_sort(graph))
         BERROR("Failed to sort rendergraph dependencies");
+
+    return true;
+}
+
+b8 rendergraph_initialize(rendergraph* graph)
+{
+    if (!graph)
+        return false;
+
+    for (u32 i = 0; i < graph->node_count; ++i)
+    {
+        rendergraph_node* node = &graph->nodes[i];
+
+        if (node->initialize)
+        {
+            if (!node->initialize(node))
+            {
+                BERROR("Failed to initialize node '%s'", node->name);
+                return false;
+            }
+        }
+    }
 
     return true;
 }
@@ -426,6 +454,30 @@ b8 rendergraph_system_initialize(u64* memory_requirement, struct rendergraph_sys
     if (!clear_depth_rendergraph_node_register_factory())
     {
         BERROR("Failed to register known rendergraph factory type 'clear_depth'");
+        return false;
+    }
+
+    if (!skybox_rendergraph_node_register_factory())
+    {
+        BERROR("Failed to register known rendergraph factory type 'skybox'");
+        return false;
+    }
+
+    if (!forward_rendergraph_node_register_factory())
+    {
+        BERROR("Failed to register known rendergraph factory type 'forward'");
+        return false;
+    }
+
+    if (!shadow_rendergraph_node_register_factory())
+    {
+        BERROR("Failed to register known rendergraph factory type 'shadow'");
+        return false;
+    }
+
+    if (!debug_rendergraph_node_register_factory())
+    {
+        BERROR("Failed to register known rendergraph factory type 'debug'");
         return false;
     }
 
@@ -794,7 +846,7 @@ static b8 rg_dep_graph_topological_sort(rendergraph* graph)
     // Always force the begin node to be first and the end node to be last
     graph->execution_list[0] = graph->begin_node->index;
     graph->execution_list[graph->node_count - 1] = graph->end_node->index;
-    u32 current_index = 1;
+    u32 current_index = graph->node_count - 2;;
     while (stack_index)
     {
         rg_dep_node* node = stack[--stack_index];
@@ -804,7 +856,7 @@ static b8 rg_dep_graph_topological_sort(rendergraph* graph)
             continue;
         }
         graph->execution_list[current_index] = node->index;
-        current_index++;
+        current_index--;
     }
     // Get rid of the stack
     bfree(stack, sizeof(rg_dep_node*) * graph->node_count, MEMORY_TAG_ARRAY);

@@ -34,9 +34,18 @@ b8 bplugin_create(bruntime_plugin* out_plugin)
     backend->scissor_set = vulkan_renderer_scissor_set;
     backend->scissor_reset = vulkan_renderer_scissor_reset;
 
+    backend->clear_depth_set = vulkan_renderer_clear_depth_set;
+    backend->clear_color_set = vulkan_renderer_clear_color_set;
+    backend->clear_stencil_set = vulkan_renderer_clear_stencil_set;
+    backend->clear_color = vulkan_renderer_clear_color_texture;
+    backend->clear_depth_stencil = vulkan_renderer_clear_depth_stencil;
+    backend->color_texture_prepare_for_present = vulkan_renderer_color_texture_prepare_for_present;
+    backend->texture_prepare_for_sampling = vulkan_renderer_texture_prepare_for_sampling;
+
     backend->winding_set = vulkan_renderer_winding_set;
     backend->set_stencil_test_enabled = vulkan_renderer_set_stencil_test_enabled;
     backend->set_depth_test_enabled = vulkan_renderer_set_depth_test_enabled;
+    backend->set_depth_write_enabled = vulkan_renderer_set_depth_write_enabled;
     backend->set_stencil_reference = vulkan_renderer_set_stencil_reference;
     backend->set_stencil_op = vulkan_renderer_set_stencil_op;
 

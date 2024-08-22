@@ -243,7 +243,7 @@ void renderer_on_window_destroyed(struct renderer_system_state* state, struct bw
     if (window)
     {
         // Releasing the resources for the default depthbuffer should destroy backing resources too
-        renderer_texture_resources_release(state, window->renderer_state->depthbuffer.renderer_texture_handle);
+        renderer_texture_resources_release(state, &window->renderer_state->depthbuffer.renderer_texture_handle);
 
         // Destroy on backend first
         state->backend->window_destroy(state->backend, window);
@@ -359,13 +359,19 @@ void renderer_set_depth_test_enabled(b8 enabled)
     state_ptr->backend->set_depth_test_enabled(state_ptr->backend, enabled);
 }
 
+void renderer_set_depth_write_enabled(b8 enabled)
+{
+    renderer_system_state* state_ptr = engine_systems_get()->renderer_system;
+    state_ptr->backend->set_depth_write_enabled(state_ptr->backend, enabled);
+}
+
 void renderer_set_stencil_op(renderer_stencil_op fail_op, renderer_stencil_op pass_op, renderer_stencil_op depth_fail_op, renderer_compare_op compare_op)
 {
     renderer_system_state* state_ptr = engine_systems_get()->renderer_system;
     state_ptr->backend->set_stencil_op(state_ptr->backend, fail_op, pass_op, depth_fail_op, compare_op);
 }
 
-void renderer_begin_rendering(struct renderer_system_state* state, struct frame_data* p_frame_data, u32 color_target_count, b_handle* color_targets, b_handle depth_stencil_target)
+void renderer_begin_rendering(struct renderer_system_state* state, struct frame_data* p_frame_data, u32 color_target_count, b_handle* color_targets, b_handle depth_stencil_target, u32 depth_stencil_layer)
 {
     struct texture_internal_data** color_datas = 0;
     if (color_target_count)
@@ -405,7 +411,7 @@ void renderer_begin_rendering(struct renderer_system_state* state, struct frame_
     {
         depth_data = state->textures[depth_stencil_target.handle_index].data;
     }
-    state->backend->begin_rendering(state->backend, p_frame_data, color_target_count, color_datas, depth_data);
+    state->backend->begin_rendering(state->backend, p_frame_data, color_target_count, color_datas, depth_data, depth_stencil_layer);
 }
 
 void renderer_end_rendering(struct renderer_system_state* state, struct frame_data* p_frame_data)
@@ -480,12 +486,12 @@ b8 renderer_texture_resources_acquire(struct renderer_system_state* state, const
     return success;
 }
 
-void renderer_texture_resources_release(struct renderer_system_state* state, b_handle renderer_texture_handle)
+void renderer_texture_resources_release(struct renderer_system_state* state, b_handle* renderer_texture_handle)
 {
-    if (state && !b_handle_is_invalid(renderer_texture_handle))
+    if (state && !b_handle_is_invalid(*renderer_texture_handle))
     {
-        texture_lookup* lookup = &state->textures[renderer_texture_handle.handle_index];
-        if (lookup->uniqueid != renderer_texture_handle.unique_id.uniqueid)
+        texture_lookup* lookup = &state->textures[renderer_texture_handle->handle_index];
+        if (lookup->uniqueid != renderer_texture_handle->unique_id.uniqueid)
         {
             BWARN("Stale handle passed while trying to release renderer texture resources");
             return;
@@ -494,6 +500,7 @@ void renderer_texture_resources_release(struct renderer_system_state* state, b_h
         bfree(lookup->data, state->backend->texture_internal_data_size, MEMORY_TAG_RENDERER);
         lookup->data = 0;
         lookup->uniqueid = INVALID_ID_U64;
+        *renderer_texture_handle = b_handle_invalid();
     }
 }
 
@@ -517,7 +524,13 @@ b8 renderer_texture_write_data(struct renderer_system_state* state, b_handle ren
     if (state && !b_handle_is_invalid(renderer_texture_handle))
     {
         struct texture_internal_data* data = state->textures[renderer_texture_handle.handle_index].data;
-        return state->backend->texture_write_data(state->backend, data, offset, size, pixels, true);
+        b8 include_in_frame_workload = true;
+        b8 result = state->backend->texture_write_data(state->backend, data, offset, size, pixels, include_in_frame_workload);
+        if (!include_in_frame_workload)
+        {
+            // TODO: update generation?
+        }
+        return result;
     }
     return false;
 }
@@ -775,6 +788,30 @@ b8 renderer_clear_depth_stencil(struct renderer_system_state* state, b_handle te
 
     BERROR("renderer_clear_depth_stencil requires a valid handle to a texture. Nothing was done");
     return false;
+}
+
+void renderer_color_texture_prepare_for_present(struct renderer_system_state* state, b_handle texture_handle)
+{
+    if (state && !b_handle_is_invalid(texture_handle))
+    {
+        struct texture_internal_data* data = state->textures[texture_handle.handle_index].data;
+        state->backend->color_texture_prepare_for_present(state->backend, data);
+        return;
+    }
+
+    BERROR("renderer_color_texture_prepare_for_present requires a valid handle to a texture. Nothing was done");
+}
+
+void renderer_texture_prepare_for_sampling(struct renderer_system_state* state, b_handle texture_handle, texture_flag_bits flags)
+{
+    if (state && !b_handle_is_invalid(texture_handle))
+    {
+        struct texture_internal_data* data = state->textures[texture_handle.handle_index].data;
+        state->backend->texture_prepare_for_sampling(state->backend, data, flags);
+        return;
+    }
+
+    BERROR("renderer_texture_prepare_for_sampling requires a valid handle to a texture. Nothing was done.");
 }
 
 b8 renderer_shader_create(struct renderer_system_state* state, shader* s, const shader_config* config)

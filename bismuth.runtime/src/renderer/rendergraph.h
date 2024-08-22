@@ -119,6 +119,7 @@ BAPI b8 rendergraph_create(const char* config_str, struct texture* global_colorb
 BAPI void rendergraph_destroy(rendergraph* graph);
 
 BAPI b8 rendergraph_finalize(rendergraph* graph);
+BAPI b8 rendergraph_initialize(rendergraph* graph);
 BAPI b8 rendergraph_load_resources(rendergraph* graph);
 BAPI b8 rendergraph_execute_frame(rendergraph* graph, struct frame_data* p_frame_data);
 

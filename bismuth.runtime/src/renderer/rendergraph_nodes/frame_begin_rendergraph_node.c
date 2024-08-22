@@ -27,7 +27,7 @@ b8 frame_begin_rendergraph_node_create(struct rendergraph* graph, struct renderg
     colorbuffer_source->value.t = graph->global_colorbuffer;
     colorbuffer_source->is_bound = false;
 
-    // Setup the colorbuffer source
+    // Setup the depthbuffer source
     rendergraph_source* depthbuffer_source = &self->sources[1];
     depthbuffer_source->name = string_duplicate("depthbuffer");
     depthbuffer_source->type = RENDERGRAPH_RESOURCE_TYPE_TEXTURE;
@@ -51,7 +51,7 @@ b8 frame_begin_rendergraph_node_initialize(struct rendergraph_node* self)
 
 b8 frame_begin_rendergraph_node_execute(struct rendergraph_node* self, struct frame_data* p_frame_data)
 {
-    // Nothing to execute here, this is a no-op
+    // TODO: This is where an image layout transformation should occur, instead of doing it at the renderpass level and having that worry about it
     return true;
 }
 

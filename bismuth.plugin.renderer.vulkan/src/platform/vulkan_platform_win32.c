@@ -19,8 +19,12 @@
 typedef struct win32_handle_info
 {
     HINSTANCE h_instance;
-    HWND hwnd;
 } win32_handle_info;
+
+typedef struct bwindow_platform_state
+{
+    HWND hwnd;
+} bwindow_platform_state;
 
 void vulkan_platform_get_required_extension_names(const char*** names_darray)
 {
@@ -42,7 +46,7 @@ b8 vulkan_platform_create_vulkan_surface(vulkan_context* context, struct bwindow
 
     VkWin32SurfaceCreateInfoKHR create_info = {VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR};
     create_info.hinstance = handle->h_instance;
-    create_info.hwnd = handle->hwnd;
+    create_info.hwnd = window->platform_state->hwnd;
 
     VkResult result = vkCreateWin32SurfaceKHR(context->instance, &create_info, context->allocator, &window->renderer_state->backend_state->surface);
     if (result != VK_SUCCESS)

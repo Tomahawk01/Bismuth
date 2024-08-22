@@ -8,6 +8,7 @@
 #include "renderer/renderer_frontend.h"
 #include "renderer/renderer_types.h"
 #include "renderer/rendergraph.h"
+#include "renderer/viewport.h"
 #include "standard_ui_system.h"
 #include "strings/bstring.h"
 #include "systems/shader_system.h"
@@ -41,7 +42,7 @@ typedef struct ui_pass_internal_data
     struct texture_map* ui_atlas;
     standard_ui_render_data render_data;
 
-    struct viewport* vp;
+    viewport vp;
     mat4 view;
     mat4 projection;
 } ui_pass_internal_data;
@@ -140,6 +141,8 @@ b8 ui_rendergraph_node_load_resources(struct rendergraph_node* self)
     if (self->sinks[0].bound_source)
     {
         internal_data->colorbuffer_texture = self->sinks[0].bound_source->value.t;
+        self->sources[0].value.t = internal_data->colorbuffer_texture;
+        self->sources[0].is_bound = true;
         return true;
     }
 
@@ -154,11 +157,12 @@ b8 ui_rendergraph_node_execute(struct rendergraph_node* self, struct frame_data*
     ui_pass_internal_data* internal_data = self->internal_data;
 
     // Bind the viewport
-    renderer_active_viewport_set(internal_data->vp);
+    renderer_active_viewport_set(&internal_data->vp);
 
     renderer_set_depth_test_enabled(false);
+    renderer_set_depth_write_enabled(false);
 
-    renderer_begin_rendering(internal_data->renderer, p_frame_data, 1, &internal_data->colorbuffer_texture->renderer_texture_handle, b_handle_invalid());
+    renderer_begin_rendering(internal_data->renderer, p_frame_data, 1, &internal_data->colorbuffer_texture->renderer_texture_handle, b_handle_invalid(), 0);
 
     // Renderables
     if (!shader_system_use_by_id(internal_data->sui_shader->id))
@@ -183,6 +187,7 @@ b8 ui_rendergraph_node_execute(struct rendergraph_node* self, struct frame_data*
             // Enable writing, disable test
             renderer_set_stencil_test_enabled(true);
             renderer_set_depth_test_enabled(false);
+            renderer_set_depth_write_enabled(false);
             renderer_set_stencil_reference((u32)renderable->clip_mask_render_data->unique_id);
             renderer_set_stencil_write_mask(0xFF);
             renderer_set_stencil_op(
@@ -275,7 +280,7 @@ void ui_rendergraph_node_set_render_data(struct rendergraph_node* self, standard
     }
 }
 
-void ui_rendergraph_node_set_viewport_and_matrices(struct rendergraph_node* self, struct viewport* vp, mat4 view, mat4 projection)
+void ui_rendergraph_node_set_viewport_and_matrices(struct rendergraph_node* self, viewport vp, mat4 view, mat4 projection)
 {
     if (self)
     {
@@ -292,7 +297,7 @@ void ui_rendergraph_node_set_viewport_and_matrices(struct rendergraph_node* self
 b8 ui_rendergraph_node_register_factory(void)
 {
     rendergraph_node_factory factory = {0};
-    factory.type = "skybox";
+    factory.type = "standard_ui";
     factory.create = ui_rendergraph_node_create;
     return rendergraph_system_node_factory_register(engine_systems_get()->rendergraph_system, &factory);
 }

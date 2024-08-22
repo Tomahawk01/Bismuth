@@ -1,11 +1,13 @@
 #include "vulkan_command_buffer.h"
 
+#include "vulkan_utils.h"
 #include "memory/bmemory.h"
 
 void vulkan_command_buffer_allocate(
     vulkan_context* context,
     VkCommandPool pool,
     b8 is_primary,
+    const char* name,
     vulkan_command_buffer* out_command_buffer)
 {
     bzero_memory(out_command_buffer, sizeof(vulkan_command_buffer));
@@ -22,6 +24,9 @@ void vulkan_command_buffer_allocate(
         &allocate_info,
         &out_command_buffer->handle));
     out_command_buffer->state = COMMAND_BUFFER_STATE_READY;
+
+    if (name)
+        VK_SET_DEBUG_OBJECT_NAME(context, VK_OBJECT_TYPE_COMMAND_BUFFER, out_command_buffer->handle, name);
 }
 
 void vulkan_command_buffer_free(
@@ -79,7 +84,7 @@ void vulkan_command_buffer_allocate_and_begin_single_use(
     VkCommandPool pool,
     vulkan_command_buffer* out_command_buffer)
 {
-    vulkan_command_buffer_allocate(context, pool, true, out_command_buffer);
+    vulkan_command_buffer_allocate(context, pool, true, "single_use_command_buffer", out_command_buffer);
     vulkan_command_buffer_begin(out_command_buffer, true, false, false);
 }
 

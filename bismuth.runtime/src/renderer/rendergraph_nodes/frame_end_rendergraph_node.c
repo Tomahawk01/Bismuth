@@ -5,6 +5,8 @@
 #include "logger.h"
 #include "memory/bmemory.h"
 #include "parsers/bson_parser.h"
+#include "renderer/renderer_frontend.h"
+#include "renderer/renderer_types.h"
 #include "strings/bstring.h"
 
 typedef struct frame_end_rendergraph_node_config
@@ -67,6 +69,8 @@ b8 frame_end_rendergraph_node_initialize(struct rendergraph_node* self)
 b8 frame_end_rendergraph_node_execute(struct rendergraph_node* self, struct frame_data* p_frame_data)
 {
     // TODO: This is probably where an image layout transformation should occur, instead of doing it at the renderpass level and having that worry about it
+    struct renderer_system_state* renderer = engine_systems_get()->renderer_system;
+    renderer_color_texture_prepare_for_present(renderer, self->sinks[0].bound_source->value.t->renderer_texture_handle);
     return true;
 }
 

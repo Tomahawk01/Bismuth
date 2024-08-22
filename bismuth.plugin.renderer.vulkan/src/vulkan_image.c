@@ -55,31 +55,33 @@ void vulkan_image_create(
     if (layer_count < 1)
         layer_count = 1;
 
-    VkImageCreateInfo image_create_info = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+    // Creation info
+    bzero_memory(&out_image->image_create_info, sizeof(VkImageCreateInfo));
+    out_image->image_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     switch (type)
     {
         default:
         case TEXTURE_TYPE_2D:
         case TEXTURE_TYPE_CUBE:         // Intentional, there is no cube image type
         case TEXTURE_TYPE_2D_ARRAY:     // Intentional, there is no 2d_array image type
-            image_create_info.imageType = VK_IMAGE_TYPE_2D;
+            out_image->image_create_info.imageType = VK_IMAGE_TYPE_2D;
             break;
     }
-    image_create_info.extent.width = width;
-    image_create_info.extent.height = height;
-    image_create_info.extent.depth = 1;                                 // TODO: Support configurable depth
-    image_create_info.mipLevels = out_image->mip_levels;
-    image_create_info.arrayLayers = layer_count;
-    image_create_info.format = format;
-    image_create_info.tiling = tiling;
-    image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    image_create_info.usage = usage;
-    image_create_info.samples = VK_SAMPLE_COUNT_1_BIT;                  // TODO: Configurable sample count
-    image_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;          // TODO: Configurable sharing mode
+    out_image->image_create_info.extent.width = width;
+    out_image->image_create_info.extent.height = height;
+    out_image->image_create_info.extent.depth = 1;                                 // TODO: Support configurable depth
+    out_image->image_create_info.mipLevels = out_image->mip_levels;
+    out_image->image_create_info.arrayLayers = layer_count;
+    out_image->image_create_info.format = format;
+    out_image->image_create_info.tiling = tiling;
+    out_image->image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    out_image->image_create_info.usage = usage;
+    out_image->image_create_info.samples = VK_SAMPLE_COUNT_1_BIT;                  // TODO: Configurable sample count
+    out_image->image_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;          // TODO: Configurable sharing mode
     if (type == TEXTURE_TYPE_CUBE)
-        image_create_info.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+        out_image->image_create_info.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
 
-    VK_CHECK(vkCreateImage(context->device.logical_device, &image_create_info, context->allocator, &out_image->handle));
+    VK_CHECK(vkCreateImage(context->device.logical_device, &out_image->image_create_info, context->allocator, &out_image->handle));
 
     VK_SET_DEBUG_OBJECT_NAME(context, VK_OBJECT_TYPE_IMAGE, out_image->handle, out_image->name);
 
@@ -94,7 +96,14 @@ void vulkan_image_create(
     VkMemoryAllocateInfo memory_allocate_info = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
     memory_allocate_info.allocationSize = out_image->memory_requirements.size;
     memory_allocate_info.memoryTypeIndex = memory_type;
-    VK_CHECK(vkAllocateMemory(context->device.logical_device, &memory_allocate_info, context->allocator, &out_image->memory));
+    VkResult allocate_result = vkAllocateMemory(context->device.logical_device, &memory_allocate_info, context->allocator, &out_image->memory);
+    if (!vulkan_result_is_success(allocate_result))
+    {
+        const char* err_str = vulkan_result_string(allocate_result, true);
+        BERROR("Failed to allocate memory for image with the following error: '%s'", err_str);
+        return;
+    }
+
     if (out_image->name)
     {
         VK_SET_DEBUG_OBJECT_NAME(context, VK_OBJECT_TYPE_DEVICE_MEMORY, out_image->memory, out_image->name);
@@ -127,7 +136,7 @@ void vulkan_image_create(
         VK_CHECK(vkCreateImageView(context->device.logical_device, &out_image->view_create_info, context->allocator, &out_image->view));
 
 #if _DEBUG
-        char* formatted_name = string_format("%s_view_idx_%u", out_image->name, 0);
+        char* formatted_name = string_format("%s_view_idx_global", out_image->name);
         VK_SET_DEBUG_OBJECT_NAME(context, VK_OBJECT_TYPE_IMAGE_VIEW, out_image->view, formatted_name);
         string_free(formatted_name);
 #endif
@@ -143,6 +152,11 @@ void vulkan_image_create(
             if (type == TEXTURE_TYPE_CUBE || type == TEXTURE_TYPE_CUBE_ARRAY)
             {
                 // NOTE: for individual sampling of cubemap/cubemap array layers, the view type needs to be 2d
+                view_type = TEXTURE_TYPE_2D;
+            }
+            if (type == TEXTURE_TYPE_2D_ARRAY)
+            {
+                // NOTE: for individual sampling of array layers, the view type needs to be 2d
                 view_type = TEXTURE_TYPE_2D;
             }
             for (u32 i = 0; i < layer_count; ++i)
@@ -271,6 +285,9 @@ void vulkan_image_recreate(vulkan_context* context, vulkan_image* image)
     {
         // Single view, encapsulating all layers
         image->view = 0;
+
+        // Update the create info's image handle
+        image->view_create_info.image = image->handle;
 
         VK_CHECK(vkCreateImageView(context->device.logical_device, &image->view_create_info, context->allocator, &image->view));
 

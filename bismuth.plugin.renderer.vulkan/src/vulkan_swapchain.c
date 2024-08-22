@@ -11,6 +11,7 @@
 #include "vulkan_device.h"
 #include "vulkan_types.h"
 #include "vulkan_utils.h"
+#include <vulkan/vulkan_core.h>
 
 static b8 create(renderer_backend_interface* backend, bwindow* window, renderer_config_flags flags, vulkan_swapchain* swapchain);
 static void destroy(renderer_backend_interface* backend, vulkan_swapchain* swapchain);
@@ -128,7 +129,7 @@ static b8 create(renderer_backend_interface* backend, bwindow* window, renderer_
     swapchain_create_info.imageColorSpace = swapchain->image_format.colorSpace;
     swapchain_create_info.imageExtent = swapchain_extent;
     swapchain_create_info.imageArrayLayers = 1;
-    swapchain_create_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    swapchain_create_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     
     // Setup the queue family indices
     if (context->device.graphics_queue_index != context->device.present_queue_index)

@@ -10,6 +10,7 @@
 #include "strings/bstring.h"
 #include "systems/material_system.h"
 #include "systems/shader_system.h"
+#include "renderer/viewport.h"
 
 typedef struct debug_shader_locations
 {
@@ -28,7 +29,7 @@ typedef struct debug_rendergraph_node_internal_data
 
     struct texture* colorbuffer_texture;
 
-    struct viewport* vp;
+    viewport vp;
     mat4 view;
     mat4 projection;
 
@@ -135,6 +136,8 @@ b8 debug_rendergraph_node_load_resources(struct rendergraph_node* self)
     if (self->sinks[0].bound_source)
     {
         internal_data->colorbuffer_texture = self->sinks[0].bound_source->value.t;
+        self->sources[0].value.t = internal_data->colorbuffer_texture;
+        self->sources[0].is_bound = true;
         return true;
     }
 
@@ -149,11 +152,11 @@ b8 debug_rendergraph_node_execute(struct rendergraph_node* self, struct frame_da
     debug_rendergraph_node_internal_data* internal_data = self->internal_data;
 
     // Bind the viewport
-    renderer_active_viewport_set(internal_data->vp);
+    renderer_active_viewport_set(&internal_data->vp);
 
     if (internal_data->geometry_count > 0)
     {
-        renderer_begin_rendering(internal_data->renderer, p_frame_data, 1, &internal_data->colorbuffer_texture->renderer_texture_handle, b_handle_invalid());
+        renderer_begin_rendering(internal_data->renderer, p_frame_data, 1, &internal_data->colorbuffer_texture->renderer_texture_handle, b_handle_invalid(), 0);
 
         shader_system_use_by_id(internal_data->color_shader->id);
 
@@ -194,7 +197,7 @@ void debug_rendergraph_node_destroy(struct rendergraph_node* self)
     }
 }
 
-b8 debug_rendergraph_node_viewport_set(struct rendergraph_node* self, struct viewport* v)
+b8 debug_rendergraph_node_viewport_set(struct rendergraph_node* self, viewport v)
 {
     if (self && self->internal_data)
     {
@@ -233,7 +236,7 @@ b8 debug_rendergraph_node_debug_geometries_set(struct rendergraph_node* self, st
 b8 debug_rendergraph_node_register_factory(void)
 {
     rendergraph_node_factory factory = {0};
-    factory.type = "debug";
+    factory.type = "debug3d";
     factory.create = debug_rendergraph_node_create;
     return rendergraph_system_node_factory_register(engine_systems_get()->rendergraph_system, &factory);
 }

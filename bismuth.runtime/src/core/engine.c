@@ -317,27 +317,31 @@ b8 engine_create(application* game_inst)
         return false;
     }
 
-    engine_state->windows = darray_reserve(bwindow, window_count);
+    engine_state->windows = darray_create(bwindow);
     for (u32 i = 0; i < window_count; ++i)
     {
         bwindow_config* window_config = &game_inst->app_config.windows[i];
         bwindow new_window = {0};
         new_window.name = string_duplicate(window_config->name);
-        if (!platform_window_create(window_config, &new_window, true))
+        // Add to tracked window list
+        darray_push(engine_state->windows, new_window);
+
+        bwindow* window = &engine_state->windows[(darray_length(engine_state->windows) - 1)];
+        if (!platform_window_create(window_config, window, true))
         {
             BERROR("Failed to create window '%s'", window_config->name);
             return false;
         }
 
         // Tell the renderer about the window
-        if (!renderer_on_window_created(engine_state->systems.renderer_system, &new_window))
+        if (!renderer_on_window_created(engine_state->systems.renderer_system, window))
         {
             BERROR("The renderer failed to create resources for the window '%s'", window_config->name);
             return false;
         }
 
-        // Add to tracked window list
-        darray_push(engine_state->windows, new_window);
+        // Manually call to make sure window is of the right size/viewports and such are the right size
+        renderer_on_window_resized(engine_state->systems.renderer_system, window);
     }
 
     // Job system
@@ -661,6 +665,9 @@ b8 engine_run(application* game_inst)
             engine_state->p_frame_data.allocator.free_all();
 
             // TODO: Update systems here that need them
+            job_system_update(engine_state->systems.job_system, &engine_state->p_frame_data);
+            plugin_system_update_plugins(engine_state->systems.plugin_system, &engine_state->p_frame_data);
+
             // Update timelines. NOTE: this is not done by the systems manager because we don't want or have timeline data in the frame_data struct any longer
             timeline_system_update(engine_state->systems.timeline_system, delta);
 
@@ -730,6 +737,8 @@ b8 engine_run(application* game_inst)
             renderer_begin_debug_label("prepare_frame", (vec3){1.0f, 1.0f, 0.0f});
 
             // TODO: frame prepare for systems that need it
+            // NOTE: Frame preparation for plugins
+            plugin_system_frame_prepare_plugins(engine_state->systems.plugin_system, &engine_state->p_frame_data);
 
             // Have the application generate the render packet
             b8 prepare_result = engine_state->game_inst->prepare_frame(engine_state->game_inst, &engine_state->p_frame_data);
@@ -808,6 +817,18 @@ b8 engine_run(application* game_inst)
     // Unregister from events
     event_unregister(EVENT_CODE_APPLICATION_QUIT, 0, engine_on_event);
 
+    // TODO: Close/destroy any and all active windows
+    u32 window_count = darray_length(engine_state->windows);
+    for (u32 i = 0; i < window_count; ++i)
+    {
+        bwindow* window = &engine_state->windows[i];
+
+        // Tell the renderer about the window destruction
+        renderer_on_window_destroyed(engine_state->systems.renderer_system, window);
+
+        platform_window_destroy(window);
+    }
+
     // Shut down all systems
     {
         // Engine systems
@@ -822,9 +843,9 @@ b8 engine_run(application* game_inst)
         timeline_system_shutdown(systems->timeline_system);
         xform_system_shutdown(systems->xform_system);
         audio_system_shutdown(systems->audio_system);
-        job_system_shutdown(systems->job_system);
-        renderer_system_shutdown(systems->renderer_system);
         shader_system_shutdown(systems->shader_system);
+        renderer_system_shutdown(systems->renderer_system);
+        job_system_shutdown(systems->job_system);
         resource_system_shutdown(systems->resource_system);
         input_system_shutdown(systems->input_system);
         event_system_shutdown(systems->event_system);

@@ -219,6 +219,7 @@ b8 vulkan_device_create(vulkan_context* context)
         context->vkCmdSetStencilOpEXT = (PFN_vkCmdSetStencilOpEXT)vkGetInstanceProcAddr(context->instance, "vkCmdSetStencilOpEXT");
         context->vkCmdSetStencilTestEnableEXT = (PFN_vkCmdSetStencilTestEnableEXT)vkGetInstanceProcAddr(context->instance, "vkCmdSetStencilTestEnableEXT");
         context->vkCmdSetDepthTestEnableEXT = (PFN_vkCmdSetDepthTestEnableEXT)vkGetInstanceProcAddr(context->instance, "vkCmdSetDepthTestEnableEXT");
+        context->vkCmdSetDepthWriteEnableEXT = (PFN_vkCmdSetDepthWriteEnableEXT)vkGetInstanceProcAddr(context->instance, "vkCmdSetDepthWriteEnableEXT");
 
         // Dynamic rendering
         context->vkCmdBeginRenderingKHR = (PFN_vkCmdBeginRenderingKHR)vkGetInstanceProcAddr(context->instance, "vkCmdBeginRenderingKHR");
@@ -327,10 +328,12 @@ void vulkan_device_query_swapchain_support(
     vulkan_swapchain_support_info* out_support_info)
 {
     // Surface capabilities
-    VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
+    VkResult result = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
         physical_device,
         surface,
-        &out_support_info->capabilities));
+        &out_support_info->capabilities);
+    if (!vulkan_result_is_success(result))
+        BFATAL("vkGetPhysicalDeviceSurfaceCapabilitiesKHR failed with message: %s", vulkan_result_string(result, true));
     
     // Surface formats
     VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(

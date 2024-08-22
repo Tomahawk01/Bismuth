@@ -50,6 +50,8 @@ endif
 
 all: scaffold compile link
 
+.NOTPARALLEL: scaffold
+
 .PHONY: scaffold
 scaffold: # create build directory
 ifeq ($(BUILD_PLATFORM),windows)

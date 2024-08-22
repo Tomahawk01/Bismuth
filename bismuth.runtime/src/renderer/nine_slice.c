@@ -1,10 +1,11 @@
 #include "nine_slice.h"
 
-#include "memory/bmemory.h"
+#include "defines.h"
 #include "logger.h"
-#include "strings/bstring.h"
-
-#include "debug/bassert.h"
+#include "math/math_types.h"
+#include "memory/bmemory.h"
+#include "renderer/renderer_frontend.h"
+#include "renderer/renderer_types.h"
 
 typedef struct nine_slice_pos_tc
 {
@@ -12,7 +13,7 @@ typedef struct nine_slice_pos_tc
     f32 posx_min, posy_min, posx_max, posy_max;
 } nine_slice_pos_tc;
 
-b8 update_nine_slice(nine_slice *nslice, vertex_2d *vertices)
+b8 nine_slice_update(nine_slice* nslice, vertex_2d* vertices)
 {
     if (!nslice)
         return false;
@@ -214,7 +215,7 @@ b8 update_nine_slice(nine_slice *nslice, vertex_2d *vertices)
     if (!vertices)
     {
         using_geo_verts = true;
-        vertices = nslice->g->vertices;
+        vertices = nslice->vertex_data.elements;
     }
     // Update 9 quads
     for (u32 i = 0; i < 9; ++i)
@@ -249,22 +250,24 @@ b8 update_nine_slice(nine_slice *nslice, vertex_2d *vertices)
     return true;
 }
 
-void nine_slice_render_frame_prepare(nine_slice *nslice, const struct frame_data *p_frame_data)
+void nine_slice_render_frame_prepare(nine_slice* nslice, const struct frame_data* p_frame_data)
 {
     if (!nslice)
         return;
 
-    BASSERT_MSG(false, "Move this to runtime");
-    // FIXME: Move this to runtime
-    // if (nslice->is_dirty)
-    // {
-    //     // Upload the new vertex data
-    //     renderer_geometry_vertex_update(nslice->g, 0, nslice->g->vertex_count, nslice->g->vertices, true);
-    //     nslice->is_dirty = false;
-    // }
+    if (nslice->is_dirty)
+    {
+        // Upload the new vertex data
+        renderbuffer* vertex_buffer = renderer_renderbuffer_get(RENDERBUFFER_TYPE_VERTEX);
+        u32 size = nslice->vertex_data.element_size * nslice->vertex_data.element_count;
+        if (!renderer_renderbuffer_load_range(vertex_buffer, nslice->vertex_data.buffer_offset, size, nslice->vertex_data.elements, true))
+            BERROR("vulkan_renderer_geometry_vertex_update failed to upload to the vertex buffer!");
+
+        nslice->is_dirty = false;
+    }
 }
 
-b8 generate_nine_slice(const char *name, vec2i size, vec2i atlas_px_size, vec2i atlas_px_min, vec2i atlas_px_max, vec2i corner_px_size, vec2i corner_size, nine_slice *out_nine_slice)
+b8 nine_slice_create(const char* name, vec2i size, vec2i atlas_px_size, vec2i atlas_px_min, vec2i atlas_px_max, vec2i corner_px_size, vec2i corner_size, nine_slice* out_nine_slice)
 {
     if (!out_nine_slice)
         return false;
@@ -276,16 +279,20 @@ b8 generate_nine_slice(const char *name, vec2i size, vec2i atlas_px_size, vec2i 
     out_nine_slice->corner_size = corner_size;
     out_nine_slice->corner_px_size = corner_px_size;
 
-    geometry_config out_config = {0};
-    out_config.vertex_size = sizeof(vertex_2d);
-    out_config.vertex_count = 4 * 9;
-    out_config.vertices = ballocate(out_config.vertex_size * out_config.vertex_count, MEMORY_TAG_ARRAY);
-    out_config.index_size = sizeof(u32);
-    out_config.index_count = 6 * 9;
-    out_config.indices = ballocate(out_config.index_size * out_config.index_count, MEMORY_TAG_ARRAY);
-    string_ncopy(out_config.name, name, GEOMETRY_NAME_MAX_LENGTH);
+    const u32 vert_size = sizeof(vertex_2d);
+    const u32 vert_count = 4 * 9;
+    out_nine_slice->vertex_data.element_size = vert_size;
+    out_nine_slice->vertex_data.element_count = vert_count;
+    out_nine_slice->vertex_data.elements = ballocate(vert_size * vert_count, MEMORY_TAG_ARRAY);
+    out_nine_slice->vertex_data.buffer_offset = INVALID_ID_U64;
+    const u32 idx_size = sizeof(u32);
+    const u32 idx_count = 6 * 9;
+    out_nine_slice->index_data.element_size = idx_size;
+    out_nine_slice->index_data.element_count = idx_count;
+    out_nine_slice->index_data.elements = ballocate(idx_size * idx_count, MEMORY_TAG_ARRAY);
+    out_nine_slice->index_data.buffer_offset = INVALID_ID_U64;
 
-    u32 *indices = (u32 *)out_config.indices;
+    u32* indices = (u32*)out_nine_slice->index_data.elements;
 
     // Generate index data for 9 quads
     for (u32 i = 0; i < 9; ++i)
@@ -303,21 +310,42 @@ b8 generate_nine_slice(const char *name, vec2i size, vec2i atlas_px_size, vec2i 
         indices[i_index + 5] = v_index + 1;
     }
 
-    if (!update_nine_slice(out_nine_slice, out_config.vertices))
+    if (!nine_slice_update(out_nine_slice, out_nine_slice->vertex_data.elements))
         BERROR("Failed to update nine slice. See logs for more details");
 
-    BASSERT_MSG(false, "Move this to runtime");
-    // FIXME: Move this to runtime
-    // Get UI geometry from config. NOTE: this uploads to GPU
-    // out_nine_slice->g = geometry_system_acquire_from_config(out_config, true);
+    // Vertex data
+    renderbuffer* vertex_buffer = renderer_renderbuffer_get(RENDERBUFFER_TYPE_VERTEX);
+    // Allocate space in the buffer
+    if (!renderer_renderbuffer_allocate(vertex_buffer, vert_size * vert_count, &out_nine_slice->vertex_data.buffer_offset))
+    {
+        BERROR("Failed to allocate from the vertex buffer!");
+        return false;
+    }
 
-    // Use same arrays as for the config
-    // out_nine_slice->g->vertices = out_config.vertices;
-    // out_nine_slice->g->indices = out_config.indices;
-    // out_nine_slice->g->vertex_element_size = out_config.vertex_size;
-    // out_nine_slice->g->vertex_count = out_config.vertex_count;
-    // out_nine_slice->g->index_element_size = out_config.index_size;
-    // out_nine_slice->g->index_count = out_config.index_count;
+    // Load the data
+    // NOTE: Offload was set to false
+    if (!renderer_renderbuffer_load_range(vertex_buffer, out_nine_slice->vertex_data.buffer_offset, vert_size * vert_count, out_nine_slice->vertex_data.elements, false))
+    {
+        BERROR("Failed to upload nine-slice vertex data to the vertex buffer!");
+        return false;
+    }
+
+    // Index data
+    renderbuffer* index_buffer = renderer_renderbuffer_get(RENDERBUFFER_TYPE_INDEX);
+    // Allocate space in the buffer
+    if (!renderer_renderbuffer_allocate(index_buffer, idx_size * idx_count, &out_nine_slice->index_data.buffer_offset))
+    {
+        BERROR("Failed to allocate from the index buffer!");
+        return false;
+    }
+
+    // Load the data
+    // NOTE: Offload was set to false
+    if (!renderer_renderbuffer_load_range(index_buffer, out_nine_slice->index_data.buffer_offset, idx_size * idx_count, out_nine_slice->index_data.elements, false))
+    {
+        BERROR("Failed to upload nine-slice index data to the index buffer!");
+        return false;
+    }
 
     return true;
 }

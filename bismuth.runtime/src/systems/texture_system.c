@@ -86,6 +86,8 @@ static u8* load_and_combine_cube_textures(const char texture_names[6][TEXTURE_NA
 static void destroy_texture(texture* t);
 static b8 process_texture_reference(const char* name, i8 reference_diff, b8 auto_release, u32* out_texture_id, b8* needs_creation);
 static b8 create_texture(texture* t, texture_type type, u32 width, u32 height, u8 channel_count, u16 array_size, const char** layer_texture_names, b8 is_writeable, b8 skip_load);
+static void increment_generation(texture* t);
+static void invalidate_texture(texture* t);
 
 b8 texture_system_initialize(u64* memory_requirement, void* state, void* config)
 {
@@ -151,7 +153,8 @@ void texture_system_shutdown(void* state)
         for (u32 i = 0; i < state_ptr->config.max_texture_count; ++i)
         {
             texture* t = &state_ptr->registered_textures[i];
-            renderer_texture_resources_release(state_ptr->renderer, t->renderer_texture_handle);
+            if (t->id != INVALID_ID && !b_handle_is_invalid(t->renderer_texture_handle))
+                destroy_texture(t);
         }
 
         destroy_default_textures(state_ptr);
@@ -306,6 +309,9 @@ texture* texture_system_acquire_textures_as_arrayed(const char* name, u32 layer_
 
 void texture_system_release(const char* name)
 {
+    if (!name)
+        return;
+
     // Ignore release requests for the default texture
     if (strings_equali(name, DEFAULT_TEXTURE_NAME))
         return;
@@ -375,7 +381,9 @@ b8 texture_system_resize(texture* t, u32 width, u32 height, b8 regenerate_intern
         if (!(t->flags & TEXTURE_FLAG_IS_WRAPPED) && regenerate_internal_data)
         {
             // Regenerate internals for new size
-            return renderer_texture_resize(state_ptr->renderer, t->renderer_texture_handle, width, height);
+            b8 result = renderer_texture_resize(state_ptr->renderer, t->renderer_texture_handle, width, height);
+            increment_generation(t);
+            return result;
         }
         return true;
     }
@@ -510,7 +518,7 @@ static b8 create_and_upload_texture(texture* t, const char* name, texture_type t
     {
         BERROR("Failed to acquire renderer resources for default texture '%s'. See logs for details", name);
         string_free(t->name);
-        t->name = 0;
+        invalidate_texture(t);
         return false;
     }
 
@@ -522,11 +530,21 @@ static b8 create_and_upload_texture(texture* t, const char* name, texture_type t
         string_free(t->name);
         t->name = 0;
         // Since this failed, make sure to release the texture's backing renderer resources
-        renderer_texture_resources_release(state_ptr->renderer, t->renderer_texture_handle);
-        // Also zero out memory so there's no mistaking this for an active texture
-        bzero_memory(t, sizeof(texture));
+        renderer_texture_resources_release(state_ptr->renderer, &t->renderer_texture_handle);
+        invalidate_texture(t);
 
         return false;
+    }
+
+    if (texture_system_is_default_texture(t))
+    {
+        // Default textures always have an invalid generation
+        t->generation = INVALID_ID_U8;
+    }
+    else
+    {
+        // TODO: Check for upload success before incrementing. If successful (or pending success on frame workload), update texture generation
+        increment_generation(t);
     }
 
     return true;
@@ -809,7 +827,7 @@ static void texture_load_job_success(void* params)
     *texture_params->out_texture = texture_params->temp_texture;
 
     // Destroy old texture
-    renderer_texture_resources_release(state_ptr->renderer, old.renderer_texture_handle);
+    renderer_texture_resources_release(state_ptr->renderer, &old.renderer_texture_handle);
 
     BTRACE("Successfully loaded texture '%s'", texture_params->resource_name);
 
@@ -889,7 +907,7 @@ static void texture_load_layered_job_success(void* result)
     }
 
     // Upload pixel data to GPU
-    u64 total_size = t->width * t->height * t->channel_count;
+    u64 total_size = t->width * t->height * t->channel_count * t->array_size;
     if (!renderer_texture_write_data(state_ptr->renderer, t->renderer_texture_handle, 0, total_size, typed_result->data_block))
         BERROR("Error uploading pixel data to GPU for texture '%s'", t->name);
 
@@ -900,7 +918,7 @@ static void texture_load_layered_job_success(void* result)
     *typed_result->out_texture = typed_result->temp_texture;
 
     // Destroy the old texture
-    renderer_texture_resources_release(state_ptr->renderer, old.renderer_texture_handle);
+    renderer_texture_resources_release(state_ptr->renderer, &old.renderer_texture_handle);
 
     if (typed_result->name)
     {
@@ -1034,6 +1052,7 @@ static b8 texture_load_layered_job_start(void* params, void* result_data)
     typed_result->temp_texture.type = load_params->out_texture->type;
     typed_result->temp_texture.id = load_params->out_texture->id;
     typed_result->temp_texture.flags = load_params->out_texture->flags;
+    typed_result->temp_texture.name = string_duplicate(load_params->out_texture->name);
 
     image_resource_params resource_params;
     resource_params.flip_y = true;
@@ -1160,12 +1179,23 @@ static b8 load_texture(const char* texture_name, texture* t, const char** layer_
 
 static void destroy_texture(texture* t)
 {
+    if (!t)
+        return;
+
     // Clean up backend resources
-    renderer_texture_resources_release(state_ptr->renderer, t->renderer_texture_handle);
+    renderer_texture_resources_release(state_ptr->renderer, &t->renderer_texture_handle);
 
     string_free(t->name);
-    bzero_memory(t, sizeof(texture));
+    t->name = 0;
     t->id = INVALID_ID;
+    t->flags = 0;
+    t->type = 0;
+    t->width = 0;
+    t->height = 0;
+    t->array_size = 0;
+    t->mip_levels = 0;
+    t->channel_count = 0;
+    t->generation = INVALID_ID_U8;
 }
 
 static b8 create_texture(texture* t, texture_type type, u32 width, u32 height, u8 channel_count, u16 array_size, const char** layer_texture_names, b8 is_writeable, b8 skip_load)
@@ -1174,6 +1204,8 @@ static b8 create_texture(texture* t, texture_type type, u32 width, u32 height, u
     // Set some values regardless of texture type
     t->type = type;
     t->array_size = array_size;
+    t->renderer_texture_handle = b_handle_invalid();
+    t->generation = INVALID_ID_U8;
     if (is_writeable)
         t->flags |= TEXTURE_FLAG_IS_WRITEABLE;
 
@@ -1193,6 +1225,7 @@ static b8 create_texture(texture* t, texture_type type, u32 width, u32 height, u
             BERROR("Failed to acquire renderer resources for default texture '%s'. See logs for details", t->name);
             return false;
         }
+        t->generation = 0;
 
         result = true;
     }
@@ -1360,4 +1393,25 @@ static b8 process_texture_reference(const char* name, i8 reference_diff, b8 auto
 
     BERROR("process_texture_reference called before texture system is initialized");
     return false;
+}
+
+static void increment_generation(texture* t)
+{
+    if (t)
+    {
+        t->generation++;
+        // Ensure we don't land on invalid before rolling over
+        if (t->generation == INVALID_ID_U8)
+            t->generation = 0;
+    }
+}
+
+static void invalidate_texture(texture* t)
+{
+    if (t)
+    {
+        bzero_memory(t, sizeof(texture));
+        t->generation = INVALID_ID_U8;
+        t->renderer_texture_handle = b_handle_invalid();
+    }
 }

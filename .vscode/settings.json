@@ -119,6 +119,7 @@
         "standard_ui_plugin_main.h": "c",
         "audio_loader.h": "c",
         "version.h": "c",
-        "input.h": "c"
+        "input.h": "c",
+        "skybox_rendergraph_node.h": "c"
     },
 }
