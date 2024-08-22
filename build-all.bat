@@ -47,7 +47,7 @@ make -j -f "Makefile.executable.mak" %ACTION% TARGET=%TARGET% ASSEMBLY=bismuth.t
 IF %ERRORLEVEL% NEQ 0 (echo Error:%ERRORLEVEL% && exit)
 
 REM Engine core lib
-make -j -f "Makefile.library.mak" %ACTION% TARGET=%TARGET% ASSEMBLY=bismuth.core VER_MAJOR=0 VER_MINOR=7 DO_VERSION=%DO_VERSION% ADDL_LINK_FLAGS="%ENGINE_LINK%"
+make -j -f "Makefile.library.mak" %ACTION% TARGET=%TARGET% ASSEMBLY=bismuth.core VER_MAJOR=0 VER_MINOR=7 DO_VERSION=%DO_VERSION% ADDL_LINK_FLAGS="-lgdi32 %ENGINE_LINK%"
 IF %ERRORLEVEL% NEQ 0 (echo Error:%ERRORLEVEL% && exit)
 
 REM Engine runtime lib
