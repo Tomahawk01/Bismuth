@@ -1,21 +1,21 @@
 #include "sui_button.h"
 
 #include <containers/darray.h>
-#include <core/bmemory.h>
-#include <core/bstring.h>
-#include <core/logger.h>
 #include <core/systems_manager.h>
+#include <logger.h>
 #include <math/bmath.h>
+#include <memory/bmemory.h>
 #include <renderer/renderer_frontend.h>
+#include <strings/bstring.h>
 #include <systems/shader_system.h>
 
 #include "standard_ui_system.h"
 
-static void sui_button_control_render_frame_prepare(struct sui_control* self, const struct frame_data* p_frame_data);
+static void sui_button_control_render_frame_prepare(standard_ui_state* state, struct sui_control* self, const struct frame_data* p_frame_data);
 
-b8 sui_button_control_create(const char* name, struct sui_control* out_control)
+b8 sui_button_control_create(standard_ui_state* state, const char* name, struct sui_control* out_control)
 {
-    if (!sui_base_control_create(name, out_control))
+    if (!sui_base_control_create(state, name, out_control))
         return false;
 
     out_control->internal_data_size = sizeof(sui_button_internal_data);
@@ -42,12 +42,12 @@ b8 sui_button_control_create(const char* name, struct sui_control* out_control)
     return true;
 }
 
-void sui_button_control_destroy(struct sui_control* self)
+void sui_button_control_destroy(standard_ui_state* state, struct sui_control* self)
 {
-    sui_base_control_destroy(self);
+    sui_base_control_destroy(state, self);
 }
 
-b8 sui_button_control_height_set(struct sui_control* self, i32 height)
+b8 sui_button_control_height_set(standard_ui_state* state, struct sui_control* self, i32 height)
 {
     if (!self)
         return false;
@@ -63,13 +63,12 @@ b8 sui_button_control_height_set(struct sui_control* self, i32 height)
     return true;
 }
 
-b8 sui_button_control_load(struct sui_control* self)
+b8 sui_button_control_load(standard_ui_state* state, struct sui_control* self)
 {
-    if (!sui_base_control_load(self))
+    if (!sui_base_control_load(state, self))
         return false;
 
     sui_button_internal_data* typed_data = self->internal_data;
-    standard_ui_state* typed_state = systems_manager_get_state(B_SYSTEM_TYPE_STANDARD_UI_EXT);
 
     // TODO: remove hardcoded stuff
     vec2i atlas_size = (vec2i){512, 512};
@@ -89,31 +88,30 @@ b8 sui_button_control_load(struct sui_control* self)
     self->bounds.height = typed_data->size.y;
 
     // Acquire instance resources for this control
-    texture_map* maps[1] = {&typed_state->ui_atlas};
+    texture_map* maps[1] = {&state->ui_atlas};
     shader* s = shader_system_get("Shader.StandardUI");
-    u16 atlas_location = s->uniforms[s->instance_sampler_indices[0]].index;
+    // u16 atlas_location = s->uniforms[s->instance_sampler_indices[0]].index;
     shader_instance_resource_config instance_resource_config = {0};
     // Map count for this type is known
     shader_instance_uniform_texture_config atlas_texture = {0};
-    atlas_texture.uniform_location = atlas_location;
     atlas_texture.texture_map_count = 1;
     atlas_texture.texture_maps = maps;
 
     instance_resource_config.uniform_config_count = 1;
     instance_resource_config.uniform_configs = &atlas_texture;
 
-    renderer_shader_instance_resources_acquire(s, &instance_resource_config, &typed_data->instance_id);
+    renderer_shader_instance_resources_acquire(state->renderer, s, &instance_resource_config, &typed_data->instance_id);
 
     return true;
 }
 
-void sui_button_control_unload(struct sui_control* self)
+void sui_button_control_unload(standard_ui_state* state, struct sui_control* self)
 {
 }
 
-b8 sui_button_control_update(struct sui_control* self, struct frame_data* p_frame_data)
+b8 sui_button_control_update(standard_ui_state* state, struct sui_control* self, struct frame_data* p_frame_data)
 {
-    if (!sui_base_control_update(self, p_frame_data))
+    if (!sui_base_control_update(state, self, p_frame_data))
         return false;
 
     // ...
@@ -121,7 +119,7 @@ b8 sui_button_control_update(struct sui_control* self, struct frame_data* p_fram
     return true;
 }
 
-static void sui_button_control_render_frame_prepare(struct sui_control* self, const struct frame_data* p_frame_data)
+static void sui_button_control_render_frame_prepare(standard_ui_state* state, struct sui_control* self, const struct frame_data* p_frame_data)
 {
     if (self)
     {
@@ -130,9 +128,9 @@ static void sui_button_control_render_frame_prepare(struct sui_control* self, co
     }
 }
 
-b8 sui_button_control_render(struct sui_control* self, struct frame_data* p_frame_data, standard_ui_render_data* render_data)
+b8 sui_button_control_render(standard_ui_state* state, struct sui_control* self, struct frame_data* p_frame_data, standard_ui_render_data* render_data)
 {
-    if (!sui_base_control_render(self, p_frame_data, render_data))
+    if (!sui_base_control_render(state, self, p_frame_data, render_data))
         return false;
 
     sui_button_internal_data* typed_data = self->internal_data;
@@ -151,8 +149,6 @@ b8 sui_button_control_render(struct sui_control* self, struct frame_data* p_fram
         renderable.render_data.diffuse_color = vec4_one();  // white TODO: pull from object properties
 
         renderable.instance_id = &typed_data->instance_id;
-        renderable.frame_number = &typed_data->frame_number;
-        renderable.draw_index = &typed_data->draw_index;
 
         darray_push(render_data->renderables, renderable);
     }
@@ -160,7 +156,7 @@ b8 sui_button_control_render(struct sui_control* self, struct frame_data* p_fram
     return true;
 }
 
-void sui_button_on_mouse_out(struct sui_control* self, struct sui_mouse_event event)
+void sui_button_on_mouse_out(standard_ui_state* state, struct sui_control* self, struct sui_mouse_event event)
 {
     if (self)
     {
@@ -173,7 +169,7 @@ void sui_button_on_mouse_out(struct sui_control* self, struct sui_mouse_event ev
     }
 }
 
-void sui_button_on_mouse_over(struct sui_control* self, struct sui_mouse_event event)
+void sui_button_on_mouse_over(standard_ui_state* state, struct sui_control* self, struct sui_mouse_event event)
 {
     if (self)
     {
@@ -196,7 +192,7 @@ void sui_button_on_mouse_over(struct sui_control* self, struct sui_mouse_event e
     }
 }
 
-void sui_button_on_mouse_down(struct sui_control* self, struct sui_mouse_event event)
+void sui_button_on_mouse_down(standard_ui_state* state, struct sui_control* self, struct sui_mouse_event event)
 {
     if (self)
     {
@@ -209,7 +205,7 @@ void sui_button_on_mouse_down(struct sui_control* self, struct sui_mouse_event e
     }
 }
 
-void sui_button_on_mouse_up(struct sui_control* self, struct sui_mouse_event event)
+void sui_button_on_mouse_up(standard_ui_state* state, struct sui_control* self, struct sui_mouse_event event)
 {
     if (self)
     {

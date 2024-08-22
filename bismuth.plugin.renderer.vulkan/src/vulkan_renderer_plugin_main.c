@@ -1,94 +1,103 @@
 #include "vulkan_renderer_plugin_main.h"
 
-#include "renderer/vulkan/vulkan_backend.h"
+#include <logger.h>
+#include <memory/bmemory.h>
 
-#include <core/bmemory.h>
+#include "plugins/plugin_types.h"
+#include "renderer/renderer_types.h"
+#include "vulkan_backend.h"
+#include "version.h"
 
-b8 plugin_create(renderer_plugin* out_plugin)
+b8 bplugin_create(bruntime_plugin* out_plugin)
 {
-    out_plugin->initialize = vulkan_renderer_backend_initialize;
-    out_plugin->shutdown = vulkan_renderer_backend_shutdown;
-    out_plugin->begin_debug_label = vulkan_renderer_begin_debug_label;
-    out_plugin->end_debug_label = vulkan_renderer_end_debug_label;
-    out_plugin->frame_prepare = vulkan_renderer_frame_prepare;
-    out_plugin->begin = vulkan_renderer_begin;
-    out_plugin->end = vulkan_renderer_end;
-    out_plugin->present = vulkan_renderer_present;
-    out_plugin->viewport_set = vulkan_renderer_viewport_set;
-    out_plugin->viewport_reset = vulkan_renderer_viewport_reset;
-    out_plugin->scissor_set = vulkan_renderer_scissor_set;
-    out_plugin->scissor_reset = vulkan_renderer_scissor_reset;
+    out_plugin->plugin_state_size = sizeof(renderer_backend_interface);
+    out_plugin->plugin_state = ballocate(out_plugin->plugin_state_size, MEMORY_TAG_RENDERER);
 
-    out_plugin->winding_set = vulkan_renderer_winding_set;
-    out_plugin->set_stencil_test_enabled = vulkan_renderer_set_stencil_test_enabled;
-    out_plugin->set_depth_test_enabled = vulkan_renderer_set_depth_test_enabled;
-    out_plugin->set_stencil_reference = vulkan_renderer_set_stencil_reference;
-    out_plugin->set_stencil_op = vulkan_renderer_set_stencil_op;
-    out_plugin->set_stencil_compare_mask = vulkan_renderer_set_stencil_compare_mask;
-    out_plugin->set_stencil_write_mask = vulkan_renderer_set_stencil_write_mask;
+    renderer_backend_interface* backend = out_plugin->plugin_state;
 
-    out_plugin->renderpass_begin = vulkan_renderer_renderpass_begin;
-    out_plugin->renderpass_end = vulkan_renderer_renderpass_end;
-    out_plugin->resized = vulkan_renderer_backend_on_resized;
-    out_plugin->texture_create = vulkan_renderer_texture_create;
-    out_plugin->texture_destroy = vulkan_renderer_texture_destroy;
-    out_plugin->texture_create_writeable = vulkan_renderer_texture_create_writeable;
-    out_plugin->texture_resize = vulkan_renderer_texture_resize;
-    out_plugin->texture_write_data = vulkan_renderer_texture_write_data;
-    out_plugin->texture_read_data = vulkan_renderer_texture_read_data;
-    out_plugin->texture_read_pixel = vulkan_renderer_texture_read_pixel;
+    backend->initialize = vulkan_renderer_backend_initialize;
+    backend->shutdown = vulkan_renderer_backend_shutdown;
+    backend->begin_debug_label = vulkan_renderer_begin_debug_label;
+    backend->end_debug_label = vulkan_renderer_end_debug_label;
+    backend->window_create = vulkan_renderer_on_window_created;
+    backend->window_destroy = vulkan_renderer_on_window_destroyed;
+    backend->window_resized = vulkan_renderer_backend_on_window_resized;
+    backend->frame_prepare = vulkan_renderer_frame_prepare;
+    backend->frame_prepare_window_surface = vulkan_renderer_frame_prepare_window_surface;
+    backend->frame_commands_begin = vulkan_renderer_frame_command_list_begin;
+    backend->frame_commands_end = vulkan_renderer_frame_command_list_end;
+    backend->frame_submit = vulkan_renderer_frame_submit;
+    backend->frame_present = vulkan_renderer_frame_present;
 
-    out_plugin->shader_create = vulkan_renderer_shader_create;
-    out_plugin->shader_destroy = vulkan_renderer_shader_destroy;
-    out_plugin->shader_uniform_set = vulkan_renderer_uniform_set;
-    out_plugin->shader_initialize = vulkan_renderer_shader_initialize;
-    out_plugin->shader_reload = vulkan_renderer_shader_reload;
-    out_plugin->shader_use = vulkan_renderer_shader_use;
-    out_plugin->shader_supports_wireframe = vulkan_renderer_shader_supports_wireframe;
-    out_plugin->shader_bind_globals = vulkan_renderer_shader_bind_globals;
-    out_plugin->shader_bind_instance = vulkan_renderer_shader_bind_instance;
-    out_plugin->shader_bind_local = vulkan_renderer_shader_bind_local;
+    backend->viewport_set = vulkan_renderer_viewport_set;
+    backend->viewport_reset = vulkan_renderer_viewport_reset;
+    backend->scissor_set = vulkan_renderer_scissor_set;
+    backend->scissor_reset = vulkan_renderer_scissor_reset;
 
-    out_plugin->shader_apply_globals = vulkan_renderer_shader_apply_globals;
-    out_plugin->shader_apply_instance = vulkan_renderer_shader_apply_instance;
-    out_plugin->shader_apply_local = vulkan_renderer_shader_apply_local;
-    out_plugin->shader_instance_resources_acquire = vulkan_renderer_shader_instance_resources_acquire;
-    out_plugin->shader_instance_resources_release = vulkan_renderer_shader_instance_resources_release;
+    backend->winding_set = vulkan_renderer_winding_set;
+    backend->set_stencil_test_enabled = vulkan_renderer_set_stencil_test_enabled;
+    backend->set_depth_test_enabled = vulkan_renderer_set_depth_test_enabled;
+    backend->set_stencil_reference = vulkan_renderer_set_stencil_reference;
+    backend->set_stencil_op = vulkan_renderer_set_stencil_op;
 
-    out_plugin->texture_map_resources_acquire = vulkan_renderer_texture_map_resources_acquire;
-    out_plugin->texture_map_resources_release = vulkan_renderer_texture_map_resources_release;
+    backend->begin_rendering = vulkan_renderer_begin_rendering;
+    backend->end_rendering = vulkan_renderer_end_rendering;
 
-    out_plugin->render_target_create = vulkan_renderer_render_target_create;
-    out_plugin->render_target_destroy = vulkan_renderer_render_target_destroy;
+    backend->set_stencil_compare_mask = vulkan_renderer_set_stencil_compare_mask;
+    backend->set_stencil_write_mask = vulkan_renderer_set_stencil_write_mask;
 
-    out_plugin->renderpass_create = vulkan_renderpass_create;
-    out_plugin->renderpass_destroy = vulkan_renderpass_destroy;
-    out_plugin->window_attachment_get = vulkan_renderer_window_attachment_get;
-    out_plugin->depth_attachment_get = vulkan_renderer_depth_attachment_get;
-    out_plugin->window_attachment_index_get = vulkan_renderer_window_attachment_index_get;
-    out_plugin->window_attachment_count_get = vulkan_renderer_window_attachment_count_get;
-    out_plugin->is_multithreaded = vulkan_renderer_is_multithreaded;
-    out_plugin->flag_enabled_get = vulkan_renderer_flag_enabled_get;
-    out_plugin->flag_enabled_set = vulkan_renderer_flag_enabled_set;
+    backend->texture_resources_acquire = vulkan_renderer_texture_resources_acquire;
+    backend->texture_resources_release = vulkan_renderer_texture_resources_release;
+    backend->texture_resize = vulkan_renderer_texture_resize;
+    backend->texture_write_data = vulkan_renderer_texture_write_data;
+    backend->texture_read_data = vulkan_renderer_texture_read_data;
+    backend->texture_read_pixel = vulkan_renderer_texture_read_pixel;
 
-    out_plugin->renderbuffer_internal_create = vulkan_buffer_create_internal;
-    out_plugin->renderbuffer_internal_destroy = vulkan_buffer_destroy_internal;
-    out_plugin->renderbuffer_bind = vulkan_buffer_bind;
-    out_plugin->renderbuffer_unbind = vulkan_buffer_unbind;
-    out_plugin->renderbuffer_map_memory = vulkan_buffer_map_memory;
-    out_plugin->renderbuffer_unmap_memory = vulkan_buffer_unmap_memory;
-    out_plugin->renderbuffer_flush = vulkan_buffer_flush;
-    out_plugin->renderbuffer_read = vulkan_buffer_read;
-    out_plugin->renderbuffer_resize = vulkan_buffer_resize;
-    out_plugin->renderbuffer_load_range = vulkan_buffer_load_range;
-    out_plugin->renderbuffer_copy_range = vulkan_buffer_copy_range;
-    out_plugin->renderbuffer_draw = vulkan_buffer_draw;
-    out_plugin->wait_for_idle = vulkan_renderer_wait_for_idle;
+    backend->shader_create = vulkan_renderer_shader_create;
+    backend->shader_destroy = vulkan_renderer_shader_destroy;
+    backend->shader_uniform_set = vulkan_renderer_uniform_set;
+    backend->shader_initialize = vulkan_renderer_shader_initialize;
+    backend->shader_reload = vulkan_renderer_shader_reload;
+    backend->shader_use = vulkan_renderer_shader_use;
+    backend->shader_supports_wireframe = vulkan_renderer_shader_supports_wireframe;
+
+    backend->shader_apply_globals = vulkan_renderer_shader_apply_globals;
+    backend->shader_apply_instance = vulkan_renderer_shader_apply_instance;
+    backend->shader_apply_local = vulkan_renderer_shader_apply_local;
+    backend->shader_instance_resources_acquire = vulkan_renderer_shader_instance_resources_acquire;
+    backend->shader_instance_resources_release = vulkan_renderer_shader_instance_resources_release;
+    backend->shader_uniform_set = vulkan_renderer_uniform_set;
+
+    backend->texture_map_resources_acquire = vulkan_renderer_texture_map_resources_acquire;
+    backend->texture_map_resources_release = vulkan_renderer_texture_map_resources_release;
+
+    backend->is_multithreaded = vulkan_renderer_is_multithreaded;
+    backend->flag_enabled_get = vulkan_renderer_flag_enabled_get;
+    backend->flag_enabled_set = vulkan_renderer_flag_enabled_set;
+
+    backend->renderbuffer_internal_create = vulkan_buffer_create_internal;
+    backend->renderbuffer_internal_destroy = vulkan_buffer_destroy_internal;
+    backend->renderbuffer_bind = vulkan_buffer_bind;
+    backend->renderbuffer_unbind = vulkan_buffer_unbind;
+    backend->renderbuffer_map_memory = vulkan_buffer_map_memory;
+    backend->renderbuffer_unmap_memory = vulkan_buffer_unmap_memory;
+    backend->renderbuffer_flush = vulkan_buffer_flush;
+    backend->renderbuffer_read = vulkan_buffer_read;
+    backend->renderbuffer_resize = vulkan_buffer_resize;
+    backend->renderbuffer_load_range = vulkan_buffer_load_range;
+    backend->renderbuffer_copy_range = vulkan_buffer_copy_range;
+    backend->renderbuffer_draw = vulkan_buffer_draw;
+    backend->wait_for_idle = vulkan_renderer_wait_for_idle;
+
+    BINFO("Vulkan Renderer Plugin Creation successful (%s)", BVERSION);
 
     return true;
 }
 
-void plugin_destroy(renderer_plugin* plugin)
+void bplugin_destroy(bruntime_plugin* plugin)
 {
-    bzero_memory(plugin, sizeof(renderer_plugin));
+    if (plugin && plugin->plugin_state)
+        bfree(plugin->plugin_state, plugin->plugin_state_size, MEMORY_TAG_RENDERER);
+
+    bzero_memory(plugin, sizeof(bruntime_plugin));
 }

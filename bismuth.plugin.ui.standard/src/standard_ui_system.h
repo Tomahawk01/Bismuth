@@ -2,16 +2,16 @@
 
 #include <math/math_types.h>
 
-#include "core/identifier.h"
-#include "core/input.h"
 #include "defines.h"
+#include "identifiers/identifier.h"
+#include "input_types.h"
 #include "renderer/renderer_types.h"
 #include "resources/resource_types.h"
 #include "systems/xform_system.h"
 
-#define B_SYSTEM_TYPE_STANDARD_UI_EXT 128
-
 struct frame_data;
+struct standard_ui_state;
+struct renderer_system_state;
 
 typedef struct standard_ui_system_config
 {
@@ -21,9 +21,7 @@ typedef struct standard_ui_system_config
 typedef struct standard_ui_renderable
 {
     u32* instance_id;
-    u64* frame_number;
     texture_map* atlas_override;
-    u8* draw_index;
     geometry_render_data render_data;
     geometry_render_data* clip_mask_render_data;
 } standard_ui_renderable;
@@ -37,7 +35,7 @@ typedef struct standard_ui_render_data
 
 typedef struct sui_mouse_event
 {
-    buttons mouse_button;
+    mouse_buttons mouse_button;
     i16 x;
     i16 y;
 } sui_mouse_event;
@@ -84,34 +82,35 @@ typedef struct sui_control
     void* user_data;
     u64 user_data_size;
 
-    void (*destroy)(struct sui_control* self);
-    b8 (*load)(struct sui_control* self);
-    void (*unload)(struct sui_control* self);
+    void (*destroy)(struct standard_ui_state* state, struct sui_control* self);
+    b8 (*load)(struct standard_ui_state* state, struct sui_control* self);
+    void (*unload)(struct standard_ui_state* state, struct sui_control* self);
 
-    b8 (*update)(struct sui_control* self, struct frame_data* p_frame_data);
-    void (*render_prepare)(struct sui_control* self, const struct frame_data* p_frame_data);
-    b8 (*render)(struct sui_control* self, struct frame_data* p_frame_data, standard_ui_render_data* reneder_data);
+    b8 (*update)(struct standard_ui_state* state, struct sui_control* self, struct frame_data* p_frame_data);
+    void (*render_prepare)(struct standard_ui_state* state, struct sui_control* self, const struct frame_data* p_frame_data);
+    b8 (*render)(struct standard_ui_state* state, struct sui_control* self, struct frame_data* p_frame_data, standard_ui_render_data* reneder_data);
 
-    void (*on_click)(struct sui_control* self, struct sui_mouse_event event);
-    void (*on_mouse_down)(struct sui_control* self, struct sui_mouse_event event);
-    void (*on_mouse_up)(struct sui_control* self, struct sui_mouse_event event);
-    void (*on_mouse_over)(struct sui_control* self, struct sui_mouse_event event);
-    void (*on_mouse_out)(struct sui_control* self, struct sui_mouse_event event);
-    void (*on_mouse_move)(struct sui_control* self, struct sui_mouse_event event);
+    void (*on_click)(struct standard_ui_state* state, struct sui_control* self, struct sui_mouse_event event);
+    void (*on_mouse_down)(struct standard_ui_state* state, struct sui_control* self, struct sui_mouse_event event);
+    void (*on_mouse_up)(struct standard_ui_state* state, struct sui_control* self, struct sui_mouse_event event);
+    void (*on_mouse_over)(struct standard_ui_state* state, struct sui_control* self, struct sui_mouse_event event);
+    void (*on_mouse_out)(struct standard_ui_state* state, struct sui_control* self, struct sui_mouse_event event);
+    void (*on_mouse_move)(struct standard_ui_state* state, struct sui_control* self, struct sui_mouse_event event);
 
-    void (*internal_click)(struct sui_control* self, struct sui_mouse_event event);
-    void (*internal_mouse_over)(struct sui_control* self, struct sui_mouse_event event);
-    void (*internal_mouse_out)(struct sui_control* self, struct sui_mouse_event event);
-    void (*internal_mouse_down)(struct sui_control* self, struct sui_mouse_event event);
-    void (*internal_mouse_up)(struct sui_control* self, struct sui_mouse_event event);
-    void (*internal_mouse_move)(struct sui_control* self, struct sui_mouse_event event);
+    void (*internal_click)(struct standard_ui_state* state, struct sui_control* self, struct sui_mouse_event event);
+    void (*internal_mouse_over)(struct standard_ui_state* state, struct sui_control* self, struct sui_mouse_event event);
+    void (*internal_mouse_out)(struct standard_ui_state* state, struct sui_control* self, struct sui_mouse_event event);
+    void (*internal_mouse_down)(struct standard_ui_state* state, struct sui_control* self, struct sui_mouse_event event);
+    void (*internal_mouse_up)(struct standard_ui_state* state, struct sui_control* self, struct sui_mouse_event event);
+    void (*internal_mouse_move)(struct standard_ui_state* state, struct sui_control* self, struct sui_mouse_event event);
 
-    void (*on_key)(struct sui_control* self, struct sui_keyboard_event event);
+    void (*on_key)(struct standard_ui_state* state, struct sui_control* self, struct sui_keyboard_event event);
 
 } sui_control;
 
 typedef struct standard_ui_state
 {
+    struct renderer_system_state* renderer;
     standard_ui_system_config config;
     u32 total_control_count;
     u32 active_control_count;
@@ -125,30 +124,33 @@ typedef struct standard_ui_state
 
 } standard_ui_state;
 
-BAPI b8 standard_ui_system_initialize(u64* memory_requirement, void* state, void* config);
-BAPI void standard_ui_system_shutdown(void* state);
+BAPI b8 standard_ui_system_initialize(u64* memory_requirement, standard_ui_state* state, standard_ui_system_config* config);
+BAPI void standard_ui_system_shutdown(standard_ui_state* state);
+BAPI b8 standard_ui_system_update(standard_ui_state* state, struct frame_data* p_frame_data);
 
-BAPI b8 standard_ui_system_update(void* state, struct frame_data* p_frame_data);
-BAPI void standard_ui_system_render_prepare_frame(void* state, const struct frame_data* p_frame_data);
-BAPI b8 standard_ui_system_render(void* state, sui_control* root, struct frame_data* p_frame_data, standard_ui_render_data* render_data);
+BAPI void standard_ui_system_render_prepare_frame(standard_ui_state* state, const struct frame_data* p_frame_data);
+BAPI b8 standard_ui_system_render(standard_ui_state* state, sui_control* root, struct frame_data* p_frame_data, standard_ui_render_data* render_data);
 
-BAPI b8 standard_ui_system_update_active(void* state, sui_control* control);
+BAPI b8 standard_ui_system_update_active(standard_ui_state* state, sui_control* control);
 
-BAPI b8 standard_ui_system_register_control(void* state, sui_control* control);
+BAPI b8 standard_ui_system_register_control(standard_ui_state* state, sui_control* control);
 
-BAPI b8 standard_ui_system_control_add_child(void* state, sui_control* parent, sui_control* child);
-BAPI b8 standard_ui_system_control_remove_child(void* state, sui_control* parent, sui_control* child);
+BAPI b8 standard_ui_system_control_add_child(standard_ui_state* state, sui_control* parent, sui_control* child);
+BAPI b8 standard_ui_system_control_remove_child(standard_ui_state* state, sui_control* parent, sui_control* child);
 
-BAPI void standard_ui_system_focus_control(void* state, sui_control* control);
+BAPI void standard_ui_system_focus_control(standard_ui_state* state, sui_control* control);
 
-BAPI b8 sui_base_control_create(const char* name, struct sui_control* out_control);
-BAPI void sui_base_control_destroy(struct sui_control* self);
+// ---------------------------
+// Base control
+// ---------------------------
+BAPI b8 sui_base_control_create(standard_ui_state* state, const char* name, struct sui_control* out_control);
+BAPI void sui_base_control_destroy(standard_ui_state* state, struct sui_control* self);
 
-BAPI b8 sui_base_control_load(struct sui_control* self);
-BAPI void sui_base_control_unload(struct sui_control* self);
+BAPI b8 sui_base_control_load(standard_ui_state* state, struct sui_control* self);
+BAPI void sui_base_control_unload(standard_ui_state* state, struct sui_control* self);
 
-BAPI b8 sui_base_control_update(struct sui_control* self, struct frame_data* p_frame_data);
-BAPI b8 sui_base_control_render(struct sui_control* self, struct frame_data* p_frame_data, standard_ui_render_data* render_data);
+BAPI b8 sui_base_control_update(standard_ui_state* state, struct sui_control* self, struct frame_data* p_frame_data);
+BAPI b8 sui_base_control_render(standard_ui_state* state, struct sui_control* self, struct frame_data* p_frame_data, standard_ui_render_data* render_data);
 
-BAPI void sui_control_position_set(struct sui_control* self, vec3 position);
-BAPI vec3 sui_control_position_get(struct sui_control* self);
+BAPI void sui_control_position_set(standard_ui_state* state, struct sui_control* self, vec3 position);
+BAPI vec3 sui_control_position_get(standard_ui_state* state, struct sui_control* self);

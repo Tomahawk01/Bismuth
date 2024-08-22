@@ -1,13 +1,13 @@
 #include <entry.h>
 
-#include <core/event.h>
-#include <core/bmemory.h>
-#include <core/bstring.h>
 #include <containers/darray.h>
+#include <core/event.h>
+#include <memory/bmemory.h>
 #include <platform/platform.h>
+#include <strings/bstring.h>
 
-typedef b8 (*PFN_renderer_plugin_create)(renderer_plugin* out_plugin);
-typedef b8 (*PFN_audio_plugin_create)(audio_plugin* out_plugin);
+// typedef b8 (*PFN_renderer_plugin_create)(renderer_plugin* out_plugin);
+// typedef b8 (*PFN_audio_plugin_create)(audio_plugin* out_plugin);
 typedef u64 (*PFN_application_state_size)(void);
 
 b8 load_game_lib(application* app)
@@ -26,7 +26,7 @@ b8 load_game_lib(application* app)
         return false;
     if (!platform_dynamic_library_load_function("application_render_frame", &app->game_library))
         return false;
-    if (!platform_dynamic_library_load_function("application_on_resize", &app->game_library))
+    if (!platform_dynamic_library_load_function("application_on_window_resize", &app->game_library))
         return false;
     if (!platform_dynamic_library_load_function("application_shutdown", &app->game_library))
         return false;
@@ -41,7 +41,7 @@ b8 load_game_lib(application* app)
     app->update = app->game_library.functions[2].pfn;
     app->prepare_frame = app->game_library.functions[3].pfn;
     app->render_frame = app->game_library.functions[4].pfn;
-    app->on_resize = app->game_library.functions[5].pfn;
+    app->on_window_resize = app->game_library.functions[5].pfn;
     app->shutdown = app->game_library.functions[6].pfn;
     app->lib_on_load = app->game_library.functions[7].pfn;
     app->lib_on_unload = app->game_library.functions[8].pfn;
@@ -77,8 +77,8 @@ b8 watched_file_updated(u16 code, void* sender, void* listener_inst, event_conte
             const char* extension = platform_dynamic_library_extension();
             char source_file[260];
             char target_file[260];
-            string_format(source_file, "%stestbed.blib%s", prefix, extension);
-            string_format(target_file, "%stestbed.blib_loaded%s", prefix, extension);
+            string_format_unsafe(source_file, "%stestbed.blib%s", prefix, extension);
+            string_format_unsafe(target_file, "%stestbed.blib_loaded%s", prefix, extension);
 
             platform_error_code err_code = PLATFORM_ERROR_FILE_LOCKED;
             while (err_code == PLATFORM_ERROR_FILE_LOCKED)
@@ -107,23 +107,17 @@ b8 watched_file_updated(u16 code, void* sender, void* listener_inst, event_conte
 b8 create_application(application* out_application)
 {
     // Application configuration
-    out_application->app_config.start_pos_x = 100;
-    out_application->app_config.start_pos_y = 100;
-    out_application->app_config.start_width = 1280;
-    out_application->app_config.start_height = 720;
-    out_application->app_config.name = "Bismuth Engine Sandbox";
-
     platform_error_code err_code = PLATFORM_ERROR_FILE_LOCKED;
     while (err_code == PLATFORM_ERROR_FILE_LOCKED)
     {
         const char* prefix = platform_dynamic_library_prefix();
         const char* extension = platform_dynamic_library_extension();
-        char source_file[260];
-        char target_file[260];
-        string_format(source_file, "%stestbed.blib%s", prefix, extension);
-        string_format(target_file, "%stestbed.blib_loaded%s", prefix, extension);
-
+        
+        char* source_file = string_format("%stestbed.blib%s", prefix, extension);
+        char* target_file = string_format("%stestbed.blib_loaded%s", prefix, extension);
         err_code = platform_copy_file(source_file, target_file, true);
+        string_free(source_file);
+        string_free(target_file);
         if (err_code == PLATFORM_ERROR_FILE_LOCKED)
             platform_sleep(100);
     }
@@ -134,34 +128,37 @@ b8 create_application(application* out_application)
     }
 
     if (!load_game_lib(out_application))
+    {
         BERROR("Initial game lib load failed");
+        return false;
+    }
 
     out_application->engine_state = 0;
     out_application->state = 0;
 
-    // Load Vulkan renderer plugin
-    if (!platform_dynamic_library_load("bismuth.plugin.renderer.vulkan", &out_application->renderer_library))
-        return false;
+    // // Load Vulkan renderer plugin
+    // if (!platform_dynamic_library_load("bismuth.plugin.renderer.vulkan", &out_application->renderer_library))
+    //     return false;
 
-    if (!platform_dynamic_library_load_function("plugin_create", &out_application->renderer_library))
-        return false;
+    // if (!platform_dynamic_library_load_function("plugin_create", &out_application->renderer_library))
+    //     return false;
 
-    // Create renderer plugin
-    PFN_renderer_plugin_create plugin_create = out_application->renderer_library.functions[0].pfn;
-    if (!plugin_create(&out_application->render_plugin))
-        return false;
+    // // Create renderer plugin
+    // PFN_renderer_plugin_create plugin_create = out_application->renderer_library.functions[0].pfn;
+    // if (!plugin_create(&out_application->render_plugin))
+    //     return false;
     
-    // Load OpenAL Audio plugin
-    if (!platform_dynamic_library_load("bismuth.plugin.audio.openal", &out_application->audio_library))
-        return false;
+    // // Load OpenAL Audio plugin
+    // if (!platform_dynamic_library_load("bismuth.plugin.audio.openal", &out_application->audio_library))
+    //     return false;
 
-    if (!platform_dynamic_library_load_function("plugin_create", &out_application->audio_library))
-        return false;
+    // if (!platform_dynamic_library_load_function("plugin_create", &out_application->audio_library))
+    //     return false;
 
-    // Create Audio plugin
-    PFN_audio_plugin_create audio_plugin_create = out_application->audio_library.functions[0].pfn;
-    if (!audio_plugin_create(&out_application->audio_plugin))
-        return false;
+    // // Create Audio plugin
+    // PFN_audio_plugin_create audio_plugin_create = out_application->audio_library.functions[0].pfn;
+    // if (!audio_plugin_create(&out_application->audio_plugin))
+    //     return false;
 
     return true;
 }
@@ -173,9 +170,10 @@ b8 initialize_application(application* app)
 
     const char* prefix = platform_dynamic_library_prefix();
     const char* extension = platform_dynamic_library_extension();
+    // FIXME: safe version of string format
     char path[260];
     bzero_memory(path, sizeof(char) * 260);
-    string_format(path, "%s%s%s", prefix, "testbed.blib", extension);
+    string_format_unsafe(path, "%s%s%s", prefix, "testbed.blib", extension);
 
     if (!platform_watch_file(path, &app->game_library.watch_id))
     {

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <renderer/renderer_types.h>
+#include <plugins/plugin_types.h>
 
-BAPI b8 plugin_create(renderer_plugin* out_plugin);
-BAPI void plugin_destroy(renderer_plugin* plugin);
+BAPI b8 bplugin_create(bruntime_plugin* out_plugin);
+BAPI void bplugin_destroy(bruntime_plugin* plugin);

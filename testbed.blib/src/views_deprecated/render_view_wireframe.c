@@ -1,10 +1,11 @@
+/*
 #include "render_view_wireframe.h"
 
 #include <containers/darray.h>
-#include <core/event.h>
-#include <core/frame_data.h>
-#include <core/bmemory.h>
-#include <core/logger.h>
+#include <event.h>
+#include <frame_data.h>
+#include <bmemory.h>
+#include <logger.h>
 #include <defines.h>
 #include <math/bmath.h>
 #include <renderer/camera.h>
@@ -339,3 +340,4 @@ b8 render_view_wireframe_on_render(const struct render_view* self, const struct 
 
     return true;
 }
+*/

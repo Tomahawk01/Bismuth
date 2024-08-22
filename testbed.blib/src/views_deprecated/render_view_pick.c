@@ -1,10 +1,11 @@
+/*
 #include "render_view_pick.h"
 
-#include "core/logger.h"
-#include "core/bmemory.h"
+#include "logger.h"
+#include "memory/bmemory.h"
 #include "core/event.h"
-#include "core/bstring.h"
-#include "core/frame_data.h"
+#include "strings/bstring.h"
+#include "frame_data.h"
 #include "core/uuid.h"
 #include "math/bmath.h"
 #include "containers/darray.h"
@@ -677,3 +678,4 @@ b8 render_view_pick_attachment_target_regenerate(struct render_view* self, u32 p
 
     return true;
 }
+*/

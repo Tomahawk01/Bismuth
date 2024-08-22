@@ -24,13 +24,13 @@ typedef struct sui_label_internal_data
     b8 is_dirty;
 } sui_label_internal_data;
 
-BAPI b8 sui_label_control_create(const char* name, font_type type, const char* font_name, u16 font_size, const char* text, struct sui_control* out_control);
-BAPI void sui_label_control_destroy(struct sui_control* self);
-BAPI b8 sui_label_control_load(struct sui_control* self);
-BAPI void sui_label_control_unload(struct sui_control* self);
-BAPI b8 sui_label_control_update(struct sui_control* self, struct frame_data* p_frame_data);
-BAPI b8 sui_label_control_render(struct sui_control* self, struct frame_data* p_frame_data, standard_ui_render_data* render_data);
+BAPI b8 sui_label_control_create(standard_ui_state* state, const char* name, font_type type, const char* font_name, u16 font_size, const char* text, struct sui_control* out_control);
+BAPI void sui_label_control_destroy(standard_ui_state* state, struct sui_control* self);
+BAPI b8 sui_label_control_load(standard_ui_state* state, struct sui_control* self);
+BAPI void sui_label_control_unload(standard_ui_state* state, struct sui_control* self);
+BAPI b8 sui_label_control_update(standard_ui_state* state, struct sui_control* self, struct frame_data* p_frame_data);
+BAPI b8 sui_label_control_render(standard_ui_state* state, struct sui_control* self, struct frame_data* p_frame_data, standard_ui_render_data* render_data);
 
-BAPI void sui_label_text_set(struct sui_control* self, const char* text);
+BAPI void sui_label_text_set(standard_ui_state* state, struct sui_control* self, const char* text);
 
-BAPI const char* sui_label_text_get(struct sui_control* self);
+BAPI const char* sui_label_text_get(standard_ui_state* state, struct sui_control* self);

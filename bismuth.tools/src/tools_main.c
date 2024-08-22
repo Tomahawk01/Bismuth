@@ -1,7 +1,7 @@
 #include <containers/darray.h>
-#include <core/bstring.h>
-#include <core/logger.h>
 #include <defines.h>
+#include <logger.h>
+#include <strings/bstring.h>
 
 // For executing shell commands
 #include <stdlib.h>

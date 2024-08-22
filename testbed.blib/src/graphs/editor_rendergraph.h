@@ -1,3 +1,4 @@
+/*
 #pragma once
 
 #include "renderer/rendergraph.h"
@@ -34,3 +35,4 @@ BAPI b8 editor_rendergraph_on_resize(editor_rendergraph* graph, u32 width, u32 h
 BAPI void editor_rendergraph_gizmo_set(editor_rendergraph* graph, struct editor_gizmo* gizmo);
 
 BAPI void editor_rendergraph_refresh_pfns(editor_rendergraph* graph);
+*/

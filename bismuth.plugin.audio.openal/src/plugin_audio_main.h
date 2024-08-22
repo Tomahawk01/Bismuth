@@ -2,6 +2,7 @@
 
 #include "defines.h"
 
-struct audio_plugin;
+struct bruntime_plugin;
 
-BAPI b8 plugin_create(struct audio_plugin* out_plugin);
+BAPI b8 bplugin_create(struct bruntime_plugin* out_plugin);
+BAPI void bplugin_destroy(struct bruntime_plugin* plugin);

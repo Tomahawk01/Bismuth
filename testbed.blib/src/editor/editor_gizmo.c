@@ -1,11 +1,11 @@
 #include "editor_gizmo.h"
 
-#include "core/bhandle.h"
-#include "core/bmemory.h"
+#include "identifiers/bhandle.h"
+#include "memory/bmemory.h"
 #include "math/math_types.h"
 #include "renderer/camera.h"
 
-#include <core/logger.h>
+#include <logger.h>
 #include <defines.h>
 #include <math/geometry_3d.h>
 #include <math/bmath.h>

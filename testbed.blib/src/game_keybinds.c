@@ -1,19 +1,19 @@
 #include "game_keybinds.h"
 
-#include "core/bhandle.h"
 #include "debug_console.h"
 #include "game_state.h"
+#include "identifiers/bhandle.h"
 #include "renderer/renderer_types.h"
 
 #include <defines.h>
-#include <application_types.h>
+#include <application/application_types.h>
 #include <core/input.h>
 #include <core/keymap.h>
 #include <core/event.h>
-#include <core/logger.h>
+#include <logger.h>
 #include <core/systems_manager.h>
-#include <core/bmemory.h>
-#include <core/bstring.h>
+#include <memory/bmemory.h>
+#include <strings/bstring.h>
 #include <core/bvar.h>
 #include <core/console.h>
 #include <core/engine.h>

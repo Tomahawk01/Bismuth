@@ -1,25 +1,25 @@
 #include "oal_plugin.h"
 
 #include "defines.h"
+#include "parsers/bson_parser.h"
 #ifdef BPLATFORM_WINDOWS
 #include <malloc.h>
 #else
 #include <alloca.h>
 #endif
-#include <core/bmutex.h>
-#include <core/bthread.h>
+#include <threads/bmutex.h>
+#include <threads/bthread.h>
 #include <math/bmath.h>
 #include <platform/platform.h>
 
 #include "defines.h"
 #include "audio/audio_types.h"
 #include "containers/darray.h"
-#include "core/bmemory.h"
-#include "core/bstring.h"
-#include "core/logger.h"
+#include "logger.h"
+#include "memory/bmemory.h"
 #include "resources/loaders/audio_loader.h"
-#include "resources/loaders/loader_utils.h"
 #include "resources/resource_types.h"
+#include "systems/audio_system.h"
 #include "systems/job_system.h"
 #include "systems/resource_system.h"
 
@@ -72,8 +72,18 @@ typedef struct audio_plugin_source
 
 typedef struct audio_plugin_state
 {
-    // Copy of the configuration
-    audio_plugin_config config;
+    /** @brief The maximum number of buffers available. Default: 256 */
+    u32 max_buffers;
+    /** @brief The maximum number of sources available. Default: 8 */
+    u32 max_sources;
+    /** @brief The frequency to output audio at */
+    u32 frequency;
+    /** @brief The number of audio channels to support (i.e. 2 for stereo, 1 for mono) */
+    u32 channel_count;
+
+    /** @brief The size to chunk streamed audio data in */
+    u32 chunk_size;
+
     // Selected audio device
     ALCdevice* device;
     // Current audio context
@@ -98,17 +108,18 @@ typedef struct audio_plugin_state
 } audio_plugin_state;
 
 static b8 oal_plugin_check_error(void);
-static b8 oal_plugin_source_create(struct audio_plugin* plugin, audio_plugin_source* out_source);
-static void oal_plugin_source_destroy(struct audio_plugin* plugin, audio_plugin_source* source);
-static u32 oal_plugin_find_free_buffer(struct audio_plugin* plugin);
+static b8 oal_plugin_source_create(struct audio_backend_interface* plugin, audio_plugin_source* out_source);
+static void oal_plugin_source_destroy(struct audio_backend_interface* plugin, audio_plugin_source* source);
+static u32 oal_plugin_find_free_buffer(struct audio_backend_interface* plugin);
+static b8 plugin_deserialize_config(const char* config_str, audio_plugin_state* state);
 
-static b8 oal_plugin_stream_music_data(audio_plugin* plugin, ALuint buffer, audio_file* audio)
+static b8 oal_plugin_stream_music_data(audio_backend_interface* plugin, ALuint buffer, audio_file* audio)
 {
     if (!plugin || !audio)
         return false;
 
     // Figure out how many samples can be taken
-    u64 size = audio->load_samples(audio, plugin->internal_state->config.chunk_size, plugin->internal_state->config.chunk_size);
+    u64 size = audio->load_samples(audio, plugin->internal_state->chunk_size, plugin->internal_state->chunk_size);
     if (size == INVALID_ID_U64)
     {
         BERROR("Error streaming data. Check logs for more info");
@@ -137,7 +148,7 @@ static b8 oal_plugin_stream_music_data(audio_plugin* plugin, ALuint buffer, audi
 
     return true;
 }
-static b8 oal_plugin_stream_update(audio_plugin* plugin, audio_file* audio, audio_plugin_source* source)
+static b8 oal_plugin_stream_update(audio_backend_interface* plugin, audio_file* audio, audio_plugin_source* source)
 {
     if (!plugin || !audio)
         return false;
@@ -185,14 +196,14 @@ static b8 oal_plugin_stream_update(audio_plugin* plugin, audio_file* audio, audi
 
 typedef struct source_work_thread_params
 {
-    struct audio_plugin* plugin;
+    struct audio_backend_interface* plugin;
     audio_plugin_source* source;
 } source_work_thread_params;
 
 static u32 source_work_thread(void* params)
 {
     source_work_thread_params* typed_params = params;
-    audio_plugin* plugin = typed_params->plugin;
+    audio_backend_interface* plugin = typed_params->plugin;
     audio_plugin_source* source = typed_params->source;
 
     // Release this right away since it's no longer needed
@@ -231,24 +242,29 @@ static u32 source_work_thread(void* params)
     return 0;
 }
 
-b8 oal_plugin_initialize(struct audio_plugin* plugin, audio_plugin_config config)
+b8 oal_plugin_initialize(struct audio_backend_interface* plugin, const audio_system_config* config, const char* plugin_config)
 {
     if (plugin)
     {
         plugin->internal_state = ballocate(sizeof(audio_plugin_state), MEMORY_TAG_AUDIO);
 
-        plugin->internal_state->config = config;
-        if (plugin->internal_state->config.max_sources < 1)
+        // Parse the plugin config string
+        if (!plugin_deserialize_config(plugin_config, plugin->internal_state))
+        {
+            BERROR("Failed to initialize OpenAL backend");
+            return false;
+        }
+        // Copy over the relevant frontend config properties
+        plugin->internal_state->max_sources = config->audio_channel_count; // MAX_AUDIO_CHANNELS;
+        plugin->internal_state->chunk_size = config->chunk_size;
+        plugin->internal_state->frequency = config->frequency;
+        plugin->internal_state->channel_count = config->channel_count;
+
+        if (plugin->internal_state->max_sources < 1)
         {
             BWARN("Audio plugin config.max_sources was configured as 0. Defaulting to 8");
-            plugin->internal_state->config.max_sources = 8;
+            plugin->internal_state->max_sources = 8;
         }
-        if (plugin->internal_state->config.max_buffers < 20)
-        {
-            BWARN("Audio plugin config.max_buffers was configured to be less than 20, the recommended minimum. Defaulting to 256");
-            plugin->internal_state->config.max_buffers = 256;
-        }
-        plugin->internal_state->buffer_count = plugin->internal_state->config.max_buffers;
 
         plugin->internal_state->free_buffers = darray_create(u32);
 
@@ -278,9 +294,9 @@ b8 oal_plugin_initialize(struct audio_plugin* plugin, audio_plugin_config config
         alListener3f(AL_VELOCITY, 0, 0, 0);
         oal_plugin_check_error();
 
-        plugin->internal_state->sources = ballocate(sizeof(audio_plugin_source) * config.max_sources, MEMORY_TAG_AUDIO);
+        plugin->internal_state->sources = ballocate(sizeof(audio_plugin_source) * plugin->internal_state->max_sources, MEMORY_TAG_AUDIO);
         // Create all sources
-        for (u32 i = 0; i < config.max_sources; ++i)
+        for (u32 i = 0; i < plugin->internal_state->max_sources; ++i)
         {
             if (!oal_plugin_source_create(plugin, &plugin->internal_state->sources[i]))
             {
@@ -307,14 +323,14 @@ b8 oal_plugin_initialize(struct audio_plugin* plugin, audio_plugin_config config
     return false;
 }
 
-void oal_plugin_shutdown(struct audio_plugin* plugin)
+void oal_plugin_shutdown(struct audio_backend_interface* plugin)
 {
     if (plugin)
     {
         if (plugin->internal_state)
         {
             // Destroy sources
-            for (u32 i = 0; i < plugin->internal_state->config.max_sources; ++i)
+            for (u32 i = 0; i < plugin->internal_state->max_sources; ++i)
                 oal_plugin_source_destroy(plugin, &plugin->internal_state->sources[i]);
             if (plugin->internal_state->device)
             {
@@ -325,11 +341,11 @@ void oal_plugin_shutdown(struct audio_plugin* plugin)
             plugin->internal_state = 0;
         }
 
-        bzero_memory(plugin, sizeof(audio_plugin));
+        bzero_memory(plugin, sizeof(audio_backend_interface));
     }
 }
 
-b8 oal_plugin_update(struct audio_plugin* plugin, struct frame_data* p_frame_data)
+b8 oal_plugin_update(struct audio_backend_interface* plugin, struct frame_data* p_frame_data)
 {
     if (!plugin)
         return false;
@@ -337,7 +353,7 @@ b8 oal_plugin_update(struct audio_plugin* plugin, struct frame_data* p_frame_dat
     return true;
 }
 
-b8 oal_plugin_listener_position_query(struct audio_plugin* plugin, vec3* out_position)
+b8 oal_plugin_listener_position_query(struct audio_backend_interface* plugin, vec3* out_position)
 {
     if (!plugin || !out_position)
     {
@@ -349,7 +365,7 @@ b8 oal_plugin_listener_position_query(struct audio_plugin* plugin, vec3* out_pos
     return true;
 }
 
-b8 oal_plugin_listener_position_set(struct audio_plugin* plugin, vec3 position)
+b8 oal_plugin_listener_position_set(struct audio_backend_interface* plugin, vec3 position)
 {
     if (!plugin)
     {
@@ -364,7 +380,7 @@ b8 oal_plugin_listener_position_set(struct audio_plugin* plugin, vec3 position)
     return true;
 }
 
-b8 oal_plugin_listener_orientation_query(struct audio_plugin* plugin, vec3* out_forward, vec3* out_up)
+b8 oal_plugin_listener_orientation_query(struct audio_backend_interface* plugin, vec3* out_forward, vec3* out_up)
 {
     if (!plugin || !out_forward || !out_up)
     {
@@ -377,7 +393,7 @@ b8 oal_plugin_listener_orientation_query(struct audio_plugin* plugin, vec3* out_
     return true;
 }
 
-b8 oal_plugin_listener_orientation_set(struct audio_plugin* plugin, vec3 forward, vec3 up)
+b8 oal_plugin_listener_orientation_set(struct audio_backend_interface* plugin, vec3 forward, vec3 up)
 {
     if (!plugin)
     {
@@ -392,7 +408,7 @@ b8 oal_plugin_listener_orientation_set(struct audio_plugin* plugin, vec3 forward
     return oal_plugin_check_error();
 }
 
-static b8 source_set_defaults(struct audio_plugin* plugin, audio_plugin_source* source, b8 reset_use)
+static b8 source_set_defaults(struct audio_backend_interface* plugin, audio_plugin_source* source, b8 reset_use)
 {
     // Mark it as not in use
     if (reset_use)
@@ -423,7 +439,7 @@ static b8 source_set_defaults(struct audio_plugin* plugin, audio_plugin_source* 
     return true;
 }
 
-static b8 oal_plugin_source_create(struct audio_plugin* plugin, audio_plugin_source* out_source)
+static b8 oal_plugin_source_create(struct audio_backend_interface* plugin, audio_plugin_source* out_source)
 {
     if (!plugin || !out_source)
     {
@@ -453,7 +469,7 @@ static b8 oal_plugin_source_create(struct audio_plugin* plugin, audio_plugin_sou
     return true;
 }
 
-static void oal_plugin_source_destroy(struct audio_plugin* plugin, audio_plugin_source* source)
+static void oal_plugin_source_destroy(struct audio_backend_interface* plugin, audio_plugin_source* source)
 {
     if (plugin && source)
     {
@@ -463,13 +479,13 @@ static void oal_plugin_source_destroy(struct audio_plugin* plugin, audio_plugin_
     }
 }
 
-static void oal_plugin_find_playing_sources(struct audio_plugin* plugin, u32 playing[], u32* count)
+static void oal_plugin_find_playing_sources(struct audio_backend_interface* plugin, u32 playing[], u32* count)
 {
     if (!plugin || !count)
         return;
 
     ALint state = 0;
-    for (u32 i = 0; i < plugin->internal_state->config.max_sources; ++i)
+    for (u32 i = 0; i < plugin->internal_state->max_sources; ++i)
     {
         alGetSourcei(plugin->internal_state->sources[i - 1].id, AL_SOURCE_STATE, &state);
         if (state == AL_PLAYING)
@@ -480,7 +496,7 @@ static void oal_plugin_find_playing_sources(struct audio_plugin* plugin, u32 pla
     }
 }
 
-static void clear_buffer(struct audio_plugin* plugin, u32* buf_ptr, u32 amount)
+static void clear_buffer(struct audio_backend_interface* plugin, u32* buf_ptr, u32 amount)
 {
     if (plugin)
     {
@@ -499,7 +515,7 @@ static void clear_buffer(struct audio_plugin* plugin, u32* buf_ptr, u32 amount)
     BWARN("Buffer could not be cleared");
 }
 
-static u32 oal_plugin_find_free_buffer(struct audio_plugin* plugin)
+static u32 oal_plugin_find_free_buffer(struct audio_backend_interface* plugin)
 {
     if (plugin)
     {
@@ -513,7 +529,7 @@ static u32 oal_plugin_find_free_buffer(struct audio_plugin* plugin)
                 return false;
 
             u32 playing_source_count = 0;
-            u32* playing_sources = ballocate(sizeof(u32) * plugin->internal_state->config.max_sources, MEMORY_TAG_ARRAY);
+            u32* playing_sources = ballocate(sizeof(u32) * plugin->internal_state->max_sources, MEMORY_TAG_ARRAY);
             oal_plugin_find_playing_sources(plugin, playing_sources, &playing_source_count);
             // Avoid a crash when calling alGetSourcei while checking for freeable buffers
             for (u32 i = 0; i < playing_source_count; ++i)
@@ -546,7 +562,7 @@ static u32 oal_plugin_find_free_buffer(struct audio_plugin* plugin)
                 alSourcePlay(plugin->internal_state->sources[i - 1].id);
                 oal_plugin_check_error();
             }
-            bfree(playing_sources, sizeof(u32) * plugin->internal_state->config.max_sources, MEMORY_TAG_ARRAY);
+            bfree(playing_sources, sizeof(u32) * plugin->internal_state->max_sources, MEMORY_TAG_ARRAY);
         }
 
         // Check free count again, this time there must be at least one or there is an error condition
@@ -569,9 +585,9 @@ static u32 oal_plugin_find_free_buffer(struct audio_plugin* plugin)
     return INVALID_ID;
 }
 
-b8 oal_plugin_source_gain_query(struct audio_plugin* plugin, u32 source_index, f32* out_gain)
+b8 oal_plugin_source_gain_query(struct audio_backend_interface* plugin, u32 source_index, f32* out_gain)
 {
-    if (plugin && out_gain && source_index <= plugin->internal_state->config.max_sources)
+    if (plugin && out_gain && source_index <= plugin->internal_state->max_sources)
     {
         *out_gain = plugin->internal_state->sources[source_index].gain;
         return true;
@@ -581,9 +597,9 @@ b8 oal_plugin_source_gain_query(struct audio_plugin* plugin, u32 source_index, f
     return false;
 }
 
-b8 oal_plugin_source_gain_set(struct audio_plugin* plugin, u32 source_index, f32 gain)
+b8 oal_plugin_source_gain_set(struct audio_backend_interface* plugin, u32 source_index, f32 gain)
 {
-    if (plugin && source_index <= plugin->internal_state->config.max_sources)
+    if (plugin && source_index <= plugin->internal_state->max_sources)
     {
         audio_plugin_source* source = &plugin->internal_state->sources[source_index];
         source->gain = gain;
@@ -595,9 +611,9 @@ b8 oal_plugin_source_gain_set(struct audio_plugin* plugin, u32 source_index, f32
     return false;
 }
 
-b8 oal_plugin_source_pitch_query(struct audio_plugin* plugin, u32 source_index, f32* out_pitch)
+b8 oal_plugin_source_pitch_query(struct audio_backend_interface* plugin, u32 source_index, f32* out_pitch)
 {
-    if (plugin && out_pitch && source_index <= plugin->internal_state->config.max_sources)
+    if (plugin && out_pitch && source_index <= plugin->internal_state->max_sources)
     {
         *out_pitch = plugin->internal_state->sources[source_index].pitch;
         return true;
@@ -607,9 +623,9 @@ b8 oal_plugin_source_pitch_query(struct audio_plugin* plugin, u32 source_index, 
     return false;
 }
 
-b8 oal_plugin_source_pitch_set(struct audio_plugin* plugin, u32 source_index, f32 pitch)
+b8 oal_plugin_source_pitch_set(struct audio_backend_interface* plugin, u32 source_index, f32 pitch)
 {
-    if (plugin && source_index <= plugin->internal_state->config.max_sources)
+    if (plugin && source_index <= plugin->internal_state->max_sources)
     {
         audio_plugin_source* source = &plugin->internal_state->sources[source_index];
         source->pitch = pitch;
@@ -621,9 +637,9 @@ b8 oal_plugin_source_pitch_set(struct audio_plugin* plugin, u32 source_index, f3
     return false;
 }
 
-b8 oal_plugin_source_position_query(struct audio_plugin* plugin, u32 source_index, vec3* out_position)
+b8 oal_plugin_source_position_query(struct audio_backend_interface* plugin, u32 source_index, vec3* out_position)
 {
-    if (plugin && out_position && source_index <= plugin->internal_state->config.max_sources)
+    if (plugin && out_position && source_index <= plugin->internal_state->max_sources)
     {
         *out_position = plugin->internal_state->sources[source_index].position;
         return true;
@@ -633,9 +649,9 @@ b8 oal_plugin_source_position_query(struct audio_plugin* plugin, u32 source_inde
     return false;
 }
 
-b8 oal_plugin_source_position_set(struct audio_plugin* plugin, u32 source_index, vec3 position)
+b8 oal_plugin_source_position_set(struct audio_backend_interface* plugin, u32 source_index, vec3 position)
 {
-    if (plugin && source_index <= plugin->internal_state->config.max_sources)
+    if (plugin && source_index <= plugin->internal_state->max_sources)
     {
         audio_plugin_source* source = &plugin->internal_state->sources[source_index];
         source->position = position;
@@ -647,9 +663,9 @@ b8 oal_plugin_source_position_set(struct audio_plugin* plugin, u32 source_index,
     return false;
 }
 
-b8 oal_plugin_source_looping_query(struct audio_plugin* plugin, u32 source_index, b8* out_looping)
+b8 oal_plugin_source_looping_query(struct audio_backend_interface* plugin, u32 source_index, b8* out_looping)
 {
-    if (plugin && out_looping && source_index <= plugin->internal_state->config.max_sources)
+    if (plugin && out_looping && source_index <= plugin->internal_state->max_sources)
     {
         *out_looping = plugin->internal_state->sources[source_index].looping;
         return true;
@@ -659,9 +675,9 @@ b8 oal_plugin_source_looping_query(struct audio_plugin* plugin, u32 source_index
     return false;
 }
 
-b8 oal_plugin_source_looping_set(struct audio_plugin* plugin, u32 source_index, b8 looping)
+b8 oal_plugin_source_looping_set(struct audio_backend_interface* plugin, u32 source_index, b8 looping)
 {
-    if (plugin && source_index <= plugin->internal_state->config.max_sources)
+    if (plugin && source_index <= plugin->internal_state->max_sources)
     {
         audio_plugin_source* source = &plugin->internal_state->sources[source_index];
         source->looping = looping;
@@ -703,7 +719,7 @@ static b8 oal_plugin_check_error(void)
     return true;
 }
 
-struct audio_file* oal_plugin_stream_load(struct audio_plugin* plugin, const char* name)
+struct audio_file* oal_plugin_stream_load(struct audio_backend_interface* plugin, const char* name)
 {
     if (!plugin)
         return 0;
@@ -718,7 +734,7 @@ struct audio_file* oal_plugin_stream_load(struct audio_plugin* plugin, const cha
     audio_file* out_file = 0;
     audio_resource_loader_params params = {0};
     params.type = AUDIO_FILE_TYPE_MUSIC_STREAM;
-    params.chunk_size = plugin->internal_state->config.chunk_size;
+    params.chunk_size = plugin->internal_state->chunk_size;
     resource audio_resource;
     if (!resource_system_load(name, RESOURCE_TYPE_AUDIO, &params, &audio_resource))
     {
@@ -752,7 +768,7 @@ struct audio_file* oal_plugin_stream_load(struct audio_plugin* plugin, const cha
     return out_file;
 }
 
-struct audio_file* oal_plugin_chunk_load(struct audio_plugin* plugin, const char* name)
+struct audio_file* oal_plugin_chunk_load(struct audio_backend_interface* plugin, const char* name)
 {
     if (!plugin)
         return 0;
@@ -768,7 +784,7 @@ struct audio_file* oal_plugin_chunk_load(struct audio_plugin* plugin, const char
     audio_file* out_file = 0;
     audio_resource_loader_params params = {0};
     params.type = AUDIO_FILE_TYPE_SOUND_EFFECT;
-    params.chunk_size = plugin->internal_state->config.chunk_size;
+    params.chunk_size = plugin->internal_state->chunk_size;
     resource* audio_resource = ballocate(sizeof(resource), MEMORY_TAG_RESOURCE);
     if (!resource_system_load(name, RESOURCE_TYPE_AUDIO, &params, audio_resource))
     {
@@ -814,7 +830,7 @@ struct audio_file* oal_plugin_chunk_load(struct audio_plugin* plugin, const char
     return 0;
 }
 
-void oal_plugin_audio_file_close(struct audio_plugin* plugin, struct audio_file* file)
+void oal_plugin_audio_file_close(struct audio_backend_interface* plugin, struct audio_file* file)
 {
     if (!plugin || !file)
     {
@@ -831,7 +847,7 @@ void oal_plugin_audio_file_close(struct audio_plugin* plugin, struct audio_file*
     resource_system_unload(r);
 }
 
-b8 oal_plugin_source_play(struct audio_plugin* plugin, i8 source_index)
+b8 oal_plugin_source_play(struct audio_backend_interface* plugin, i8 source_index)
 {
     if (!plugin || source_index < 0)
         return false;
@@ -848,7 +864,7 @@ b8 oal_plugin_source_play(struct audio_plugin* plugin, i8 source_index)
     return true;
 }
 
-b8 oal_plugin_play_on_source(struct audio_plugin* plugin, struct audio_file* file, i8 source_index)
+b8 oal_plugin_play_on_source(struct audio_backend_interface* plugin, struct audio_file* file, i8 source_index)
 {
     if (!plugin || !file || source_index < 0)
         return false;
@@ -895,7 +911,7 @@ b8 oal_plugin_play_on_source(struct audio_plugin* plugin, struct audio_file* fil
     return true;
 }
 
-b8 oal_plugin_source_stop(struct audio_plugin* plugin, i8 source_index)
+b8 oal_plugin_source_stop(struct audio_backend_interface* plugin, i8 source_index)
 {
     if (!plugin || source_index < 0)
         return false;
@@ -915,7 +931,7 @@ b8 oal_plugin_source_stop(struct audio_plugin* plugin, i8 source_index)
     return true;
 }
 
-b8 oal_plugin_source_pause(struct audio_plugin* plugin, i8 source_index)
+b8 oal_plugin_source_pause(struct audio_backend_interface* plugin, i8 source_index)
 {
     if (!plugin || source_index < 0)
         return false;
@@ -930,7 +946,7 @@ b8 oal_plugin_source_pause(struct audio_plugin* plugin, i8 source_index)
     return true;
 }
 
-b8 oal_plugin_source_resume(struct audio_plugin* plugin, i8 source_index)
+b8 oal_plugin_source_resume(struct audio_backend_interface* plugin, i8 source_index)
 {
     if (!plugin || source_index < 0)
         return false;
@@ -941,6 +957,37 @@ b8 oal_plugin_source_resume(struct audio_plugin* plugin, i8 source_index)
     alGetSourcei(source->id, AL_SOURCE_STATE, &source_state);
     if (source_state == AL_PAUSED)
         alSourcePlay(source->id);
+
+    return true;
+}
+
+static b8 plugin_deserialize_config(const char* config_str, audio_plugin_state* state)
+{
+    if (!config_str || !state)
+    {
+        BERROR("plugin_deserialize_config requires a valid pointer to out_config and state");
+        return false;
+    }
+
+    bson_tree tree = {0};
+    if (!bson_tree_from_string(config_str, &tree))
+    {
+        BERROR("Failed to parse audio plugin config");
+        return false;
+    }
+
+    i64 max_buffers = 0;
+    if (!bson_object_property_value_get_int(&tree.root, "max_buffers", &max_buffers))
+        max_buffers = 256;
+
+    if (max_buffers < 20)
+    {
+        BWARN("Audio plugin config.max_buffers was configured to be less than 20, the recommended minimum. Defaulting to 256");
+        state->max_buffers = 256;
+    }
+    state->buffer_count = max_buffers;
+
+    bson_tree_cleanup(&tree);
 
     return true;
 }
