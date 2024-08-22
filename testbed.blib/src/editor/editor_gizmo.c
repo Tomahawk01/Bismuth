@@ -199,7 +199,7 @@ void editor_gizmo_render_frame_prepare(editor_gizmo* gizmo, const struct frame_d
     if (gizmo && gizmo->is_dirty)
     {
         editor_gizmo_mode_data* data = &gizmo->mode_data[gizmo->mode];
-        renderer_geometry_vertex_update(&data->geo, 0, data->vertex_count, data->vertices, true);
+        renderer_geometry_vertex_update(&data->geo, 0, data->vertex_count, data->vertices, false);
         gizmo->is_dirty = false;
     }
 }

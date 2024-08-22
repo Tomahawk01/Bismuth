@@ -147,12 +147,22 @@ rendergraphs = [
                 ]
             }
             {
+                name = "editor_gizmo"
+                type = "editor_gizmo"
+                sinks = [
+                    {
+                        name = "colorbuffer"
+                        source_name = "debug.colorbuffer"
+                    }
+                ]
+            }
+            {
                 name = "sui"
                 type = "standard_ui"
                 sinks = [
                     {
                         name = "colorbuffer"
-                        source_name = "debug.colorbuffer"
+                        source_name = "editor_gizmo.colorbuffer"
                     }
                 ]
             }

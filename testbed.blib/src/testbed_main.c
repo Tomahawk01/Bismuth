@@ -42,6 +42,7 @@
 
 // TODO: Editor temp
 #include "editor/editor_gizmo.h"
+#include "editor/editor_gizmo_rendergraph_node.h"
 #include <resources/debug/debug_box3d.h>
 #include <resources/debug/debug_line3d.h>
 
@@ -483,6 +484,13 @@ b8 application_boot(struct application* game_inst)
     config->frame_allocator_size = MEBIBYTES(64);
     config->app_frame_data_size = sizeof(testbed_application_frame_data);
 
+    // Register custom rendergraph nodes, systems, etc
+    if (!editor_gizmo_rendergraph_node_register_factory())
+    {
+        BERROR("Failed to register editor_gizmo rendergraph node");
+        return false;
+    }
+
     // Keymaps
     game_setup_keymaps(game_inst);
     // Console commands
@@ -586,6 +594,9 @@ b8 application_initialize(struct application* game_inst)
         BERROR("Failed to create world viewport 2. Cannot start application");
         return false;
     }
+
+    // Setup the clear color
+    renderer_clear_color_set(engine_systems_get()->renderer_system, (vec4){0.0f, 0.0f, 0.2f, 1.0f});
 
     state->forward_move_speed = 5.0f * 5.0f;
     state->backward_move_speed = 2.5f * 5.0f;
@@ -760,8 +771,8 @@ b8 application_initialize(struct application* game_inst)
     // TODO: end temp load/prepare stuff
 
     state->world_camera = camera_system_acquire("world");
-    camera_position_set(state->world_camera, (vec3){5.83f, 4.35f, 18.68f});
-    camera_rotation_euler_set(state->world_camera, (vec3){-29.43f, -42.41f, 0.0f});
+    camera_position_set(state->world_camera, (vec3){-3.95f, 4.25f, 15.80f});
+    camera_rotation_euler_set(state->world_camera, (vec3){-11.50f, -75.00f, 0.0f});
 
     // TODO: temp test camera
     state->world_camera_2 = camera_system_acquire("world_2");
@@ -1364,6 +1375,23 @@ b8 application_prepare_frame(struct application* app_inst, struct frame_data* p_
                 // NOTE: Not going to abort the whole graph for this failure, but will bleat about it
                 BERROR("Failed to set geometries for debug rendergraph node");
             }
+        }
+        else if (strings_equali(node->name, "editor_gizmo"))
+        {
+            editor_gizmo_rendergraph_node_viewport_set(node, state->world_viewport);
+            editor_gizmo_rendergraph_node_view_projection_set(
+                node,
+                camera_view_get(current_camera),
+                camera_position_get(current_camera),
+                current_viewport->projection);
+            if (!editor_gizmo_rendergraph_node_gizmo_set(node, &state->gizmo))
+            {
+                // NOTE: Not going to abort the whole graph for this failure, but will bleat about it loudly
+                BERROR("Failed to set gizmo for editor_gizmo rendergraph node");
+            }
+
+            // Only draw if loaded
+            editor_gizmo_rendergraph_node_enabled_set(node, scene->state == SCENE_STATE_LOADED);
         }
     }
 
