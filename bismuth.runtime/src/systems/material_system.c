@@ -2,6 +2,7 @@
 
 #include "containers/darray.h"
 #include "containers/hashtable.h"
+#include "core/console.h"
 #include "core/engine.h"
 #include "defines.h"
 #include "logger.h"
@@ -86,6 +87,7 @@ static b8 load_material(material_config* config, material* m);
 static void destroy_material(material* m);
 
 static b8 assign_map(texture_map* map, const material_map* config, const char* material_name, texture* default_tex);
+static void on_material_system_dump(console_command_context context);
 
 b8 material_system_initialize(u64* memory_requirement, void* state, void* config)
 {
@@ -167,6 +169,9 @@ b8 material_system_initialize(u64* memory_requirement, void* state, void* config
         BFATAL("Failed to create default terrain material. Application cannot continue");
         return false;
     }
+
+    // Register a console command to dump list of materials/references
+    console_command_register("material_system_dump", 0, on_material_system_dump);
 
     return true;
 }
@@ -513,6 +518,9 @@ void material_system_release(const char* name)
 
             // Destroy/reset material
             destroy_material(m);
+
+            // This makes the reference slot "available"
+            ref.handle = INVALID_ID;
 
             // Reset reference
             // BTRACE("Released material '%s', Material unloaded because reference count=0 and auto_release=true", name_copy);
@@ -1093,4 +1101,9 @@ static b8 create_default_terrain_material(material_system_state* state)
     state->default_terrain_material.shader_id = s->id;
 
     return true;
+}
+
+static void on_material_system_dump(console_command_context context)
+{
+    material_system_dump();
 }
