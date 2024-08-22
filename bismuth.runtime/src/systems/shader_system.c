@@ -10,6 +10,7 @@
 #include "renderer/renderer_utils.h"
 #include "resources/resource_types.h"
 #include "strings/bstring.h"
+#include "systems/resource_system.h"
 #include "systems/texture_system.h"
 
 // Internal shader system state
@@ -308,6 +309,28 @@ shader* shader_system_get(const char* shader_name)
     u32 shader_id = shader_system_get_id(shader_name);
     if (shader_id != INVALID_ID)
         return shader_system_get_by_id(shader_id);
+
+    // Attempt to load the shader resource and return it
+    resource shader_config_resource;
+    if (!resource_system_load(shader_name, RESOURCE_TYPE_SHADER, 0, &shader_config_resource))
+    {
+        BERROR("Failed to load shader resource for shader '%s'", shader_name);
+        return 0;
+    }
+    shader_config* pbr_config = (shader_config*)shader_config_resource.data;
+    if (!shader_system_create(pbr_config))
+    {
+        BERROR("Failed to create shader '%s'", shader_name);
+        return 0;
+    }
+    resource_system_unload(&shader_config_resource);
+
+    // Attempt once more to get a shader id
+    shader_id = shader_system_get_id(shader_name);
+    if (shader_id != INVALID_ID)
+        return shader_system_get_by_id(shader_id);
+
+    BERROR("There is not shader available called '%s', and one by that name could also not be loaded");
     return 0;
 }
 

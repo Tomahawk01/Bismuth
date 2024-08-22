@@ -349,6 +349,30 @@ b8 vulkan_renderer_on_window_created(renderer_backend_interface* backend, bwindo
     window_internal->backend_state = ballocate(sizeof(bwindow_renderer_backend_state), MEMORY_TAG_RENDERER);
     bwindow_renderer_backend_state* window_backend = window_internal->backend_state;
 
+    // Create the surface
+    BDEBUG("Creating Vulkan surface for window '%s'...", window->name);
+    if (!vulkan_platform_create_vulkan_surface(context, window))
+    {
+        BERROR("Failed to create platform surface for window '%s'!", window->name);
+        return false;
+    }
+    BDEBUG("Vulkan surface created for window '%s'", window->name);
+
+    // Create swapchain. This also handles colorbuffer creation
+    if (!vulkan_swapchain_create(backend, window, context->flags, &window_backend->swapchain))
+    {
+        BERROR("Failed to create Vulkan swapchain during creation of window '%s'. See logs for details", window->name);
+        return false;
+    }
+
+    // Re-detect supported device depth format
+    if (!vulkan_device_detect_depth_format(&context->device))
+    {
+        context->device.depth_format = VK_FORMAT_UNDEFINED;
+        BFATAL("Failed to find a supported format!");
+        return false;
+    }
+
     // Create per-frame-in-flight resources
     {
         u8 max_frames_in_flight = window_backend->swapchain.max_frames_in_flight;
@@ -390,30 +414,6 @@ b8 vulkan_renderer_on_window_created(renderer_backend_interface* backend, bwindo
 
     // Create command buffers
     create_command_buffers(context, window);
-
-    // Create the surface
-    BDEBUG("Creating Vulkan surface for window '%s'...", window->name);
-    if (!vulkan_platform_create_vulkan_surface(context, window))
-    {
-        BERROR("Failed to create platform surface for window '%s'!", window->name);
-        return false;
-    }
-    BDEBUG("Vulkan surface created for window '%s'", window->name);
-
-    // Create swapchain. This also handles colorbuffer creation
-    if (!vulkan_swapchain_create(backend, window, context->flags, &window_backend->swapchain))
-    {
-        BERROR("Failed to create Vulkan swapchain during creation of window '%s'. See logs for details", window->name);
-        return false;
-    }
-
-    // Re-detect supported device depth format
-    if (!vulkan_device_detect_depth_format(&context->device))
-    {
-        context->device.depth_format = VK_FORMAT_UNDEFINED;
-        BFATAL("Failed to find a supported format!");
-        return false;
-    }
 
     // Create the depthbuffer
     BDEBUG("Creating Vulkan depthbuffer for window '%s'...", window->name);
@@ -499,7 +499,7 @@ b8 vulkan_renderer_on_window_created(renderer_backend_interface* backend, bwindo
         view_create_info.image = image->handle;
         view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
         view_create_info.format = context->device.depth_format;
-        image->view_subresource_range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        image->view_subresource_range.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
         image->view_subresource_range.baseMipLevel = 0;
         image->view_subresource_range.levelCount = 1;
         image->view_subresource_range.baseArrayLayer = 0;

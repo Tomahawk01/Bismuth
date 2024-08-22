@@ -214,9 +214,10 @@ BAPI shader* shader_system_get_by_id(u32 shader_id);
 
 /**
  * @brief Returns a pointer to a shader with the given name.
+ * Attempts to load the shader if not already loaded.
  * 
  * @param shader_id The id of the shader to set wireframe mode for
- * @return A pointer to a shader, if found; otherwise 0.
+ * @return A pointer to a shader, if found/loaded; otherwise 0.
  */
 BAPI shader* shader_system_get(const char* shader_name);
 

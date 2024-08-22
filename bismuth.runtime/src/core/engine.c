@@ -281,22 +281,6 @@ b8 engine_create(application* game_inst)
         }
     }
 
-    // Shader system
-    {
-        shader_system_config shader_sys_config;
-        shader_sys_config.max_shader_count = 1024;
-        shader_sys_config.max_uniform_count = 128;
-        shader_sys_config.max_global_textures = 31;
-        shader_sys_config.max_instance_textures = 31;
-        shader_system_initialize(&systems->shader_system_memory_requirement, 0, &shader_sys_config);
-        systems->shader_system = ballocate(systems->shader_system_memory_requirement, MEMORY_TAG_ENGINE);
-        if (!shader_system_initialize(&systems->shader_system_memory_requirement, systems->shader_system, &shader_sys_config))
-        {
-            BERROR("Failed to initialize shader system");
-            return false;
-        }
-    }
-
     // Renderer system
     {
         // Get the generic config from application config first
@@ -322,6 +306,38 @@ b8 engine_create(application* game_inst)
             BERROR("Failed to initialize renderer system");
             return false;
         }
+    }
+
+    // Reach into platform and open new window(s) in accordance with app config.
+    // Notify renderer of window(s)/setup surface(s), etc
+    u32 window_count = darray_length(game_inst->app_config.windows);
+    if (window_count > 1)
+    {
+        BFATAL("Multiple windows are not yet implemented at the engine level. Please just stick to one for now");
+        return false;
+    }
+
+    engine_state->windows = darray_reserve(bwindow, window_count);
+    for (u32 i = 0; i < window_count; ++i)
+    {
+        bwindow_config* window_config = &game_inst->app_config.windows[i];
+        bwindow new_window = {0};
+        new_window.name = string_duplicate(window_config->name);
+        if (!platform_window_create(window_config, &new_window, true))
+        {
+            BERROR("Failed to create window '%s'", window_config->name);
+            return false;
+        }
+
+        // Tell the renderer about the window
+        if (!renderer_on_window_created(engine_state->systems.renderer_system, &new_window))
+        {
+            BERROR("The renderer failed to create resources for the window '%s'", window_config->name);
+            return false;
+        }
+
+        // Add to tracked window list
+        darray_push(engine_state->windows, new_window);
     }
 
     // Job system
@@ -398,7 +414,7 @@ b8 engine_create(application* game_inst)
 
         audio_system_config audio_sys_config = {0};
 
-        // Parse plugin system config from app config
+        // Parse system config from app config
         if (!audio_system_deserialize_config(generic_sys_config.configuration_str, &audio_sys_config))
         {
             BERROR("Failed to deserialize audio system config, which is required");
@@ -440,6 +456,22 @@ b8 engine_create(application* game_inst)
         }
     }
 
+    // Shader system
+    {
+        shader_system_config shader_sys_config;
+        shader_sys_config.max_shader_count = 1024;
+        shader_sys_config.max_uniform_count = 128;
+        shader_sys_config.max_global_textures = 31;
+        shader_sys_config.max_instance_textures = 31;
+        shader_system_initialize(&systems->shader_system_memory_requirement, 0, &shader_sys_config);
+        systems->shader_system = ballocate(systems->shader_system_memory_requirement, MEMORY_TAG_ENGINE);
+        if (!shader_system_initialize(&systems->shader_system_memory_requirement, systems->shader_system, &shader_sys_config))
+        {
+            BERROR("Failed to initialize shader system");
+            return false;
+        }
+    }
+
     // Texture system
     {
         texture_system_config texture_sys_config;
@@ -453,17 +485,6 @@ b8 engine_create(application* game_inst)
         }
     }
 
-    // Font system
-    {
-        font_system_initialize(&systems->font_system_memory_requirement, 0, 0);
-        systems->font_system = ballocate(systems->font_system_memory_requirement, MEMORY_TAG_ENGINE);
-        if (!font_system_initialize(&systems->font_system_memory_requirement, systems->font_system, 0))
-        {
-            BERROR("Failed to initialize font system");
-            return false;
-        }
-    }
-
     // Material system
     {
         material_system_config material_sys_config = {0};
@@ -473,6 +494,34 @@ b8 engine_create(application* game_inst)
         if (!material_system_initialize(&systems->material_system_memory_requirement, systems->material_system, &material_sys_config))
         {
             BERROR("Failed to initialize material system");
+            return false;
+        }
+    }
+
+    // Font system
+    {
+        // Get the generic config from application config first
+        application_system_config generic_sys_config = {0};
+        if (!application_config_system_config_get(&game_inst->app_config, "font", &generic_sys_config))
+        {
+            BERROR("No configuration exists in app config for the font system. This configuration is required");
+            return false;
+        }
+
+        font_system_config font_sys_config = {0};
+
+        // Parse system config from app config
+        if (!font_system_deserialize_config(generic_sys_config.configuration_str, &font_sys_config))
+        {
+            BERROR("Failed to deserialize font system config, which is required");
+            return false;
+        }
+
+        font_system_initialize(&systems->font_system_memory_requirement, 0, &font_sys_config);
+        systems->font_system = ballocate(systems->font_system_memory_requirement, MEMORY_TAG_ENGINE);
+        if (!font_system_initialize(&systems->font_system_memory_requirement, systems->font_system, &font_sys_config))
+        {
+            BERROR("Failed to initialize font system");
             return false;
         }
     }
@@ -526,43 +575,14 @@ b8 engine_create(application* game_inst)
     }
 
     // NOTE: Boot sequence =========================================================================
-    // Perform the game's boot sequence
+    // Perform the application's boot sequence
     game_inst->stage = APPLICATION_STAGE_BOOTING;
     if (!game_inst->boot(game_inst))
     {
         BFATAL("Game boot sequence failed; aborting application...");
         return false;
     }
-
-    // Reach into platform and open new window(s) in accordance with app config.
-    // Notify renderer of window(s)/setup surface(s), etc.
-    u32 window_count = darray_length(game_inst->app_config.windows);
-    if (window_count > 1)
-    {
-        BFATAL("Multiple windows are not yet implemented at the engine level. Please just stick to one for now");
-        return false;
-    }
-
-    for (u32 i = 0; i < window_count; ++i)
-    {
-        bwindow_config* window_config = &game_inst->app_config.windows[i];
-        bwindow new_window = {0};
-        if (!platform_window_create(window_config, &new_window, true))
-        {
-            BERROR("Failed to create window '%s'", window_config->name);
-            return false;
-        }
-
-        // Tell the renderer about the window
-        if (!renderer_on_window_created(engine_state->systems.renderer_system, &new_window))
-        {
-            BERROR("The renderer failed to create resources for the window '%s'", window_config->name);
-            return false;
-        }
-
-        // Add to tracked window list
-        darray_push(engine_state->windows, new_window);
-    }
+    // NOTE: End boot application sequence
 
     // Post-boot plugin init
     if (!plugin_system_initialize_plugins(engine_state->systems.plugin_system))
