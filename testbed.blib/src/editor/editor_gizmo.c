@@ -7,6 +7,7 @@
 
 #include <logger.h>
 #include <defines.h>
+#include <math/geometry.h>
 #include <math/geometry_3d.h>
 #include <math/bmath.h>
 #include <renderer/camera.h>

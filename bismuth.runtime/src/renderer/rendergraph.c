@@ -866,7 +866,7 @@ static b8 rg_dep_graph_topological_sort(rendergraph* graph)
     for (u32 i = 0; i < graph->node_count; ++i)
     {
         rendergraph_node* node = &graph->nodes[i];
-        BDEBUG("[%d]: %s", node->index, graph->nodes[node->index].name);
+        BINFO("[%d]: %s", node->index, graph->nodes[node->index].name);
     }
     return true;
 }

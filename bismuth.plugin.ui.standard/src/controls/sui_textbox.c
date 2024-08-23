@@ -527,7 +527,11 @@ static b8 sui_textbox_on_key(u16 code, void* sender, void* listener_inst, event_
         u32 len = string_length(entry_control_text);
         if (key_code == KEY_BACKSPACE)
         {
-            if (len > 0 && (typed_data->cursor_position > 0 || typed_data->highlight_range.size > 0))
+            if (len == 0)
+            {
+                sui_label_text_set(state, &typed_data->content_label, "");
+            }
+            else if ((typed_data->cursor_position > 0 || typed_data->highlight_range.size > 0))
             {
                 char* str = string_duplicate(entry_control_text);
                 if (typed_data->highlight_range.size > 0)
@@ -559,41 +563,42 @@ static b8 sui_textbox_on_key(u16 code, void* sender, void* listener_inst, event_
         }
         else if (key_code == KEY_DELETE)
         {
-            if (len > 0)
+            if (len == 0)
             {
-                if (typed_data->cursor_position == len && typed_data->highlight_range.size == (i32)len)
+                sui_label_text_set(state, &typed_data->content_label, "");
+            }
+            else if (typed_data->cursor_position == len && typed_data->highlight_range.size == (i32)len)
+            {
+                char* str = string_duplicate(entry_control_text);
+                str = string_empty(str);
+                typed_data->cursor_position = 0;
+                // Clear the highlight range
+                typed_data->highlight_range.offset = 0;
+                typed_data->highlight_range.size = 0;
+                sui_textbox_update_highlight_box(self);
+                sui_label_text_set(state, &typed_data->content_label, str);
+                bfree(str, len + 1, MEMORY_TAG_STRING);
+                sui_textbox_update_cursor_position(self);
+            }
+            else if (typed_data->cursor_position <= len)
+            {
+                char* str = string_duplicate(entry_control_text);
+                if (typed_data->highlight_range.size > 0)
                 {
-                    char* str = string_duplicate(entry_control_text);
-                    str = string_empty(str);
-                    typed_data->cursor_position = 0;
+                    string_remove_at(str, entry_control_text, typed_data->highlight_range.offset, typed_data->highlight_range.size);
+                    typed_data->cursor_position = typed_data->highlight_range.offset;
                     // Clear highlight range
                     typed_data->highlight_range.offset = 0;
                     typed_data->highlight_range.size = 0;
                     sui_textbox_update_highlight_box(self);
-                    sui_label_text_set(state, &typed_data->content_label, str);
-                    bfree(str, len + 1, MEMORY_TAG_STRING);
-                    sui_textbox_update_cursor_position(self);
                 }
-                else if (typed_data->cursor_position <= len)
+                else
                 {
-                    char* str = string_duplicate(entry_control_text);
-                    if (typed_data->highlight_range.size > 0)
-                    {
-                        string_remove_at(str, entry_control_text, typed_data->highlight_range.offset, typed_data->highlight_range.size);
-                        typed_data->cursor_position = typed_data->highlight_range.offset;
-                        // Clear highlight range
-                        typed_data->highlight_range.offset = 0;
-                        typed_data->highlight_range.size = 0;
-                        sui_textbox_update_highlight_box(self);
-                    }
-                    else
-                    {
-                        string_remove_at(str, entry_control_text, typed_data->cursor_position, 1);
-                    }
-                    sui_label_text_set(state, &typed_data->content_label, str);
-                    bfree(str, len + 1, MEMORY_TAG_STRING);
-                    sui_textbox_update_cursor_position(self);
+                    string_remove_at(str, entry_control_text, typed_data->cursor_position, 1);
                 }
+                sui_label_text_set(state, &typed_data->content_label, str);
+                bfree(str, len + 1, MEMORY_TAG_STRING);
+                sui_textbox_update_cursor_position(self);
             }
         }
         else if (key_code == KEY_LEFT)

@@ -6,6 +6,7 @@
 #include <core/event.h>
 #include <core/frame_data.h>
 #include <core/input.h>
+#include <core/bvar.h>
 #include <core/metrics.h>
 #include <defines.h>
 #include <identifiers/bhandle.h>
@@ -631,6 +632,40 @@ b8 application_initialize(struct application* game_inst)
     }
 
     // Create test ui text objects
+    // black background text
+    if (!sui_label_control_create(sui_state, "testbed_mono_test_text_black", FONT_TYPE_BITMAP, "Open Sans 21px", 21, "test text 123,\n\tyo!", &state->test_text_black))
+    {
+        BERROR("Failed to load basic ui bitmap text");
+        return false;
+    }
+    else
+    {
+        sui_label_color_set(sui_state, &state->test_text_black, (vec4){0, 0, 0, 1});
+        if (!sui_label_control_load(sui_state, &state->test_text_black))
+        {
+            BERROR("Failed to load test text");
+        }
+        else
+        {
+            if (!standard_ui_system_register_control(sui_state, &state->test_text_black))
+            {
+                BERROR("Unable to register control");
+            }
+            else
+            {
+                if (!standard_ui_system_control_add_child(sui_state, 0, &state->test_text_black))
+                {
+                    BERROR("Failed to parent test text");
+                }
+                else
+                {
+                    state->test_text_black.is_active = true;
+                    if (!standard_ui_system_update_active(sui_state, &state->test_text_black))
+                        BERROR("Unable to update active state");
+                }
+            }
+        }
+    }
     if (!sui_label_control_create(sui_state, "testbed_mono_test_text", FONT_TYPE_BITMAP, "Open Sans 21px", 21, "Some test text 123,\n\thello!", &state->test_text))
     {
         BERROR("Failed to load basic ui bitmap text");
@@ -665,6 +700,7 @@ b8 application_initialize(struct application* game_inst)
     }
     // Move debug text to new bottom of screen
     sui_control_position_set(sui_state, &state->test_text, vec3_create(20, state->height - 75, 0));
+    sui_control_position_set(sui_state, &state->test_text, vec3_create(21, state->height - 74, 0));
 
     // Standard ui
     if (!sui_panel_control_create(sui_state, "test_panel", (vec2){300.0f, 300.0f}, (vec4){0.0f, 0.0f, 0.0f, 0.5f}, &state->test_panel))
@@ -965,6 +1001,7 @@ VSync: %s Drawn: %-5u (%-5u shadow pass) Hovered: %s%u",
 
         // Update text control
         sui_label_text_set(state->sui_state, &state->test_text, text_buffer);
+        sui_label_text_set(state->sui_state, &state->test_text_black, text_buffer);
         string_free(text_buffer);
     }
 
@@ -1451,6 +1488,7 @@ void application_on_window_resize(struct application* game_inst, const struct bw
     // Move debug text to new bottom of screen
     // FIXME: This should be handled by the standard ui system resize event handler (that doesn't exist yet)
     sui_control_position_set(state->sui_state, &state->test_text, vec3_create(20, state->height - 95, 0));
+    sui_control_position_set(state->sui_state, &state->test_text_black, vec3_create(21, state->height - 94, 0));
     // TODO: end temp
 }
 
@@ -1501,10 +1539,17 @@ static void toggle_vsync(void)
     renderer_flag_enabled_set(RENDERER_CONFIG_FLAG_VSYNC_ENABLED_BIT, vsync_enabled);
 }
 
-static b8 game_on_bvar_changed(u16 code, void* sender, void* listener_inst, event_context data)
+static b8 game_on_bvar_changed(u16 code, void* sender, void* listener_inst, event_context context)
 {
-    if (code == EVENT_CODE_BVAR_CHANGED && strings_equali(data.data.s, "vsync"))
-        toggle_vsync();
+    if (code == EVENT_CODE_BVAR_CHANGED)
+    {
+        bvar_change* change = context.data.custom_data.data;
+        if (strings_equali("vsync", change->name))
+        {
+            toggle_vsync();
+            return true;
+        }
+    }
     return false;
 }
 

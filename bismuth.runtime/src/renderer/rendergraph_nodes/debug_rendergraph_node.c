@@ -93,7 +93,7 @@ b8 debug_rendergraph_node_create(struct rendergraph* graph, struct rendergraph_n
 
     if (depthbuffer_sink_config)
     {
-        // Setup the colourbuffer sink
+        // Setup the colorbuffer sink
         rendergraph_sink* depthbuffer_sink = &self->sinks[1];
         depthbuffer_sink->name = string_duplicate("depthbuffer");
         depthbuffer_sink->type = RENDERGRAPH_RESOURCE_TYPE_TEXTURE;

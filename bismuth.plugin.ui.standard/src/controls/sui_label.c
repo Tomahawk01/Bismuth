@@ -221,7 +221,7 @@ void sui_label_text_set(standard_ui_state* state, struct sui_control* self, cons
         typed_data->text = string_duplicate(text);
 
         // NOTE: Only bother with verification and setting the dirty flag for non-empty strings
-        typed_data->is_dirty = string_length(typed_data->text) > 0;
+        typed_data->is_dirty = true; // string_length(typed_data->text) > 0;
     }
 }
 
@@ -234,6 +234,15 @@ const char* sui_label_text_get(standard_ui_state* state, struct sui_control* sel
     }
 
     return 0;
+}
+
+void sui_label_color_set(standard_ui_state* state, struct sui_control* self, vec4 color)
+{
+    if (self && self->internal_data)
+    {
+        sui_label_internal_data* typed_data = self->internal_data;
+        typed_data->color = color;
+    }
 }
 
 static font_glyph* glyph_from_codepoint(font_data* font, i32 codepoint)
@@ -271,6 +280,10 @@ static b8 regenerate_label_geometry(const sui_control* self, sui_label_pending_d
     // Iterate the string once and count how many quads are required.
     // This allows characters which don't require rendering (spaces, tabs, etc.) to be skipped
     pending_data->quad_count = 0;
+
+    // If text is empty, resetting quad count is enough
+    if (text_length_utf8 < 1)
+        return true;
     i32* codepoints = ballocate(sizeof(i32) * text_length_utf8, MEMORY_TAG_ARRAY);
     for (u32 c = 0, cp_idx = 0; c < char_length;)
     {

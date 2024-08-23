@@ -34,3 +34,4 @@ BAPI b8 sui_label_control_render(standard_ui_state* state, struct sui_control* s
 BAPI void sui_label_text_set(standard_ui_state* state, struct sui_control* self, const char* text);
 
 BAPI const char* sui_label_text_get(standard_ui_state* state, struct sui_control* self);
+BAPI void sui_label_color_set(standard_ui_state* state, struct sui_control* self, vec4 color);

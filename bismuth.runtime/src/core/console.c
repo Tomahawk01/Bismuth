@@ -1133,6 +1133,8 @@ console_expression_parse_cleanup2:
 
 static b8 console_expression_parse(const char* expression, console_object_type* out_type, void* out_value)
 {
+    // TODO: Disabling this for now. Rework it
+    /*
     b8 result = true;
     char* expression_copy = string_duplicate(expression);
     char* expression_copy_original = expression_copy;
@@ -1207,6 +1209,8 @@ console_expression_parse_cleanup:
     string_free(expression_copy_original);
 
     return result;
+    */
+    return false;
 }
 
 b8 console_command_execute(const char* command)

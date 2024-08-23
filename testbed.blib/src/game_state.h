@@ -8,8 +8,6 @@
 
 #include "audio/audio_types.h"
 #include "editor/editor_gizmo.h"
-#include "graphs/editor_rendergraph.h"
-#include "graphs/standard_ui_rendergraph.h"
 #include "identifiers/bhandle.h"
 #include "renderer/viewport.h"
 #include "resources/scene.h"
@@ -61,6 +59,7 @@ typedef struct testbed_game_state
 
     mesh ui_meshes[10];
     sui_control test_text;
+    sui_control test_text_black;
     sui_control test_sys_text;
 
     debug_console_state debug_console;

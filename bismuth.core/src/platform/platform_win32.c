@@ -4,8 +4,6 @@
 #if _WIN32 //BPLATFORM_WINDOWS
 
 #include "containers/darray.h"
-// #include "core/event.h"
-// #include "core/input.h"
 #include "logger.h"
 #include "memory/bmemory.h"
 #include "strings/bstring.h"
@@ -34,6 +32,7 @@ typedef struct win32_file_watch
 typedef struct bwindow_platform_state
 {
     HWND hwnd;
+    f32 device_pixel_ratio;
 } bwindow_platform_state;
 
 typedef struct platform_state
@@ -43,7 +42,6 @@ typedef struct platform_state
     CONSOLE_SCREEN_BUFFER_INFO err_output_csbi;
     // darray
     win32_file_watch* watches;
-    f32 device_pixel_ratio;
 
     // darray of pointers to created windows (owned by the application)
     bwindow** windows;
@@ -103,7 +101,6 @@ b8 platform_system_startup(u64 *memory_requirement, platform_state* state, platf
     state->process_mouse_wheel = 0;
 
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
-    state_ptr->device_pixel_ratio = 1.0f;
 
     // Setup and register window class. This can be done at platform init and be reused
     HICON icon = LoadIconW(state_ptr->handle.h_instance, IDI_APPLICATION);
@@ -214,16 +211,19 @@ b8 platform_window_create(const bwindow_config* config, struct bwindow* window, 
 
     window->width = client_width;
     window->height = client_height;
+    window->device_pixel_ratio = 1.0f;
 
     window->platform_state = ballocate(sizeof(bwindow_platform_state), MEMORY_TAG_UNKNOWN);
 
     // Convert to wide character string first.
-    LPCWSTR wtitle = cstr_to_wcstr(window->title);
+    // LPCWSTR wtitle = cstr_to_wcstr(window->title);
+    WCHAR wtitle[256];
+    MultiByteToWideChar(CP_UTF8, 0, window->title, -1, wtitle, 256);
     window->platform_state->hwnd = CreateWindowExW(
         window_ex_style, L"bismuth_window_class", wtitle,
         window_style, window_x, window_y, window_width, window_height,
         0, 0, state_ptr->handle.h_instance, 0);
-    wcstr_free(wtitle);
+    // wcstr_free(wtitle);
     
     if (window->platform_state->hwnd == 0)
     {
@@ -428,9 +428,9 @@ void platform_get_handle_info(u64* out_size, void* memory)
     bcopy_memory(memory, &state_ptr->handle, *out_size);
 }
 
-f32 platform_device_pixel_ratio(void)
+f32 platform_device_pixel_ratio(const struct bwindow* window)
 {
-    return state_ptr->device_pixel_ratio;
+    return window->platform_state->device_pixel_ratio;
 }
 
 // NOTE: Begin threads
@@ -921,9 +921,6 @@ static void platform_update_watches(void)
                     state_ptr->watcher_deleted_callback(f->id);
                 else
                     BWARN("Watcher file was deleted but no handler callback was set. Make sure to call platform_register_watcher_deleted_callback()");
-                // event_context context = {0};
-                // context.data.u32[0] = f->id;
-                // event_fire(EVENT_CODE_WATCHED_FILE_DELETED, 0, context);
                 BINFO("Filewatch id %d has been removed", f->id);
                 unregister_watch(f->id);
                 continue;
@@ -937,9 +934,6 @@ static void platform_update_watches(void)
             {
                 f->last_write_time = data.ftLastWriteTime;
                 // Notify listeners
-                // event_context context = {0};
-                // context.data.u32[0] = f->id;
-                // event_fire(EVENT_CODE_WATCHED_FILE_WRITTEN, 0, context);
                 if (state_ptr->watcher_written_callback)
                     state_ptr->watcher_written_callback(f->id);
                 else
@@ -988,10 +982,11 @@ LRESULT CALLBACK win32_process_message(HWND hwnd, u32 msg, WPARAM w_param, LPARA
         case WM_DPICHANGED:
             // x- and y- axis DPI are always the same, so just grab one
             i32 x_dpi = GET_X_LPARAM(w_param);
+            bwindow* w = window_from_handle(hwnd);
 
             // Store device pixel ratio
-            state_ptr->device_pixel_ratio = (f32)x_dpi / USER_DEFAULT_SCREEN_DPI;
-            BINFO("Display device pixel ratio is: %.2f", state_ptr->device_pixel_ratio);
+            w->platform_state->device_pixel_ratio = (f32)x_dpi / USER_DEFAULT_SCREEN_DPI;
+            BINFO("Display device pixel ratio is: %.2f", w->platform_state->device_pixel_ratio);
 
             return 0;
         case WM_SIZE:

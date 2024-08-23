@@ -62,6 +62,13 @@ typedef struct bwindow
 
     u16 width;
     u16 height;
+
+    /**
+     * @brief Represents the pixel density of this window. Should only ever be
+     * read from, as the platform layer is responsible for determining this
+     */
+    f32 device_pixel_ratio;
+
     b8 resizing;
     u16 frames_since_resize;
 
@@ -110,7 +117,7 @@ BAPI i32 platform_get_processor_count(void);
 
 BAPI void platform_get_handle_info(u64* out_size, void* memory);
 
-BAPI f32 platform_device_pixel_ratio(void);
+BAPI f32 platform_device_pixel_ratio(const struct bwindow* window);
 
 BAPI b8 platform_dynamic_library_load(const char* name, dynamic_library* out_library);
 BAPI b8 platform_dynamic_library_unload(dynamic_library* library);

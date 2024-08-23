@@ -2131,7 +2131,7 @@ static b8 shader_create_modules_and_pipelines(renderer_backend_interface* backen
             pipeline_config.color_attachment_formats = 0;
         }
 
-        if ((s->flags & SHADER_FLAG_DEPTH_TEST) || (s->flags & SHADER_FLAG_DEPTH_WRITE))
+        if ((s->flags & SHADER_FLAG_DEPTH_TEST) || (s->flags & SHADER_FLAG_DEPTH_WRITE) || (s->flags & SHADER_FLAG_STENCIL_TEST) || (s->flags & SHADER_FLAG_STENCIL_WRITE))
         {
             pipeline_config.depth_attachment_format = context->device.depth_format;
             pipeline_config.stencil_attachment_format = context->device.depth_format;
