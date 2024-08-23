@@ -177,6 +177,22 @@ typedef struct vulkan_command_buffer
 
     // Command buffer state
     vulkan_command_buffer_state state;
+
+    // Indicates if this is a primary or secondary command buffer
+    b8 is_primary;
+
+    // The number of secondary buffers that are children to this one. Primary buffer use only
+    u16 secondary_count;
+    // An array of secondary buffers that are children to this one. Primary buffer use only
+    struct vulkan_command_buffer* secondary_buffers;
+
+    // The currently selected secondary buffer index
+    u16 secondary_buffer_index;
+    // Indicates if the command buffer selected secondary buffer index
+    b8 in_render;
+
+    // A pointer to the parent (primary) command buffer, if there is one. Only applies to secondary buffers
+    struct vulkan_command_buffer* parent;
 } vulkan_command_buffer;
 
 typedef struct vulkan_shader_stage

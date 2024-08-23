@@ -62,7 +62,7 @@ BAPI void renderer_set_depth_write_enabled(b8 enabled);
 
 BAPI void renderer_set_stencil_op(renderer_stencil_op fail_op, renderer_stencil_op pass_op, renderer_stencil_op depth_fail_op, renderer_compare_op compare_op);
 
-BAPI void renderer_begin_rendering(struct renderer_system_state* state, struct frame_data* p_frame_data, u32 color_target_count, b_handle* color_targets, b_handle depth_stencil_target, u32 depth_stencil_layer);
+BAPI void renderer_begin_rendering(struct renderer_system_state* state, struct frame_data* p_frame_data, rect_2d render_area, u32 color_target_count, b_handle* color_targets, b_handle depth_stencil_target, u32 depth_stencil_layer);
 BAPI void renderer_end_rendering(struct renderer_system_state* state, struct frame_data* p_frame_data);
 
 BAPI void renderer_set_stencil_compare_mask(u32 compare_mask);

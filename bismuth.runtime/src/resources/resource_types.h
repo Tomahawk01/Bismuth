@@ -482,7 +482,8 @@ typedef enum scene_node_attachment_type
     SCENE_NODE_ATTACHMENT_TYPE_TERRAIN,
     SCENE_NODE_ATTACHMENT_TYPE_SKYBOX,
     SCENE_NODE_ATTACHMENT_TYPE_DIRECTIONAL_LIGHT,
-    SCENE_NODE_ATTACHMENT_TYPE_POINT_LIGHT
+    SCENE_NODE_ATTACHMENT_TYPE_POINT_LIGHT,
+    SCENE_NODE_ATTACHMENT_TYPE_WATER_PLANE
 } scene_node_attachment_type;
 
 // Static mesh attachment
@@ -522,6 +523,12 @@ typedef struct scene_node_attachment_point_light
     f32 linear;
     f32 quadratic;
 } scene_node_attachment_point_light;
+
+// Skybox attachment
+typedef struct scene_node_attachment_water_plane
+{
+    u32 reserved;
+} scene_node_attachment_water_plane;
 
 typedef struct scene_node_attachment_config
 {

@@ -253,9 +253,6 @@ b8 shadow_rendergraph_node_execute(struct rendergraph_node* self, struct frame_d
 
     shadow_rendergraph_node_internal_data* internal_data = self->internal_data;
 
-    // Bind the internal viewport
-    renderer_active_viewport_set(&internal_data->camera_viewport);
-
     // Clear the image first
     renderer_clear_depth_stencil(engine_systems_get()->renderer_system, internal_data->depth_texture.renderer_texture_handle);
 
@@ -266,7 +263,11 @@ b8 shadow_rendergraph_node_execute(struct rendergraph_node* self, struct frame_d
         renderer_begin_debug_label(label_text, (vec3){1.0f - (p * 0.2f), 0.0f, 0.0f});
         string_free(label_text);
 
-        renderer_begin_rendering(internal_data->renderer, p_frame_data, 0, 0, internal_data->depth_texture.renderer_texture_handle, p);
+        rect_2d render_area = (rect_2d){0, 0, internal_data->config.resolution, internal_data->config.resolution};
+        renderer_begin_rendering(internal_data->renderer, p_frame_data, render_area, 0, 0, internal_data->depth_texture.renderer_texture_handle, p);
+
+        // Bind the internal viewport - do not use one provided in pass data
+        renderer_active_viewport_set(&internal_data->camera_viewport);
 
         // Use the standard shadowmap shader
         shader_system_use_by_id(internal_data->s->id);

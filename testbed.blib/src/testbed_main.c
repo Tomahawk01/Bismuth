@@ -46,6 +46,7 @@
 #include "editor/editor_gizmo_rendergraph_node.h"
 #include <resources/debug/debug_box3d.h>
 #include <resources/debug/debug_line3d.h>
+#include <resources/water_plane.h>
 
 // TODO: temp
 #include <identifiers/identifier.h>
@@ -73,7 +74,6 @@
 #include "renderer/rendergraph_nodes/debug_rendergraph_node.h"
 #include "renderer/rendergraph_nodes/forward_rendergraph_node.h"
 #include "renderer/rendergraph_nodes/shadow_rendergraph_node.h"
-#include "renderer/rendergraph_nodes/skybox_rendergraph_node.h"
 #include "rendergraph_nodes/ui_rendergraph_node.h"
 #include "systems/plugin_system.h"
 #include "systems/timeline_system.h"
@@ -1098,15 +1098,22 @@ b8 application_prepare_frame(struct application* app_inst, struct frame_data* p_
             // Ensure internal lists, etc. are reset
             forward_rendergraph_node_reset(node);
             forward_rendergraph_node_viewport_set(node, state->world_viewport);
-            forward_rendergraph_node_view_projection_set(
+            forward_rendergraph_node_camera_projection_set(
                 node,
-                camera_view_get(current_camera),
-                camera_position_get(current_camera),
+                current_camera,
                 current_viewport->projection);
 
             // Tell our scene to generate relevant render data if it is loaded
             if (scene->state == SCENE_STATE_LOADED)
             {
+                // Only render if the scene is loaded
+                // SKYBOX
+                // HACK: Just use the first one for now
+                // TODO: Support for multiple skyboxes, possibly transition between them
+                u32 skybox_count = darray_length(scene->skyboxes);
+                forward_rendergraph_node_set_skybox(node, skybox_count ? &scene->skyboxes[0] : 0);
+
+                // SCENE
                 scene_render_frame_prepare(scene, p_frame_data);
 
                 // Pass over shadow map "camera" view and projection matrices (one per cascade)
@@ -1177,14 +1184,31 @@ b8 application_prepare_frame(struct application* app_inst, struct frame_data* p_
                 p_frame_data->drawn_mesh_count += terrain_geometry_count;
                 // Tell the node about them
                 forward_rendergraph_node_terrain_geometries_set(node, p_frame_data, terrain_geometry_count, terrain_geometries);
+
+                // Get the count of planes, then the planes themselves
+                u32 water_plane_count = 0;
+                if (!scene_water_plane_query(scene, &camera_frustum, current_camera->position, p_frame_data, &water_plane_count, 0))
+                    BERROR("Failed to query scene for water planes");
+                water_plane** planes = darray_reserve_with_allocator(water_plane*, water_plane_count, &p_frame_data->allocator);
+                if (!scene_water_plane_query(scene, &camera_frustum, current_camera->position, p_frame_data, &water_plane_count, &planes))
+                    BERROR("Failed to query scene for water planes");
+
+                // Pass the planes to the node
+                if (!forward_rendergraph_node_water_planes_set(node, p_frame_data, water_plane_count, planes))
+                {
+                    // NOTE: Not going to abort the whole graph for this failure, but will bleat about it
+                    BERROR("Failed to set water planes for water_plane rendergraph node");
+                }
             }
             else
             {
                 // Scene not loaded
+                forward_rendergraph_node_set_skybox(node, 0);
 
                 // Do not run these passes if the scene is not loaded
                 // graph->scene_pass.pass_data.do_execute = false;
                 // graph->shadowmap_pass.pass_data.do_execute = false;
+                forward_rendergraph_node_water_planes_set(node, p_frame_data, 0, 0);
             }
         }
         else if (strings_equali(node->name, "shadow"))
@@ -1329,24 +1353,6 @@ b8 application_prepare_frame(struct application* app_inst, struct frame_data* p_
                 shadow_rendergraph_node_terrain_geometries_set(node, p_frame_data, terrain_geometry_count, terrain_geometries);
             }
         }
-        else if (strings_equali(node->name, "skybox"))
-        {
-            skybox_rendergraph_node_set_viewport_and_matrices(node, state->world_viewport, state->world_camera->view_matrix, state->world_viewport.projection);
-
-            // Only render if the scene is loaded
-            if (scene->state == SCENE_STATE_LOADED && scene->skyboxes)
-            {
-                // HACK: Just use the first one for now
-                // TODO: Support for multiple skyboxes, possibly transition between them
-                u32 skybox_count = darray_length(scene->skyboxes);
-                skybox_rendergraph_node_set_skybox(node, skybox_count ? &scene->skyboxes[0] : 0);
-            }
-            else
-            {
-                // Otherwise set to null
-                skybox_rendergraph_node_set_skybox(node, 0);
-            }
-        }
         else if (strings_equali(node->name, "debug"))
         {
             debug_rendergraph_node_viewport_set(node, state->world_viewport);
@@ -1362,15 +1368,20 @@ b8 application_prepare_frame(struct application* app_inst, struct frame_data* p_
                 BERROR("Failed to obtain count of debug render objects");
                 return false;
             }
-            geometry_render_data* debug_geometries = darray_reserve_with_allocator(geometry_render_data, debug_geometry_count, &p_frame_data->allocator);
-
-            if (!scene_debug_render_data_query(scene, &debug_geometry_count, &debug_geometries))
+            geometry_render_data* debug_geometries = 0;
+            if (debug_geometry_count)
             {
-                BERROR("Failed to obtain debug render objects");
-                return false;
+                debug_geometries = darray_reserve_with_allocator(geometry_render_data, debug_geometry_count, &p_frame_data->allocator);
+
+                if (!scene_debug_render_data_query(scene, &debug_geometry_count, &debug_geometries))
+                {
+                    BERROR("Failed to obtain debug render objects");
+                    return false;
+                }
+
+                // Make sure the count is correct before pushing
+                darray_length_set(debug_geometries, debug_geometry_count);
             }
-            // Make sure the count is correct before pushing
-            darray_length_set(debug_geometries, debug_geometry_count);
 
             // TODO: Move this to the scene
             // HACK: Inject raycast debug geometries into scene pass data

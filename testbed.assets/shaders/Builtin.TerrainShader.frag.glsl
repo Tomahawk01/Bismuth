@@ -33,15 +33,15 @@ const int TERRAIN_PER_MATERIAL_SAMP_COUNT = 3;
 layout(set = 0, binding = 0) uniform global_uniform_object
 {
     mat4 projection;
-	mat4 view;
+	mat4 views[2];
     mat4 light_space[MAX_SHADOW_CASCADES];
-	vec4 ambient_color;
+	vec4 cascade_splits;
     directional_light dir_light;
-	vec3 view_position;
+	vec4 view_positions[2];
 	int mode;
     int use_pcf;
     float bias;
-    vec2 padding;
+    float padding;
 } global_ubo;
 
 struct material_phong_properties
@@ -67,6 +67,14 @@ layout(set = 1, binding = 0) uniform instance_uniform_object
     int num_p_lights;
 } instance_ubo;
 
+layout(push_constant) uniform push_constants
+{
+	// Only guaranteed a total of 128 bytes
+	mat4 model; // 64 bytes
+	vec4 clipping_plane; // 16 bytes
+	int view_index;
+} u_push_constants;
+
 // Material texture indices
 const int SAMP_ALBEDO_OFFSET = 0;
 const int SAMP_NORMAL_OFFSET = 1;
@@ -83,6 +91,7 @@ layout(set = 1, binding = 3) uniform samplerCube irradiance_texture;
 
 layout(location = 0) flat in int in_mode;
 layout(location = 1) flat in int use_pcf;
+
 // Data Transfer Object
 layout(location = 2) in struct dto
 {
@@ -90,13 +99,13 @@ layout(location = 2) in struct dto
     vec4 cascade_splits;
 	vec2 tex_coord;
 	vec3 normal;
-	vec3 view_position;
+	vec4 view_position;
 	vec3 frag_position;
     vec4 color;
 	vec3 tangent;
     vec4 mat_weights;
     float bias;
-    vec3 padding;
+    float padding;
 } in_dto;
 
 mat3 TBN;
@@ -234,7 +243,7 @@ void main()
     
     // Generate shadow value based on current fragment position vs shadow map
     // Light and normal are also taken in the case that a bias is to be used
-    vec4 frag_position_view_space = global_ubo.view * vec4(in_dto.frag_position, 1.0f);
+    vec4 frag_position_view_space = global_ubo.views[u_push_constants.view_index] * vec4(in_dto.frag_position, 1.0f);
     float depth = abs(frag_position_view_space).z;
     // Get the cascade index from the current fragment's position
     int cascade_index = -1;
@@ -259,7 +268,7 @@ void main()
     // The end of the fade-out range
     float fade_end = fade_start + fade_distance;
 
-    float zclamp = clamp(length(in_dto.view_position - in_dto.frag_position), fade_start, fade_end);
+    float zclamp = clamp(length(in_dto.view_position.xyz - in_dto.frag_position), fade_start, fade_end);
     float fade_factor = (fade_end - zclamp) / (fade_end - fade_start + 0.00001); // Avoid divide by 0
 
     shadow = clamp(shadow + (1.0 - fade_factor), 0.0, 1.0);
@@ -270,7 +279,7 @@ void main()
 
     if(in_mode == 0 || in_mode == 1 || in_mode == 3)
     {
-        vec3 view_direction = normalize(in_dto.view_position - in_dto.frag_position);
+        vec3 view_direction = normalize(in_dto.view_position.xyz - in_dto.frag_position);
 
         albedo.xyz += (vec3(1.0) * in_mode);         
         albedo.xyz = clamp(albedo.xyz, vec3(0.0), vec3(1.0));

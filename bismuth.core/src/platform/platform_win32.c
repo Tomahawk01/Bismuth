@@ -10,12 +10,14 @@
 #include "threads/bmutex.h"
 #include "threads/bsemaphore.h"
 #include "threads/bthread.h"
+#include "time/bclock.h"
 #include <input_types.h>
 
 #define WIN32_LEAN_AND_MEAN
 #include <stdlib.h>
 #include <windows.h>
 #include <windowsx.h> // param input extraction
+#include <timeapi.h>
 
 typedef struct win32_handle_info
 {
@@ -59,6 +61,7 @@ static platform_state* state_ptr;
 
 // Clock
 static f64 clock_frequency;
+static UINT min_period;
 static LARGE_INTEGER start_time;
 
 static void platform_update_watches(void);
@@ -73,6 +76,10 @@ void clock_setup(void)
     QueryPerformanceFrequency(&frequency);
     clock_frequency = 1.0 / (f64)frequency.QuadPart;
     QueryPerformanceCounter(&start_time);
+
+    TIMECAPS tc;
+    timeGetDevCaps(&tc, sizeof(tc));
+    min_period = tc.wPeriodMin;
 }
 
 b8 platform_system_startup(u64 *memory_requirement, platform_state* state, platform_system_config* config)
@@ -218,7 +225,10 @@ b8 platform_window_create(const bwindow_config* config, struct bwindow* window, 
     // Convert to wide character string first.
     // LPCWSTR wtitle = cstr_to_wcstr(window->title);
     WCHAR wtitle[256];
-    MultiByteToWideChar(CP_UTF8, 0, window->title, -1, wtitle, 256);
+    int len = MultiByteToWideChar(CP_UTF8, 0, window->title, -1, wtitle, 256);
+    if(!len)
+    {
+    }
     window->platform_state->hwnd = CreateWindowExW(
         window_ex_style, L"bismuth_window_class", wtitle,
         window_style, window_x, window_y, window_width, window_height,
@@ -408,7 +418,23 @@ f64 platform_get_absolute_time(void)
 
 void platform_sleep(u64 ms)
 {
-    Sleep(ms);
+    bclock clock;
+    bclock_start(&clock);
+    timeBeginPeriod(min_period);
+    Sleep(ms - min_period);
+    timeEndPeriod(min_period);
+
+    bclock_update(&clock);
+    f64 observed = clock.elapsed * 1000.0;
+    f64 ms_remaining = (f64) ms - observed;
+
+    // spin lock
+    bclock_start(&clock);
+    while(clock.elapsed * 1000.0 < ms_remaining)
+    {
+        _mm_pause();
+        bclock_update(&clock);
+    }
 }
 
 i32 platform_get_processor_count(void)
@@ -1156,13 +1182,13 @@ static LPCWSTR cstr_to_wcstr(const char* str)
     if (len == 0)
         return 0;
 
-    wchar_t* wstr = ballocate(sizeof(wchar_t) * (len), MEMORY_TAG_STRING);
+    LPWSTR wstr = ballocate(sizeof(WCHAR) * len, MEMORY_TAG_STRING);
     if (!wstr)
         return 0;
 
     if (MultiByteToWideChar(CP_UTF8, 0, str, -1, wstr, len) == 0)
     {
-        bfree((wchar_t*)wstr, sizeof(wchar_t) * (len), MEMORY_TAG_STRING);
+        bfree(wstr, sizeof(WCHAR) * len, MEMORY_TAG_STRING);
         return 0;
     }
     return wstr;
@@ -1172,8 +1198,8 @@ static void wcstr_free(LPCWSTR wstr)
 {
     if (wstr)
     {
-        u32 len = lstrlen(wstr);
-        bfree((WCHAR*)wstr, sizeof(WCHAR) * len, MEMORY_TAG_STRING);
+        u32 len = lstrlen(wstr); // Note that lstrlen doesn't account for the null terminator
+        bfree((WCHAR*)wstr, sizeof(WCHAR) * (len + 1), MEMORY_TAG_STRING);
     }
 }
 
@@ -1186,13 +1212,13 @@ static const char* wcstr_to_cstr(LPCWSTR wstr)
     if (length == 0)
         return 0;
 
-    char* str = ballocate(sizeof(WCHAR) * length, MEMORY_TAG_STRING);
+    char* str = ballocate(sizeof(char) * length, MEMORY_TAG_STRING);
     if (!str)
         return 0;
 
     if (WideCharToMultiByte(CP_UTF8, 0, wstr, -1, str, length, NULL, NULL) == 0)
     {
-        bfree((char*)str, sizeof(char) * (length + 1), MEMORY_TAG_STRING);
+        bfree((char*)str, sizeof(char) * length, MEMORY_TAG_STRING);
         return 0;
     }
 

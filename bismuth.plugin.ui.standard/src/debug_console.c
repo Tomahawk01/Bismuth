@@ -71,7 +71,7 @@ void debug_console_create(standard_ui_state* sui_state, debug_console_state* out
         console_consumer_register(out_console_state, debug_console_consumer_write, &out_console_state->console_consumer_id);
 
         // Register for key events
-        event_register(EVENT_CODE_RESIZED, out_console_state, debug_console_on_resize);
+        event_register(EVENT_CODE_WINDOW_RESIZED, out_console_state, debug_console_on_resize);
     }
 }
 
@@ -281,7 +281,7 @@ void debug_console_on_lib_load(debug_console_state* state, b8 update_consumer)
     if (update_consumer)
     {
         state->entry_textbox.on_key = debug_console_entry_box_on_key;
-        event_register(EVENT_CODE_RESIZED, state, debug_console_on_resize);
+        event_register(EVENT_CODE_WINDOW_RESIZED, state, debug_console_on_resize);
         console_consumer_update(state->console_consumer_id, state, debug_console_consumer_write);
     }
 }
@@ -289,7 +289,7 @@ void debug_console_on_lib_load(debug_console_state* state, b8 update_consumer)
 void debug_console_on_lib_unload(debug_console_state* state)
 {
     state->entry_textbox.on_key = 0;
-    event_unregister(EVENT_CODE_RESIZED, state, debug_console_on_resize);
+    event_unregister(EVENT_CODE_WINDOW_RESIZED, state, debug_console_on_resize);
     console_consumer_update(state->console_consumer_id, 0, 0);
 }
 

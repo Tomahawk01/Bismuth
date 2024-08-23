@@ -13,7 +13,7 @@ typedef struct camera
 } camera;
 
 BAPI camera camera_create(void);
-
+BAPI camera camera_copy(camera source);
 BAPI void camera_reset(camera* c);
 
 BAPI vec3 camera_position_get(const camera* c);
@@ -21,6 +21,7 @@ BAPI void camera_position_set(camera* c, vec3 position);
 
 BAPI vec3 camera_rotation_euler_get(const camera* c);
 BAPI void camera_rotation_euler_set(camera* c, vec3 rotation);
+BAPI void camera_rotation_euler_set_radians(camera* c, vec3 rotation_radians);
 
 BAPI mat4 camera_view_get(camera* c);
 

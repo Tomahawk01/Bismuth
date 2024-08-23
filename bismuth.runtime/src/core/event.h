@@ -102,7 +102,7 @@ typedef enum system_event_code
     EVENT_CODE_MOUSE_WHEEL = 0x08,
 
     // Resize/resolution changed from the OS
-    EVENT_CODE_RESIZED = 0x09,
+    EVENT_CODE_WINDOW_RESIZED = 0x09,
 
     // Change render mode for debugging purposes
     EVENT_CODE_SET_RENDER_MODE = 0x0A,
