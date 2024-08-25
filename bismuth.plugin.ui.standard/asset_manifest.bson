@@ -1,0 +1,64 @@
+package_name = "PluginUiStandard"
+references = [
+    {
+        name = "Runtime"
+        path = "../bismuth.runtime/"
+    }
+]
+assets = [
+    {
+        name = "UI"
+        type = "Shader"
+        path = "./assets/shaders/UI.shadercfg"
+    }
+    {
+        name = "UI_frag"
+        type = "Text"
+        path = "./assets/shaders/UI_frag.glsl"
+    }
+    {
+        name = "UI_vert"
+        type = "Text"
+        path = "./assets/shaders/UI_vert.glsl"
+    }
+    {
+        name = "Pick_UI"
+        type = "Shader"
+        path = "./assets/shaders/Pick_UI.shadercfg"
+    }
+    {
+        name = "Pick_UI_frag"
+        type = "Text"
+        path = "./assets/shaders/Pick_UI_frag.glsl"
+    }
+    {
+        name = "Pick_UI_vert"
+        type = "Text"
+        path = "./assets/shaders/Pick_UI_vert.glsl"
+    }
+    {
+        name = "StandardUIAtlas"
+        type = "Texture"
+        path = "./assets/textures/StandardUIAtlas.png"
+    }
+    {
+        name = "OpenSans21px"
+        type = "BitmapFont"
+        path = "./assets/fonts/OpenSans21px.fnt"
+    }
+        {
+        name = "OpenSans21px_0"
+        type = "Texture"
+        path = "./assets/textures/OpenSans21px_0.png"
+    }
+    {
+        name = "NotoSansCJK"
+        type = "SystemFont"
+        path = "./assets/fonts/NotoSansCJK.fontcfg"
+    }
+    {
+        name = "NotoSansCJK-Regular"
+        type = "Binary"
+        path = "./assets/textures/NotoSansCJK-Regular.ttc"
+    }
+]
