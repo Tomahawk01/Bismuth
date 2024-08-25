@@ -22,10 +22,10 @@ typedef struct asset_manifest
     // Path to .bpackage file. Null if loading from disk
     const char* path;
 
-    u32 asset_count;
+    // darray
     asset_manifest_asset* assets;
 
-    u32 reference_count;
+    // darray
     asset_manifest_reference* references;
 } asset_manifest;
 
@@ -43,3 +43,7 @@ BAPI b8 bpackage_create_from_binary(u64 size, void* bytes, bpackage* out_package
 BAPI void bpackage_destroy(bpackage* package);
 
 BAPI void* bpackage_asset_bytes_get(const bpackage* package, const char* type, const char* name, u64* out_size);
+BAPI const char* bpackage_asset_text_get(const bpackage* package, const char* type, const char* name, u64* out_size);
+
+BAPI b8 bpackage_parse_manifest_file_content(const char* path, asset_manifest* out_manifest);
+BAPI void bpackage_manifest_destroy(asset_manifest* manifest);

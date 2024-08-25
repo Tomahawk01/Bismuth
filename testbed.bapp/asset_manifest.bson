@@ -2,11 +2,11 @@ package_name = "Testbed"
 references = [
     {
         name = "Runtime"
-        path = "../bismuth.runtime/"
+        path = "../bismuth.runtime/asset_manifest.bson"
     }
     {
         name = "PluginStandardUi"
-        path = "../bismuth.plugin.ui.standard/"
+        path = "../bismuth.plugin.ui.standard/asset_manifest.bson"
     }
 ]
 assets = [
@@ -419,16 +419,6 @@ assets = [
         name = "lion_ddn"
         type = "Texture"
         path = "./assets/textures/lion_ddn.tga"
-    }
-    {
-        name = "orange_lines_512"
-        type = "Texture"
-        path = "./assets/textures/orange_lines_512.png"
-    }
-    {
-        name = "orange_lines_512"_SPEC
-        type = "Texture"
-        path = "./assets/textures/orange_lines_512_SPEC.png"
     }
     {
         name = "stone"
