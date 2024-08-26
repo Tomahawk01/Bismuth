@@ -88,7 +88,7 @@ static const char* basset_type_strs[BASSET_TYPE_MAX] = {
     "Music"             // BASSET_TYPE_MUSIC,
 };
 
-// Ensure changes to texture types break this if it isn't also updated
+// Ensure changes to asset types break this if it isn't also updated
 STATIC_ASSERT(BASSET_TYPE_MAX == (sizeof(basset_type_strs) / sizeof(*basset_type_strs)), "Asset type count does not match string lookup table count");
 
 basset_type basset_type_from_string(const char* type_str)

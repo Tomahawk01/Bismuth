@@ -63,6 +63,7 @@ typedef enum basset_type
     BASSET_TYPE_SKELETAL_MESH,
     BASSET_TYPE_AUDIO,
     BASSET_TYPE_MUSIC,
+    BASSET_TYPE_SHADER,
 
     BASSET_TYPE_MAX
 } basset_type;
@@ -88,8 +89,6 @@ typedef struct basset_metadata
     u64 size;
     // Asset name info
     basset_name name;
-    /** @brief The asset type */
-    basset_type asset_type;
     /** @brief The path of the originally imported file used to create this asset */
     const char* source_file_path;
     // TODO: Listing of asset-type-specific metadata
@@ -342,3 +341,99 @@ typedef struct basset_bson
     const char* source_text;
     bson_tree tree;
 } basset_bson;
+
+#define BASSET_TYPE_NAME_SCENE "Scene"
+
+typedef enum basset_scene_node_attachment_type
+{
+    BASSET_SCENE_NODE_ATTACHMENT_TYPE_SKYBOX,
+    BASSET_SCENE_NODE_ATTACHMENT_TYPE_DIRECTIONAL_LIGHT,
+    BASSET_SCENE_NODE_ATTACHMENT_TYPE_POINT_LIGHT,
+    BASSET_SCENE_NODE_ATTACHMENT_TYPE_STATIC_MESH,
+    BASSET_SCENE_NODE_ATTACHMENT_TYPE_HEIGHTMAP_TERRAIN,
+    BASSET_SCENE_NODE_ATTACHMENT_TYPE_WATER_PLANE,
+    BASSET_SCENE_NODE_ATTACHMENT_TYPE_COUNT
+} basset_scene_node_attachment_type;
+
+static const char* basset_scene_node_attachment_type_strings[BASSET_SCENE_NODE_ATTACHMENT_TYPE_COUNT] = {
+    "Skybox",           // BASSET_SCENE_NODE_ATTACHMENT_TYPE_SKYBOX,
+    "DirectionalLight", // BASSET_SCENE_NODE_ATTACHMENT_TYPE_DIRECTIONAL_LIGHT,
+    "PointLight",       // BASSET_SCENE_NODE_ATTACHMENT_TYPE_POINT_LIGHT,
+    "StaticMesh",       // BASSET_SCENE_NODE_ATTACHMENT_TYPE_STATIC_MESH,
+    "HeightmapTerrain", // BASSET_SCENE_NODE_ATTACHMENT_TYPE_STATIC_HEIGHTMAP_TERRAIN,
+    "WaterPlane"        // BASSET_SCENE_NODE_ATTACHMENT_TYPE_WATER_PLANE,
+};
+
+// Ensure changes to scene attachment types break this if it isn't also updated
+STATIC_ASSERT(BASSET_SCENE_NODE_ATTACHMENT_TYPE_COUNT == (sizeof(basset_scene_node_attachment_type_strings) / sizeof(*basset_scene_node_attachment_type_strings)), "Scene attachment type count does not match string lookup table count");
+
+//////////////////////
+
+typedef struct basset_scene_node_attachment
+{
+    basset_scene_node_attachment_type type;
+    const char* name;
+} basset_scene_node_attachment;
+
+typedef struct basset_scene_node_attachment_skybox
+{
+    basset_scene_node_attachment base;
+    const char* cubemap_image_asset_name;
+} basset_scene_node_attachment_skybox;
+
+typedef struct basset_scene_node_attachment_directional_light
+{
+    basset_scene_node_attachment base;
+    vec4 color;
+    vec4 direction;
+    f32 shadow_distance;
+    f32 shadow_fade_distance;
+    f32 shadow_split_mult;
+} basset_scene_node_attachment_directional_light;
+
+typedef struct basset_scene_node_attachment_point_light
+{
+    basset_scene_node_attachment base;
+    vec4 color;
+    vec4 position;
+    f32 constant_f;
+    f32 linear;
+    f32 quadratic;
+} basset_scene_node_attachment_point_light;
+
+typedef struct basset_scene_node_attachment_static_mesh
+{
+    basset_scene_node_attachment base;
+    const char* asset_name;
+} basset_scene_node_attachment_static_mesh;
+
+typedef struct basset_scene_node_attachment_heightmap_terrain
+{
+    basset_scene_node_attachment base;
+    const char* asset_name;
+} basset_scene_node_attachment_heightmap_terrain;
+
+typedef struct basset_scene_node_attachment_water_plane
+{
+    basset_scene_node_attachment base;
+    // TODO: expand configurable properties
+} basset_scene_node_attachment_water_plane;
+
+typedef struct basset_scene_node
+{
+    const char* name;
+    u32 attachment_count;
+    basset_scene_node_attachment* attachments;
+    u32 child_count;
+    struct basset_scene_node* children;
+    // String representation of xform, processed by the scene when needed
+    const char* xform_source;
+} basset_scene_node;
+
+typedef struct basset_scene
+{
+    basset base;
+    const char* description;
+    u32 node_count;
+    basset_scene_node* nodes;
+} basset_scene;

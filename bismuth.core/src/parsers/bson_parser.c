@@ -1132,7 +1132,7 @@ const char* bson_tree_to_string(bson_tree* tree)
     return out_string;
 }
 
-static void bson_tree_object_cleanup(bson_object* obj)
+void bson_object_cleanup(bson_object* obj)
 {
     if (obj && obj->properties)
     {
@@ -1144,11 +1144,11 @@ static void bson_tree_object_cleanup(bson_object* obj)
             {
                 case BSON_PROPERTY_TYPE_OBJECT:
                 {
-                    bson_tree_object_cleanup(&p->value.o);
+                    bson_object_cleanup(&p->value.o);
                 } break;
                 case BSON_PROPERTY_TYPE_ARRAY:
                 {
-                    bson_tree_object_cleanup(&p->value.o);
+                    bson_object_cleanup(&p->value.o);
                 } break;
                 case BSON_PROPERTY_TYPE_STRING:
                 {
@@ -1179,7 +1179,7 @@ static void bson_tree_object_cleanup(bson_object* obj)
 void bson_tree_cleanup(bson_tree* tree)
 {
     if (tree && tree->root.properties)
-        bson_tree_object_cleanup(&tree->root);
+        bson_object_cleanup(&tree->root);
 }
 
 static b8 bson_object_property_add(bson_object* obj, bson_property_type type, const char* name, bson_property_value value)
@@ -1287,6 +1287,58 @@ b8 bson_array_value_add_string(bson_array* array, const char* value)
     return bson_array_value_add_unnamed_property(array, BSON_PROPERTY_TYPE_STRING, pv);
 }
 
+b8 bson_array_value_add_mat4(bson_array* array, mat4 value)
+{
+    const char* temp_str = mat4_to_string(value);
+    if (!temp_str)
+    {
+        BWARN("bson_array_value_add_mat4 failed to convert tile_scale to string");
+        return false;
+    }
+    b8 result = bson_array_value_add_string(array, temp_str);
+    string_free(temp_str);
+    return result;
+}
+
+b8 bson_array_value_add_vec4(bson_array* array, vec4 value)
+{
+    const char* temp_str = vec4_to_string(value);
+    if (!temp_str)
+    {
+        BWARN("bson_array_value_add_vec4 failed to convert tile_scale to string");
+        return false;
+    }
+    b8 result = bson_array_value_add_string(array, temp_str);
+    string_free(temp_str);
+    return result;
+}
+
+b8 bson_array_value_add_vec3(bson_array* array, vec3 value)
+{
+    const char* temp_str = vec3_to_string(value);
+    if (!temp_str)
+    {
+        BWARN("bson_array_value_add_vec3 failed to convert tile_scale to string");
+        return false;
+    }
+    b8 result = bson_array_value_add_string(array, temp_str);
+    string_free(temp_str);
+    return result;
+}
+
+b8 bson_array_value_add_vec2(bson_array* array, vec2 value)
+{
+    const char* temp_str = vec2_to_string(value);
+    if (!temp_str)
+    {
+        BWARN("bson_array_value_add_vec2 failed to convert tile_scale to string");
+        return false;
+    }
+    b8 result = bson_array_value_add_string(array, temp_str);
+    string_free(temp_str);
+    return result;
+}
+
 b8 bson_array_value_add_object(bson_array* array, bson_object value)
 {
     bson_property_value pv = {0};
@@ -1365,6 +1417,58 @@ b8 bson_object_value_add_string(bson_object* object, const char* name, const cha
     pv.s = string_duplicate(value);
 
     return bson_object_property_add(object, BSON_PROPERTY_TYPE_STRING, name, pv);
+}
+
+b8 bson_object_value_add_mat4(bson_object* object, const char* name, mat4 value)
+{
+    const char* temp_str = mat4_to_string(value);
+    if (!temp_str)
+    {
+        BWARN("bson_object_value_add_mat4 failed to convert tile_scale to string");
+        return false;
+    }
+    b8 result = bson_object_value_add_string(object, name, temp_str);
+    string_free(temp_str);
+    return result;
+}
+
+b8 bson_object_value_add_vec4(bson_object* object, const char* name, vec4 value)
+{
+    const char* temp_str = vec4_to_string(value);
+    if (!temp_str)
+    {
+        BWARN("bson_object_value_add_vec4 failed to convert tile_scale to string");
+        return false;
+    }
+    b8 result = bson_object_value_add_string(object, name, temp_str);
+    string_free(temp_str);
+    return result;
+}
+
+b8 bson_object_value_add_vec3(bson_object* object, const char* name, vec3 value)
+{
+    const char* temp_str = vec3_to_string(value);
+    if (!temp_str)
+    {
+        BWARN("bson_object_value_add_vec3 failed to convert tile_scale to string");
+        return false;
+    }
+    b8 result = bson_object_value_add_string(object, name, temp_str);
+    string_free(temp_str);
+    return result;
+}
+
+b8 bson_object_value_add_vec2(bson_object* object, const char* name, vec2 value)
+{
+    const char* temp_str = vec2_to_string(value);
+    if (!temp_str)
+    {
+        BWARN("bson_object_value_add_vec2 failed to convert tile_scale to string");
+        return false;
+    }
+    b8 result = bson_object_value_add_string(object, name, temp_str);
+    string_free(temp_str);
+    return result;
 }
 
 b8 bson_object_value_add_object(bson_object* object, const char* name, bson_object value)
@@ -1472,7 +1576,7 @@ static b8 bson_array_index_in_range(const bson_array* array, u32 index)
 
 b8 bson_array_element_value_get_int(const bson_array* array, u32 index, i64* out_value)
 {
-    if (!bson_array_index_in_range(array, index))
+    if (!out_value || !bson_array_index_in_range(array, index))
         return false;
 
     BASSERT_MSG(array->properties[index].type != BSON_PROPERTY_TYPE_INT, "Array element is not an int");
@@ -1483,7 +1587,7 @@ b8 bson_array_element_value_get_int(const bson_array* array, u32 index, i64* out
 
 b8 bson_array_element_value_get_float(const bson_array* array, u32 index, f32* out_value)
 {
-    if (!bson_array_index_in_range(array, index))
+    if (!out_value || !bson_array_index_in_range(array, index))
         return false;
 
     BASSERT_MSG(array->properties[index].type != BSON_PROPERTY_TYPE_FLOAT, "Array element is not a float");
@@ -1494,7 +1598,7 @@ b8 bson_array_element_value_get_float(const bson_array* array, u32 index, f32* o
 
 b8 bson_array_element_value_get_bool(const bson_array* array, u32 index, b8* out_value)
 {
-    if (!bson_array_index_in_range(array, index))
+    if (!out_value || !bson_array_index_in_range(array, index))
         return false;
 
     BASSERT_MSG(array->properties[index].type != BSON_PROPERTY_TYPE_BOOLEAN, "Array element is not a boolean");
@@ -1505,7 +1609,7 @@ b8 bson_array_element_value_get_bool(const bson_array* array, u32 index, b8* out
 
 b8 bson_array_element_value_get_string(const bson_array* array, u32 index, const char** out_value)
 {
-    if (!bson_array_index_in_range(array, index))
+    if (!out_value || !bson_array_index_in_range(array, index))
         return false;
 
     BASSERT_MSG(array->properties[index].type != BSON_PROPERTY_TYPE_STRING, "Array element is not a string");
@@ -1514,9 +1618,53 @@ b8 bson_array_element_value_get_string(const bson_array* array, u32 index, const
     return true;
 }
 
+b8 bson_array_element_value_get_mat4(const bson_array* array, u32 index, mat4* out_value)
+{
+    if (!out_value || !bson_array_index_in_range(array, index))
+        return false;
+
+    BASSERT_MSG(array->properties[index].type != BSON_PROPERTY_TYPE_STRING, "Array element is not stored as a string");
+
+    const char* str = array->properties[index].value.s;
+    return string_to_mat4(str, out_value);
+}
+
+b8 bson_array_element_value_get_vec4(const bson_array* array, u32 index, vec4* out_value)
+{
+    if (!out_value || !bson_array_index_in_range(array, index))
+        return false;
+
+    BASSERT_MSG(array->properties[index].type != BSON_PROPERTY_TYPE_STRING, "Array element is not stored as a string");
+
+    const char* str = array->properties[index].value.s;
+    return string_to_vec4(str, out_value);
+}
+
+b8 bson_array_element_value_get_vec3(const bson_array* array, u32 index, vec3* out_value)
+{
+    if (!out_value || !bson_array_index_in_range(array, index))
+        return false;
+
+    BASSERT_MSG(array->properties[index].type != BSON_PROPERTY_TYPE_STRING, "Array element is not stored as a string");
+
+    const char* str = array->properties[index].value.s;
+    return string_to_vec3(str, out_value);
+}
+
+b8 bson_array_element_value_get_vec2(const bson_array* array, u32 index, vec2* out_value)
+{
+    if (!out_value || !bson_array_index_in_range(array, index))
+        return false;
+
+    BASSERT_MSG(array->properties[index].type != BSON_PROPERTY_TYPE_STRING, "Array element is not stored as a string");
+
+    const char* str = array->properties[index].value.s;
+    return string_to_vec2(str, out_value);
+}
+
 b8 bson_array_element_value_get_object(const bson_array* array, u32 index, bson_object* out_value)
 {
-    if (!bson_array_index_in_range(array, index))
+    if (!out_value || !bson_array_index_in_range(array, index))
         return false;
 
     BASSERT_MSG(array->properties[index].type == BSON_PROPERTY_TYPE_OBJECT || array->properties[index].type == BSON_PROPERTY_TYPE_ARRAY, "Array element is not an object or array");
@@ -1707,6 +1855,58 @@ b8 bson_object_property_value_get_string(const bson_object* object, const char* 
     }
 
     return true;
+}
+
+static const char* bson_object_property_value_get_string_reference(const bson_object* object, const char* name, const char* target_type)
+{
+    i32 index = bson_object_property_index_get(object, name);
+    if (index == -1)
+        return 0;
+
+    // These should always be stored as a string
+    bson_property* p = &object->properties[index];
+    if (p->type != BSON_PROPERTY_TYPE_STRING)
+    {
+        BERROR("Error parsing value as '%s' - property not stored as string", target_type);
+        return 0;
+    }
+    return p->value.s;
+}
+
+b8 bson_object_property_value_get_mat4(const bson_object* object, const char* name, mat4* out_value)
+{
+    if (!out_value)
+        return false;
+
+    const char* str = bson_object_property_value_get_string_reference(object, name, "mat4");
+    return string_to_mat4(str, out_value);
+}
+
+b8 bson_object_property_value_get_vec4(const bson_object* object, const char* name, vec4* out_value)
+{
+    if (!out_value)
+        return false;
+
+    const char* str = bson_object_property_value_get_string_reference(object, name, "vec4");
+    return string_to_vec4(str, out_value);
+}
+
+b8 bson_object_property_value_get_vec3(const bson_object* object, const char* name, vec3* out_value)
+{
+    if (!out_value)
+        return false;
+
+    const char* str = bson_object_property_value_get_string_reference(object, name, "vec3");
+    return string_to_vec3(str, out_value);
+}
+
+b8 bson_object_property_value_get_vec2(const bson_object* object, const char* name, vec2* out_value)
+{
+    if (!out_value)
+        return false;
+
+    const char* str = bson_object_property_value_get_string_reference(object, name, "vec2");
+    return string_to_vec2(str, out_value);
 }
 
 b8 bson_object_property_value_get_object(const bson_object* object, const char* name, bson_object* out_value)

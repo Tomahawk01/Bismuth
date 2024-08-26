@@ -7,6 +7,7 @@
 #include "assets/handlers/asset_handler_image.h"
 #include "assets/handlers/asset_handler_bson.h"
 #include "assets/handlers/asset_handler_material.h"
+#include "assets/handlers/asset_handler_scene.h"
 #include "assets/handlers/asset_handler_static_mesh.h"
 #include "assets/handlers/asset_handler_text.h"
 
@@ -128,6 +129,7 @@ b8 asset_system_initialize(u64* memory_requirement, struct asset_system_state* s
     asset_handler_text_create(&state->handlers[BASSET_TYPE_TEXT], vfs);
     asset_handler_bson_create(&state->handlers[BASSET_TYPE_BSON], vfs);
     asset_handler_binary_create(&state->handlers[BASSET_TYPE_BINARY], vfs);
+    asset_handler_scene_create(&state->handlers[BASSET_TYPE_SCENE], vfs);
 
     return true;
 }
@@ -195,10 +197,10 @@ void asset_system_request(struct asset_system_state* state, const char* fully_qu
                 basset_util_parse_name(fully_qualified_name, &lookup->asset.meta.name);
 
                 // Get the appropriate asset handler for the type and request the asset
-                asset_handler* handler = &state->handlers[lookup->asset.meta.asset_type];
+                asset_handler* handler = &state->handlers[lookup->asset.type];
                 if (!handler->request_asset)
                 {
-                    BERROR("No handler setup for asset type %d, fully_qualified_name='%s'", lookup->asset.meta.asset_type, fully_qualified_name);
+                    BERROR("No handler setup for asset type %d, fully_qualified_name='%s'", lookup->asset.type, fully_qualified_name);
                     callback(ASSET_REQUEST_RESULT_NO_HANDLER, 0, listener_instance);
                 }
                 else
@@ -231,7 +233,7 @@ static void asset_system_release_internal(struct asset_system_state* state, cons
             {
                 // Auto release set and criteria met, so call asset handler's 'unload' function
                 basset* asset = &lookup->asset;
-                basset_type type = asset->meta.asset_type;
+                basset_type type = asset->type;
                 asset_handler* handler = &state->handlers[type];
                 if (!handler->release_asset)
                 {

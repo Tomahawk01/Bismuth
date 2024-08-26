@@ -2,6 +2,7 @@
 #define _BSON_H_
 
 #include "defines.h"
+#include "math/math_types.h"
 
 typedef enum bson_token_type
 {
@@ -165,6 +166,13 @@ BAPI b8 bson_tree_from_string(const char* source, bson_tree* out_tree);
 BAPI const char* bson_tree_to_string(bson_tree* tree);
 
 /**
+ * @brief Cleans up the given bson object and its properties recursively.
+ *
+ * @param obj A pointer to the object to be cleaned up. Required
+ */
+BAPI void bson_object_cleanup(bson_object* obj);
+
+/**
  * @brief Performs cleanup operations on the given tree, freeing memory and resources held by it.
  *
  * @param tree A pointer to the tree to cleanup. Required.
@@ -208,6 +216,42 @@ BAPI b8 bson_array_value_add_boolean(bson_array* array, b8 value);
 BAPI b8 bson_array_value_add_string(bson_array* array, const char* value);
 
 /**
+ * @brief Adds an unnamed mat4 value to the provided array.
+ *
+ * @param array A pointer to the array to add the property to.
+ * @param value The value to be set.
+ * @return True on success; otherwise false.
+ */
+BAPI b8 bson_array_value_add_mat4(bson_array* array, mat4 value);
+
+/**
+ * @brief Adds an unnamed vec4 value to the provided array.
+ *
+ * @param array A pointer to the array to add the property to.
+ * @param value The value to be set.
+ * @return True on success; otherwise false.
+ */
+BAPI b8 bson_array_value_add_vec4(bson_array* array, vec4 value);
+
+/**
+ * @brief Adds an unnamed vec3 value to the provided array.
+ *
+ * @param array A pointer to the array to add the property to.
+ * @param value The value to be set.
+ * @return True on success; otherwise false.
+ */
+BAPI b8 bson_array_value_add_vec3(bson_array* array, vec3 value);
+
+/**
+ * @brief Adds an unnamed vec2 value to the provided array.
+ *
+ * @param array A pointer to the array to add the property to.
+ * @param value The value to be set.
+ * @return True on success; otherwise false.
+ */
+BAPI b8 bson_array_value_add_vec2(bson_array* array, vec2 value);
+
+/**
  * @brief Adds an unnamed object value to the provided array.
  *
  * @param array A pointer to the array to add the property to.
@@ -241,7 +285,7 @@ BAPI b8 bson_array_value_add_array(bson_array* array, bson_array value);
  */
 BAPI b8 bson_array_value_add_array_empty(bson_array* array);
 
-// Object functions.
+// Object functions
 
 /**
  * @brief Adds a named signed 64-bit integer value to the provided object.
@@ -282,6 +326,46 @@ BAPI b8 bson_object_value_add_boolean(bson_object* object, const char* name, b8 
  * @return True on success; otherwise false.
  */
 BAPI b8 bson_object_value_add_string(bson_object* object, const char* name, const char* value);
+
+/**
+ * @brief Adds a named mat4 value to the provided object.
+ *
+ * @param object A pointer to the object to add the property to.
+ * @param name A constant pointer to the name to be used. Required.
+ * @param value The value to be set.
+ * @return True on success; otherwise false.
+ */
+BAPI b8 bson_object_value_add_mat4(bson_object* object, const char* name, mat4 value);
+
+/**
+ * @brief Adds a named vec4 value to the provided object.
+ *
+ * @param object A pointer to the object to add the property to.
+ * @param name A constant pointer to the name to be used. Required.
+ * @param value The value to be set.
+ * @return True on success; otherwise false.
+ */
+BAPI b8 bson_object_value_add_vec4(bson_object* object, const char* name, vec4 value);
+
+/**
+ * @brief Adds a named vec3 value to the provided object.
+ *
+ * @param object A pointer to the object to add the property to.
+ * @param name A constant pointer to the name to be used. Required.
+ * @param value The value to be set.
+ * @return True on success; otherwise false.
+ */
+BAPI b8 bson_object_value_add_vec3(bson_object* object, const char* name, vec3 value);
+
+/**
+ * @brief Adds a named vec2 value to the provided object.
+ *
+ * @param object A pointer to the object to add the property to.
+ * @param name A constant pointer to the name to be used. Required.
+ * @param value The value to be set.
+ * @return True on success; otherwise false.
+ */
+BAPI b8 bson_object_value_add_vec2(bson_object* object, const char* name, vec2 value);
 
 /**
  * @brief Adds a named object value to the provided object.
@@ -331,7 +415,7 @@ BAPI b8 bson_object_value_add_array_empty(bson_object* object, const char* name)
 BAPI b8 bson_array_element_count_get(bson_array* array, u32* out_count);
 
 /**
- * @brief Obtains the element type at the provided index of the given array. Fails if out of range.
+ * @brief Obtains the element type at the provided index of the given array. Fails if out of range
  *
  * @param array The array to retrieve the type from.
  * @param index The index into the array to check the type of. Must be in range.
@@ -341,8 +425,7 @@ BAPI b8 bson_array_element_count_get(bson_array* array, u32* out_count);
 BAPI b8 bson_array_element_type_at(bson_array* array, u32 index, bson_property_type* out_type);
 
 /**
- * @brief Attempts to retrieve the array element's value at the provided index as a signed integer. Fails if out of range.
- * or on type mismatch.
+ * @brief Attempts to retrieve the array element's value at the provided index as a signed integer. Fails if out of range or on type mismatch
  *
  * @param array A constant pointer to the array to search. Required.
  * @param index The array index to search for. Required.
@@ -352,8 +435,7 @@ BAPI b8 bson_array_element_type_at(bson_array* array, u32 index, bson_property_t
 BAPI b8 bson_array_element_value_get_int(const bson_array* array, u32 index, i64* out_value);
 
 /**
- * @brief Attempts to retrieve the array element's value at the provided index as a floating-point number. Fails if out of range.
- * or on type mismatch.
+ * @brief Attempts to retrieve the array element's value at the provided index as a floating-point number. Fails if out of range or on type mismatch
  *
  * @param array A constant pointer to the array to search. Required.
  * @param index The array index to search for. Required.
@@ -363,8 +445,7 @@ BAPI b8 bson_array_element_value_get_int(const bson_array* array, u32 index, i64
 BAPI b8 bson_array_element_value_get_float(const bson_array* array, u32 index, f32* out_value);
 
 /**
- * @brief Attempts to retrieve the array element's value at the provided index as a boolean. Fails if out of range.
- * or on type mismatch.
+ * @brief Attempts to retrieve the array element's value at the provided index as a boolean. Fails if out of range or on type mismatch
  *
  * @param array A constant pointer to the array to search. Required.
  * @param index The array index to search for. Required.
@@ -374,8 +455,7 @@ BAPI b8 bson_array_element_value_get_float(const bson_array* array, u32 index, f
 BAPI b8 bson_array_element_value_get_bool(const bson_array* array, u32 index, b8* out_value);
 
 /**
- * @brief Attempts to retrieve the array element's value at the provided index as a string. Fails if out of range.
- * or on type mismatch.
+ * @brief Attempts to retrieve the array element's value at the provided index as a string. Fails if out of range or on type mismatch.
  *
  * @param array A constant pointer to the array to search. Required.
  * @param index The array index to search for. Required.
@@ -385,8 +465,47 @@ BAPI b8 bson_array_element_value_get_bool(const bson_array* array, u32 index, b8
 BAPI b8 bson_array_element_value_get_string(const bson_array* array, u32 index, const char** out_value);
 
 /**
- * @brief Attempts to retrieve the array element's value at the provided index as an object. Fails if out of range.
- * or on type mismatch.
+ * @brief Attempts to retrieve the array element's value at the provided index as a mat4. Fails if out of range or on type mismatch (these are stored as strings)
+ *
+ * @param array A constant pointer to the array to search. Required.
+ * @param index The array index to search for. Required.
+ * @param out_value A pointer to hold the object property's value.
+ * @return True on success; otherwise false.
+ */
+BAPI b8 bson_array_element_value_get_mat4(const bson_array* array, u32 index, mat4* out_value);
+
+/**
+ * @brief Attempts to retrieve the array element's value at the provided index as a vec4. Fails if out of range or on type mismatch (these are stored as strings)
+ *
+ * @param array A constant pointer to the array to search. Required.
+ * @param index The array index to search for. Required.
+ * @param out_value A pointer to hold the object property's value.
+ * @return True on success; otherwise false.
+ */
+BAPI b8 bson_array_element_value_get_vec4(const bson_array* array, u32 index, vec4* out_value);
+
+/**
+ * @brief Attempts to retrieve the array element's value at the provided index as a vec3. Fails if out of range or on type mismatch (these are stored as strings)
+ *
+ * @param array A constant pointer to the array to search. Required.
+ * @param index The array index to search for. Required.
+ * @param out_value A pointer to hold the object property's value.
+ * @return True on success; otherwise false.
+ */
+BAPI b8 bson_array_element_value_get_vec3(const bson_array* array, u32 index, vec3* out_value);
+
+/**
+ * @brief Attempts to retrieve the array element's value at the provided index as a vec2. Fails if out of range or on type mismatch (these are stored as strings)
+ *
+ * @param array A constant pointer to the array to search. Required.
+ * @param index The array index to search for. Required.
+ * @param out_value A pointer to hold the object property's value.
+ * @return True on success; otherwise false.
+ */
+BAPI b8 bson_array_element_value_get_vec2(const bson_array* array, u32 index, vec2* out_value);
+
+/**
+ * @brief Attempts to retrieve the array element's value at the provided index as an object. Fails if out of range or on type mismatch
  *
  * @param array A constant pointer to the array to search. Required.
  * @param index The array index to search for. Required.
@@ -415,8 +534,7 @@ BAPI b8 bson_object_property_type_get(const bson_object* object, const char* nam
 BAPI b8 bson_object_property_count_get(const bson_object* object, u32* out_count);
 
 /**
- * @brief Attempts to retrieve the given object's property value by name as a signed integer. Fails if not found
- * or on type mismatch.
+ * @brief Attempts to retrieve the given object's property value by name as a signed integer. Fails if not found or on type mismatch
  *
  * @param A constant pointer to the object to search. Required.
  * @param name The property name to search for. Required.
@@ -426,8 +544,7 @@ BAPI b8 bson_object_property_count_get(const bson_object* object, u32* out_count
 BAPI b8 bson_object_property_value_get_int(const bson_object* object, const char* name, i64* out_value);
 
 /**
- * @brief Attempts to retrieve the given object's property value by name as a floating-point number. Fails if not found
- * or on type mismatch.
+ * @brief Attempts to retrieve the given object's property value by name as a floating-point number. Fails if not found or on type mismatch
  *
  * @param A constant pointer to the object to search. Required.
  * @param name The property name to search for. Required.
@@ -437,8 +554,7 @@ BAPI b8 bson_object_property_value_get_int(const bson_object* object, const char
 BAPI b8 bson_object_property_value_get_float(const bson_object* object, const char* name, f32* out_value);
 
 /**
- * @brief Attempts to retrieve the given object's property value by name as a boolean. Fails if not found
- * or on type mismatch.
+ * @brief Attempts to retrieve the given object's property value by name as a boolean. Fails if not found or on type mismatch
  *
  * @param A constant pointer to the object to search. Required.
  * @param name The property name to search for. Required.
@@ -459,8 +575,47 @@ BAPI b8 bson_object_property_value_get_bool(const bson_object* object, const cha
 BAPI b8 bson_object_property_value_get_string(const bson_object* object, const char* name, const char** out_value);
 
 /**
- * @brief Attempts to retrieve the given object's property value by name as an object. Fails if not found
- * or on type mismatch.
+ * @brief Attempts to retrieve the given object's property value by name as a mat4. Fails if not found or on type mismatch (these are always stored as strings)
+ *
+ * @param A constant pointer to the object to search. Required.
+ * @param name The property name to search for. Required.
+ * @param out_value A pointer to hold the object property's value.
+ * @return True on success; otherwise false.
+ */
+BAPI b8 bson_object_property_value_get_mat4(const bson_object* object, const char* name, mat4* out_value);
+
+/**
+ * @brief Attempts to retrieve the given object's property value by name as a vec4. Fails if not found or on type mismatch (these are always stored as strings)
+ *
+ * @param A constant pointer to the object to search. Required.
+ * @param name The property name to search for. Required.
+ * @param out_value A pointer to hold the object property's value.
+ * @return True on success; otherwise false.
+ */
+BAPI b8 bson_object_property_value_get_vec4(const bson_object* object, const char* name, vec4* out_value);
+
+/**
+ * @brief Attempts to retrieve the given object's property value by name as a vec3. Fails if not found or on type mismatch (these are always stored as strings)
+ *
+ * @param A constant pointer to the object to search. Required.
+ * @param name The property name to search for. Required.
+ * @param out_value A pointer to hold the object property's value.
+ * @return True on success; otherwise false.
+ */
+BAPI b8 bson_object_property_value_get_vec3(const bson_object* object, const char* name, vec3* out_value);
+
+/**
+ * @brief Attempts to retrieve the given object's property value by name as a vec2. Fails if not found or on type mismatch (these are always stored as strings)
+ *
+ * @param A constant pointer to the object to search. Required.
+ * @param name The property name to search for. Required.
+ * @param out_value A pointer to hold the object property's value.
+ * @return True on success; otherwise false.
+ */
+BAPI b8 bson_object_property_value_get_vec2(const bson_object* object, const char* name, vec2* out_value);
+
+/**
+ * @brief Attempts to retrieve the given object's property value by name as an object. Fails if not found or on type mismatch
  *
  * @param A constant pointer to the object to search. Required.
  * @param name The property name to search for. Required.
@@ -470,14 +625,16 @@ BAPI b8 bson_object_property_value_get_string(const bson_object* object, const c
 BAPI b8 bson_object_property_value_get_object(const bson_object* object, const char* name, bson_object* out_value);
 
 /**
- * Creates and returns a new property of the object type.
+ * @brief Creates and returns a new property of the object type.
+ * 
  * @param name The name of the property. Pass 0 if later adding to an array.
  * @returns The newly created object property.
  */
 BAPI bson_property bson_object_property_create(const char* name);
 
 /**
- * Creates and returns a new property of the array type.
+ * @brief Creates and returns a new property of the array type.
+ * 
  * @param name The name of the property. Pass 0 if later adding to an array.
  * @returns The newly created array property.
  */
