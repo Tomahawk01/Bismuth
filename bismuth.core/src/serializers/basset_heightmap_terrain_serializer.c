@@ -7,7 +7,7 @@
 #include "parsers/bson_parser.h"
 #include "strings/bstring.h"
 
-const char* basset_heightmap_serialize(const basset* asset)
+const char* basset_heightmap_terrain_serialize(const basset* asset)
 {
     if (!asset)
     {
@@ -85,7 +85,7 @@ cleanup_bson:
     return out_str;
 }
 
-b8 basset_heightmap_deserialize(const char* file_text, basset* out_asset)
+b8 basset_heightmap_terrain_deserialize(const char* file_text, basset* out_asset)
 {
     if (out_asset)
     {

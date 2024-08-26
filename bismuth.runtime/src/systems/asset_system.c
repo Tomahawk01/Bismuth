@@ -8,7 +8,9 @@
 #include "assets/handlers/asset_handler_bson.h"
 #include "assets/handlers/asset_handler_material.h"
 #include "assets/handlers/asset_handler_scene.h"
+#include "assets/handlers/asset_handler_shader.h"
 #include "assets/handlers/asset_handler_static_mesh.h"
+#include "assets/handlers/asset_handler_system_font.h"
 #include "assets/handlers/asset_handler_text.h"
 
 #include <assets/asset_handler_types.h>
@@ -130,6 +132,8 @@ b8 asset_system_initialize(u64* memory_requirement, struct asset_system_state* s
     asset_handler_bson_create(&state->handlers[BASSET_TYPE_BSON], vfs);
     asset_handler_binary_create(&state->handlers[BASSET_TYPE_BINARY], vfs);
     asset_handler_scene_create(&state->handlers[BASSET_TYPE_SCENE], vfs);
+    asset_handler_shader_create(&state->handlers[BASSET_TYPE_SHADER], vfs);
+    asset_handler_system_font_create(&state->handlers[BASSET_TYPE_SYSTEM_FONT], vfs);
 
     return true;
 }

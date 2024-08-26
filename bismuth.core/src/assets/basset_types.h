@@ -437,3 +437,60 @@ typedef struct basset_scene
     u32 node_count;
     basset_scene_node* nodes;
 } basset_scene;
+
+#define BASSET_TYPE_NAME_SHADER "Shader"
+
+typedef struct basset_shader_stage
+{
+    shader_stage type;
+    const char* source_asset_name;
+    const char* package_name;
+} basset_shader_stage;
+
+typedef struct basset_shader_attribute
+{
+    const char* name;
+    shader_attribute_type type;
+} basset_shader_attribute;
+
+typedef struct basset_shader_uniform
+{
+    const char* name;
+    shader_uniform_type type;
+    shader_scope scope;
+} basset_shader_uniform;
+
+typedef struct basset_shader
+{
+    basset base;
+    u32 stage_count;
+    basset_shader_stage* stages;
+    b8 depth_test;
+    b8 depth_write;
+    b8 stencil_test;
+    b8 stencil_write;
+    u16 max_instances;
+
+    u32 attribute_count;
+    basset_shader_attribute* attributes;
+
+    u32 uniform_count;
+    basset_shader_uniform* uniforms;
+} basset_shader;
+
+#define BASSET_TYPE_NAME_SYSTEM_FONT "SystemFont"
+
+typedef struct basset_system_font_face
+{
+    const char* name;
+} basset_system_font_face;
+
+typedef struct basset_system_font
+{
+    basset base;
+    const char* ttf_asset_name;
+    u32 face_count;
+    basset_system_font_face* faces;
+    u32 font_binary_size;
+    void* font_binary;
+} basset_system_font;
