@@ -483,4 +483,10 @@ BAPI bson_property bson_object_property_create(const char* name);
  */
 BAPI bson_property bson_array_property_create(const char* name);
 
+/** @brief Creates and returns a new bson object */
+BAPI bson_object bson_object_create(void);
+
+/** @brief Creates and returns a new bson array */
+BAPI bson_array bson_array_create(void);
+
 #endif

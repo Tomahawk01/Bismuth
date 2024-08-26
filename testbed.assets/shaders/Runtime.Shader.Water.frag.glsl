@@ -129,6 +129,16 @@ void main()
         float water_distance = 2.0 * near * far / (far + near - (2.0 * depth - 1.0) * (far - near));
         water_depth = floor_distance - water_distance;
 
+        // Falloff depth of the water at the edge
+        float edge_depth_falloff = 0.5; // TODO: configurable
+        float depth_factor = 1.0-clamp(water_depth / edge_depth_falloff, 0.0, 1.0);
+        // Falloff the color of the water near edges
+        float color_depth_falloff = 4.0; // TODO: configurable
+        float color_depth_factor = 1.0-clamp(water_depth / color_depth_falloff, 0.0, 1.0);
+        // Falloff "wetness" near edges.
+        float wet_depth_falloff = 0.05; // TODO: configurable
+        float wet_depth_factor = 1.0-clamp(water_depth / wet_depth_falloff, 0.0, 1.0);
+
         // Distort further
         vec2 distortion_total = (texture(dudv_texture, distorted_texcoords).rg * 2.0 - 1.0) * instance_ubo.wave_strength;
 
@@ -143,33 +153,38 @@ void main()
 
         vec4 reflect_color = texture(reflection_texture, reflect_texcoord);
         vec4 refract_color = texture(refraction_texture, refract_texcoord);
+
         // Refract should be slightly darker since it's wet
-        refract_color.rgb = clamp(reflect_color.rgb -= vec3(0.2), vec3(0.0), vec3(1.0));
+        vec3 wet_color_mod = vec3(0.15); // TODO: configurable
+        float wet_factor = (1.0-wet_depth_factor); 
+        wet_color_mod *= wet_factor;
+        refract_color.rgb = refract_color.rgb - wet_color_mod;
 
         // Calculate the fresnel effect
         float fresnel_factor = dot(normalize(in_dto.world_to_camera), normal);
         fresnel_factor = clamp(fresnel_factor, 0.0, 1.0);
 
+        // Reduce the strength of reflections near the edges to show more of the "wet" effect
+        reflect_color = mix(reflect_color, refract_color, color_depth_factor);
+        // Mix the reflect/refract according to the frenel factor
         out_color = mix(reflect_color, refract_color, fresnel_factor);
+        // Add a slight tint to the water
         vec4 tint = vec4(0.0, 0.3, 0.5, 1.0); // TODO: configurable
-        float tint_strength = 0.5; // TODO: configurable
-        out_color = mix(out_color, tint, tint_strength);
+        float tint_strength = 0.25; // TODO: configurable
+        // Mix in the tint given the strength and color depth factor
+        out_color = mix(out_color, tint, tint_strength * (1.0 - color_depth_factor));
+
+        // Apply lighting
+        // NOTE: because we only want lighting information and no ambience, black is passed as ambient. Passing the current color adds far too much light to the surface
+        vec4 lighting = do_lighting(global_ubo.view, in_dto.frag_position, vec3(0.0), normal);
+        float lighting_factor = clamp(water_depth / color_depth_falloff, 0.0, 1.0);
+        // Add in the light
+        out_color = out_color + lighting;
     }
     else
     {
         // Other modes should just use white
         out_color = vec4(1.0);
-    }
-
-    // Apply lighting
-    vec4 lighting = do_lighting(global_ubo.view, in_dto.frag_position, out_color.rgb, normal);
-    out_color = lighting;
-
-    if(global_ubo.mode == 0)
-    {
-        // Falloff depth of the water at the edge
-        float edge_depth_falloff = 4.0; // TODO: configurable
-        out_color.a = clamp(water_depth / edge_depth_falloff, 0.0, 1.0);
     }
 }
 

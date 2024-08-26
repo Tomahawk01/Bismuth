@@ -1,0 +1,344 @@
+#pragma once
+
+#include "core_render_types.h"
+#include "defines.h"
+#include "identifiers/identifier.h"
+#include "math/math_types.h"
+#include "parsers/bson_parser.h"
+
+/** @brief A magic number indicating the file as a bismuth binary asset file */
+#define ASSET_MAGIC 0xcafebabe
+#define ASSET_MAGIC_U64 0xcafebabebadc0ffee
+
+// The maximum length of the string representation of an asset type
+#define BASSET_TYPE_MAX_LENGTH 64
+// The maximum name of an asset
+#define BASSET_NAME_MAX_LENGTH 256
+// The maximum name length for a bpackage
+#define BPACKAGE_NAME_MAX_LENGTH 128
+
+// The maximum length of a fully-qualified asset name, including the '.' between parts
+#define BASSET_FULLY_QUALIFIED_NAME_MAX_LENGTH = (BPACKAGE_NAME_MAX_LENGTH + BASSET_TYPE_MAX_LENGTH + BASSET_NAME_MAX_LENGTH + 2)
+
+/** @brief Indicates where an asset is in its lifecycle */
+typedef enum basset_state
+{
+    /**
+     * @brief No load operations have happened whatsoever for the asset
+     * The asset is NOT in a drawable state
+     */
+    BASSET_STATE_UNINITIALIZED,
+    /**
+     * @brief The CPU-side of the asset resources have been loaded, but no GPU uploads have happened
+     * The asset is NOT in a drawable state
+     */
+    BASSET_STATE_INITIALIZED,
+    /**
+     * @brief The GPU-side of the asset resources are in the process of being uploaded, but are not yet complete
+     * The asset is NOT in a drawable state
+     */
+    BASSET_STATE_LOADING,
+    /**
+     * @brief The GPU-side of the asset resources are finished with the process of being uploaded
+     * The asset IS in a drawable state
+     */
+    BASSET_STATE_LOADED
+} basset_state;
+
+typedef enum basset_type
+{
+    BASSET_TYPE_UNKNOWN,
+    /** An image, typically (but not always) used as a texture */
+    BASSET_TYPE_IMAGE,
+    BASSET_TYPE_MATERIAL,
+    BASSET_TYPE_STATIC_MESH,
+    BASSET_TYPE_HEIGHTMAP_TERRAIN,
+    BASSET_TYPE_SCENE,
+    BASSET_TYPE_BITMAP_FONT,
+    BASSET_TYPE_SYSTEM_FONT,
+    BASSET_TYPE_TEXT,
+    BASSET_TYPE_BINARY,
+    BASSET_TYPE_BSON,
+    BASSET_TYPE_VOXEL_TERRAIN,
+    BASSET_TYPE_SKELETAL_MESH,
+    BASSET_TYPE_AUDIO,
+    BASSET_TYPE_MUSIC,
+
+    BASSET_TYPE_MAX
+} basset_type;
+
+/** @brief Represents the name of an asset, complete with all parts of the name along with the fully-qualified name */
+typedef struct basset_name
+{
+    /** @brief The fully-qualified name in the format "<PackageName>.<AssetType>.<AssetName>" */
+    const char* fully_qualified_name;
+    /** @brief The package name the asset belongs to */
+    char package_name[BPACKAGE_NAME_MAX_LENGTH];
+    /** @brief The asset type in string format */
+    char asset_type[BASSET_TYPE_MAX_LENGTH];
+    /** @brief The asset name */
+    char asset_name[BASSET_NAME_MAX_LENGTH];
+} basset_name;
+
+typedef struct basset_metadata
+{
+    // The asset version
+    u32 version;
+    // Size of the asset
+    u64 size;
+    // Asset name info
+    basset_name name;
+    /** @brief The asset type */
+    basset_type asset_type;
+    /** @brief The path of the originally imported file used to create this asset */
+    const char* source_file_path;
+    // TODO: Listing of asset-type-specific metadata
+} basset_metadata;
+
+typedef struct binary_asset_header
+{
+    // A magic number used to identify the binary block as a Bismuth asset
+    u32 magic;
+    // Indicates the asset type. Cast to basset_type
+    u32 type;
+    // The asset type version, used for feature support checking for asset versions
+    u32 version;
+    // The size of the data region of  the asset in bytes
+    u32 data_block_size;
+} binary_asset_header;
+
+struct basset;
+struct basset_importer;
+
+typedef enum asset_request_result
+{
+    /** The asset load was a success, including any GPU operations (if required) */
+    ASSET_REQUEST_RESULT_SUCCESS,
+    /** The specified package name was invalid or not found */
+    ASSET_REQUEST_RESULT_INVALID_PACKAGE,
+    /** The specified asset type was invalid or not found */
+    ASSET_REQUEST_RESULT_INVALID_ASSET_TYPE,
+    /** The specified asset name was invalid or not found */
+    ASSET_REQUEST_RESULT_INVALID_NAME,
+    /** The asset was found, but failed to load during the parsing stage */
+    ASSET_REQUEST_RESULT_PARSE_FAILED,
+    /** The asset was found, but failed to load during the GPU upload stage */
+    ASSET_REQUEST_RESULT_GPU_UPLOAD_FAILED,
+    /** An internal system failure has occurred. See logs for details */
+    ASSET_REQUEST_RESULT_INTERNAL_FAILURE,
+    /** No handler exists for the given asset. See logs for details */
+    ASSET_REQUEST_RESULT_NO_HANDLER,
+    /** There was a failure at the VFS level, probably a request for an asset that doesn't exist */
+    ASSET_REQUEST_RESULT_VFS_REQUEST_FAILED,
+    /** Returned by handlers who attempt (and fail) an auto-import of source asset data when the binary does not exist */
+    ASSET_REQUEST_RESULT_AUTO_IMPORT_FAILED,
+    /** The total number of result options in this enumeration. Not an actual result value */
+    ASSET_REQUEST_RESULT_COUNT
+} asset_request_result;
+
+typedef void (*PFN_basset_on_result)(asset_request_result result, const struct basset* asset, void* listener_inst);
+typedef b8 (*PFN_basset_importer_import)(const struct basset_importer* self, u64 data_size, const void* data, void* params, struct basset* out_asset);
+
+/** @brief Represents the interface point for an importer */
+typedef struct basset_importer
+{
+    /** @brief The file type supported by the importer */
+    const char* source_type;
+    /**
+     * @brief Imports an asset according to the provided params and the importer's internal logic.
+     * NOTE: Some importers (i.e. .obj for static meshes) can also trigger imports of other assets. Those assets are immediately serialized to disk/package and not returned here though
+     *
+     * @param self A pointer to the importer itself
+     * @param data_size The size of the data being imported
+     * @param data A block of memory containing the data being imported
+     * @param params A block of memory containing parameters for the import. Optional in general, but required by some importers
+     * @param out_asset A pointer to the asset being imported
+     * @returns True on success; otherwise false
+     */
+    PFN_basset_importer_import import;
+} basset_importer;
+
+/** @brief A structure meant to be included as the first member in the struct of all asset types for quick casting purposes */
+typedef struct basset
+{
+    /** @brief A system-wide unique identifier for the asset */
+    identifier id;
+    /** @brief Increments every time the asset is loaded/reloaded. Otherwise INVALID_ID */
+    u32 generation;
+    /** @brief The asset type */
+    basset_type type;
+    /** @brief Metadata for the asset */
+    basset_metadata meta;
+} basset;
+
+#define BASSET_TYPE_NAME_HEIGHTMAP_TERRAIN "HeightmapTerrain"
+
+typedef struct basset_heightmap_terrain
+{
+    basset base;
+    const char* heightmap_filename;
+    u16 chunk_size;
+    vec3 tile_scale;
+    u8 material_count;
+    const char** material_names;
+} basset_heightmap_terrain;
+
+typedef enum basset_image_format
+{
+    BASSET_IMAGE_FORMAT_UNDEFINED = 0,
+    // 4 channel, 8 bits per channel
+    BASSET_IMAGE_FORMAT_RGBA8 = 1
+    // TODO: additional formats
+} basset_image_format;
+
+/** @brief Import options for images */
+typedef struct basset_image_import_options
+{
+    /** @brief Indicates if the image should be flipped on the y-axis when imported */
+    b8 flip_y;
+    /** @brief The expected format of the image */
+    basset_image_format format;
+} basset_image_import_options;
+
+#define BASSET_TYPE_NAME_IMAGE "Image"
+
+typedef struct basset_image
+{
+    basset base;
+    u32 width;
+    u32 height;
+    u8 channel_count;
+    u8 mip_levels;
+    basset_image_format format;
+    u64 pixel_array_size;
+    u8* pixels;
+} basset_image;
+
+#define BASSET_TYPE_NAME_STATIC_MESH "StaticMesh"
+
+typedef struct basset_static_mesh_geometry
+{
+    const char* name;
+    const char* material_asset_name;
+    u32 vertex_count;
+    vertex_3d* vertices;
+    u32 index_count;
+    u32* indices;
+    extents_3d extents;
+    vec3 center;
+} basset_static_mesh_geometry;
+
+/** @brief Represents a static mesh asset */
+typedef struct basset_static_mesh
+{
+    basset base;
+    u16 geometry_count;
+    basset_static_mesh_geometry* geometries;
+    extents_3d extents;
+    vec3 center;
+} basset_static_mesh;
+
+#define BASSET_TYPE_NAME_MATERIAL "Material"
+
+typedef enum bmaterial_type
+{
+    BMATERIAL_TYPE_UNKNOWN = 0,
+    BMATERIAL_TYPE_PBR,
+    BMATERIAL_TYPE_PBR_TERRAIN,
+    BMATERIAL_TYPE_PBR_WATER,
+    BMATERIAL_TYPE_UNLIT,
+    BMATERIAL_TYPE_PHONG,
+    BMATERIAL_TYPE_COUNT,
+    BMATERIAL_TYPE_CUSTOM = 99
+} bmaterial_type;
+
+typedef enum basset_material_map_channel
+{
+    BASSET_MATERIAL_MAP_CHANNEL_ALBEDO,
+    BASSET_MATERIAL_MAP_CHANNEL_NORMAL,
+    BASSET_MATERIAL_MAP_CHANNEL_METALLIC,
+    BASSET_MATERIAL_MAP_CHANNEL_ROUGHNESS,
+    BASSET_MATERIAL_MAP_CHANNEL_AO,
+    BASSET_MATERIAL_MAP_CHANNEL_EMISSIVE,
+    BASSET_MATERIAL_MAP_CHANNEL_CLEAR_COAT,
+    BASSET_MATERIAL_MAP_CHANNEL_CLEAR_COAT_ROUGHNESS,
+    BASSET_MATERIAL_MAP_CHANNEL_WATER_DUDV,
+    BASSET_MATERIAL_MAP_CHANNEL_DIFFUSE,
+    BASSET_MATERIAL_MAP_CHANNEL_SPECULAR,
+} basset_material_map_channel;
+
+typedef struct basset_material_map
+{
+    // Fully-qualified material asset name
+    const char* name;
+    // Fully-qualified image asset name
+    const char* image_asset_name;
+    basset_material_map_channel channel;
+    texture_filter filter_min;
+    texture_filter filter_mag;
+    texture_repeat repeat_u;
+    texture_repeat repeat_v;
+    texture_repeat repeat_w;
+} basset_material_map;
+
+typedef struct basset_material_property
+{
+    const char* name;
+    shader_uniform_type type;
+    u32 size;
+    union
+    {
+        vec4 v4;
+        vec3 v3;
+        vec2 v2;
+        f32 f32;
+        u32 u32;
+        u16 u16;
+        u8 u8;
+        i32 i32;
+        i16 i16;
+        i8 i8;
+        mat4 mat4;
+    } value;
+} basset_material_property;
+
+typedef struct basset_material
+{
+    basset base;
+    bmaterial_type type;
+    const char* name;
+    // The asset name for a custom shader. Optional
+    char* custom_shader_name;
+
+    u32 map_count;
+    basset_material_map* maps;
+
+    u32 property_count;
+    basset_material_property* properties;
+} basset_material;
+
+#define BASSET_TYPE_NAME_TEXT "Text"
+
+typedef struct basset_text
+{
+    basset base;
+    const char* content;
+} basset_text;
+
+#define BASSET_TYPE_NAME_BINARY "Binary"
+
+typedef struct basset_binary
+{
+    basset base;
+    u64 size;
+    const void* content;
+} basset_binary;
+
+#define BASSET_TYPE_NAME_BSON "Bson"
+
+typedef struct basset_bson
+{
+    basset base;
+    const char* source_text;
+    bson_tree tree;
+} basset_bson;

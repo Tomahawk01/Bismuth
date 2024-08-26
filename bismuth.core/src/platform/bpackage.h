@@ -38,12 +38,23 @@ typedef struct bpackage
     struct bpackage_internal* internal_data;
 } bpackage;
 
+typedef enum bpackage_result
+{
+    BPACKAGE_RESULT_SUCCESS = 0,
+    BPACKAGE_RESULT_PRIMARY_GET_FAILURE,
+    BPACKAGE_RESULT_SOURCE_GET_FAILURE,
+    BPACKAGE_RESULT_INTERNAL_FAILURE
+} bpackage_result;
+
 BAPI b8 bpackage_create_from_manifest(const asset_manifest* manifest, bpackage* out_package);
 BAPI b8 bpackage_create_from_binary(u64 size, void* bytes, bpackage* out_package);
 BAPI void bpackage_destroy(bpackage* package);
 
-BAPI void* bpackage_asset_bytes_get(const bpackage* package, const char* type, const char* name, u64* out_size);
-BAPI const char* bpackage_asset_text_get(const bpackage* package, const char* type, const char* name, u64* out_size);
+BAPI bpackage_result bpackage_asset_bytes_get(const bpackage* package, const char* name, b8 get_source, u64* out_size, const void** out_data);
+BAPI bpackage_result bpackage_asset_text_get(const bpackage* package, const char* name, b8 get_source, u64* out_size, const char** out_text);
+
+BAPI b8 bpackage_asset_bytes_write(bpackage* package, const char* name, u64 size, const void* bytes);
+BAPI b8 bpackage_asset_text_write(bpackage* package, const char* name, u64 size, const char* text);
 
 BAPI b8 bpackage_parse_manifest_file_content(const char* path, asset_manifest* out_manifest);
 BAPI void bpackage_manifest_destroy(asset_manifest* manifest);

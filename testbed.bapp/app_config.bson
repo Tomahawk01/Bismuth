@@ -12,8 +12,8 @@ windows = [
 ]
 package_config = {
     packages = [
-        "Runtime",
-        "PluginStandardUi",
+        "Runtime"
+        "PluginStandardUi"
         "Testbed"
     ]
     process_as_text [
@@ -21,6 +21,12 @@ package_config = {
     ]
 }
 systems = [
+    {
+        name="asset"
+        config = {
+            max_asset_count = 2049
+        }
+    }
     {
         name="resource"
         config = {
@@ -63,23 +69,25 @@ systems = [
        name="plugin_system"
        config = {
            plugins = [
-               {
-                   name = "bismuth.plugin.renderer.vulkan"
-                   config = {
-
-                   }
-               }
-               {
-                   name = "bismuth.plugin.audio.openal"
-                   config = {
-                       max_buffers = 256
-                   }
-               }
-               {
-                    name = "bismuth.plugin.ui.standard"
-               }
-           ]
-       }
+                {
+                    name = "bismuth.plugin.utils"
+                }
+                {
+                    name = "bismuth.plugin.renderer.vulkan"
+                    config = {
+                    }
+                }
+                {
+                    name = "bismuth.plugin.audio.openal"
+                    config = {
+                        max_buffers = 256
+                    }
+                }
+                {
+                     name = "bismuth.plugin.ui.standard"
+                }
+            ]
+        }
     }
 ]
 rendergraphs = [

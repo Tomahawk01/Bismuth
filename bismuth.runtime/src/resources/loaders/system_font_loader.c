@@ -1,13 +1,14 @@
 #include "system_font_loader.h"
 
-#include "logger.h"
-#include "memory/bmemory.h"
-#include "strings/bstring.h"
-#include "resources/resource_types.h"
-#include "systems/resource_system.h"
-#include "math/bmath.h"
-#include "loader_utils.h"
 #include "containers/darray.h"
+#include "loader_utils.h"
+#include "logger.h"
+#include "math/bmath.h"
+#include "memory/bmemory.h"
+#include "resources/font_types.h"
+#include "resources/resource_types.h"
+#include "strings/bstring.h"
+#include "systems/resource_system.h"
 #include "platform/filesystem.h"
 
 typedef enum system_font_file_type

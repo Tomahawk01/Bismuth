@@ -652,7 +652,7 @@ static b8 rendergraph_config_deserialize(const char* source_string, rendergraph_
     }
     else
     {
-        BERROR("Failed to parse nodes from kson rendergraph config");
+        BERROR("Failed to parse nodes from bson rendergraph config");
         RG_DESERIALIZE_FAIL();
     }
             

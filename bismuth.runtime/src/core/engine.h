@@ -29,6 +29,7 @@ struct light_system_state;
 struct camera_system_state;
 struct plugin_system_state;
 struct rendergraph_system_state;
+struct asset_system_state;
 struct vfs_state;
 struct bwindow;
 
@@ -96,6 +97,9 @@ typedef struct engine_system_states
 
     u64 vfs_system_memory_requirement;
     struct vfs_state* vfs_system_state;
+
+    u64 asset_system_memory_requirement;
+    struct asset_system_state* asset_state;
 } engine_system_states;
 
 BAPI b8 engine_create(struct application* game_inst);

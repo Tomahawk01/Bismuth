@@ -4,6 +4,8 @@
 #include "identifiers/bhandle.h"
 #include "math/math_types.h"
 
+#include <core_render_types.h>
+
 #define TERRAIN_MAX_MATERIAL_COUNT 4
 
 // Pre-defined resource types
@@ -113,105 +115,6 @@ typedef struct texture
     u8 generation;
 } texture;
 
-typedef enum texture_filter
-{
-    TEXTURE_FILTER_MODE_NEAREST = 0x0,
-    TEXTURE_FILTER_MODE_LINEAR = 0x1
-} texture_filter;
-
-typedef enum texture_repeat
-{
-    TEXTURE_REPEAT_REPEAT = 0x1,
-    TEXTURE_REPEAT_MIRRORED_REPEAT = 0x2,
-    TEXTURE_REPEAT_CLAMP_TO_EDGE = 0x3,
-    TEXTURE_REPEAT_CLAMP_TO_BORDER = 0x4
-} texture_repeat;
-
-typedef struct texture_map
-{
-    u8 generation;
-    u32 mip_levels;
-    texture* texture;
-    texture_filter filter_minify;
-    texture_filter filter_magnify;
-    texture_repeat repeat_u; // X
-    texture_repeat repeat_v; // Y
-    texture_repeat repeat_w; // Z
-    // Identifier used for internal resource lookups/management
-    u32 internal_id;
-} texture_map;
-
-typedef struct font_glyph
-{
-    i32 codepoint;
-    u16 x;
-    u16 y;
-    u16 width;
-    u16 height;
-    i16 x_offset;
-    i16 y_offset;
-    i16 x_advance;
-    u8 page_id;
-} font_glyph;
-
-typedef struct font_kerning
-{
-    i32 codepoint_0;
-    i32 codepoint_1;
-    i16 amount;
-} font_kerning;
-
-typedef enum font_type
-{
-    FONT_TYPE_BITMAP,
-    FONT_TYPE_SYSTEM
-} font_type;
-
-typedef struct font_data
-{
-    font_type type;
-    char face[256];
-    u32 size;
-    i32 line_height;
-    i32 baseline;
-    i32 atlas_size_x;
-    i32 atlas_size_y;
-    texture_map atlas;
-    u32 glyph_count;
-    font_glyph* glyphs;
-    u32 kerning_count;
-    font_kerning* kernings;
-    f32 tab_x_advance;
-    u32 internal_data_size;
-    void* internal_data;
-} font_data;
-
-typedef struct bitmap_font_page
-{
-    i8 id;
-    char file[256];
-} bitmap_font_page;
-
-typedef struct bitmap_font_resource_data
-{
-    font_data data;
-    u32 page_count;
-    bitmap_font_page* pages;
-} bitmap_font_resource_data;
-
-typedef struct system_font_face
-{
-    char name[256];
-} system_font_face;
-
-typedef struct system_font_resource_data
-{
-    // darray
-    system_font_face* fonts;
-    u64 binary_size;
-    void* font_binary;
-} system_font_resource_data;
-
 #define MATERIAL_NAME_MAX_LENGTH 256
 
 struct material;
@@ -248,15 +151,6 @@ typedef struct mesh
     void* debug_data;
 } mesh;
 
-// Shader stages available in the system
-typedef enum shader_stage
-{
-    SHADER_STAGE_VERTEX = 0x00000001,
-    SHADER_STAGE_GEOMETRY = 0x00000002,
-    SHADER_STAGE_FRAGMENT = 0x00000004,
-    SHADER_STAGE_COMPUTE = 0x0000008
-} shader_stage;
-
 typedef struct shader_stage_config
 {
     shader_stage stage;
@@ -265,57 +159,6 @@ typedef struct shader_stage_config
     u32 source_length;
     char* source;
 } shader_stage_config;
-
-// Available attribute types
-typedef enum shader_attribute_type
-{
-    SHADER_ATTRIB_TYPE_FLOAT32 = 0U,
-    SHADER_ATTRIB_TYPE_FLOAT32_2 = 1U,
-    SHADER_ATTRIB_TYPE_FLOAT32_3 = 2U,
-    SHADER_ATTRIB_TYPE_FLOAT32_4 = 3U,
-    SHADER_ATTRIB_TYPE_MATRIX_4 = 4U,
-    SHADER_ATTRIB_TYPE_INT8 = 5U,
-    SHADER_ATTRIB_TYPE_UINT8 = 6U,
-    SHADER_ATTRIB_TYPE_INT16 = 7U,
-    SHADER_ATTRIB_TYPE_UINT16 = 8U,
-    SHADER_ATTRIB_TYPE_INT32 = 9U,
-    SHADER_ATTRIB_TYPE_UINT32 = 10U,
-} shader_attribute_type;
-
-// Available uniform types
-typedef enum shader_uniform_type
-{
-    SHADER_UNIFORM_TYPE_FLOAT32 = 0U,
-    SHADER_UNIFORM_TYPE_FLOAT32_2 = 1U,
-    SHADER_UNIFORM_TYPE_FLOAT32_3 = 2U,
-    SHADER_UNIFORM_TYPE_FLOAT32_4 = 3U,
-    SHADER_UNIFORM_TYPE_INT8 = 4U,
-    SHADER_UNIFORM_TYPE_UINT8 = 5U,
-    SHADER_UNIFORM_TYPE_INT16 = 6U,
-    SHADER_UNIFORM_TYPE_UINT16 = 7U,
-    SHADER_UNIFORM_TYPE_INT32 = 8U,
-    SHADER_UNIFORM_TYPE_UINT32 = 9U,
-    SHADER_UNIFORM_TYPE_MATRIX_4 = 10U,
-    SHADER_UNIFORM_TYPE_SAMPLER_1D = 11U,
-    SHADER_UNIFORM_TYPE_SAMPLER_2D = 12U,
-    SHADER_UNIFORM_TYPE_SAMPLER_3D = 13U,
-    SHADER_UNIFORM_TYPE_SAMPLER_CUBE = 14U,
-    SHADER_UNIFORM_TYPE_SAMPLER_1D_ARRAY = 15U,
-    SHADER_UNIFORM_TYPE_SAMPLER_2D_ARRAY = 16U,
-    SHADER_UNIFORM_TYPE_SAMPLER_CUBE_ARRAY = 17U,
-    SHADER_UNIFORM_TYPE_CUSTOM = 255U
-} shader_uniform_type;
-
-// Defines shader scope, which indicates how often it gets updated
-typedef enum shader_scope
-{
-    // Global shader scope, generally updated once per frame
-    SHADER_SCOPE_GLOBAL = 0,
-    // Instance shader scope, generally updated "per-instance" of the shader
-    SHADER_SCOPE_INSTANCE = 1,
-    // Local shader scope, generally updated per-object
-    SHADER_SCOPE_LOCAL = 2
-} shader_scope;
 
 // Configuration for an attribute
 typedef struct shader_attribute_config
@@ -460,7 +303,7 @@ typedef struct material
     u32 internal_id;
     char name[MATERIAL_NAME_MAX_LENGTH];
 
-    texture_map *maps;
+    struct texture_map* maps;
 
     u32 property_struct_size;
 

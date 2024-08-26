@@ -1,20 +1,14 @@
 #include "vfs.h"
 
+#include "assets/basset_types.h"
 #include "containers/darray.h"
+#include "debug/bassert.h"
 #include "logger.h"
 #include "memory/bmemory.h"
+#include "platform/filesystem.h"
 #include "platform/bpackage.h"
 #include "strings/bstring.h"
 
-// Types of assets to be treated as text
-#define TEXT_ASSET_TYPE_COUNT 3
-static const char* text_asset_types[TEXT_ASSET_TYPE_COUNT] = {
-    "Material",
-    "Scene",
-    "Terrain"
-};
-
-static b8 treat_type_as_text(const char* type);
 static b8 process_manifest_refs(vfs_state* state, const asset_manifest* manifest);
 
 b8 vfs_initialize(u64* memory_requirement, vfs_state* state, const vfs_config* config)
@@ -85,112 +79,237 @@ void vfs_shutdown(vfs_state* state)
     }
 }
 
-void vfs_request_asset(vfs_state* state, const char* name, PFN_on_asset_loaded_callback callback)
+void vfs_request_asset(vfs_state* state, struct basset_metadata* meta, b8 is_binary, b8 get_source, u32 context_size, const void* context, PFN_on_asset_loaded_callback callback)
 {
-    if (state && name && callback)
+    if (!state || !meta || !callback)
+        BERROR("vfs_request_asset requires state, meta and callback to be provided");
+
+    // TODO: Jobify this call.
+    vfs_asset_data data = {0};
+    vfs_request_asset_sync(state, meta, is_binary, get_source, context_size, context, &data);
+
+    // TODO: This should be the job result
+    // Issue the callback with the data
+    callback(state, meta->name.asset_name, data);
+
+    // Cleanup the context
+    if (data.context && data.context_size)
     {
-        char package_name[VFS_PACKAGE_NAME_MAX_LENGTH] = {0};
-        char asset_type[VFS_ASSET_TYPE_MAX_LENGTH] = {0};
-        char asset_name[VFS_ASSET_NAME_MAX_LENGTH] = {0};
-        char* parts[3] = {package_name, asset_type, asset_name};
-
-        // Get the UTF-8 string length
-        u32 text_length_utf8 = string_utf8_length(name);
-        u32 char_length = string_length(name);
-
-        if (text_length_utf8 < 1)
-        {
-            BERROR("vfs_request_asset was passed an empty string for name. Nothing to be done");
-            return;
-        }
-
-        u8 part_index = 0;
-        u32 part_loc = 0;
-        for (u32 c = 0; c < char_length;)
-        {
-            i32 codepoint = name[c];
-            u8 advance = 1;
-
-            // Ensure the propert UTF-8 codepoint is being used
-            if (!bytes_to_codepoint(name, c, &codepoint, &advance))
-            {
-                BWARN("Invalid UTF-8 found in string, using unknown codepoint of -1");
-                codepoint = -1;
-            }
-
-            if (part_index < 2 && codepoint == '.')
-            {
-                // null terminate and move on
-                parts[part_index][part_loc] = 0;
-                part_index++;
-                part_loc = 0;
-            }
-
-            // Add to the current part string
-            for (u32 i = 0; i < advance; ++i)
-            {
-                parts[part_index][part_loc] = c + i;
-                part_loc++;
-            }
-
-            c += advance;
-        }
-        parts[part_index][part_loc] = 0;
-
-        BDEBUG("Loading asset '%s' of type '%s' from package '%s'...", asset_name, asset_type, package_name);
-
-        u32 package_count = darray_length(state->packages);
-        for (u32 i = 0; i < package_count; ++i)
-        {
-            bpackage* package = &state->packages[i];
-            if (strings_equali(package->name, package_name))
-            {
-                // Determine if the asset type is text
-                vfs_asset_data data = {0};
-                if (treat_type_as_text(asset_type))
-                {
-                    data.text = bpackage_asset_text_get(package, asset_type, asset_name, &data.size);
-                    if (!data.text)
-                    {
-                        BERROR("Failed to text load asset. See logs for details");
-                        data.success = false;
-                        return;
-                    }
-                }
-                else
-                {
-                    data.bytes = bpackage_asset_bytes_get(package, asset_type, asset_name, &data.size);
-                    if (!data.bytes)
-                    {
-                        BERROR("Failed to load binary asset. See logs for details");
-                        data.success = false;
-                        data.flags |= VFS_ASSET_FLAG_BINARY_BIT;
-                        return;
-                    }
-                }
-
-                data.success = true;
-                callback(asset_name, data);
-
-                return;
-            }
-        }
-
-        BERROR("No package named '%s' exists. Nothing was done", package_name);
-    }
-    else
-    {
-        BERROR("vfs_request_asset requires state, name and callback to be provided");
+        bfree(data.context, data.context_size, MEMORY_TAG_PLATFORM);
+        data.context = 0;
+        data.context_size = 0;
     }
 }
 
-static b8 treat_type_as_text(const char* type)
+void vfs_request_asset_sync(vfs_state* state, struct basset_metadata* meta, b8 is_binary, b8 get_source, u32 context_size, const void* context, vfs_asset_data* out_data)
 {
-    for (u32 i = 0; i < TEXT_ASSET_TYPE_COUNT; ++i)
+    if (!out_data)
     {
-        if (strings_equali(type, text_asset_types[i]))
-            return true;
+        BERROR("vfs_request_asset_sync requires a valid pointer to out_data. Nothing can or will be done");
+        return;
     }
+
+    if (!state || !meta)
+    {
+        BERROR("vfs_request_asset_sync requires state, name and callback to be provided");
+        out_data->result = VFS_REQUEST_RESULT_INTERNAL_FAILURE;
+        return;
+    }
+
+    bzero_memory(out_data, sizeof(vfs_asset_data));
+
+    // Take a copy of the context if provided. This will need to be freed by the caller
+    if (context_size)
+    {
+        BASSERT_MSG(context, "Called vfs_request_asset with a context_size, but not a context. Check yourself before you wreck yourself");
+        out_data->context_size = context_size;
+        out_data->context = ballocate(context_size, MEMORY_TAG_PLATFORM);
+        bcopy_memory(out_data->context, context, out_data->context_size);
+    }
+    else
+    {
+        out_data->context_size = 0;
+        out_data->context = 0;
+    }
+
+    basset_name* name = &meta->name;
+    BDEBUG("Loading asset '%s' of type '%s' from package '%s'...", name->asset_name, name->asset_type, name->package_name);
+
+    u32 package_count = darray_length(state->packages);
+    for (u32 i = 0; i < package_count; ++i)
+    {
+        bpackage* package = &state->packages[i];
+        // TODO: Optimization: Take a hash of the package names, then a hash of the requested package name and compare those instead
+        if (strings_equali(package->name, name->package_name))
+        {
+            bzero_memory(out_data, sizeof(vfs_asset_data));
+
+            // Determine if the asset type is text
+            bpackage_result result = BPACKAGE_RESULT_INTERNAL_FAILURE;
+            if (is_binary)
+            {
+                result = bpackage_asset_bytes_get(package, name->asset_name, get_source, &out_data->size, &out_data->bytes);
+                out_data->flags |= VFS_ASSET_FLAG_BINARY_BIT;
+            }
+            else
+            {
+                result = bpackage_asset_text_get(package, name->asset_name, get_source, &out_data->size, &out_data->text);
+            }
+
+            // Indicate this was loaded from source, if appropriate
+            if (get_source)
+                out_data->flags |= VFS_ASSET_FLAG_FROM_SOURCE;
+
+            // Translate the result to VFS layer and send on up
+            if (result != BPACKAGE_RESULT_SUCCESS)
+            {
+                BERROR("Failed to load binary asset. See logs for details");
+                switch (result)
+                {
+                case BPACKAGE_RESULT_PRIMARY_GET_FAILURE:
+                    out_data->result = VFS_REQUEST_RESULT_FILE_DOES_NOT_EXIST;
+                    break;
+                case BPACKAGE_RESULT_SOURCE_GET_FAILURE:
+                    out_data->result = VFS_REQUEST_RESULT_SOURCE_FILE_DOES_NOT_EXIST;
+                    break;
+                default:
+                case BPACKAGE_RESULT_INTERNAL_FAILURE:
+                    out_data->result = VFS_REQUEST_RESULT_INTERNAL_FAILURE;
+                    break;
+                }
+            }
+            else
+            {
+                out_data->result = VFS_REQUEST_RESULT_SUCCESS;
+            }
+
+            return;
+        }
+    }
+
+    BERROR("No package named '%s' exists. Nothing was done", name->package_name);
+    out_data->result = VFS_REQUEST_RESULT_PACKAGE_DOES_NOT_EXIST;
+    return;
+}
+
+void vfs_request_direct_from_disk(vfs_state* state, const char* path, b8 is_binary, u32 context_size, const void* context, PFN_on_asset_loaded_callback callback)
+{
+    if (!state || !path || !callback)
+        BERROR("vfs_request_direct_from_disk requires state, path and callback to be provided");
+
+    // TODO: Jobify this call
+    vfs_asset_data data = {0};
+    vfs_request_direct_from_disk_sync(state, path, is_binary, context_size, context, &data);
+
+    // TODO: This should be the job result
+    // Issue the callback with the data
+    callback(state, path, data);
+
+    // Cleanup the context
+    if (data.context && data.context_size)
+    {
+        bfree(data.context, data.context_size, MEMORY_TAG_PLATFORM);
+        data.context = 0;
+        data.context_size = 0;
+    }
+}
+
+void vfs_request_direct_from_disk_sync(vfs_state* state, const char* path, b8 is_binary, u32 context_size, const void* context, vfs_asset_data* out_data)
+{
+    if (!out_data)
+    {
+        BERROR("vfs_request_direct_from_disk_sync requires a valid pointer to out_data. Nothing can or will be done");
+        return;
+    }
+    if (!state || !path)
+    {
+        BERROR("VFS request direct from disk requires valid pointers to state, path and out_data");
+        return;
+    }
+
+    bzero_memory(out_data, sizeof(vfs_asset_data));
+
+    // Take a copy of the context if provided. This will need to be freed by the caller
+    if (context_size)
+    {
+        BASSERT_MSG(context, "Called vfs_request_asset with a context_size, but not a context. Check yourself before you wreck yourself");
+        out_data->context_size = context_size;
+        out_data->context = ballocate(context_size, MEMORY_TAG_PLATFORM);
+        bcopy_memory(out_data->context, context, out_data->context_size);
+    }
+    else
+    {
+        out_data->context_size = 0;
+        out_data->context = 0;
+    }
+
+    if (!filesystem_exists(path))
+    {
+        BERROR("vfs_request_direct_from_disk_sync: File does not exist: '%s'", path);
+        out_data->result = VFS_REQUEST_RESULT_FILE_DOES_NOT_EXIST;
+        return;
+    }
+
+    if (is_binary)
+    {
+        out_data->bytes = filesystem_read_entire_binary_file(path, &out_data->size);
+        if (!out_data->bytes)
+        {
+            out_data->size = 0;
+            BERROR("vfs_request_direct_from_disk_sync: Error reading from file: '%s'", path);
+            out_data->result = VFS_REQUEST_RESULT_READ_ERROR;
+            return;
+        }
+        out_data->flags |= VFS_ASSET_FLAG_BINARY_BIT;
+    }
+    else
+    {
+        out_data->text = filesystem_read_entire_text_file(path);
+        if (!out_data->text)
+        {
+            out_data->size = 0;
+            BERROR("vfs_request_direct_from_disk_sync: Error reading from file: '%s'", path);
+            out_data->result = VFS_REQUEST_RESULT_READ_ERROR;
+            return;
+        }
+        out_data->size = sizeof(char) * (string_length(out_data->text) + 1);
+    }
+
+    // Take a copy of the context if provided. This will be freed immediately after the callback is made below.
+    // This means the context should be immediately consumed by the callback before any async work is done
+    if (context_size)
+    {
+        BASSERT_MSG(context, "Called vfs_request_asset with a context_size, but not a context. Check yourself before you wreck yourself");
+        out_data->context_size = context_size;
+        out_data->context = ballocate(context_size, MEMORY_TAG_PLATFORM);
+        bcopy_memory(out_data->context, context, out_data->context_size);
+    }
+    else
+    {
+        out_data->context_size = 0;
+        out_data->context = 0;
+    }
+
+    out_data->result = VFS_REQUEST_RESULT_SUCCESS;
+}
+
+b8 vfs_asset_write(vfs_state* state, const basset* asset, b8 is_binary, u64 size, const void* data)
+{
+    u32 package_count = darray_length(state->packages);
+    for (u32 i = 0; i < package_count; ++i)
+    {
+        bpackage* package = &state->packages[i];
+        // TODO: Optimization: Take a hash of the package names, then a hash of the requested package name and compare those instead
+        if (strings_equali(package->name, asset->meta.name.package_name))
+        {
+            if (is_binary)
+                return bpackage_asset_bytes_write(package, asset->meta.name.fully_qualified_name, size, data);
+            else
+                return bpackage_asset_text_write(package, asset->meta.name.fully_qualified_name, size, data);
+        }
+    }
+
+    BERROR("vfs_asset_write: Unable to find package named '%s'", asset->meta.name.package_name);
     return false;
 }
 

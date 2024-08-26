@@ -2,9 +2,10 @@
 
 #include "logger.h"
 #include "memory/bmemory.h"
-#include "strings/bstring.h"
+#include "resources/font_types.h"
 #include "resources/resource_types.h"
 #include "systems/resource_system.h"
+#include "strings/bstring.h"
 #include "loader_utils.h"
 #include "platform/filesystem.h"
 

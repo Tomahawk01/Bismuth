@@ -11,11 +11,22 @@ windows = [
    }
 ]
 package_config = {
+    packages = [
+        "Runtime"
+        "PluginStandardUi"
+        "Testbed"
+    ]
     process_as_text [
         "SomeUserAssetType"
     ]
 }
 systems = [
+    {
+        name="asset"
+        config = {
+            max_asset_count = 2049
+        }
+    }
     {
         name="resource"
         config = {
@@ -59,9 +70,11 @@ systems = [
        config = {
             plugins = [
                 {
+                    name = "bismuth.plugin.utils"
+                }
+                {
                     name = "bismuth.plugin.renderer.vulkan"
                     config = {
-                    
                     }
                 }
                 {

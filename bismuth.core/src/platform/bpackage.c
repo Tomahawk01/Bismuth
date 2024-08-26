@@ -1,6 +1,9 @@
 #include "bpackage.h"
 
+#include "assets/basset_types.h"
+#include "assets/basset_utils.h"
 #include "containers/darray.h"
+#include "debug/bassert.h"
 #include "logger.h"
 #include "memory/bmemory.h"
 #include "parsers/bson_parser.h"
@@ -13,22 +16,18 @@ typedef struct asset_entry
     // If loaded from binary, this will be null
     const char* path;
 
+    // Should be populated if the asset was imported
+    const char* source_path;
+
     // If loaded from binary, these define where the asset is in the blob
     u64 offset;
     u64 size;
 } asset_entry;
 
-typedef struct asset_type_lookup
-{
-    const char* name;
-    // darray
-    asset_entry* entries;
-} asset_type_lookup;
-
 typedef struct bpackage_internal
 {
-    // darray
-    asset_type_lookup* types;
+    // darray of all asset entries
+    asset_entry* entries;
 } bpackage_internal;
 
 b8 bpackage_create_from_manifest(const asset_manifest* manifest, bpackage* out_package)
@@ -54,7 +53,6 @@ b8 bpackage_create_from_manifest(const asset_manifest* manifest, bpackage* out_p
     out_package->is_binary = false;
 
     out_package->internal_data = ballocate(sizeof(bpackage_internal), MEMORY_TAG_RESOURCE);
-    out_package->internal_data->types = darray_create(asset_type_lookup);
 
     // Process manifest
     u32 asset_count = darray_length(manifest->assets);
@@ -65,36 +63,13 @@ b8 bpackage_create_from_manifest(const asset_manifest* manifest, bpackage* out_p
         asset_entry new_entry = {0};
         new_entry.name = string_duplicate(asset->name);
         new_entry.path = string_duplicate(asset->path);
-
         // NOTE: Size and offset don't get filled out/used with a manifest version of a package
-        b8 type_found = false;
-        // Search for a list of the given type
-        u32 type_count = darray_length(out_package->internal_data->types);
-        for (u32 j = 0; j < type_count; ++j)
-        {
-            asset_type_lookup* lookup = &out_package->internal_data->types[j];
-            if (strings_equali(lookup->name, asset->type))
-            {
-                // Push to existing type list
-                darray_push(lookup->entries, new_entry);
-                type_found = true;
-                break;
-            }
-        }
+        // Allocate the entry type array if it isn't already
+        if (!out_package->internal_data->entries)
+            out_package->internal_data->entries = darray_create(asset_entry);
 
-        // If the type was not found, create a new one to push to
-        if (!type_found)
-        {
-            // Create the type lookup list
-            asset_type_lookup new_lookup = {0};
-            new_lookup.name = string_duplicate(asset->type);
-            new_lookup.entries = darray_create(asset_entry);
-            // Push the asset to it
-            darray_push(new_lookup.entries, new_entry);
-
-            // Push the list to the types list
-            darray_push(out_package->internal_data->types, new_lookup);
-        }
+        // Push the asset to it
+        darray_push(out_package->internal_data->entries, new_entry);
     }
 
     return true;
@@ -123,165 +98,269 @@ void bpackage_destroy(bpackage* package)
         if (package->name)
             string_free(package->name);
 
-        // Clear type lookups
-        if (package->internal_data->types)
+        if (package->internal_data->entries)
         {
-            u32 type_count = darray_length(package->internal_data->types);
-            for (u32 i = 0; i < type_count; ++i)
-            {
-                asset_type_lookup* lookup = &package->internal_data->types[i];
-                if (lookup->name)
-                    string_free(lookup->name);
-                // Clear entries
-                if (lookup->entries)
-                {
-                    u32 entry_count = darray_length(lookup->entries);
-                    for (u32 j = 0; j < entry_count; ++j)
-                    {
-                        asset_entry* entry = &lookup->entries[j];
-                        if (entry->name)
-                            string_free(entry->name);
-                        if (entry->path)
-                            string_free(entry->path);
-                    }
-                    darray_destroy(lookup->entries);
-                }
-            }
-            darray_destroy(package->internal_data->types);
-        }
-
-        if (package->internal_data)
-            bfree(package->internal_data, sizeof(bpackage_internal), MEMORY_TAG_RESOURCE);
-
-        bzero_memory(package, sizeof(bpackage_internal));
-    }
-}
-
-static const char* asset_resolve(const bpackage* package, b8 is_binary, const char* type, const char* name, file_handle* out_handle, u64* out_size)
-{
-    // Search for a list of the given type
-    u32 type_count = darray_length(package->internal_data->types);
-    for (u32 j = 0; j < type_count; ++j)
-    {
-        asset_type_lookup* lookup = &package->internal_data->types[j];
-        if (strings_equali(lookup->name, type))
-        {
-            // Search the type lookup's entries for the matching name
-            u32 entry_count = darray_length(lookup->entries);
+            u32 entry_count = darray_length(package->internal_data->entries);
             for (u32 j = 0; j < entry_count; ++j)
             {
-                asset_entry* entry = &lookup->entries[j];
-                if (strings_equali(entry->name, name))
-                {
-                    if (package->is_binary)
-                    {
-                        BERROR("binary packages not yet supported");
-                        return 0;
-                    }
-                    else
-                    {
-                        // load the file content from disk
-                        if (!filesystem_open(entry->path, FILE_MODE_READ, is_binary, out_handle))
-                        {
-                            BERROR("Package '%s': Failed to open asset '%s' file at path: '%s'", package->name, name, entry->path);
-                            return 0;
-                        }
-                    }
-
-                    if (!filesystem_size(out_handle, out_size))
-                    {
-                        BERROR("Package '%s': Failed to get size for asset '%s' file at path: '%s'", package->name, name, entry->path);
-                        return 0;
-                    }
-
-                    return string_duplicate(entry->path);
-                }
+                asset_entry* entry = &package->internal_data->entries[j];
+                if (entry->name)
+                    string_free(entry->name);
+                if (entry->path)
+                    string_free(entry->path);
             }
-            BERROR("Package '%s': No entry called '%s' exists of type '%s'", package->name, name, type);
-            return 0;
         }
+        darray_destroy(package->internal_data->entries);
+    }
+
+    if (package->internal_data)
+        bfree(package->internal_data, sizeof(bpackage_internal), MEMORY_TAG_RESOURCE);
+
+    bzero_memory(package, sizeof(bpackage_internal));
+}
+
+static asset_entry* asset_entry_get(const bpackage* package, const char* name)
+{
+    // Search the type lookup's entries for the matching name
+    u32 entry_count = darray_length(package->internal_data->entries);
+    for (u32 j = 0; j < entry_count; ++j)
+    {
+        asset_entry* entry = &package->internal_data->entries[j];
+        if (strings_equali(entry->name, name))
+            return entry;
     }
 
     BERROR("Package '%s': No entry called '%s' exists", package->name, name);
     return 0;
 }
 
-void* bpackage_asset_bytes_get(const bpackage* package, const char* type, const char* name, u64* out_size)
+static bpackage_result asset_get_data(const bpackage* package, b8 is_binary, const char* name, b8 get_source, u64* out_size, const void** out_data)
 {
-    if (!package || !type || !name || !out_size)
+    asset_entry* entry = asset_entry_get(package, name);
+    if (!entry)
     {
-        BERROR("bpackage_asset_bytes_get requires valid pointers to package, type, name and out_size");
-        return 0;
     }
-
-    b8 success = false;
-    file_handle f;
-    u64 size;
-    const char* asset_path = asset_resolve(package, true, type, name, &f, &size);
-    if (!asset_path)
+    // Search the type lookup's entries for the matching name
+    u32 entry_count = darray_length(package->internal_data->entries);
+    for (u32 j = 0; j < entry_count; ++j)
     {
-        BERROR("bpackage_asset_bytes_get failed to find asset");
-        goto bpackage_asset_bytes_get_cleanup;
+        asset_entry* entry = &package->internal_data->entries[j];
+        if (strings_equali(entry->name, name))
+        {
+            if (package->is_binary)
+            {
+                BERROR("binary packages not yet supported");
+                return BPACKAGE_RESULT_INTERNAL_FAILURE;
+            }
+            else
+            {
+                bpackage_result result = BPACKAGE_RESULT_INTERNAL_FAILURE;
+
+                // Validate asset path.
+                const char* asset_path = get_source ? entry->source_path : entry->path;
+                if (!asset_path)
+                {
+                    BERROR("Package '%s': No %s asset path exists for asset '%s'. Load operation failed", package->name, get_source ? "source" : "primary", name);
+                    result = get_source ? BPACKAGE_RESULT_SOURCE_GET_FAILURE : BPACKAGE_RESULT_PRIMARY_GET_FAILURE;
+                    goto get_data_cleanup;
+                }
+
+                // Validate that the file exists
+                if (!filesystem_exists(asset_path))
+                {
+                    BERROR("Package '%s': Invalid %s asset path for asset '%s'. Load operation failed", package->name, get_source ? "source" : "primary", name);
+                    result = get_source ? BPACKAGE_RESULT_SOURCE_GET_FAILURE : BPACKAGE_RESULT_PRIMARY_GET_FAILURE;
+                    goto get_data_cleanup;
+                }
+
+                // load the file content from disk
+                file_handle f = {0};
+                if (!filesystem_open(asset_path, FILE_MODE_READ, is_binary, &f))
+                {
+                    BERROR("Package '%s': Failed to open asset '%s' file at path: '%s'", package->name, name, asset_path);
+                    result = get_source ? BPACKAGE_RESULT_SOURCE_GET_FAILURE : BPACKAGE_RESULT_PRIMARY_GET_FAILURE;
+                    goto get_data_cleanup;
+                }
+
+                // Get the file size
+                u64 file_size = 0;
+                if (!filesystem_size(&f, &file_size))
+                {
+                    BERROR("Package '%s': Failed to get size for asset '%s' file at path: '%s'", package->name, name, asset_path);
+                    result = get_source ? BPACKAGE_RESULT_SOURCE_GET_FAILURE : BPACKAGE_RESULT_PRIMARY_GET_FAILURE;
+                    goto get_data_cleanup;
+                }
+
+                void* data = ballocate(file_size, MEMORY_TAG_ASSET);
+
+                u64 read_size = 0;
+                if (is_binary)
+                {
+                    // Load as binary
+                    if (!filesystem_read_all_bytes(&f, data, &read_size))
+                    {
+                        BERROR("Package '%s': Failed to read asset '%s' as binary, at file at path: '%s'", package->name, name, asset_path);
+                        goto get_data_cleanup;
+                    }
+                }
+                else
+                {
+                    // Load as text
+                    if (!filesystem_read_all_text(&f, data, &read_size))
+                    {
+                        BERROR("Package '%s': Failed to read asset '%s' as text, at file at path: '%s'", package->name, name, asset_path);
+                        goto get_data_cleanup;
+                    }
+                }
+
+                // Sanity check to make sure the bounds haven't been breached
+                BASSERT_MSG(read_size <= file_size, "File read exceeded bounds of data allocation based on file size");
+
+                // This means that data is bigger than it needs to be, and that a smaller block of memory can be used
+                if (read_size < file_size)
+                {
+                    BTRACE("Package '%s': asset '%s', file at path: '%s' - Read size/file size mismatch (%llu, %llu)", package->name, name, asset_path, read_size, file_size);
+                    void* temp = ballocate(read_size, MEMORY_TAG_ASSET);
+                    bcopy_memory(temp, data, read_size);
+                    bfree(data, file_size, MEMORY_TAG_ASSET);
+                    data = temp;
+                    file_size = read_size;
+                }
+
+                // Set the output
+                *out_data = data;
+                *out_size = file_size;
+
+                // Success!
+                result = BPACKAGE_RESULT_SUCCESS;
+
+            get_data_cleanup:
+                filesystem_close(&f);
+
+                if (result != BPACKAGE_RESULT_SUCCESS)
+                {
+                    if (data)
+                        bfree(data, file_size, MEMORY_TAG_ASSET);
+                }
+                else
+                {
+                    BERROR("Package '%s' does not contain asset '%s'", package->name, name);
+                }
+                return result;
+            }
+        }
     }
-
-    void* file_content = ballocate(size, MEMORY_TAG_RESOURCE);
-
-    // Load as binary
-    if (!filesystem_read_all_bytes(&f, file_content, out_size))
-    {
-        BERROR("Package '%s': Failed to read asset '%s' as binary, at file at path: '%s'", package->name, name, asset_path);
-        goto bpackage_asset_bytes_get_cleanup;
-    }
-
-    success = true;
-
-bpackage_asset_bytes_get_cleanup:
-    filesystem_close(&f);
-
-    if (success)
-        string_free(asset_path);
-    else
-        BERROR("Package '%s' does not contain an asset type of '%s'", package->name, type);
-    return success ? file_content : 0;
+    
+    BERROR("Package '%s': No entry called '%s' exists", package->name, name);
+    return 0;
 }
 
-const char* bpackage_asset_text_get(const bpackage* package, const char* type, const char* name, u64* out_size)
+bpackage_result bpackage_asset_bytes_get(const bpackage* package, const char* name, b8 get_source, u64* out_size, const void** out_data)
 {
-    if (!package || !type || !name || !out_size)
+    if (!package || !name || !out_size)
     {
-        BERROR("bpackage_asset_text_get requires valid pointers to package, type, name and out_size");
+        BERROR("bpackage_asset_bytes_get requires valid pointers to package, name, out_size, and out_data");
         return 0;
     }
 
-    void* file_content = ballocate(*out_size, MEMORY_TAG_RESOURCE);
+    return asset_get_data(package, true, name, get_source, out_size, out_data);
+}
 
-    b8 success = false;
-    file_handle f;
-    u64 size;
-    const char* asset_path = asset_resolve(package, false, type, name, &f, &size);
-    if (!asset_path)
+bpackage_result bpackage_asset_text_get(const bpackage* package, const char* name, b8 get_source, u64* out_size, const char** out_text)
+{
+    if (!package || !name || !out_size || !out_text)
     {
-        BERROR("bpackage_asset_bytes_get failed to find asset");
-        goto bpackage_asset_text_get_cleanup;
+        BERROR("bpackage_asset_text_get requires valid pointers to package, name, out_size, and out_text");
+        return 0;
     }
 
-    // Load as text
-    if (!filesystem_read_all_text(&f, file_content, out_size))
+    return asset_get_data(package, false, name, get_source, out_size, (const void**)out_text);
+}
+
+// Writes file to disk for packages using the asset manifest, not binary packages
+static b8 bpackage_asset_write_file_internal(bpackage* package, const char* name, u64 size, const void* bytes, b8 is_binary)
+{
+    file_handle f = {0};
+    // FIXME: Brute-force lookup, add a hash table or something better...
+    u32 entry_count = darray_length(package->internal_data->entries);
+    for (u32 i = 0; i < entry_count; ++i)
     {
-        BERROR("Package '%s': Failed to read asset '%s' as text, at file at path: '%s'", package->name, name, asset_path);
-        goto bpackage_asset_text_get_cleanup;
+        asset_entry* entry = &package->internal_data->entries[i];
+        if (strings_equali(entry->name, name))
+        {
+            // Found a match
+            if (!filesystem_open(entry->path, FILE_MODE_WRITE, is_binary, &f))
+            {
+                BERROR("Unable to open asset file for writing: '%s'", entry->path);
+                return false;
+            }
+
+            u64 bytes_written = 0;
+            if (!filesystem_write(&f, size, bytes, &bytes_written))
+            {
+                BERROR("Unable to write to asset file: '%s'", entry->path);
+                filesystem_close(&f);
+                return false;
+            }
+
+            if (bytes_written != size)
+                BWARN("Asset bytes written/size mismatch: %llu/%llu", bytes_written, size);
+
+            return true;
+        }
     }
 
-    success = true;
+    // New asset file, write out
+    BERROR("bpackage_asset_bytes_write attempted to write to an asset that is not in the manifest");
+    return false;
+}
 
-bpackage_asset_text_get_cleanup:
-    filesystem_close(&f);
+b8 bpackage_asset_bytes_write(bpackage* package, const char* name, u64 size, const void* bytes)
+{
+    if (!package || !name || !size || !bytes)
+    {
+        BERROR("bpackage_asset_bytes_write requires valid pointers to package, name and bytes, and a nonzero size");
+        return false;
+    }
 
-    if (success)
-        string_free(asset_path);
-    else
-        BERROR("Package '%s' does not contain an asset type of '%s'", package->name, type);
-    return success ? file_content : 0;
+    if (package->is_binary)
+    {
+        // FIXME: do the thing
+        BASSERT_MSG(false, "not yet supported");
+        return false;
+    }
+
+    if (!bpackage_asset_write_file_internal(package, name, size, bytes, true))
+    {
+        BERROR("Failed to write asset");
+        return false;
+    }
+
+    return true;
+}
+
+b8 bpackage_asset_text_write(bpackage* package, const char* name, u64 size, const char* text)
+{
+    if (!package || !name || !size || !text)
+    {
+        BERROR("bpackage_asset_text_write requires valid pointers to package, name and bytes, and a nonzero size");
+        return false;
+    }
+
+    if (package->is_binary)
+    {
+        // FIXME: do the thing
+        BASSERT_MSG(false, "not yet supported");
+        return false;
+    }
+
+    if (!bpackage_asset_write_file_internal(package, name, size, (void*)text, false))
+    {
+        BERROR("Failed to write asset");
+        return false;
+    }
+
+    return true;
 }
 
 b8 bpackage_parse_manifest_file_content(const char* path, asset_manifest* out_manifest)

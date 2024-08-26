@@ -3,9 +3,9 @@
 #include "containers/darray.h"
 #include "containers/stack.h"
 #include "debug/bassert.h"
+#include "logger.h"
 #include "memory/bmemory.h"
 #include "strings/bstring.h"
-#include "logger.h"
 
 b8 bson_parser_create(bson_parser* out_parser)
 {
@@ -985,7 +985,7 @@ b8 bson_tree_from_string(const char* source, bson_tree* out_tree)
         goto bson_tree_from_string_parser_cleanup;
     }
 
-    // Parse the tokens.
+    // Parse the tokens
     if (!bson_parser_parse(&parser, out_tree))
     {
         BERROR("Parsing failed. See logs for details");
@@ -1743,4 +1743,20 @@ bson_property bson_array_property_create(const char* name)
     arr.value.o.properties = darray_create(bson_property);
 
     return arr;
+}
+
+bson_object bson_object_create(void)
+{
+    bson_object new_obj = {0};
+    new_obj.type = BSON_OBJECT_TYPE_OBJECT;
+    new_obj.properties = 0;
+    return new_obj;
+}
+
+bson_array bson_array_create(void)
+{
+    bson_array new_arr = {0};
+    new_arr.type = BSON_OBJECT_TYPE_ARRAY;
+    new_arr.properties = 0;
+    return new_arr;
 }

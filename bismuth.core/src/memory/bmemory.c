@@ -63,7 +63,10 @@ static const char* memory_tag_strings[MEMORY_TAG_MAX_TAGS] =
     "UI          ",
     "AUDIO       ",
     "REGISTRY    ",
-    "PLUGIN      "
+    "PLUGIN      ",
+    "PLATFORM    ",
+    "SERIALIZER  ",
+    "ASSET       "
 };
 
 typedef struct memory_system_state
@@ -161,7 +164,7 @@ void* ballocate(u64 size, memory_tag tag)
 void* ballocate_aligned(u64 size, u16 alignment, memory_tag tag)
 {
     if (tag == MEMORY_TAG_UNKNOWN)
-        BTRACE("Warning: ballocate_aligned called using MEMORY_TAG_UNKNOWN. Re-class this allocation");
+        BWARN("ballocate_aligned called using MEMORY_TAG_UNKNOWN. Re-class this allocation");
 
     // Either allocate from the system's allocator or the OS
     void* block = 0;
