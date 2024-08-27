@@ -5,6 +5,7 @@
 #include "debug/bassert.h"
 #include "logger.h"
 #include "memory/bmemory.h"
+#include "strings/bname.h"
 #include "strings/bstring.h"
 
 b8 bson_parser_create(bson_parser* out_parser)
@@ -1292,7 +1293,7 @@ b8 bson_array_value_add_mat4(bson_array* array, mat4 value)
     const char* temp_str = mat4_to_string(value);
     if (!temp_str)
     {
-        BWARN("bson_array_value_add_mat4 failed to convert tile_scale to string");
+        BWARN("bson_array_value_add_mat4 failed to convert value to string");
         return false;
     }
     b8 result = bson_array_value_add_string(array, temp_str);
@@ -1305,7 +1306,7 @@ b8 bson_array_value_add_vec4(bson_array* array, vec4 value)
     const char* temp_str = vec4_to_string(value);
     if (!temp_str)
     {
-        BWARN("bson_array_value_add_vec4 failed to convert tile_scale to string");
+        BWARN("bson_array_value_add_vec4 failed to convert value to string");
         return false;
     }
     b8 result = bson_array_value_add_string(array, temp_str);
@@ -1318,7 +1319,7 @@ b8 bson_array_value_add_vec3(bson_array* array, vec3 value)
     const char* temp_str = vec3_to_string(value);
     if (!temp_str)
     {
-        BWARN("bson_array_value_add_vec3 failed to convert tile_scale to string");
+        BWARN("bson_array_value_add_vec3 failed to convert value to string");
         return false;
     }
     b8 result = bson_array_value_add_string(array, temp_str);
@@ -1331,11 +1332,23 @@ b8 bson_array_value_add_vec2(bson_array* array, vec2 value)
     const char* temp_str = vec2_to_string(value);
     if (!temp_str)
     {
-        BWARN("bson_array_value_add_vec2 failed to convert tile_scale to string");
+        BWARN("bson_array_value_add_vec2 failed to convert value to string");
         return false;
     }
     b8 result = bson_array_value_add_string(array, temp_str);
     string_free(temp_str);
+    return result;
+}
+
+b8 bson_array_value_add_bname(bson_array* array, bname value)
+{
+    const char* temp_str = bname_string_get(value);
+    if (!temp_str)
+    {
+        BWARN("bson_array_value_add_bname failed to convert value to string");
+        return false;
+    }
+    b8 result = bson_array_value_add_string(array, temp_str);
     return result;
 }
 
@@ -1424,7 +1437,7 @@ b8 bson_object_value_add_mat4(bson_object* object, const char* name, mat4 value)
     const char* temp_str = mat4_to_string(value);
     if (!temp_str)
     {
-        BWARN("bson_object_value_add_mat4 failed to convert tile_scale to string");
+        BWARN("bson_object_value_add_mat4 failed to convert value to string");
         return false;
     }
     b8 result = bson_object_value_add_string(object, name, temp_str);
@@ -1437,7 +1450,7 @@ b8 bson_object_value_add_vec4(bson_object* object, const char* name, vec4 value)
     const char* temp_str = vec4_to_string(value);
     if (!temp_str)
     {
-        BWARN("bson_object_value_add_vec4 failed to convert tile_scale to string");
+        BWARN("bson_object_value_add_vec4 failed to convert value to string");
         return false;
     }
     b8 result = bson_object_value_add_string(object, name, temp_str);
@@ -1450,7 +1463,7 @@ b8 bson_object_value_add_vec3(bson_object* object, const char* name, vec3 value)
     const char* temp_str = vec3_to_string(value);
     if (!temp_str)
     {
-        BWARN("bson_object_value_add_vec3 failed to convert tile_scale to string");
+        BWARN("bson_object_value_add_vec3 failed to convert value to string");
         return false;
     }
     b8 result = bson_object_value_add_string(object, name, temp_str);
@@ -1463,11 +1476,23 @@ b8 bson_object_value_add_vec2(bson_object* object, const char* name, vec2 value)
     const char* temp_str = vec2_to_string(value);
     if (!temp_str)
     {
-        BWARN("bson_object_value_add_vec2 failed to convert tile_scale to string");
+        BWARN("bson_object_value_add_vec2 failed to convert value to string");
         return false;
     }
     b8 result = bson_object_value_add_string(object, name, temp_str);
     string_free(temp_str);
+    return result;
+}
+
+b8 bson_object_value_add_bname(bson_object* object, const char* name, bname value)
+{
+    const char* temp_str = bname_string_get(value);
+    if (!temp_str)
+    {
+        BWARN("bson_object_value_add_bname failed to convert value to string");
+        return false;
+    }
+    b8 result = bson_object_value_add_string(object, name, temp_str);
     return result;
 }
 
@@ -1660,6 +1685,18 @@ b8 bson_array_element_value_get_vec2(const bson_array* array, u32 index, vec2* o
 
     const char* str = array->properties[index].value.s;
     return string_to_vec2(str, out_value);
+}
+
+b8 bson_array_element_value_get_bname(const bson_array* array, u32 index, bname* out_value)
+{
+    if (!out_value || !bson_array_index_in_range(array, index))
+        return false;
+
+    BASSERT_MSG(array->properties[index].type != BSON_PROPERTY_TYPE_STRING, "Array element is not stored as a string");
+
+    const char* str = array->properties[index].value.s;
+    *out_value = bname_create(str);
+    return true;
 }
 
 b8 bson_array_element_value_get_object(const bson_array* array, u32 index, bson_object* out_value)
@@ -1907,6 +1944,16 @@ b8 bson_object_property_value_get_vec2(const bson_object* object, const char* na
 
     const char* str = bson_object_property_value_get_string_reference(object, name, "vec2");
     return string_to_vec2(str, out_value);
+}
+
+b8 bson_object_property_value_get_bname(const bson_object* object, const char* name, bname* out_value)
+{
+    if (!out_value)
+        return false;
+
+    const char* str = bson_object_property_value_get_string_reference(object, name, "bname");
+    *out_value = bname_create(str);
+    return true;
 }
 
 b8 bson_object_property_value_get_object(const bson_object* object, const char* name, bson_object* out_value)

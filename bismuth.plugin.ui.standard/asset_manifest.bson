@@ -9,7 +9,7 @@ assets = [
     {
         name = "UI"
         type = "Shader"
-        path = "./assets/shaders/UI.shadercfg"
+        path = "./assets/shaders/UI.bsc"
     }
     {
         name = "UI_frag"
@@ -24,7 +24,7 @@ assets = [
     {
         name = "Pick_UI"
         type = "Shader"
-        path = "./assets/shaders/Pick_UI.shadercfg"
+        path = "./assets/shaders/Pick_UI.bsc"
     }
     {
         name = "Pick_UI_frag"
@@ -39,7 +39,8 @@ assets = [
     {
         name = "StandardUIAtlas"
         type = "Texture"
-        path = "./assets/textures/StandardUIAtlas.png"
+        path = "./assets/textures/StandardUIAtlas.bbi"
+        source_path = "./assets/textures/StandardUIAtlas.png"
     }
     {
         name = "OpenSans21px"
@@ -49,12 +50,13 @@ assets = [
         {
         name = "OpenSans21px_0"
         type = "Texture"
-        path = "./assets/textures/OpenSans21px_0.png"
+        path = "./assets/textures/OpenSans21px_0.bbi"
+        source_path = "./assets/textures/OpenSans21px_0.png"
     }
     {
         name = "NotoSansCJK"
         type = "SystemFont"
-        path = "./assets/fonts/NotoSansCJK.fontcfg"
+        path = "./assets/fonts/NotoSansCJK.bsf"
     }
     {
         name = "NotoSansCJK-Regular"

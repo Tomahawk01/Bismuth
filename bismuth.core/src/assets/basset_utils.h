@@ -7,15 +7,6 @@
 struct basset_name;
 
 /**
- * @brief Parses name info from the provided fully_qualified_name
- *
- * @param fully_qualified_name The fully-qualified name of the asset (i.e. "Testbed.Texture.Rock01")
- * @param out_name A pointer to hold the parsed name. Required
- * @return True on success; otherwise false
- */
-BAPI b8 basset_util_parse_name(const char* fully_qualified_name, struct basset_name* out_name);
-
-/**
  * @brief Attempts to convert the provided type string to the appropriate enumeration value
  *
  * @param type_str The type string to be examined
@@ -39,4 +30,4 @@ const char* basset_type_to_string(basset_type type);
  * @param name The name of the asset
  * @param vfs_asset_data The VFS asset data containing the result of the VFS load operation and potential asset data
  */
-BAPI void asset_handler_base_on_asset_loaded(struct vfs_state* vfs, const char* name, vfs_asset_data asset_data);
+BAPI void asset_handler_base_on_asset_loaded(struct vfs_state* vfs, vfs_asset_data asset_data);

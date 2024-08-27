@@ -1,7 +1,7 @@
 // Font configuration file
 version=1
-ttf_asset_name="Fonts/NotoSansCJK-Regular"
-
+ttf_asset_name="NotoSansCJK-Regular"
+ttf_asset_package_name = "PluginUiStandard"
 faces = [
     "Noto Sans CJK JP"
     "Noto Sans CJK KR"

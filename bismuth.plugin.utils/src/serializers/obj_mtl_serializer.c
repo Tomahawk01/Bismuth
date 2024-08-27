@@ -8,6 +8,7 @@
 #include <math/geometry.h>
 #include <math/bmath.h>
 #include <memory/bmemory.h>
+#include <strings/bname.h>
 #include <strings/bstring.h>
 
 #include <stdio.h> // sscanf
@@ -80,7 +81,7 @@ static b8 import_obj_material_library_file(const char* mtl_file_text, obj_mtl_so
                 // ambient color is determined by the level
                 char t[2];
                 obj_mtl_source_property prop = {0};
-                prop.name = string_duplicate("diffuse_color");
+                prop.name = bname_create("diffuse_color");
                 prop.type = SHADER_UNIFORM_TYPE_FLOAT32_4;
                 prop.size = sizeof(vec4);
 
@@ -114,7 +115,7 @@ static b8 import_obj_material_library_file(const char* mtl_file_text, obj_mtl_so
                 char t[2];
 
                 obj_mtl_source_property prop = {0};
-                prop.name = string_duplicate("shininess");
+                prop.name = bname_create("shininess");
                 prop.type = SHADER_UNIFORM_TYPE_FLOAT32;
                 prop.size = sizeof(f32);
 
@@ -144,34 +145,34 @@ static b8 import_obj_material_library_file(const char* mtl_file_text, obj_mtl_so
             // Texture name
             char tex_name_buf[512] = {0};
             string_filename_no_extension_from_path(tex_name_buf, texture_file_name);
-            map.image_asset_name = string_duplicate(tex_name_buf);
+            map.image_asset_name = bname_create(tex_name_buf);
 
             // map name/type
             if (first_char == 'm')
             {
                 if (strings_nequali(substr, "map_Kd", 6))
                 {
-                    map.name = string_duplicate("albedo");
+                    map.name = bname_create("albedo");
                     map.channel = OBJ_TEXTURE_MAP_CHANNEL_PBR_ALBEDO;
                 }
                 else if (strings_nequali(substr, "map_Pm", 6))
                 {
-                    map.name = string_duplicate("metallic");
+                    map.name = bname_create("metallic");
                     map.channel = OBJ_TEXTURE_MAP_CHANNEL_PBR_METALLIC;
                 }
                 else if (strings_nequali(substr, "map_Pr", 6))
                 {
-                    map.name = string_duplicate("rougness");
+                    map.name = bname_create("rougness");
                     map.channel = OBJ_TEXTURE_MAP_CHANNEL_PBR_ROUGHNESS;
                 }
                 else if (strings_nequali(substr, "map_Ke", 6))
                 {
-                    map.name = string_duplicate("emissive");
+                    map.name = bname_create("emissive");
                     map.channel = OBJ_TEXTURE_MAP_CHANNEL_PBR_EMISSIVE;
                 }
                 else if (strings_nequali(substr, "map_bump", 8))
                 {
-                    map.name = string_duplicate("normal");
+                    map.name = bname_create("normal");
                     map.channel = OBJ_TEXTURE_MAP_CHANNEL_PBR_NORMAL;
                 }
                 else
@@ -184,7 +185,7 @@ static b8 import_obj_material_library_file(const char* mtl_file_text, obj_mtl_so
             {
                 if (strings_nequali(substr, "bump", 4))
                 {
-                    map.name = string_duplicate("normal");
+                    map.name = bname_create("normal");
                     map.channel = OBJ_TEXTURE_MAP_CHANNEL_PBR_NORMAL;
                 }
                 else
@@ -228,7 +229,7 @@ static b8 import_obj_material_library_file(const char* mtl_file_text, obj_mtl_so
                     // Take a copy of the name
                     if (current_name)
                     {
-                        new_material.name = string_duplicate(current_name);
+                        new_material.name = bname_create(current_name);
                     }
                     else
                     {
@@ -270,7 +271,7 @@ static b8 import_obj_material_library_file(const char* mtl_file_text, obj_mtl_so
     // Take a copy of the name
     if (current_name)
     {
-        new_material.name = string_duplicate(current_name);
+        new_material.name = bname_create(current_name);
     }
     else
     {

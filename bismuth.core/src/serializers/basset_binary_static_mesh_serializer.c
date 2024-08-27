@@ -4,6 +4,7 @@
 #include "containers/darray.h"
 #include "logger.h"
 #include "memory/bmemory.h"
+#include "strings/bname.h"
 #include "strings/bstring.h"
 
 typedef struct binary_static_mesh_header
@@ -69,13 +70,15 @@ BAPI void* basset_binary_static_mesh_serialize(const basset* asset, u64* out_siz
         // Name + null terminator
         if (g->name)
         {
-            u64 len = string_length(g->name + 1);
+            const char* gname = bname_string_get(g->name);
+            u64 len = string_length(gname + 1);
             header.base.data_block_size += len;
         }
 
         if (g->material_asset_name)
         {
-            u64 len = string_length(g->material_asset_name) + 1;
+            const char* gmat_asset_name = bname_string_get(g->material_asset_name);
+            u64 len = string_length(gmat_asset_name) + 1;
             header.base.data_block_size += len;
         }
 
@@ -144,15 +147,17 @@ BAPI void* basset_binary_static_mesh_serialize(const basset* asset, u64* out_siz
         // Name + null terminator
         if (g->name)
         {
-            u64 len = string_length(g->name + 1);
-            bcopy_memory(block + offset, g->name, len);
+            const char* str = bname_string_get(g->name);
+            u64 len = string_length(str + 1);
+            bcopy_memory(block + offset, str, len);
             offset += len;
         }
 
         if (g->material_asset_name)
         {
-            u64 len = string_length(g->material_asset_name) + 1;
-            bcopy_memory(block + offset, g->material_asset_name, len);
+            const char* str = bname_string_get(g->material_asset_name);
+            u64 len = string_length(str) + 1;
+            bcopy_memory(block + offset, str, len);
             offset += len;
         }
 

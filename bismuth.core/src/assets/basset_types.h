@@ -5,6 +5,7 @@
 #include "identifiers/identifier.h"
 #include "math/math_types.h"
 #include "parsers/bson_parser.h"
+#include "strings/bname.h"
 
 /** @brief A magic number indicating the file as a bismuth binary asset file */
 #define ASSET_MAGIC 0xcafebabe
@@ -67,32 +68,6 @@ typedef enum basset_type
 
     BASSET_TYPE_MAX
 } basset_type;
-
-/** @brief Represents the name of an asset, complete with all parts of the name along with the fully-qualified name */
-typedef struct basset_name
-{
-    /** @brief The fully-qualified name in the format "<PackageName>.<AssetType>.<AssetName>" */
-    const char* fully_qualified_name;
-    /** @brief The package name the asset belongs to */
-    char package_name[BPACKAGE_NAME_MAX_LENGTH];
-    /** @brief The asset type in string format */
-    char asset_type[BASSET_TYPE_MAX_LENGTH];
-    /** @brief The asset name */
-    char asset_name[BASSET_NAME_MAX_LENGTH];
-} basset_name;
-
-typedef struct basset_metadata
-{
-    // The asset version
-    u32 version;
-    // Size of the asset
-    u64 size;
-    // Asset name info
-    basset_name name;
-    /** @brief The path of the originally imported file used to create this asset */
-    const char* source_file_path;
-    // TODO: Listing of asset-type-specific metadata
-} basset_metadata;
 
 typedef struct binary_asset_header
 {
@@ -157,6 +132,21 @@ typedef struct basset_importer
     PFN_basset_importer_import import;
 } basset_importer;
 
+/** @brief Various metadata included with the asset */
+typedef struct basset_metadata
+{
+    // The asset version
+    u32 version;
+    /** @brief The path of the originally imported file used to create this asset, stored as a bname */
+    bname source_asset_path;
+
+    /** @brief The number of tags */
+    u32 tag_count;
+    /** @brief An array of tags */
+    bname* tags;
+    // TODO: Listing of asset-type-specific metadata
+} basset_metadata;
+
 /** @brief A structure meant to be included as the first member in the struct of all asset types for quick casting purposes */
 typedef struct basset
 {
@@ -164,6 +154,12 @@ typedef struct basset
     identifier id;
     /** @brief Increments every time the asset is loaded/reloaded. Otherwise INVALID_ID */
     u32 generation;
+    // Size of the asset
+    u64 size;
+    // Asset name stored as a bname
+    bname name;
+    // Package name stored as a bname
+    bname package_name;
     /** @brief The asset type */
     basset_type type;
     /** @brief Metadata for the asset */
@@ -175,11 +171,11 @@ typedef struct basset
 typedef struct basset_heightmap_terrain
 {
     basset base;
-    const char* heightmap_filename;
+    bname heightmap_asset_name;
     u16 chunk_size;
     vec3 tile_scale;
     u8 material_count;
-    const char** material_names;
+    bname* material_names;
 } basset_heightmap_terrain;
 
 typedef enum basset_image_format
@@ -217,8 +213,8 @@ typedef struct basset_image
 
 typedef struct basset_static_mesh_geometry
 {
-    const char* name;
-    const char* material_asset_name;
+    bname name;
+    bname material_asset_name;
     u32 vertex_count;
     vertex_3d* vertices;
     u32 index_count;
@@ -268,10 +264,12 @@ typedef enum basset_material_map_channel
 
 typedef struct basset_material_map
 {
-    // Fully-qualified material asset name
-    const char* name;
-    // Fully-qualified image asset name
-    const char* image_asset_name;
+    // Material map name
+    bname name;
+    // Image asset name
+    bname image_asset_name;
+    // Name of the package containing the image asset
+    bname image_asset_package_name;
     basset_material_map_channel channel;
     texture_filter filter_min;
     texture_filter filter_mag;
@@ -282,7 +280,7 @@ typedef struct basset_material_map
 
 typedef struct basset_material_property
 {
-    const char* name;
+    bname name;
     shader_uniform_type type;
     u32 size;
     union
@@ -305,7 +303,6 @@ typedef struct basset_material
 {
     basset base;
     bmaterial_type type;
-    const char* name;
     // The asset name for a custom shader. Optional
     char* custom_shader_name;
 
@@ -482,13 +479,14 @@ typedef struct basset_shader
 
 typedef struct basset_system_font_face
 {
-    const char* name;
+    bname name;
 } basset_system_font_face;
 
 typedef struct basset_system_font
 {
     basset base;
-    const char* ttf_asset_name;
+    bname ttf_asset_name;
+    bname ttf_asset_package_name;
     u32 face_count;
     basset_system_font_face* faces;
     u32 font_binary_size;

@@ -1,44 +1,25 @@
-// Bismuth shader config file
 version = 1
 depth_test=true
 depth_write=true
 supports_wireframe=true
-max_instances=256
 
 stages = [
     {
         type = "vertex"
-        source_asset_name = "PBR/StaticMesh_vert"
+        source_asset_name = "Water_vert"
         package_name = "Runtime"
     }
     {
         type = "fragment"
-        source_asset_name = "PBR/StaticMesh_frag"
+        source_asset_name = "Water_frag"
         package_name = "Runtime"
     }
 ]
 
-// Attributes: type,name
 attributes = [
     {
         name = "in_position"
-        type = "vec3"
-    }
-    {
-        name = "in_normal"
-        type = "vec3"
-    }
-    {
-        name = "in_texcoord"
-        type = "vec2"
-    }
-    {
-        name = "in_color"
         type = "vec4"
-    }
-    {
-        name = "in_tangent"
-        type = "vec3"
     }
 ]
 
@@ -49,8 +30,8 @@ uniforms = {
             type = "mat4"
         }
         {
-            name = "views"
-            type = "mat4[2]"
+            name = "view"
+            type = "mat4"
         }
         {
             name = "light_spaces"
@@ -61,8 +42,8 @@ uniforms = {
             type = "vec4"
         }
         {
-            name = "view_positions"
-            type = "vec4[2]"
+            name = "view_position"
+            type = "vec3"
         }
         {
             name = "mode"
@@ -78,13 +59,49 @@ uniforms = {
         }
         {
             name = "padding"
-            type = "f32"
+            type = "vec2"
         }
     ]
     instance = [
         {
-            name = "material_textures"
-            type = "sampler2D[3]"
+            name = "dir_light"
+            type = "struct48"
+        }
+        {
+            name = "p_lights"
+            type = "struct480"
+        }
+        {
+            name = "tiling"
+            type = "f32"
+        }
+        {
+            name = "wave_strength"
+            type = "f32"
+        }
+        {
+            name = "move_factor"
+            type = "f32"
+        }
+        {
+            name = "num_p_lights"
+            type = "i32"
+        }
+        {
+            name = "reflection_texture"
+            type = "sampler2D"
+        }
+        {
+            name = "refraction_texture"
+            type = "sampler2D"
+        }
+        {
+            name = "dudv_texture"
+            type = "sampler2D"
+        }
+        {
+            name = "normal_texture"
+            type = "sampler2D"
         }
         {
             name = "shadow_textures"
@@ -95,34 +112,14 @@ uniforms = {
             type = "samplerCube"
         }
         {
-            name = "dir_light"
-            type = "struct48"
-        }
-        {
-            name = "p_lights"
-            type = "struct480"
-        }
-        {
-            name = "properties"
-            type = "struct32"
-        }
-        {
-            name = "num_p_lights"
-            type = "i32"
+            name = "refract_depth_texture"
+            type = "sampler2D"
         }
     ]
     local = [
         {
             name = "model"
             type = "mat4"
-        }
-        {
-            name = "clipping_plane"
-            type = "vec4"
-        }
-        {
-            name = "view_index"
-            type = "i32"
         }
     ]
 }

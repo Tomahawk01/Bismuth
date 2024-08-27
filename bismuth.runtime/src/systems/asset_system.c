@@ -17,13 +17,14 @@
 #include <assets/basset_types.h>
 #include <assets/basset_utils.h>
 #include <containers/darray.h>
-#include <containers/hashtable.h>
+#include <containers/u64_bst.h>
 #include <debug/bassert.h>
 #include <defines.h>
 #include <identifiers/identifier.h>
 #include <logger.h>
 #include <memory/bmemory.h>
 #include <parsers/bson_parser.h>
+#include <strings/bname.h>
 #include <strings/bstring.h>
 
 typedef struct asset_lookup
@@ -38,21 +39,20 @@ typedef struct asset_lookup
 
 typedef struct asset_system_state
 {
+    vfs_state* vfs;
     // Max number of assets that can be loaded at any given time
     u32 max_asset_count;
     // An array of lookups which contain reference and release data
     asset_lookup* lookups;
-    // hashtable to find lookups by name
-    hashtable lookup_table;
-    // Block of memory for the lookup hashtable
-    void* lookup_table_block;
+    // A BST to use for lookups of assets by name
+    bt_node* lookup_tree;
 
     // An array of handlers for various asset types
     // TODO: This does not allow for user types, but for now this is fine
     asset_handler handlers[BASSET_TYPE_MAX];
 } asset_system_state;
 
-static void asset_system_release_internal(struct asset_system_state* state, const char* fully_qualified_name, b8 force_release);
+static void asset_system_release_internal(struct asset_system_state* state, bname asset_name, bname package_name, b8 force_release);
 
 b8 asset_system_deserialize_config(const char* config_str, asset_system_config* out_config)
 {
@@ -102,38 +102,29 @@ b8 asset_system_initialize(u64* memory_requirement, struct asset_system_state* s
 
     state->max_asset_count = config->max_asset_count;
 
-    // Asset lookup table
+    // Asset lookup tree
     {
-        state->lookups = ballocate(sizeof(asset_lookup) * state->max_asset_count, MEMORY_TAG_ARRAY);
-        state->lookup_table_block = ballocate(sizeof(u32) * state->max_asset_count, MEMORY_TAG_HASHTABLE);
-        hashtable_create(sizeof(u32), state->max_asset_count, state->lookup_table_block, false, &state->lookup_table);
-
-        // Invalidate all entries in the lookup table
-        u32 invalid = INVALID_ID;
-        if (!hashtable_fill(&state->lookup_table, &invalid))
-        {
-            BERROR("asset_system_initialize: Failed to fill lookup table with invalid ids at init. Initialization failed");
-            return false;
-        }
+        // NOTE: BST node created when first asset is requested
+        state->lookup_tree = 0;
 
         // Invalidate all lookups
         for (u32 i = 0; i < state->max_asset_count; ++i)
             state->lookups[i].asset.id.uniqueid = INVALID_ID_U64;
     }
 
-    vfs_state* vfs = engine_systems_get()->vfs_system_state;
+    state->vfs = engine_systems_get()->vfs_system_state;
 
     // TODO: Setup handlers for known types
-    asset_handler_heightmap_terrain_create(&state->handlers[BASSET_TYPE_HEIGHTMAP_TERRAIN], vfs);
-    asset_handler_image_create(&state->handlers[BASSET_TYPE_IMAGE], vfs);
-    asset_handler_static_mesh_create(&state->handlers[BASSET_TYPE_STATIC_MESH], vfs);
-    asset_handler_material_create(&state->handlers[BASSET_TYPE_MATERIAL], vfs);
-    asset_handler_text_create(&state->handlers[BASSET_TYPE_TEXT], vfs);
-    asset_handler_bson_create(&state->handlers[BASSET_TYPE_BSON], vfs);
-    asset_handler_binary_create(&state->handlers[BASSET_TYPE_BINARY], vfs);
-    asset_handler_scene_create(&state->handlers[BASSET_TYPE_SCENE], vfs);
-    asset_handler_shader_create(&state->handlers[BASSET_TYPE_SHADER], vfs);
-    asset_handler_system_font_create(&state->handlers[BASSET_TYPE_SYSTEM_FONT], vfs);
+    asset_handler_heightmap_terrain_create(&state->handlers[BASSET_TYPE_HEIGHTMAP_TERRAIN], state->vfs);
+    asset_handler_image_create(&state->handlers[BASSET_TYPE_IMAGE], state->vfs);
+    asset_handler_static_mesh_create(&state->handlers[BASSET_TYPE_STATIC_MESH], state->vfs);
+    asset_handler_material_create(&state->handlers[BASSET_TYPE_MATERIAL], state->vfs);
+    asset_handler_text_create(&state->handlers[BASSET_TYPE_TEXT], state->vfs);
+    asset_handler_bson_create(&state->handlers[BASSET_TYPE_BSON], state->vfs);
+    asset_handler_binary_create(&state->handlers[BASSET_TYPE_BINARY], state->vfs);
+    asset_handler_scene_create(&state->handlers[BASSET_TYPE_SCENE], state->vfs);
+    asset_handler_shader_create(&state->handlers[BASSET_TYPE_SHADER], state->vfs);
+    asset_handler_system_font_create(&state->handlers[BASSET_TYPE_SYSTEM_FONT], state->vfs);
 
     return true;
 }
@@ -151,26 +142,28 @@ void asset_system_shutdown(struct asset_system_state* state)
                 if (lookup->asset.id.uniqueid != INVALID_ID_U64)
                 {
                     // Force release the asset
-                    asset_system_release_internal(state, lookup->asset.meta.name.fully_qualified_name, true);
+                    asset_system_release_internal(state, lookup->asset.name, lookup->asset.package_name, true);
                 }
             }
             bfree(state->lookups, sizeof(asset_lookup) * state->max_asset_count, MEMORY_TAG_ARRAY);
         }
 
-        hashtable_destroy(&state->lookup_table);
-        if (state->lookup_table_block)
-            bfree(state->lookup_table_block, sizeof(u32) * state->max_asset_count, MEMORY_TAG_HASHTABLE);
+        // Destroy the BST
+        u64_bst_cleanup(state->lookup_tree);
 
         bzero_memory(state, sizeof(asset_system_state));
     }
 }
 
-void asset_system_request(struct asset_system_state* state, const char* fully_qualified_name, b8 auto_release, void* listener_instance, PFN_basset_on_result callback)
+void asset_system_request(struct asset_system_state* state, basset_type type, bname package_name, bname asset_name, b8 auto_release, void* listener_instance, PFN_basset_on_result callback)
 {
     BASSERT(state);
     // Lookup the asset by fully-qualified name
     u32 lookup_index = INVALID_ID;
-    if (hashtable_get(&state->lookup_table, fully_qualified_name, &lookup_index) && lookup_index != INVALID_ID)
+    const bt_node* node = u64_bst_find(state->lookup_tree, asset_name);
+    if (node)
+        lookup_index = node->value.u32;
+    if (lookup_index != INVALID_ID)
     {
         // Valid entry found, increment the reference count and immediately make the callback
         asset_lookup* lookup = &state->lookups[lookup_index];
@@ -188,24 +181,37 @@ void asset_system_request(struct asset_system_state* state, const char* fully_qu
             asset_lookup* lookup = &state->lookups[i];
             if (lookup->asset.id.uniqueid == INVALID_ID_U64)
             {
-                if (!hashtable_set(&state->lookup_table, fully_qualified_name, &i))
-                {
-                    BERROR("asset_system_request was unable to set an entry into the lookup table for asset '%s'", fully_qualified_name);
-                    callback(ASSET_REQUEST_RESULT_INTERNAL_FAILURE, 0, listener_instance);
-                    return;
-                }
+                bt_node_value v;
+                v.u32 = i;
+                bt_node* new_node = u64_bst_insert(state->lookup_tree, asset_name, v);
+                // Save as root if this is the first asset. Otherwise it'll be part of the tree automatically
+                if (!state->lookup_tree)
+                    state->lookup_tree = new_node;
 
                 // Found a free slot, setup the asset
                 lookup->asset.id = identifier_create();
-                // Parse the asset name into parts
-                basset_util_parse_name(fully_qualified_name, &lookup->asset.meta.name);
 
                 // Get the appropriate asset handler for the type and request the asset
                 asset_handler* handler = &state->handlers[lookup->asset.type];
                 if (!handler->request_asset)
                 {
-                    BERROR("No handler setup for asset type %d, fully_qualified_name='%s'", lookup->asset.type, fully_qualified_name);
-                    callback(ASSET_REQUEST_RESULT_NO_HANDLER, 0, listener_instance);
+                    // If no request_asset function pointer exists, use a "default" vfs request
+                    // Create and pass along a context
+                    // NOTE: The VFS takes a copy of this context, so the lifecycle doesn't matter
+                    asset_handler_request_context context = {0};
+                    context.asset = &lookup->asset;
+                    context.handler = handler;
+                    context.listener_instance = listener_instance;
+                    context.user_callback = callback;
+                    vfs_request_asset(
+                        state->vfs,
+                        lookup->asset.package_name,
+                        lookup->asset.name,
+                        handler->is_binary,
+                        false,
+                        sizeof(asset_handler_request_context),
+                        &context,
+                        asset_handler_base_on_asset_loaded);
                 }
                 else
                 {
@@ -222,13 +228,16 @@ void asset_system_request(struct asset_system_state* state, const char* fully_qu
     }
 }
 
-static void asset_system_release_internal(struct asset_system_state* state, const char* fully_qualified_name, b8 force_release)
+static void asset_system_release_internal(struct asset_system_state* state, bname asset_name, bname package_name, b8 force_release)
 {
     if (state)
     {
         // Lookup the asset by fully-qualified name
         u32 lookup_index = INVALID_ID;
-        if (hashtable_get(&state->lookup_table, fully_qualified_name, &lookup_index) && lookup_index != INVALID_ID)
+        const bt_node* node = u64_bst_find(state->lookup_tree, asset_name);
+        if (node)
+            lookup_index = node->value.u32;
+        if (lookup_index != INVALID_ID)
         {
             // Valid entry found, decrement the reference count
             asset_lookup* lookup = &state->lookups[lookup_index];
@@ -241,7 +250,7 @@ static void asset_system_release_internal(struct asset_system_state* state, cons
                 asset_handler* handler = &state->handlers[type];
                 if (!handler->release_asset)
                 {
-                    BWARN("No release setup on handler for asset type %d, fully_qualified_name='%s'", type, fully_qualified_name);
+                    BWARN("No release setup on handler for asset type %d, asset_name='%s', package_name='%s'", type, bname_string_get(asset_name), bname_string_get(package_name));
                 }
                 else
                 {
@@ -249,10 +258,6 @@ static void asset_system_release_internal(struct asset_system_state* state, cons
                     // TODO: Jobify this call
                     handler->release_asset(handler, asset);
                 }
-
-                // Free the common asset properties
-                if (asset->meta.source_file_path)
-                    string_free(asset->meta.source_file_path);
 
                 bzero_memory(asset, sizeof(basset));
 
@@ -266,14 +271,14 @@ static void asset_system_release_internal(struct asset_system_state* state, cons
         else
         {
             // Entry not found, nothing to do
-            BWARN("asset_system_release: Attempted to release asset '%s', which does not exist or is not already loaded. Nothing to do", fully_qualified_name);
+            BWARN("asset_system_release: Attempted to release asset '%s' (package '%s'), which does not exist or is not already loaded. Nothing to do", bname_string_get(asset_name), bname_string_get(package_name));
         }
     }
 }
 
-void asset_system_release(struct asset_system_state* state, const char* name)
+void asset_system_release(struct asset_system_state* state, bname asset_name, bname package_name)
 {
-    asset_system_release_internal(state, name, false);
+    asset_system_release_internal(state, asset_name, package_name, false);
 }
 
 void asset_system_on_handler_result(struct asset_system_state* state, asset_request_result result, basset* asset, void* listener_instance, PFN_basset_on_result callback)
@@ -286,7 +291,10 @@ void asset_system_on_handler_result(struct asset_system_state* state, asset_requ
         {
             // See if the asset already exists first
             u32 lookup_index = INVALID_ID;
-            if (hashtable_get(&state->lookup_table, asset->meta.name.fully_qualified_name, &lookup_index) && lookup_index != INVALID_ID)
+            const bt_node* node = u64_bst_find(state->lookup_tree, asset->name);
+            if (node)
+                lookup_index = node->value.u32;
+            if (lookup_index != INVALID_ID)
             {
                 // Valid entry found, increment the reference count and immediately make the callback
                 asset_lookup* lookup = &state->lookups[lookup_index];
@@ -297,25 +305,29 @@ void asset_system_on_handler_result(struct asset_system_state* state, asset_requ
             }
             else
             {
+                // NOTE: The lookup should already exist at this point as defined above in asset_system_request
+                BERROR("Could not find valid lookup for asset '%s', package '%s'", bname_string_get(asset->name), bname_string_get(asset->package_name));
+                if (callback)
+                    callback(ASSET_REQUEST_RESULT_INTERNAL_FAILURE, 0, listener_instance);
             }
         } break;
         case ASSET_REQUEST_RESULT_INVALID_PACKAGE:
-            BERROR("Asset '%s' load failed: An invalid package was specified", asset->meta.name.fully_qualified_name);
+            BERROR("Asset '%s' load failed: An invalid package was specified", bname_string_get(asset->name));
             break;
         case ASSET_REQUEST_RESULT_INVALID_NAME:
-            BERROR("Asset '%s' load failed: An invalid asset name was specified", asset->meta.name.fully_qualified_name);
+            BERROR("Asset '%s' load failed: An invalid asset name was specified", bname_string_get(asset->name));
             break;
         case ASSET_REQUEST_RESULT_INVALID_ASSET_TYPE:
-            BERROR("Asset '%s' load failed: An invalid asset type was specified", asset->meta.name.fully_qualified_name);
+            BERROR("Asset '%s' load failed: An invalid asset type was specified", bname_string_get(asset->name));
             break;
         case ASSET_REQUEST_RESULT_PARSE_FAILED:
-            BERROR("Asset '%s' load failed: The parsing stage of the asset load failed", asset->meta.name.fully_qualified_name);
+            BERROR("Asset '%s' load failed: The parsing stage of the asset load failed", bname_string_get(asset->name));
             break;
         case ASSET_REQUEST_RESULT_GPU_UPLOAD_FAILED:
-            BERROR("Asset '%s' load failed: The GPU-upload stage of the asset load failed", asset->meta.name.fully_qualified_name);
+            BERROR("Asset '%s' load failed: The GPU-upload stage of the asset load failed", bname_string_get(asset->name));
             break;
         default:
-            BERROR("Asset '%s' load failed: An unspecified error has occurred", asset->meta.name.fully_qualified_name);
+            BERROR("Asset '%s' load failed: An unspecified error has occurred", bname_string_get(asset->name));
             break;
         }
     }

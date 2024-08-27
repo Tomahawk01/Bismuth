@@ -5,6 +5,7 @@
 #include "logger.h"
 #include "memory/bmemory.h"
 #include "parsers/bson_parser.h"
+#include "strings/bname.h"
 #include "strings/bstring.h"
 
 #define SYSTEM_FONT_FORMAT_VERSION 1
@@ -32,9 +33,16 @@ const char* basset_system_font_serialize(const basset* asset)
     }
 
     // ttf_asset_name
-    if (!bson_object_value_add_string(&tree.root, "ttf_asset_name", typed_asset->ttf_asset_name))
+    if (!bson_object_value_add_string(&tree.root, "ttf_asset_name", bname_string_get(typed_asset->ttf_asset_name)))
     {
         BERROR("Failed to add ttf_asset_name, which is a required field");
+        goto cleanup_bson;
+    }
+
+    // ttf_asset_package_name
+    if (!bson_object_value_add_bname(&tree.root, "ttf_asset_package_name", typed_asset->ttf_asset_package_name))
+    {
+        BERROR("Failed to add ttf_asset_package_name, which is a required field");
         goto cleanup_bson;
     }
 
@@ -42,7 +50,7 @@ const char* basset_system_font_serialize(const basset* asset)
     bson_array faces_array = bson_array_create();
     for (u32 i = 0; i < typed_asset->face_count; ++i)
     {
-        if (!bson_array_value_add_string(&faces_array, typed_asset->faces[i].name))
+        if (!bson_array_value_add_bname(&faces_array, typed_asset->faces[i].name))
         {
             BWARN("Unable to set face name at index %u. Skipping...", i);
             continue;
@@ -87,9 +95,16 @@ b8 basset_system_font_deserialize(const char* file_text, basset* out_asset)
         }
 
         // ttf_asset_name
-        if (!bson_object_property_value_get_string(&tree.root, "ttf_asset_name", &typed_asset->ttf_asset_name))
+        if (!bson_object_property_value_get_bname(&tree.root, "ttf_asset_name", &typed_asset->ttf_asset_name))
         {
             BERROR("Failed to parse ttf_asset_name, which is a required field");
+            goto cleanup_bson;
+        }
+
+        // ttf_asset_package_name
+        if (!bson_object_property_value_get_bname(&tree.root, "ttf_asset_package_name", &typed_asset->ttf_asset_package_name))
+        {
+            BERROR("Failed to get ttf_asset_package_name, which is a required field");
             goto cleanup_bson;
         }
 
@@ -112,7 +127,7 @@ b8 basset_system_font_deserialize(const char* file_text, basset* out_asset)
         typed_asset->faces = ballocate(sizeof(basset_system_font_face) * typed_asset->face_count, MEMORY_TAG_ARRAY);
         for (u32 i = 0; i < typed_asset->face_count; ++i)
         {
-            if (!bson_array_element_value_get_string(&face_array, i, &typed_asset->faces[i].name))
+            if (!bson_array_element_value_get_bname(&face_array, i, &typed_asset->faces[i].name))
             {
                 BWARN("Unable to read face name at index %u. Skipping...", i);
                 continue;
@@ -124,22 +139,8 @@ b8 basset_system_font_deserialize(const char* file_text, basset* out_asset)
         bson_tree_cleanup(&tree);
         if (!success)
         {
-            if (typed_asset->ttf_asset_name)
-            {
-                string_free(typed_asset->ttf_asset_name);
-                typed_asset->ttf_asset_name = 0;
-            }
             if (typed_asset->face_count && typed_asset->faces)
             {
-                for (u32 i = 0; i < typed_asset->face_count; ++i)
-                {
-                    const char* face_name = typed_asset->faces[i].name;
-                    if (face_name)
-                    {
-                        string_free(face_name);
-                        face_name = 0;
-                    }
-                }
                 bfree(typed_asset->faces, sizeof(basset_system_font_face) * typed_asset->face_count, MEMORY_TAG_ARRAY);
                 typed_asset->faces = 0;
                 typed_asset->face_count = 0;

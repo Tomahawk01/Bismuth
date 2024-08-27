@@ -5,6 +5,7 @@
 #include "logger.h"
 #include "math/bmath.h"
 #include "parsers/bson_parser.h"
+#include "strings/bname.h"
 #include "strings/bstring.h"
 
 const char* basset_heightmap_terrain_serialize(const basset* asset)
@@ -30,9 +31,9 @@ const char* basset_heightmap_terrain_serialize(const basset* asset)
     }
 
     // heightmap_filename
-    if (!bson_object_value_add_string(&tree.root, "heightmap_filename", typed_asset->heightmap_filename))
+    if (!bson_object_value_add_string(&tree.root, "heightmap_asset_name", bname_string_get(typed_asset->heightmap_asset_name)))
     {
-        BERROR("Failed to add heightmap_filename, which is a required field");
+        BERROR("Failed to add heightmap_asset_name, which is a required field");
         goto cleanup_bson;
     }
 
@@ -43,31 +44,19 @@ const char* basset_heightmap_terrain_serialize(const basset* asset)
         goto cleanup_bson;
     }
 
-    // tile_scale - vectors are represented as strings, so convert to string then add it
-    const char* temp_tile_scale_str = vec3_to_string(typed_asset->tile_scale);
-    if (!temp_tile_scale_str)
-    {
-        BWARN("Failed to convert tile_scale to string, defaulting to scale of 1. Check data");
-        temp_tile_scale_str = vec3_to_string(vec3_one());
-    }
-    if (!bson_object_value_add_string(&tree.root, "tile_scale", temp_tile_scale_str))
+    // tile_scale
+    if (!bson_object_value_add_vec3(&tree.root, "tile_scale", typed_asset->tile_scale))
     {
         BERROR("Failed to add tile_scale, which is a required field");
         goto cleanup_bson;
     }
-    string_free(temp_tile_scale_str);
-    temp_tile_scale_str = 0;
 
     // Material names array
     bson_array material_names_array = bson_array_create();
     for (u32 i = 0; i < typed_asset->material_count; ++i)
     {
-        if (!bson_array_value_add_string(&material_names_array, typed_asset->material_names[i]))
-        {
+        if (!bson_array_value_add_string(&material_names_array, bname_string_get(typed_asset->material_names[i])))
             BWARN("Unable to set material name at index %u, using default of '%s' instead", "default_terrain");
-            // Take a duplicate since the cleanup code won't know a constant is used here
-            typed_asset->material_names[i] = string_duplicate("default_terrain");
-        }
     }
     if (!bson_object_value_add_array(&tree.root, "material_names", material_names_array))
     {
@@ -107,12 +96,15 @@ b8 basset_heightmap_terrain_deserialize(const char* file_text, basset* out_asset
             goto cleanup_bson;
         }
 
-        // heightmap_filename
-        if (!bson_object_property_value_get_string(&tree.root, "heightmap_filename", &typed_asset->heightmap_filename))
+        // heightmap_asset_name
+        const char* heightmap_asset_name_str = 0;
+        if (!bson_object_property_value_get_string(&tree.root, "heightmap_asset_name", &heightmap_asset_name_str))
         {
-            BERROR("Failed to parse heightmap_filename, which is a required field");
+            BERROR("Failed to parse heightmap_asset_name, which is a required field");
             goto cleanup_bson;
         }
+        typed_asset->heightmap_asset_name = bname_create(heightmap_asset_name_str);
+        string_free(heightmap_asset_name_str);
 
         // chunk_size
         if (!bson_object_property_value_get_int(&tree.root, "chunk_size", (i64*)(&typed_asset->chunk_size)))
@@ -121,20 +113,9 @@ b8 basset_heightmap_terrain_deserialize(const char* file_text, basset* out_asset
             goto cleanup_bson;
         }
 
-        // tile_scale - vectors are represented as strings, so get that then parse it
-        const char* temp_tile_scale_str = 0;
-        if (!bson_object_property_value_get_string(&tree.root, "tile_scale", &temp_tile_scale_str))
-        {
-            BERROR("Failed to parse tile_scale, which is a required field");
-            goto cleanup_bson;
-        }
-        if (!string_to_vec3(temp_tile_scale_str, &typed_asset->tile_scale))
-        {
-            BWARN("Failed to parse tile_scale from string, defaulting to scale of 1. Check file format");
+        // tile_scale - optional with default of 1
+        if (bson_object_property_value_get_vec3(&tree.root, "tile_scale", &typed_asset->tile_scale))
             typed_asset->tile_scale = vec3_one();
-        }
-        string_free(temp_tile_scale_str);
-        temp_tile_scale_str = 0;
 
         // Material names array
         bson_array material_names_obj_array = {0};
@@ -155,12 +136,15 @@ b8 basset_heightmap_terrain_deserialize(const char* file_text, basset* out_asset
         typed_asset->material_names = ballocate(sizeof(const char*) * typed_asset->material_count, MEMORY_TAG_ARRAY);
         for (u32 i = 0; i < typed_asset->material_count; ++i)
         {
-            if (!bson_array_element_value_get_string(&material_names_obj_array, i, &typed_asset->material_names[i]))
+            const char* mat_name = 0;
+            if (!bson_array_element_value_get_string(&material_names_obj_array, i, &mat_name))
             {
                 BWARN("Unable to read material name at index %u, using default of '%s' instead", "default_terrain");
                 // Take a duplicate since the cleanup code won't know a constant is used here
-                typed_asset->material_names[i] = string_duplicate("default_terrain");
+                typed_asset->material_names[i] = bname_create("default_terrain");
             }
+            typed_asset->material_names[i] = bname_create(mat_name);
+            string_free(mat_name);
         }
 
         success = true;
@@ -168,23 +152,9 @@ b8 basset_heightmap_terrain_deserialize(const char* file_text, basset* out_asset
         bson_tree_cleanup(&tree);
         if (!success)
         {
-            if (typed_asset->heightmap_filename)
-            {
-                string_free(typed_asset->heightmap_filename);
-                typed_asset->heightmap_filename = 0;
-            }
             if (typed_asset->material_count && typed_asset->material_names)
             {
-                for (u32 i = 0; i < typed_asset->material_count; ++i)
-                {
-                    const char* material_name = typed_asset->material_names[i];
-                    if (material_name)
-                    {
-                        string_free(material_name);
-                        material_name = 0;
-                    }
-                }
-                bfree(typed_asset->material_names, sizeof(const char*) * typed_asset->material_count, MEMORY_TAG_ARRAY);
+                bfree(typed_asset->material_names, sizeof(bname) * typed_asset->material_count, MEMORY_TAG_ARRAY);
                 typed_asset->material_names = 0;
                 typed_asset->material_count = 0;
             }

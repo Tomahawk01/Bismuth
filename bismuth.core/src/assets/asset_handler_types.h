@@ -9,6 +9,7 @@ typedef struct asset_handler
 {
     basset_type type;
     const char* type_name;
+    b8 is_binary;
 
     /** @brief Cache a pointer to the VFS state for fast lookup */
     struct vfs_state* vfs;

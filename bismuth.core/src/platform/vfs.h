@@ -1,6 +1,7 @@
 #pragma once
 
 #include "defines.h"
+#include "strings/bname.h"
 
 struct bpackage;
 struct basset;
@@ -48,6 +49,13 @@ typedef enum vfs_request_result
 
 typedef struct vfs_asset_data
 {
+    /** @brief The name of the asset stored as a bame */
+    bname asset_name;
+    /** @brief The name of the package containing the asset, stored as a bname */
+    bname package_name;
+    /** @brief A copy of the asset/source asset path */
+    const char* path;
+
     u64 size;
     union
     {
@@ -62,13 +70,16 @@ typedef struct vfs_asset_data
     void* context;
 } vfs_asset_data;
 
-typedef void (*PFN_on_asset_loaded_callback)(struct vfs_state* vfs, const char* name, vfs_asset_data asset_data);
+typedef void (*PFN_on_asset_loaded_callback)(struct vfs_state* vfs, vfs_asset_data asset_data);
 
 BAPI b8 vfs_initialize(u64* memory_requirement, vfs_state* out_state, const vfs_config* config);
 BAPI void vfs_shutdown(vfs_state* state);
 
-BAPI void vfs_request_asset(vfs_state* state, struct basset_metadata* meta, b8 is_binary, b8 get_source, u32 context_size, const void* context, PFN_on_asset_loaded_callback callback);
-BAPI void vfs_request_asset_sync(vfs_state* state, struct basset_metadata* meta, b8 is_binary, b8 get_source, u32 context_size, const void* context, vfs_asset_data* out_data);
+BAPI void vfs_request_asset(vfs_state* state, bname package_name, bname asset_name, b8 is_binary, b8 get_source, u32 context_size, const void* context, PFN_on_asset_loaded_callback callback);
+BAPI void vfs_request_asset_sync(vfs_state* state, bname package_name, bname asset_name, b8 is_binary, b8 get_source, u32 context_size, const void* context, vfs_asset_data* out_data);
+
+BAPI const char* vfs_path_for_asset(vfs_state* state, bname package_name, bname asset_name);
+BAPI const char* vfs_source_path_for_asset(vfs_state* state, bname package_name, bname asset_name);
 
 BAPI void vfs_request_direct_from_disk(vfs_state* state, const char* path, b8 is_binary, u32 context_size, const void* context, PFN_on_asset_loaded_callback callback);
 BAPI void vfs_request_direct_from_disk_sync(vfs_state* state, const char* path, b8 is_binary, u32 context_size, const void* context, vfs_asset_data* out_data);

@@ -4,7 +4,9 @@
 #include "containers/darray.h"
 #include "core_render_types.h"
 #include "logger.h"
+#include "math/bmath.h"
 #include "parsers/bson_parser.h"
+#include "strings/bname.h"
 #include "strings/bstring.h"
 #include "utils/render_type_utils.h"
 
@@ -29,7 +31,7 @@ const char* basset_material_serialize(const basset* asset)
     bson_object_value_add_string(&tree.root, "type", bmaterial_type_to_string(material->type));
 
     // Material name
-    bson_object_value_add_string(&tree.root, "name", material->name);
+    bson_object_value_add_string(&tree.root, "name", bname_string_get(material->base.name));
 
     // Format version
     bson_object_value_add_int(&tree.root, "version", MATERIAL_FILE_VERSION);
@@ -48,7 +50,7 @@ const char* basset_material_serialize(const basset* asset)
             bson_object prop = {0};
             prop.type = BSON_OBJECT_TYPE_OBJECT;
 
-            bson_object_value_add_string(&prop, "name", p->name);
+            bson_object_value_add_string(&prop, "name", bname_string_get(p->name));
             bson_object_value_add_string(&prop, "type", shader_uniform_type_to_string(p->type));
 
             // Add value as string for vector types. Otherwise add as int or float
@@ -145,11 +147,11 @@ const char* basset_material_serialize(const basset* asset)
             bson_object map = {0};
             map.type = BSON_OBJECT_TYPE_OBJECT;
 
-            bson_object_value_add_string(&map, "name", m->name);
+            bson_object_value_add_string(&map, "name", bname_string_get(m->name));
 
             // Fully-qualified image asset name
             if (m->image_asset_name)
-                bson_object_value_add_string(&map, "image_asset_name", m->image_asset_name);
+                bson_object_value_add_string(&map, "image_asset_name", bname_string_get(m->image_asset_name));
 
             // Filtering
             bson_object_value_add_string(&map, "filter_min", texture_filter_mode_to_string(m->filter_min));
@@ -203,11 +205,14 @@ b8 basset_material_deserialize(const char* file_text, basset* out_asset)
     basset_material* out_material = (basset_material*)out_asset;
 
     // Extract top-level properties first
-    if (!bson_object_property_value_get_string(&tree.root, "name", &out_material->name))
+    const char* material_name_str = 0;
+    if (!bson_object_property_value_get_string(&tree.root, "name", &material_name_str))
     {
         BERROR("failed to obtain name from material file, which is a required field");
         goto cleanup;
     }
+    out_material->base.name = bname_create(material_name_str);
+    string_free(material_name_str);
 
     // Material type
     const char* type_str = 0;
@@ -262,23 +267,25 @@ b8 basset_material_deserialize(const char* file_text, basset* out_asset)
                         basset_material_property p = {0};
 
                         // Name is required
-                        if (!bson_object_property_value_get_string(&prop, "name", &p.name))
+                        const char* prop_name_str = 0;
+                        if (!bson_object_property_value_get_string(&prop, "name", &prop_name_str))
                         {
                             BWARN("Material property has no name, but is required. Skipping property...");
                             continue;
                         }
+                        p.name = bname_create(prop_name_str);
+                        string_free(prop_name_str);
 
                         // Type is required
                         const char* prop_type_str = 0;
                         if (!bson_object_property_value_get_string(&prop, "type", &prop_type_str))
                         {
                             BWARN("Material property has no type, but is required. Skipping property...");
-                            if (p.name)
-                                string_free(p.name);
                             continue;
                         }
                         // Convert type string into type
                         p.type = string_to_shader_uniform_type(prop_type_str);
+                        string_free(prop_type_str);
 
                         // NOTE: Value is optional. Attempt parsing if it is there
                         i64 i_value = 0;
@@ -289,31 +296,35 @@ b8 basset_material_deserialize(const char* file_text, basset* out_asset)
                             break;
                         case SHADER_UNIFORM_TYPE_FLOAT32_2:
                         {
-                            const char* value_str = 0;
-                            if (bson_object_property_value_get_string(&prop, "value", &value_str))
-                                string_to_vec2(value_str, &p.value.v2);
-                            string_free(value_str);
+                            if (!bson_object_property_value_get_vec2(&prop, "value", &p.value.v2))
+                            {
+                                BWARN("Failed to extract vec2 from property. Defaulting to vec2_zero");
+                                p.value.v2 = vec2_zero();
+                            }
                         } break;
                         case SHADER_UNIFORM_TYPE_FLOAT32_3:
                         {
-                            const char* value_str = 0;
-                            if (bson_object_property_value_get_string(&prop, "value", &value_str))
-                                string_to_vec3(value_str, &p.value.v3);
-                            string_free(value_str);
+                            if (!bson_object_property_value_get_vec3(&prop, "value", &p.value.v3))
+                            {
+                                BWARN("Failed to extract vec3 from property. Defaulting to vec3_zero");
+                                p.value.v3 = vec3_zero();
+                            }
                         } break;
                         case SHADER_UNIFORM_TYPE_FLOAT32_4:
                         {
-                            const char* value_str = 0;
-                            if (bson_object_property_value_get_string(&prop, "value", &value_str))
-                                string_to_vec4(value_str, &p.value.v4);
-                            string_free(value_str);
+                            if (!bson_object_property_value_get_vec4(&prop, "value", &p.value.v4))
+                            {
+                                BWARN("Failed to extract vec4 from property. Defaulting to vec4_zero");
+                                p.value.v4 = vec4_zero();
+                            }
                         } break;
                         case SHADER_UNIFORM_TYPE_MATRIX_4:
                         {
-                            const char* value_str = 0;
-                            if (bson_object_property_value_get_string(&prop, "value", &value_str))
-                                string_to_mat4(value_str, &p.value.mat4);
-                            string_free(value_str);
+                            if (!bson_object_property_value_get_mat4(&prop, "value", &p.value.mat4))
+                            {
+                                BWARN("Failed to extract mat4 from property. Defaulting to mat4_identity");
+                                p.value.mat4 = mat4_identity();
+                            }
                         } break;
                         case SHADER_UNIFORM_TYPE_UINT32:
                             if (bson_object_property_value_get_int(&prop, "value", &i_value))
@@ -378,30 +389,30 @@ b8 basset_material_deserialize(const char* file_text, basset* out_asset)
                         basset_material_map m = {0};
 
                         // name
-                        if (!bson_object_property_value_get_string(&map, "channel", &m.name))
+                        const char* map_name_str = 0;
+                        if (!bson_object_property_value_get_string(&map, "channel", &map_name_str))
                         {
                             BERROR("name, a required map field, was not found. Skipping map...");
                             continue;
                         }
+                        m.name = bname_create(map_name_str);
+                        string_free(map_name_str);
 
                         // image_asset_name
-                        if (!bson_object_property_value_get_string(&map, "image_asset_name", &m.image_asset_name))
+                        const char* image_asset_name_str = 0;
+                        if (!bson_object_property_value_get_string(&map, "image_asset_name", &image_asset_name_str))
                         {
                             BERROR("image_asset_name, a required map field, was not found. Skipping map...");
-                            if (m.name)
-                                string_free(m.name);
                             continue;
                         }
+                        m.image_asset_name = bname_create(image_asset_name_str);
+                        string_free(image_asset_name_str);
 
                         // channel
                         const char* channel_str = 0;
                         if (!bson_object_property_value_get_string(&map, "channel", &channel_str))
                         {
                             BERROR("channel, a required map field, was not found. Skipping map...");
-                            if (m.name)
-                                string_free(m.name);
-                            if (m.image_asset_name)
-                                string_free(m.name);
                             continue;
                         }
                         m.channel = string_to_material_map_channel(channel_str);

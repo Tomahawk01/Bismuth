@@ -5,7 +5,7 @@ assets = [
     {
         name = "Color3D"
         type = "Shader"
-        path = "./assets/shaders/Color3D.shadercfg"
+        path = "./assets/shaders/Color3D.bsc"
     }
     {
         name = "Color3D_frag"
@@ -18,15 +18,9 @@ assets = [
         path = "./assets/shaders/Color3D_vert.glsl"
     }
     {
-        name = "PBR"
-        type = "Folder"
-        assets = [
-            {
-                name = "StaticMesh"
-                type = "Shader"
-                path = "./assets/shaders/PBR/StaticMesh.bsc"
-            }
-        ]
+        name = "PBR_StaticMesh"
+        type = "Shader"
+        path = "./assets/shaders/PBR_StaticMesh.bsc"
     }
     {
         name = "PBR_StaticMesh_frag"
@@ -41,7 +35,7 @@ assets = [
     {
         name = "PBR_Terrain"
         type = "Shader"
-        path = "./assets/shaders/PBR_Terrain.shadercfg"
+        path = "./assets/shaders/PBR_Terrain.bsc"
     }
     {
         name = "PBR_Terrain_frag"
@@ -56,7 +50,7 @@ assets = [
     {
         name = "Pick_StaticMesh"
         type = "Shader"
-        path = "./assets/shaders/Pick_StaticMesh.shadercfg"
+        path = "./assets/shaders/Pick_StaticMesh.bsc"
     }
     {
         name = "Pick_StaticMesh_frag"
@@ -71,7 +65,7 @@ assets = [
     {
         name = "Pick_Terrain"
         type = "Shader"
-        path = "./assets/shaders/Pick_Terrain.shadercfg"
+        path = "./assets/shaders/Pick_Terrain.bsc"
     }
     {
         name = "Pick_Terrain_frag"
@@ -87,7 +81,7 @@ assets = [
     {
         name = "Shadow_StaticMesh"
         type = "Shader"
-        path = "./assets/shaders/Shadow_StaticMesh.shadercfg"
+        path = "./assets/shaders/Shadow_StaticMesh.bsc"
     }
     {
         name = "Shadow_StaticMesh_frag"
@@ -102,7 +96,7 @@ assets = [
     {
         name = "Shadow_Terrain"
         type = "Shader"
-        path = "./assets/shaders/Shadow_Terrain.shadercfg"
+        path = "./assets/shaders/Shadow_Terrain.bsc"
     }
     {
         name = "Shadow_Terrain_frag"
@@ -117,7 +111,7 @@ assets = [
     {
         name = "Skybox"
         type = "Shader"
-        path = "./assets/shaders/Skybox.shadercfg"
+        path = "./assets/shaders/Skybox.bsc"
     }
     {
         name = "Skybox_frag"
@@ -132,7 +126,7 @@ assets = [
     {
         name = "Water"
         type = "Shader"
-        path = "./assets/shaders/Water.shadercfg"
+        path = "./assets/shaders/Water.bsc"
     }
     {
         name = "Water_frag"

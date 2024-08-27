@@ -21,6 +21,7 @@ void asset_handler_material_create(struct asset_handler* self, struct vfs_state*
     BASSERT_MSG(self && vfs, "Valid pointers are required for 'self' and 'vfs'");
 
     self->vfs = vfs;
+    self->is_binary = false;
     self->request_asset = asset_handler_material_request_asset;
     self->release_asset = asset_handler_material_release_asset;
     self->type = BASSET_TYPE_MATERIAL;
@@ -41,39 +42,20 @@ void asset_handler_material_request_asset(struct asset_handler* self, struct bas
     context.handler = self;
     context.listener_instance = listener_instance;
     context.user_callback = user_callback;
-    vfs_request_asset(vfs_state, &asset->meta, false, false, sizeof(asset_handler_request_context), &context, asset_handler_base_on_asset_loaded);
+    vfs_request_asset(vfs_state, asset->name, asset->package_name, false, false, sizeof(asset_handler_request_context), &context, asset_handler_base_on_asset_loaded);
 }
 
 void asset_handler_material_release_asset(struct asset_handler* self, struct basset* asset)
 {
     basset_material* typed_asset = (basset_material*)asset;
-    if (typed_asset->name)
-    {
-        string_free(typed_asset->name);
-        typed_asset->name = 0;
-    }
     if (typed_asset->map_count && typed_asset->maps)
     {
-        for (u32 i = 0; i < typed_asset->map_count; ++i)
-        {
-            basset_material_map* map = &typed_asset->maps[i];
-            if (map->name)
-                string_free(map->name);
-            if (map->image_asset_name)
-                string_free(map->image_asset_name);
-        }
         bfree(typed_asset->maps, sizeof(basset_material_map) * typed_asset->map_count, MEMORY_TAG_ARRAY);
         typed_asset->maps = 0;
         typed_asset->map_count = 0;
     }
     if (typed_asset->property_count && typed_asset->properties)
     {
-        for (u32 i = 0; i < typed_asset->property_count; ++i)
-        {
-            basset_material_property* prop = &typed_asset->properties[i];
-            if (prop->name)
-                string_free(prop->name);
-        }
         bfree(typed_asset->properties, sizeof(basset_material_property) * typed_asset->property_count, MEMORY_TAG_ARRAY);
         typed_asset->properties = 0;
         typed_asset->property_count = 0;
