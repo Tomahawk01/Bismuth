@@ -552,6 +552,61 @@ b8 renderer_texture_resources_acquire(struct renderer_system_state* state, const
     return success;
 }
 
+b8 renderer_bresource_texture_resources_acquire(struct renderer_system_state* state, bname name, bresource_texture_type type, u32 width, u32 height, u8 channel_count, u8 mip_levels, u16 array_size, bresource_texture_flag_bits flags, b_handle* out_renderer_texture_handle)
+{
+    if (!state)
+        return false;
+
+    if (!state->textures)
+        state->textures = darray_create(texture_lookup);
+
+    struct texture_internal_data* data = ballocate(state->backend->texture_internal_data_size, MEMORY_TAG_RENDERER);
+    b8 success;
+    if (flags & BRESOURCE_TEXTURE_FLAG_IS_WRAPPED)
+    {
+        // If the texure is considered "wrapped" (i.e. internal resources are created somwhere else,
+        // such as swapchain images), then don't reach out to the backend to create resources. Just
+        // count it as a success and proceed to get a handle.
+        success = true;
+    }
+    else
+    {
+        success = state->backend->bresource_texture_resources_acquire(state->backend, data, name, type, width, height, channel_count, mip_levels, array_size, flags);
+    }
+
+    // Only insert into the lookup table on success
+    if (success)
+    {
+        u32 texture_count = darray_length(state->textures);
+        for (u32 i = 0; i < texture_count; ++i) {
+            texture_lookup* lookup = &state->textures[i];
+            if (lookup->uniqueid == INVALID_ID_U64)
+            {
+                // Found a free "slot", use it
+                b_handle new_handle = b_handle_create(i);
+                lookup->uniqueid = new_handle.unique_id.uniqueid;
+                lookup->data = data;
+                *out_renderer_texture_handle = new_handle;
+                return success;
+            }
+        }
+
+        // No free "slots", add one
+        texture_lookup new_lookup = {0};
+        b_handle new_handle = b_handle_create(texture_count);
+        new_lookup.uniqueid = new_handle.unique_id.uniqueid;
+        new_lookup.data = data;
+        darray_push(state->textures, new_lookup);
+        *out_renderer_texture_handle = new_handle;
+    }
+    else
+    {
+        BERROR("Failed to acquire texture resources. See logs for details");
+        bfree(data, state->backend->texture_internal_data_size, MEMORY_TAG_RENDERER);
+    }
+    return success;
+}
+
 void renderer_texture_resources_release(struct renderer_system_state* state, b_handle* renderer_texture_handle)
 {
     if (state && !b_handle_is_invalid(*renderer_texture_handle))

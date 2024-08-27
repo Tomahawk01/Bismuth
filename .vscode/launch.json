@@ -17,16 +17,16 @@
             }
         },
         {
-            "name": "Launch Unit Tests",
+            "name": "Launch Core Unit Tests",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/bin/bismuth.tests",
+            "program": "${workspaceFolder}/bin/bismuth.core.tests",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/bin/",
             "windows": {
                 "type": "cppvsdbg",
-                "program": "${workspaceFolder}/bin/bismuth.tests.exe",
+                "program": "${workspaceFolder}/bin/bismuth.core.tests.exe",
                 // cppvsdbg requires this instead of externalConsole
                 "console": "integratedTerminal",
             }

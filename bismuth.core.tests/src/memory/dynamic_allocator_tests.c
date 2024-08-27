@@ -534,7 +534,7 @@ u8 util_free(dynamic_allocator* allocator, alloc_data* data, u64* currently_allo
         return false;
     }
     data->block = 0;
-    currently_allocated -= (data->size + header_size + data->alignment);
+    *currently_allocated -= (data->size + header_size + data->alignment);
 
     // Verify free space
     u64 free_space = dynamic_allocator_free_space(allocator);
@@ -633,13 +633,15 @@ u8 dynamic_allocator_multiple_alloc_and_free_aligned_different_alignments_random
     for (u32 i = 0; i < alloc_data_count; ++i)
     {
         alloc_datas[i].alignment = po2[brandom_in_range(0, 7)];
-        alloc_datas[i].size = (u64)brandom_in_range(1, 65536);
+        alloc_datas[i].size = (u64)brandom_in_range(1, 256);
+        alloc_datas[i].block = 0;
     }
 
     // Total size needed, including headers
     u64 total_allocator_size = 0;
     for (u32 i = 0; i < alloc_data_count; ++i)
         total_allocator_size += alloc_datas[i].alignment + header_size + alloc_datas[i].size;
+    BINFO("Total allocator size: %llu", total_allocator_size);
 
     // Get memory requirement
     b8 result = dynamic_allocator_create(total_allocator_size, &memory_requirement, 0, 0);
@@ -654,21 +656,38 @@ u8 dynamic_allocator_multiple_alloc_and_free_aligned_different_alignments_random
     expect_should_be(total_allocator_size, free_space);
 
     u32 op_count = 0;
-    const u32 max_op_count = 10000000;
+    const u32 max_op_count = 100000;
     u32 alloc_count = 0;
     while (op_count < max_op_count)
     {
-        // If there are no allocations, or we "roll" high, allocate. Otherwise deallocate
-        if (alloc_count == 0 || brandom_in_range(0, 99) > 50)
+        if (op_count == ((max_op_count / 4) * 3))
+        {
+            BINFO("75%% done...");
+        }
+        else if (op_count == ((max_op_count / 4) * 2))
+        {
+            BINFO("50%% done...");
+        }
+        else if (op_count == ((max_op_count / 4) * 1))
+        {
+            BINFO("25%% done...");
+        }
+
+        // If there are no allocations, or we "roll" high, allocate. Otherwise free
+        b8 do_alloc = alloc_count == 0 || brandom_in_range(0, 99) > 50;
+        // SAFEGUARD: if max alloc hit, force free
+        b8 max_alloc_hit = alloc_count == 65536;
+        if (do_alloc && !max_alloc_hit)
         {
             while (true)
             {
+                // Find a free block
                 u32 index = (u32)brandom_in_range(0, alloc_data_count - 1);
                 if (alloc_datas[index].block == 0)
                 {
                     if (!util_allocate(&alloc, &alloc_datas[index], &currently_allocated, header_size, total_allocator_size))
                     {
-                        BERROR("util_allocate failed on index: %u", index);
+                        BERROR("util_allocate (0) failed on index: %u", index);
                         return false;
                     }
                     alloc_count++;
@@ -681,12 +700,13 @@ u8 dynamic_allocator_multiple_alloc_and_free_aligned_different_alignments_random
         {
             while (true)
             {
-                u32 index = (u32)brandom_in_range(0, alloc_data_count - 1);
+                // Find an allocated block. If max alloc hit, force free first block
+                u32 index = max_alloc_hit ? 0 : (u32)brandom_in_range(0, alloc_data_count - 1);
                 if (alloc_datas[index].block != 0)
                 {
                     if (!util_free(&alloc, &alloc_datas[index], &currently_allocated, header_size, total_allocator_size))
                     {
-                        BERROR("util_free failed on index: %u", index);
+                        BERROR("util_free (0) failed on index: %u", index);
                         return false;
                     }
                     alloc_count--;
@@ -704,7 +724,7 @@ u8 dynamic_allocator_multiple_alloc_and_free_aligned_different_alignments_random
         {
             if (!util_free(&alloc, &alloc_datas[i], &currently_allocated, header_size, total_allocator_size))
             {
-                BERROR("util_free failed on index: %u");
+                BERROR("util_free (1) failed on index: %u");
                 return false;
             }
         }

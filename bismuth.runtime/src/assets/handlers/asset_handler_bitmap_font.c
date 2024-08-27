@@ -51,9 +51,9 @@ void asset_handler_bitmap_font_release_asset(struct asset_handler* self, struct 
         typed_asset->kerning_count = 0;
     } */
 
-    basset_bitmap_font_page_array_destroy(&typed_asset->pages);
-    basset_bitmap_font_glyph_array_destroy(&typed_asset->glyphs);
-    basset_bitmap_font_kerning_array_destroy(&typed_asset->kernings);
+    array_basset_bitmap_font_page_destroy(&typed_asset->pages);
+    array_basset_bitmap_font_glyph_destroy(&typed_asset->glyphs);
+    array_basset_bitmap_font_kerning_destroy(&typed_asset->kernings);
 
     bzero_memory(typed_asset, sizeof(basset_bitmap_font));
 }

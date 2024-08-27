@@ -1,5 +1,6 @@
 #include "darray.h"
 
+#include "defines.h"
 #include "logger.h"
 #include "memory/bmemory.h"
 
@@ -175,4 +176,97 @@ void darray_length_set(void* array, u64 value)
     u64 header_size = sizeof(darray_header);
     darray_header* header = (darray_header*)((u8*)array - header_size);
     header->length = value;
+}
+
+// NEW DARRAY
+void _bdarray_init(u32 length, u32 stride, u32 capacity, struct frame_allocator_int* allocator, u32* out_length, u32* out_stride, u32* out_capacity, void** block, struct frame_allocator_int** out_allocator)
+{
+    *out_length = length;
+    *out_stride = stride;
+    *out_capacity = capacity;
+    *out_allocator = allocator;
+    if (allocator)
+        *block = allocator->allocate(capacity * stride);
+    else
+        *block = ballocate(capacity * stride, MEMORY_TAG_DARRAY);
+}
+
+void _bdarray_free(u32* length, u32* capacity, u32* stride, void** block, struct frame_allocator_int** out_allocator)
+{
+    if (*out_allocator)
+        (*out_allocator)->free(*block, (*capacity) * (*stride));
+    else
+        bfree(*block, (*capacity) * (*stride), MEMORY_TAG_DARRAY);
+    *length = 0;
+    *capacity = 0;
+    *stride = 0;
+    *block = 0;
+    *out_allocator = 0;
+}
+
+void _bdarray_ensure_size(u32 required_length, u32 stride, u32* out_capacity, struct frame_allocator_int* allocator, void** block, void** base_block)
+{
+    if (required_length > *out_capacity)
+    {
+        u32 new_capacity = BMAX(required_length, (*out_capacity) * DARRAY_RESIZE_FACTOR);
+        if (allocator)
+        {
+            void* new_block = allocator->allocate(new_capacity * stride);
+            bcopy_memory(new_block, *block, (*out_capacity) * stride);
+            allocator->free(*block, (*out_capacity) * stride);
+            *block = new_block;
+        }
+        else
+        {
+            *block = breallocate(*block, (*out_capacity) * stride, new_capacity * stride, MEMORY_TAG_DARRAY);
+        }
+        *base_block = *block;
+        *out_capacity = new_capacity;
+    }
+}
+
+darray_iterator darray_iterator_begin(darray_base* arr)
+{
+    darray_iterator it;
+    it.arr = arr;
+    it.pos = 0;
+    it.dir = 1;
+    it.end = darray_iterator_end;
+    it.value = darray_iterator_value;
+    it.next = darray_iterator_next;
+    it.prev = darray_iterator_prev;
+    return it;
+}
+
+darray_iterator darray_iterator_rbegin(darray_base* arr)
+{
+    darray_iterator it;
+    it.arr = arr;
+    it.pos = arr->length - 1;
+    it.dir = -1;
+    it.end = darray_iterator_end;
+    it.value = darray_iterator_value;
+    it.next = darray_iterator_next;
+    it.prev = darray_iterator_prev;
+    return it;
+}
+
+b8 darray_iterator_end(const darray_iterator* it)
+{
+    return it->dir == 1 ? it->pos >= (i32)it->arr->length : it->pos < 0;
+}
+
+void* darray_iterator_value(const darray_iterator* it)
+{
+    return (void*)(((u64)it->arr->p_data) + (it->arr->stride * it->pos));
+}
+
+void darray_iterator_next(darray_iterator* it)
+{
+    it->pos += it->dir;
+}
+
+void darray_iterator_prev(darray_iterator* it)
+{
+    it->pos -= it->dir;
 }

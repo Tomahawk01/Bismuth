@@ -31,7 +31,7 @@ u8 bson_parser_should_create_and_destroy(void)
 u8 bson_parser_should_tokenize_file_content(void)
 {
     // TODO: move to test asset folder
-    char* full_file_path = "../tests/src/parsers/test_scene2.bsn";
+    char* full_file_path = "../bismuth.core.tests/src/parsers/test_scene2.bsn";
     file_handle f;
     if (!filesystem_open(full_file_path, FILE_MODE_READ, false, &f))
     {

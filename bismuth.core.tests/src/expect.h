@@ -1,5 +1,6 @@
 #include <logger.h>
 #include <math/bmath.h>
+#include <strings/bstring.h>
 
 /**
  * @brief Expects expected to be equal to actual
@@ -49,4 +50,11 @@
     {                                                                                  \
         BERROR("--> Expected false, but got: true. File: %s:%d.", __FILE__, __LINE__); \
         return false;                                                                  \
+    }
+
+#define expect_string_to_be(expected, actual)                                                           \
+    if (!strings_equal(expected, actual))                                                               \
+    {                                                                                                   \
+        BERROR("--> Expected '%s', but got: '%s'. File: %s:%d.", expected, actual, __FILE__, __LINE__); \
+        return false;                                                                                   \
     }

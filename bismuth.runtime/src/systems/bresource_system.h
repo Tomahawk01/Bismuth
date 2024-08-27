@@ -11,6 +11,7 @@ typedef struct bresource_system_config
 
 typedef struct bresource_handler
 {
+    struct asset_system_state* asset_system;
     b8 (*request)(struct bresource_handler* self, bresource* resource, bresource_request_info info);
     void (*release)(struct bresource_handler* self, bresource* resource);
 } bresource_handler;

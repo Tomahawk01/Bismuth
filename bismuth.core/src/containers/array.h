@@ -5,45 +5,61 @@
 BAPI void _barray_init(u32 length, u32 stride, u32* out_length, u32* out_stride, void** block);
 BAPI void _barray_free(u32* length, u32* stride, void** block);
 
-#define ARRAY_TYPE_NAMED(type, name)                                                                         \
-    typedef struct name##_array                                                                              \
-    {                                                                                                        \
-        u32 length;                                                                                          \
-        u32 stride;                                                                                          \
-        type* data;                                                                                          \
-    } name##_array;                                                                                          \
-    typedef struct name##_array_it                                                                           \
-    {                                                                                                        \
-        name##_array* arr;                                                                                   \
-        u32 pos;                                                                                             \
-    } name##_array_it;                                                                                       \
-                                                                                                             \
-    BINLINE name##_array name##_array_create(u32 length)                                                     \
-    {                                                                                                        \
-        name##_array arr;                                                                                    \
-        _barray_init(length, sizeof(type), &arr.length, &arr.stride, (void**)&arr.data);                     \
-        return arr;                                                                                          \
-    }                                                                                                        \
-                                                                                                             \
-    BINLINE void name##_array_destroy(name##_array* arr)                                                     \
-    {                                                                                                        \
-        _barray_free(&arr->length, &arr->stride, (void**)&arr->data);                                        \
-    }                                                                                                        \
-                                                                                                             \
-    BINLINE name##_array_it name##_array_iterator_begin(name##_array* arr)                                   \
-    {                                                                                                        \
-        name##_array_it it;                                                                                  \
-        it.arr = arr;                                                                                        \
-        it.pos = 0;                                                                                          \
-        return it;                                                                                           \
-    }                                                                                                        \
-                                                                                                             \
-    BINLINE b8 name##_array_iterator_end(const name##_array_it* it) { return it->pos >= it->arr->length; }   \
-    BINLINE type* name##_array_iterator_value(const name##_array_it* it) { return &it->arr->data[it->pos]; } \
-    BINLINE void name##_array_iterator_next(name##_array_it* it) { it->pos++; }                              \
-    BINLINE void name##_array_iterator_prev(name##_array_it* it) { it->pos--; }
+typedef struct array_base
+{
+    u32 length;
+    u32 stride;
+    void* p_data;
+} array_base;
 
-// Create an array type of the given type. For advanced types or pointers, use ARRAY_TYPE_NAMED directly
+typedef struct array_iterator
+{
+    array_base* arr;
+    i32 pos;
+    i32 dir;
+    b8 (*end)(const struct array_iterator* it);
+    void* (*value)(const struct array_iterator* it);
+    void (*next)(struct array_iterator* it);
+    void (*prev)(struct array_iterator* it);
+} array_iterator;
+
+BAPI array_iterator array_iterator_begin(array_base* arr);
+BAPI array_iterator array_iterator_rbegin(array_base* arr);
+BAPI b8 array_iterator_end(const array_iterator* it);
+BAPI void* array_iterator_value(const array_iterator* it);
+BAPI void array_iterator_next(array_iterator* it);
+BAPI void array_iterator_prev(array_iterator* it);
+
+#define ARRAY_TYPE_NAMED(type, name)                                                                                     \
+    struct array_##name;                                                                                                 \
+    typedef struct array_##name                                                                                          \
+    {                                                                                                                    \
+        array_base base;                                                                                                 \
+        type* data;                                                                                                      \
+        array_iterator (*begin)(array_base * arr);                                                                       \
+        array_iterator (*rbegin)(array_base * arr);                                                                      \
+    } array_##name;                                                                                                      \
+                                                                                                                         \
+    BINLINE type* array_##name##_it_value(const array_iterator* it) { return &((array_##name*)it->arr)->data[it->pos]; } \
+                                                                                                                         \
+    BINLINE array_##name array_##name##_create(u32 length)                                                               \
+    {                                                                                                                    \
+        array_##name arr;                                                                                                \
+        _barray_init(length, sizeof(type), &arr.base.length, &arr.base.stride, (void**)&arr.data);                       \
+        arr.base.p_data = arr.data;                                                                                      \
+        arr.begin = array_iterator_begin;                                                                                \
+        arr.rbegin = array_iterator_rbegin;                                                                              \
+        return arr;                                                                                                      \
+    }                                                                                                                    \
+                                                                                                                         \
+    BINLINE void array_##name##_destroy(array_##name* arr)                                                               \
+    {                                                                                                                    \
+        _barray_free(&arr->base.length, &arr->base.stride, (void**)&arr->data);                                          \
+        arr->begin = 0;                                                                                                  \
+        arr->rbegin = 0;                                                                                                 \
+    }
+
+/** @brief Create an array type of the given type. For advanced types or pointers, use ARRAY_TYPE_NAMED directly */
 #define ARRAY_TYPE(type) ARRAY_TYPE_NAMED(type, type)
 
 // Create array types for well-known types

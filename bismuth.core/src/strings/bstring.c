@@ -192,11 +192,20 @@ void string_free(const char* str)
 
 b8 strings_equal(const char* str0, const char* str1)
 {
+    if (!str0 && !str1)
+        return true; // Technically equal since both are null
+    else if (!str0 || !str1)
+        return false; // If only one is null, they can never be equal
+
     return strcmp(str0, str1) == 0;
 }
 
 b8 strings_equali(const char* str0, const char* str1)
 {
+    if (!str0 && !str1)
+        return true; // Technically equal since both are null
+    else if (!str0 || !str1)
+        return false; // If only one is null, they can never be equal
 #if defined(__GNUC__)
     return strcasecmp(str0, str1) == 0;
 #elif (defined _MSC_VER)
@@ -206,11 +215,19 @@ b8 strings_equali(const char* str0, const char* str1)
 
 b8 strings_nequal(const char* str0, const char* str1, u64 length)
 {
+    if (!str0 && !str1)
+        return true; // Technically equal since both are null.
+    else if (!str0 || !str1)
+        return false; // If only one is null, they can never be equal
     return strncmp(str0, str1, length) == 0;
 }
 
 b8 strings_nequali(const char* str0, const char* str1, u64 length)
 {
+    if (!str0 && !str1)
+        return true; // Technically equal since both are null.
+    else if (!str0 || !str1)
+        return false; // If only one is null, they can never be equal
 #if defined(__GNUC__)
     return strncasecmp(str0, str1, length) == 0;
 #elif (defined _MSC_VER)

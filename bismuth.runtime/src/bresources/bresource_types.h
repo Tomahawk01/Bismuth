@@ -78,19 +78,19 @@ typedef struct bresource
     bname* tags;
 } bresource;
 
-typedef struct bresource_request_asset_info
+typedef struct bresource_asset_info
 {
     bname asset_name;
     bname package_name;
     basset_type type;
-} bresource_request_asset_info;
+} bresource_asset_info;
 
-ARRAY_TYPE(bresource_request_asset_info);
+ARRAY_TYPE(bresource_asset_info);
 
 typedef struct bresource_request_info
 {
     // The list of assets to be loaded
-    bresource_request_asset_info_array assets;
+    array_bresource_asset_info assets;
     // The callback made whenever one of the listed asset is loaded
     PFN_basset_on_result callback;
 

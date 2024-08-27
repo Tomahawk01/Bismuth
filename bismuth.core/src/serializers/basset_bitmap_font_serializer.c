@@ -99,7 +99,7 @@ b8 basset_bitmap_font_deserialize(const char* file_text, basset* out_asset)
                 if (page_count > 0)
                 {
                     if (!typed_asset->pages.data)
-                        typed_asset->pages = basset_bitmap_font_page_array_create(page_count);
+                        typed_asset->pages = array_basset_bitmap_font_page_create(page_count);
                 }
                 else
                 {
@@ -119,7 +119,7 @@ b8 basset_bitmap_font_deserialize(const char* file_text, basset* out_asset)
                     if (glyph_count > 0)
                     {
                         if (!typed_asset->glyphs.data)
-                            typed_asset->glyphs = basset_bitmap_font_glyph_array_create(glyph_count);
+                            typed_asset->glyphs = array_basset_bitmap_font_glyph_create(glyph_count);
                     }
                     else
                     {
@@ -191,7 +191,7 @@ b8 basset_bitmap_font_deserialize(const char* file_text, basset* out_asset)
                 if (kerning_count)
                 {
                     if (!typed_asset->kernings.data)
-                        typed_asset->kernings = basset_bitmap_font_kerning_array_create(kerning_count);
+                        typed_asset->kernings = array_basset_bitmap_font_kerning_create(kerning_count);
                 }
             }
             else if (line_buf[7] == ' ')
@@ -220,9 +220,9 @@ b8 basset_bitmap_font_deserialize(const char* file_text, basset* out_asset)
 cleanup:
     if (!success)
     {
-        basset_bitmap_font_page_array_destroy(&typed_asset->pages);
-        basset_bitmap_font_glyph_array_destroy(&typed_asset->glyphs);
-        basset_bitmap_font_kerning_array_destroy(&typed_asset->kernings);
+        array_basset_bitmap_font_page_destroy(&typed_asset->pages);
+        array_basset_bitmap_font_glyph_destroy(&typed_asset->glyphs);
+        array_basset_bitmap_font_kerning_destroy(&typed_asset->kernings);
     }
 
     return success;
