@@ -14,7 +14,7 @@ typedef struct array_base
 
 typedef struct array_iterator
 {
-    array_base* arr;
+    const array_base* arr;
     i32 pos;
     i32 dir;
     b8 (*end)(const struct array_iterator* it);
@@ -23,8 +23,8 @@ typedef struct array_iterator
     void (*prev)(struct array_iterator* it);
 } array_iterator;
 
-BAPI array_iterator array_iterator_begin(array_base* arr);
-BAPI array_iterator array_iterator_rbegin(array_base* arr);
+BAPI array_iterator array_iterator_begin(const array_base* arr);
+BAPI array_iterator array_iterator_rbegin(const array_base* arr);
 BAPI b8 array_iterator_end(const array_iterator* it);
 BAPI void* array_iterator_value(const array_iterator* it);
 BAPI void array_iterator_next(array_iterator* it);
@@ -36,8 +36,8 @@ BAPI void array_iterator_prev(array_iterator* it);
     {                                                                                                                    \
         array_base base;                                                                                                 \
         type* data;                                                                                                      \
-        array_iterator (*begin)(array_base * arr);                                                                       \
-        array_iterator (*rbegin)(array_base * arr);                                                                      \
+        array_iterator (*begin)(const array_base* arr);                                                                  \
+        array_iterator (*rbegin)(const array_base* arr);                                                                 \
     } array_##name;                                                                                                      \
                                                                                                                          \
     BINLINE type* array_##name##_it_value(const array_iterator* it) { return &((array_##name*)it->arr)->data[it->pos]; } \

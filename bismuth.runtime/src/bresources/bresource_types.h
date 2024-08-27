@@ -89,13 +89,11 @@ ARRAY_TYPE(bresource_asset_info);
 
 typedef struct bresource_request_info
 {
+    bresource_type type;
     // The list of assets to be loaded
     array_bresource_asset_info assets;
     // The callback made whenever one of the listed asset is loaded
     PFN_basset_on_result callback;
-
-    u64 addl_data_size;
-    void* addl_data;
 } bresource_request_info;
 
 /** @brief Represents various types of textures */
@@ -158,3 +156,12 @@ typedef struct bresource_texture
     /** @brief The the handle to renderer-specific texture data */
     b_handle renderer_texture_handle;
 } bresource_texture;
+
+typedef struct bresource_texture_request_info
+{
+    bresource_request_info base;
+
+    bresource_texture_type texture_type;
+    u8 array_size;
+    bresource_texture_flag_bits flags;
+} bresource_texture_request_info;

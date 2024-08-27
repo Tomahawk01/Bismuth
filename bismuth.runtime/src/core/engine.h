@@ -100,6 +100,9 @@ typedef struct engine_system_states
 
     u64 asset_system_memory_requirement;
     struct asset_system_state* asset_state;
+
+    u64 bresource_system_memory_requirement;
+    struct bresource_system_state* bresource_state;
 } engine_system_states;
 
 BAPI b8 engine_create(struct application* game_inst);

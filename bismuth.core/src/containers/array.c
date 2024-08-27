@@ -20,7 +20,7 @@ void _barray_free(u32* length, u32* stride, void** block)
     }
 }
 
-array_iterator array_iterator_begin(array_base* arr)
+array_iterator array_iterator_begin(const array_base* arr)
 {
     array_iterator it;
     it.arr = arr;
@@ -33,7 +33,7 @@ array_iterator array_iterator_begin(array_base* arr)
     return it;
 }
 
-array_iterator array_iterator_rbegin(array_base* arr)
+array_iterator array_iterator_rbegin(const array_base* arr)
 {
     array_iterator it;
     it.arr = arr;

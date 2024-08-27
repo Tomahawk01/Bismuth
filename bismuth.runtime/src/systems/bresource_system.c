@@ -1,6 +1,7 @@
 #include "bresource_system.h"
 #include "debug/bassert.h"
 #include "defines.h"
+#include "bresources/handlers/bresource_handler_texture.h"
 #include "bresources/bresource_types.h"
 #include "logger.h"
 // TODO: test, remove
@@ -22,6 +23,17 @@ b8 bresource_system_initialize(u64* memory_requirement, struct bresource_system_
 
     // TODO: configure state, etc
 
+    // Register known handler types
+    bresource_handler texture_handler = {0};
+    texture_handler.release = bresource_handler_texture_release;
+    texture_handler.request = bresource_handler_texture_request;
+    if (!bresource_system_handler_register(state, BRESOURCE_TYPE_TEXTURE, texture_handler))
+    {
+        BERROR("Failed to register texture resource handler");
+        return false;
+    }
+
+    BINFO("Resource system (new) initialized");
     return true;
 }
 
@@ -33,18 +45,18 @@ void bresource_system_shutdown(struct bresource_system_state* state)
     }
 }
 
-b8 bresource_system_request(struct bresource_system_state* state, bname name, bresource_type type, bresource_request_info info, bresource* out_resource)
+b8 bresource_system_request(struct bresource_system_state* state, bname name, const struct bresource_request_info* info, bresource* out_resource)
 {
-    BASSERT_MSG(state && out_resource, "Valid pointers to state and out_resource are required");
+    BASSERT_MSG(state && info && out_resource, "Valid pointers to state, info and out_resource are required");
 
     out_resource->name = name;
-    out_resource->type = type;
+    out_resource->type = info->type;
     out_resource->state = BRESOURCE_STATE_UNINITIALIZED;
     out_resource->generation = INVALID_ID;
     out_resource->tag_count = 0;
     out_resource->tags = 0;
 
-    bresource_handler* h = &state->handlers[type];
+    bresource_handler* h = &state->handlers[info->type];
     if (!h->request)
     {
         BERROR("There is no handler setup for the asset type");

@@ -20,14 +20,14 @@ typedef struct texture_resource_handler_info
 {
     bresource_texture* typed_resource;
     bresource_handler* handler;
-    bresource_request_info request_info;
+    bresource_texture_request_info* request_info;
     array_bimage_ptr assets;
     u32 loaded_count;
 } texture_resource_handler_info;
 
 static void texture_basset_on_result(asset_request_result result, const struct basset* asset, void* listener_inst);
 
-b8 bresource_handler_texture_request(struct bresource_handler* self, bresource* resource, bresource_request_info info)
+b8 bresource_handler_texture_request(struct bresource_handler* self, bresource* resource, const struct bresource_request_info* info)
 {
     if (!self || !resource)
     {
@@ -36,17 +36,44 @@ b8 bresource_handler_texture_request(struct bresource_handler* self, bresource* 
     }
 
     bresource_texture* typed_resource = (bresource_texture*)resource;
+    bresource_texture_request_info* typed_request = (bresource_texture_request_info*)info;
+
+    b8 assets_required = true;
+
+    // Assets are not required for these texture types
+    if (typed_request->flags & BRESOURCE_TEXTURE_FLAG_IS_WRITEABLE || typed_request->flags & BRESOURCE_TEXTURE_FLAG_DEPTH)
+        assets_required = false;
+
+    if (assets_required && typed_request->base.assets.base.length < 1)
+    {
+        BERROR("A texture resource request requires at least one asset for textures that are not depth or writeable textures");
+        return false;
+    }
+
+    // Some type-specific validation
+    if (typed_request->texture_type == BRESOURCE_TEXTURE_TYPE_2D && typed_request->base.assets.base.length != 1)
+    {
+        BERROR("Non-writeable 2d textures must have exactly one texture asset. Instead, %u was provided", typed_request->base.assets.base.length);
+        return false;
+    }
+    else if (typed_request->texture_type == BRESOURCE_TEXTURE_TYPE_CUBE && typed_request->base.assets.base.length != 6)
+    {
+        BERROR("Non-writeable cube textures must have exactly 6 texture assets. Instead, %u was provided", typed_request->base.assets.base.length);
+        return false;
+    }
 
     // NOTE: dynamically allocating this so lifetime isn't a concern
     texture_resource_handler_info* listener_inst = ballocate(sizeof(texture_resource_handler_info), MEMORY_TAG_RESOURCE);
-    listener_inst->request_info = info;
+    // Take a copy of the typed request info
+    listener_inst->request_info = ballocate(sizeof(bresource_texture_request_info), MEMORY_TAG_RESOURCE);
+    bcopy_memory(listener_inst->request_info, typed_request, sizeof(bresource_texture_request_info));
     listener_inst->typed_resource = typed_resource;
     listener_inst->handler = self;
     listener_inst->loaded_count = 0;
-    listener_inst->assets = array_bimage_ptr_create(info.assets.base.length);
+    listener_inst->assets = array_bimage_ptr_create(info->assets.base.length);
 
     // Load all assets (might only be one)
-    for (array_iterator it = info.assets.begin(&info.assets.base); !it.end(&it); it.next(&it))
+    for (array_iterator it = info->assets.begin(&info->assets.base); !it.end(&it); it.next(&it))
     {
         bresource_asset_info* asset_info = it.value(&it);
         asset_system_request(
@@ -80,7 +107,7 @@ static void texture_basset_on_result(asset_request_result result, const struct b
         listener->loaded_count++;
 
         // If all required assets are loaded, proceed with uploading of resource data
-        if (listener->loaded_count == listener->request_info.assets.base.length)
+        if (listener->loaded_count == listener->request_info->base.assets.base.length)
         {
             listener->typed_resource->base.state = BRESOURCE_STATE_INITIALIZED;
             BTRACE("All required assets loaded for resource '%s'. Proceeding to upload to GPU...", bname_string_get(listener->typed_resource->base.name));
@@ -101,13 +128,13 @@ static void texture_basset_on_result(asset_request_result result, const struct b
             b8 result = renderer_bresource_texture_resources_acquire(
                 renderer,
                 listener->typed_resource->base.name,
-                listener->typed_resource->type,
+                listener->request_info->texture_type,
                 width,
                 height,
                 channel_count,
                 mip_levels,
-                listener->assets.base.length, // TODO: maybe configured instead? Or listener->typed_resource->array_size
-                listener->typed_resource->flags,
+                listener->request_info->array_size, // TODO: maybe configured instead? Or listener->typed_resource->array_size
+                listener->request_info->flags,
                 &listener->typed_resource->renderer_texture_handle);
             if (!result)
             {
@@ -115,18 +142,24 @@ static void texture_basset_on_result(asset_request_result result, const struct b
             }
             else
             {
+                // Apply properties taken from request
+                listener->typed_resource->type = listener->request_info->texture_type;
+                listener->typed_resource->array_size = listener->request_info->array_size;
+                listener->typed_resource->flags = listener->request_info->flags;
+
                 // Save off the properties of the first asset
                 listener->typed_resource->width = width;
                 listener->typed_resource->height = height;
                 listener->typed_resource->format = image_format_to_texture_format(((basset_image*)listener->assets.data[0])->format);
                 listener->typed_resource->mip_levels = mip_levels;
-                /* listener->typed_resource->type = // TODO: should be part of the request */
-                /* listener->typed_resource->array_size = // TODO: should be part of the request */
-                listener->typed_resource->flags = 0; // TODO: Should be part of request/maybe determined by image format
+                
+                // Take a copy of all the pixel data from the assets so they may be released
+                u32 all_pixel_size = 0;
+                u8* all_pixels = 0;
 
                 // Iterate the assets and ensure the dimensions are all the same. This is because a texture that is using multiple assets is either
                 // using them one-per-layer OR is combining multiple image assets into one (i.e. the "combined" image for materials). In either case, all dimensions must be the same
-                u32 asset_loaded_count = 0;
+                array_b8 mismatches = array_b8_create(listener->assets.base.length);
                 for (array_iterator it = listener->assets.begin(&listener->assets.base); !it.end(&it); it.next(&it))
                 {
                     b8 mismatch = false;
@@ -143,41 +176,57 @@ static void texture_basset_on_result(asset_request_result result, const struct b
                         BERROR("Height mismatch at index %u. Expected: %u, Actual: %u", it.pos, height, image->height);
                         mismatch = true;
                     }
-                    if (image->channel_count != channel_count)
-                    {
-                        BERROR("Channel count mismatch at index %u. Expected: %u, Actual: %u", it.pos, channel_count, image->channel_count);
-                        mismatch = true;
-                    }
-                    if (image->mip_levels != mip_levels)
-                    {
-                        BERROR("Mip levels mismatch at index %u. Expected: %u, Actual: %u", it.pos, mip_levels, image->mip_levels);
-                        mismatch = true;
-                    }
 
+                    mismatches.data[it.pos] = mismatch;
+
+                    // Keep a running size of pixels required
+                    // TODO: Check if only utilizing a single channel, or maybe not all of the channels and load that way instead
                     if (!mismatch)
+                        all_pixel_size += image->pixel_array_size;
+                }
+
+                if (all_pixel_size > 0)
+                {
+                    // Allocate the large array
+                    all_pixels = ballocate(all_pixel_size, MEMORY_TAG_RESOURCE);
+
+                    // Iterate again, this time copying data from each image into the appropriate layer
+                    u32 pixel_array_offset = 0;
+                    for (array_iterator it = listener->assets.begin(&listener->assets.base); !it.end(&it); it.next(&it))
                     {
-                        u32 offset = 0; // TODO: Should this be configured?
-                        b8 write_result = renderer_texture_write_data(renderer, listener->typed_resource->renderer_texture_handle, offset, image->pixel_array_size, image->pixels);
-                        if (!write_result)
-                        {
-                            BERROR("Failed to write texture data from asset '%s'", bname_string_get(image->base.name));
+                        // Skip mismatched textures
+                        if (mismatches.data[it.pos])
                             continue;
-                        }
+                        basset_image* image = it.value(&it);
+                        bcopy_memory(all_pixels + pixel_array_offset, image->pixels, image->pixel_array_size);
+                        pixel_array_offset += image->pixel_array_size;
 
                         // Release the asset reference as we are done with it
                         asset_system_release(asset_system, image->base.package_name, image->base.name);
-
-                        asset_loaded_count++;
                     }
+
+                    array_b8_destroy(&mismatches);
+
+                    // Perform the actual texture data upload
+                    // TODO: Jobify this, renderer multithreading
+                    u32 texture_data_offset = 0; // NOTE: The only time this potentially could be nonzero is when explicitly loading a layer of texture data
+                    b8 write_result = renderer_texture_write_data(renderer, listener->typed_resource->renderer_texture_handle, texture_data_offset, all_pixel_size, all_pixels);
+                    if (!write_result)
+                        BERROR("Failed to write renderer texture data resource '%s'", bname_string_get(listener->typed_resource->base.name));
+
+                    bfree(all_pixels, all_pixel_size, MEMORY_TAG_RESOURCE);
+
+                    BTRACE("Renderer finished uploading texture data, texture is ready");
+                }
+                else
+                {
+                    BTRACE("Nothing to be uploaded, texture is ready");
                 }
 
-                // If all assets uploaded successfully, the resource can be have its state updated
-                if (asset_loaded_count == listener->assets.base.length)
-                {
-                    listener->typed_resource->base.state = BRESOURCE_STATE_LOADED;
-                    // Increase the generation also
-                    listener->typed_resource->base.generation++;
-                }
+                // If uploaded successfully, the resource can be have its state updated
+                listener->typed_resource->base.state = BRESOURCE_STATE_LOADED;
+                // Increase the generation also
+                listener->typed_resource->base.generation++;
             }
         }
     }
@@ -185,4 +234,11 @@ static void texture_basset_on_result(asset_request_result result, const struct b
     {
         BERROR("Failed to load a required asset for texture resource '%s'. Resource may not appear correctly when rendered", bname_string_get(listener->typed_resource->base.name));
     }
+
+    // Destroy the request
+    array_bimage_ptr_destroy(&listener->assets);
+    array_bresource_asset_info_destroy(&listener->request_info->base.assets);
+    bfree(listener->request_info, sizeof(bresource_texture_request_info), MEMORY_TAG_RESOURCE);
+    // Free the listener itself
+    bfree(listener, sizeof(texture_resource_handler_info), MEMORY_TAG_RESOURCE);
 }

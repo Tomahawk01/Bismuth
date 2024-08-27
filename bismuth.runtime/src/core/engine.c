@@ -32,9 +32,10 @@
 #include "systems/font_system.h"
 #include "systems/geometry_system.h"
 #include "systems/job_system.h"
+#include "systems/bresource_system.h"
 #include "systems/light_system.h"
 #include "systems/material_system.h"
-#include "systems/resource_system.h"
+#include "systems/resource_system.h" // TODO: remove old resource system
 #include "systems/shader_system.h"
 #include "systems/texture_system.h"
 #include "systems/timeline_system.h"
@@ -253,6 +254,22 @@ b8 engine_create(application* game_inst)
         if (!basset_importer_registry_initialize())
         {
             BERROR("Failed to initialize asset importer registry. See logs for details");
+            return false;
+        }
+    }
+
+    // Resource system
+    {
+
+        // TODO: deserialize from application config, if provided
+        bresource_system_config resource_sys_config = {0};
+        resource_sys_config.dummy = 69;
+
+        bresource_system_initialize(&systems->bresource_system_memory_requirement, 0, &resource_sys_config);
+        systems->bresource_state = ballocate(systems->bresource_system_memory_requirement, MEMORY_TAG_ENGINE);
+        if (!bresource_system_initialize(&systems->bresource_system_memory_requirement, systems->bresource_state, &resource_sys_config))
+        {
+            BERROR("Failed to initialize resource system (new)");
             return false;
         }
     }
@@ -914,6 +931,7 @@ b8 engine_run(application* game_inst)
         renderer_system_shutdown(systems->renderer_system);
         job_system_shutdown(systems->job_system);
         resource_system_shutdown(systems->resource_system);
+        bresource_system_shutdown(systems->bresource_state);
         input_system_shutdown(systems->input_system);
         event_system_shutdown(systems->event_system);
         bvar_system_shutdown(systems->bvar_system);

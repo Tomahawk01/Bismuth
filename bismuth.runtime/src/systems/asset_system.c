@@ -102,6 +102,7 @@ b8 asset_system_initialize(u64* memory_requirement, struct asset_system_state* s
     }
 
     state->max_asset_count = config->max_asset_count;
+    state->lookups = ballocate(sizeof(asset_lookup) * state->max_asset_count, MEMORY_TAG_ENGINE);
 
     // Asset lookup tree
     {
