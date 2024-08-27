@@ -14,9 +14,10 @@
 #include <input_types.h>
 
 #define WIN32_LEAN_AND_MEAN
-#include <stdlib.h>
 #include <windows.h>
 #include <windowsx.h> // param input extraction
+// NOTE: These must be included after above windows includes
+#include <stdlib.h>
 #include <timeapi.h>
 
 typedef struct win32_handle_info
@@ -226,7 +227,7 @@ b8 platform_window_create(const bwindow_config* config, struct bwindow* window, 
     // LPCWSTR wtitle = cstr_to_wcstr(window->title);
     WCHAR wtitle[256];
     int len = MultiByteToWideChar(CP_UTF8, 0, window->title, -1, wtitle, 256);
-    if(!len)
+    if (!len)
     {
     }
     window->platform_state->hwnd = CreateWindowExW(
@@ -334,7 +335,7 @@ b8 platform_window_title_set(struct bwindow* window, const char* title)
     if (!window)
         return false;
     
-    LPCWSTR wtitle = cstr_to_wcstr(window->title);
+    LPCWSTR wtitle = cstr_to_wcstr(title);
 
     // If the function succeeds, the return value is nonzero
     b8 result = (SetWindowText(window->platform_state->hwnd, wtitle) != 0);
@@ -426,11 +427,11 @@ void platform_sleep(u64 ms)
 
     bclock_update(&clock);
     f64 observed = clock.elapsed * 1000.0;
-    f64 ms_remaining = (f64) ms - observed;
+    f64 ms_remaining = (f64)ms - observed;
 
     // spin lock
     bclock_start(&clock);
-    while(clock.elapsed * 1000.0 < ms_remaining)
+    while (clock.elapsed * 1000.0 < ms_remaining)
     {
         _mm_pause();
         bclock_update(&clock);

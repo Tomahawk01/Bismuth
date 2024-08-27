@@ -1,5 +1,6 @@
 #pragma once
 
+#include "containers/array.h"
 #include "core_render_types.h"
 #include "defines.h"
 #include "identifiers/identifier.h"
@@ -20,31 +21,6 @@
 
 // The maximum length of a fully-qualified asset name, including the '.' between parts
 #define BASSET_FULLY_QUALIFIED_NAME_MAX_LENGTH = (BPACKAGE_NAME_MAX_LENGTH + BASSET_TYPE_MAX_LENGTH + BASSET_NAME_MAX_LENGTH + 2)
-
-/** @brief Indicates where an asset is in its lifecycle */
-typedef enum basset_state
-{
-    /**
-     * @brief No load operations have happened whatsoever for the asset
-     * The asset is NOT in a drawable state
-     */
-    BASSET_STATE_UNINITIALIZED,
-    /**
-     * @brief The CPU-side of the asset resources have been loaded, but no GPU uploads have happened
-     * The asset is NOT in a drawable state
-     */
-    BASSET_STATE_INITIALIZED,
-    /**
-     * @brief The GPU-side of the asset resources are in the process of being uploaded, but are not yet complete
-     * The asset is NOT in a drawable state
-     */
-    BASSET_STATE_LOADING,
-    /**
-     * @brief The GPU-side of the asset resources are finished with the process of being uploaded
-     * The asset IS in a drawable state
-     */
-    BASSET_STATE_LOADED
-} basset_state;
 
 typedef enum basset_type
 {
@@ -492,3 +468,50 @@ typedef struct basset_system_font
     u32 font_binary_size;
     void* font_binary;
 } basset_system_font;
+
+#define BASSET_TYPE_NAME_BITMAP_FONT "BitmapFont"
+
+typedef struct basset_bitmap_font_glyph
+{
+    i32 codepoint;
+    u16 x;
+    u16 y;
+    u16 width;
+    u16 height;
+    i16 x_offset;
+    i16 y_offset;
+    i16 x_advance;
+    u8 page_id;
+} basset_bitmap_font_glyph;
+
+typedef struct basset_bitmap_font_kerning
+{
+    i32 codepoint_0;
+    i32 codepoint_1;
+    i16 amount;
+} basset_bitmap_font_kerning;
+
+typedef struct basset_bitmap_font_page
+{
+    i8 id;
+    bname image_asset_name;
+} basset_bitmap_font_page;
+
+ARRAY_TYPE(basset_bitmap_font_glyph);
+ARRAY_TYPE(basset_bitmap_font_kerning);
+ARRAY_TYPE(basset_bitmap_font_page);
+
+typedef struct basset_bitmap_font
+{
+    basset base;
+    bname face;
+    u32 size;
+    i32 line_height;
+    i32 baseline;
+    i32 atlas_size_x;
+    i32 atlas_size_y;
+    basset_bitmap_font_glyph_array glyphs;
+    basset_bitmap_font_kerning_array kernings;
+    f32 tab_x_advance;
+    basset_bitmap_font_page_array pages;
+} basset_bitmap_font;

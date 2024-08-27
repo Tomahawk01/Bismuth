@@ -12,932 +12,769 @@ references = [
 assets = [
     {
         name = "16___Default"
-        type = "Material"
         path = "./assets/materials/16___Default.bmt"
     }
     {
         name = "arch"
-        type = "Material"
         path = "./assets/materials/arch.bmt"
     }
     {
         name = "beams"
-        type = "Material"
         path = "./assets/materials/beams.bmt"
     }
     {
         name = "boards"
-        type = "Material"
         path = "./assets/materials/boards.bmt"
     }
     {
         name = "bricks"
-        type = "Material"
         path = "./assets/materials/bricks.bmt"
     }
     {
         name = "ceiling"
-        type = "Material"
         path = "./assets/materials/ceiling.bmt"
     }
     {
         name = "chain"
-        type = "Material"
         path = "./assets/materials/chain.bmt"
     }
     {
         name = "rocks"
-        type = "Material"
         path = "./assets/materials/rocks.bmt"
     }
     {
         name = "column_a"
-        type = "Material"
         path = "./assets/materials/column_a.bmt"
     }
     {
         name = "column_a"
-        type = "Material"
         path = "./assets/materials/column_a.bmt"
     }
     {
         name = "column_b"
-        type = "Material"
         path = "./assets/materials/column_b.bmt"
     }
     {
         name = "column_c"
-        type = "Material"
         path = "./assets/materials/column_c.bmt"
     }
     {
         name = "Crusted_snow2"
-        type = "Material"
         path = "./assets/materials/Crusted_snow2.bmt"
     }
     {
         name = "details"
-        type = "Material"
         path = "./assets/materials/details.bmt"
     }
     {
         name = "fabric_a"
-        type = "Material"
         path = "./assets/materials/fabric_a.bmt"
     }
     {
         name = "fabric_c"
-        type = "Material"
         path = "./assets/materials/fabric_c.bmt"
     }
     {
         name = "fabric_d"
-        type = "Material"
         path = "./assets/materials/fabric_d.bmt"
     }
     {
         name = "fabric_e"
-        type = "Material"
         path = "./assets/materials/fabric_e.bmt"
     }
     {
         name = "fabric_f"
-        type = "Material"
         path = "./assets/materials/fabric_f.bmt"
     }
     {
         name = "fabric_g"
-        type = "Material"
         path = "./assets/materials/fabric_g.bmt"
     }
     {
         name = "falc_wreck"
-        type = "Material"
         path = "./assets/materials/falc_wreck.bmt"
     }
     {
         name = "flagpole"
-        type = "Material"
         path = "./assets/materials/flagpole.bmt"
     }
     {
         name = "floor"
-        type = "Material"
         path = "./assets/materials/floor.bmt"
     }
     {
         name = "leaf"
-        type = "Material"
         path = "./assets/materials/leaf.bmt"
     }
     {
         name = "Material__25"
-        type = "Material"
         path = "./assets/materials/Material__25.bmt"
     }
     {
         name = "Material__298"
-        type = "Material"
         path = "./assets/materials/Material__298.bmt"
     }
     {
         name = "Material__47"
-        type = "Material"
         path = "./assets/materials/Material__47.bmt"
     }
     {
         name = "Material__57"
-        type = "Material"
         path = "./assets/materials/Material__57.bmt"
     }
     {
         name = "stone"
-        type = "Material"
         path = "./assets/materials/stone.bmt"
     }
     {
         name = "wood"
-        type = "Material"
         path = "./assets/materials/wood.bmt"
     }
     {
         name = "polySurface1SG1"
-        type = "Material"
         path = "./assets/materials/polySurface1SG1.bmt"
     }
     {
         name = "river_rock1"
-        type = "Material"
         path = "./assets/materials/river_rock1.bmt"
     }
     {
         name = "roof"
-        type = "Material"
         path = "./assets/materials/roof.bmt"
     }
     {
         name = "test_material"
-        type = "Material"
         path = "./assets/materials/test_material.bmt"
     }
     {
         name = "Trank_bark"
-        type = "Material"
         path = "./assets/materials/Trank_bark.bmt"
     }
     {
         name = "vase"
-        type = "Material"
         path = "./assets/materials/vase.bmt"
     }
     {
         name = "vase_hanging"
-        type = "Material"
         path = "./assets/materials/vase_hanging.bmt"
     }
     {
         name = "vase_round"
-        type = "Material"
         path = "./assets/materials/vase_round.bmt"
     }
     {
         name = "wavy-sand"
-        type = "Material"
         path = "./assets/materials/wavy-sand.bmt"
     }
     {
         name = "wispy-grass-meadow"
-        type = "Material"
         path = "./assets/materials/wispy-grass-meadow.bmt"
     }
     {
         name = "falcon"
-        type = "StaticMesh"
         path = "./assets/models/falcon.bsm"
         source_path = "./assets/models/falcon.obj"
     }
     {
         name = "sponza"
-        type = "StaticMesh"
         path = "./assets/models/sponza.bsm"
         source_path = "./assets/models/source/sponza.obj"
     }
     {
         name = "Tree"
-        type = "StaticMesh"
         path = "./assets/models/Tree.bsm"
         source_path = "./assets/models/source/Tree.obj"
     }
     {
         name = "v_simple_hut_LOD0"
-        type = "StaticMesh"
         path = "./assets/models/v_simple_hut_LOD0.bsm"
         source_path = "./assets/models/source/v_simple_hut_LOD0.obj"
     }
     {
         name = "bg_song1"
-        type = "Music"
         path = "./assets/music/bg_song1.mp3"
     }
     {
         name = "bg_song2"
-        type = "Music"
         path = "./assets/music/bg_song2.mp3"
     }
     {
         name = "bg_song3"
-        type = "Music"
         path = "./assets/music/bg_song3.mp3"
     }
     {
         name = "test_scene"
-        type = "Scene"
         path = "./assets/scenes/test_scene.bsn"
     }
     {
         name = "FireLoop"
-        type = "Sound"
         path = "./assets/sounds/Fire loop.mp3"
     }
     {
         name = "Test"
-        type = "Sound"
         path = "./assets/sounds/Test.ogg"
     }
     {
         name = "test_terrain"
-        type = "HeightmapTerrain"
         path = "./assets/terrains/test_terrain.btn"
     }
     {
         name = "background"
-        type = "Image"
         path = "./assets/images/background.bbi"
         source_path = "./assets/images/source/background.tga"
     }
     {
         name = "background_combined"
-        type = "Image"
         path = "./assets/images/background_combined.bbi"
         source_path = "./assets/images/source/background_combined.png"
     }
     {
         name = "background_ddn"
-        type = "Image"
         path = "./assets/images/background_ddn.bbi"
         source_path = "./assets/images/source/background_ddn.tga"
     }
     {
         name = "bark_0021"
-        type = "Image"
         path = "./assets/images/bark_0021.bbi"
         sourcepath = "./assets/images/source/bark_0021.jpg"
     }
     {
         name = "beams_and_sticks_bc"
-        type = "Image"
         path = "./assets/images/beams_and_sticks_bc.bbi"
         sourcepath = "./assets/images/source/beams_and_sticks_bc.png"
     }
     {
         name = "beams_and_sticks_n"
-        type = "Image"
         path = "./assets/images/beams_and_sticks_n.bbi"
         sourcepath = "./assets/images/source/beams_and_sticks_n.png"
     }
     {
         name = "beams_and_sticks_roughness"
-        type = "Image"
         path = "./assets/images/beams_and_sticks_roughness.bbi"
         source_path = "./assets/images/source/beams_and_sticks_roughness.png"
     }
     {
         name = "boards_and_planks_bc"
-        type = "Image"
         path = "./assets/images/boards_and_planks_bc.bbi"
         source_path = "./assets/images/source/boards_and_planks_bc.png"
     }
     {
         name = "boards_and_planks_bc2"
-        type = "Image"
         path = "./assets/images/boards_and_planks_bc2.bbi"
         source_path = "./assets/images/source/boards_and_planks_bc2.png"
     }
     {
         name = "boards_and_planks_n"
-        type = "Image"
         path = "./assets/images/boards_and_planks_n.bbi"
         source_path = "./assets/images/source/boards_and_planks_n.png"
     }
     {
         name = "boards_and_planks_roughness"
-        type = "Image"
         path = "./assets/images/boards_and_planks_roughness.bbi"
         source_path = "./assets/images/source/boards_and_planks_roughness.png"
     }
     {
         name = "chain_texture"
-        type = "Image"
         path = "./assets/images/chain_texture.bbi"
         source_path = "./assets/images/source/chain_texture.tga"
     }
     {
         name = "chain_texture_ddn"
-        type = "Image"
         path = "./assets/images/chain_texture_ddn.bbi"
         source_path = "./assets/images/source/chain_texture_ddn.png"
     }
     {
         name = "chain_texture_combined"
-        type = "Image"
         path = "./assets/images/chain_texture_combined.bbi"
         source_path = "./assets/images/source/chain_texture_combined.tga"
     }
     {
         name = "rocks"
-        type = "Image"
         path = "./assets/images/rocks.bbi"
         source_path = "./assets/images/source/rocks.png"
     }
     {
         name = "rocks_norm"
-        type = "Image"
         path = "./assets/images/rocks_norm.bbi"
         source_path = "./assets/images/source/rocks_norm.png"
     }
     {
         name = "rocks_spec"
-        type = "Image"
         path = "./assets/images/rocks_spec.bbi"
         source_path = "./assets/images/source/rocks_spec.png"
     }
     {
         name = "Crusted_snow2_Base_Color"
-        type = "Image"
         path = "./assets/images/Crusted_snow2_Base_Color.bbi"
         source_path = "./assets/images/source/Crusted_snow2_Base_Color.png"
     }
     {
         name = "Crusted_snow2_ao"
-        type = "Image"
         path = "./assets/images/Crusted_snow2_ao.bbi"
         source_path = "./assets/images/source/Crusted_snow2_ao.png"
     }
     {
         name = "Crusted_snow2_combined"
-        type = "Image"
         path = "./assets/images/Crusted_snow2_combined.bbi"
         source_path = "./assets/images/source/Crusted_snow2_combined.png"
     }
     {
         name = "Crusted_snow2_Normal"
-        type = "Image"
         path = "./assets/images/Crusted_snow2_Normal.bbi"
         source_path = "./assets/images/source/Crusted_snow2_Normal.png"
     }
     {
         name = "DB2X2_L01"
-        type = "Image"
         path = "./assets/images/DB2X2_L01.bbi"
         source_path = "./assets/images/source/DB2X2_L01.png"
     }
     {
         name = "DB2X2_L01_Spec"
-        type = "Image"
         path = "./assets/images/DB2X2_L01_Spec.bbi"
         source_path = "./assets/images/source/DB2X2_L01_Spec.png"
     }
     {
         name = "default"
-        type = "Image"
         path = "./assets/images/default.bbi"
         source_path = "./assets/images/source/default.png"
     }
     {
         name = "falc_wreck_low_DefaultMaterial_AlbedoTransparency"
-        type = "Image"
         path = "./assets/images/falc_wreck_low_DefaultMaterial_AlbedoTransparency.bbi"
         source_path = "./assets/images/source/falc_wreck_low_DefaultMaterial_AlbedoTransparency.png"
     }
     {
         name = "falc_wreck_low_DefaultMaterial_combined"
-        type = "Image"
         path = "./assets/images/falc_wreck_low_DefaultMaterial_combined.bbi"
         source_path = "./assets/images/source/falc_wreck_low_DefaultMaterial_combined.png"
     }
     {
         name = "falc_wreck_low_DefaultMaterial_Normal"
-        type = "Image"
         path = "./assets/images/falc_wreck_low_DefaultMaterial_Normal.bbi"
         source_path = "./assets/images/source/falc_wreck_low_DefaultMaterial_Normal.png"
     }
     {
         name = "bismuth"
-        type = "Image"
         path = "./assets/images/bismuth_logo.bbi"
         source_path = "./assets/images/source/bismuth_logo.png"
     }
     {
         name = "lion"
-        type = "Image"
         path = "./assets/images/lion.bbi"
         source_path = "./assets/images/source/lion.tga"
     }
     {
         name = "lion_combined"
-        type = "Image"
         path = "./assets/images/lion_combined.bbi"
         source_path = "./assets/images/source/lion_combined.png"
     }
     {
         name = "lion_ddn"
-        type = "Image"
         path = "./assets/images/lion_ddn.bbi"
         source_path = "./assets/images/source/lion_ddn.tga"
     }
     {
         name = "prototype_1024"
-        type = "Image"
         path = "./assets/images/prototype_1024.bbi"
         source_path = "./assets/images/source/prototype_1024.png"
     }
     {
         name = "prototype_1024_spec"
-        type = "Image"
         path = "./assets/images/prototype_1024_spec.bbi"
         source_path = "./assets/images/source/prototype_1024_spec.png"
     }
     {
         name = "stone"
-        type = "Image"
         path = "./assets/images/stone.bbi"
         source_path = "./assets/images/source/stone.png"
     }
     {
         name = "stone_norm"
-        type = "Image"
         path = "./assets/images/stone_norm.bbi"
         source_path = "./assets/images/source/stone_norm.png"
     }
     {
         name = "stone_spec"
-        type = "Image"
         path = "./assets/images/stone_spec.bbi"
         source_path = "./assets/images/source/stone_spec.png"
     }
     {
         name = "wood"
-        type = "Image"
         path = "./assets/images/wood.bbi"
         source_path = "./assets/images/source/wood.png"
     }
     {
         name = "wood_norm"
-        type = "Image"
         path = "./assets/images/wood_norm.bbi"
         source_path = "./assets/images/source/wood_norm.png"
     }
     {
         name = "wood_spec"
-        type = "Image"
         path = "./assets/images/wood_spec.bbi"
         source_path = "./assets/images/source/wood_spec.png"
     }
     {
         name = "river_rock1_albedo"
-        type = "Image"
         path = "./assets/images/river_rock1_albedo.bbi"
         source_path = "./assets/images/source/river_rock1_albedo.png"
     }
     {
         name = "river_rock1_combined"
-        type = "Image"
         path = "./assets/images/river_rock1_combined.bbi"
         source_path = "./assets/images/source/river_rock1_combined.png"
     }
     {
         name = "river_rock1_Normal"
-        type = "Image"
         path = "./assets/images/river_rock1_Normal.bbi"
         source_path = "./assets/images/source/river_rock1_Normal.png"
     }
     {
         name = "skybox_b"
-        type = "Image"
         path = "./assets/images/skybox_b.bbi"
         source_path = "./assets/images/source/skybox_b.png"
     }
     {
         name = "skybox_d"
-        type = "Image"
         path = "./assets/images/skybox_d.bbi"
         source_path = "./assets/images/source/skybox_d.png"
     }
     {
         name = "skybox_f"
-        type = "Image"
         path = "./assets/images/skybox_f.bbi"
         source_path = "./assets/images/source/skybox_f.png"
     }
     {
         name = "skybox_l"
-        type = "Image"
         path = "./assets/images/skybox_l.bbi"
         source_path = "./assets/images/source/skybox_l.png"
     }
     {
         name = "skybox_r"
-        type = "Image"
         path = "./assets/images/skybox_r.bbi"
         source_path = "./assets/images/source/skybox_r.png"
     }
     {
         name = "skybox_u"
-        type = "Image"
         path = "./assets/images/skybox_u.bbi"
         source_path = "./assets/images/source/skybox_u.png"
     }
     {
         name = "sponza_arch_combined"
-        type = "Image"
         path = "./assets/images/sponza_arch_combined.bbi"
         source_path = "./assets/images/source/sponza_arch_combined.png"
     }
     {
         name = "sponza_arch_ddn"
-        type = "Image"
         path = "./assets/images/sponza_arch_ddn.bbi"
         source_path = "./assets/images/source/sponza_arch_ddn.tga"
     }
     {
         name = "sponza_arch_diff"
-        type = "Image"
         path = "./assets/images/sponza_arch_diff.bbi"
         source_path = "./assets/images/source/sponza_arch_diff.tga"
     }
     {
         name = "sponza_bricks_combined"
-        type = "Image"
         path = "./assets/images/sponza_bricks_combined.bbi"
         source_path = "./assets/images/source/sponza_bricks_combined.png"
     }
     {
         name = "sponza_bricks_ddn"
-        type = "Image"
         path = "./assets/images/sponza_bricks_ddn.bbi"
         source_path = "./assets/images/source/sponza_bricks_ddn.tga"
     }
     {
         name = "sponza_bricks_diff"
-        type = "Image"
         path = "./assets/images/sponza_bricks_diff.bbi"
         source_path = "./assets/images/source/sponza_bricks_diff.tga"
     }
     {
         name = "sponza_ceiling_a_combined"
-        type = "Image"
         path = "./assets/images/sponza_ceiling_a_combined.bbi"
         source_path = "./assets/images/source/sponza_ceiling_a_combined.png"
     }
     {
         name = "sponza_ceiling_a_ddn"
-        type = "Image"
         path = "./assets/images/sponza_ceiling_a_ddn.bbi"
         source_path = "./assets/images/source/sponza_ceiling_a_ddn.tga"
     }
     {
         name = "sponza_ceiling_a_diff"
-        type = "Image"
         path = "./assets/images/sponza_ceiling_a_diff.bbi"
         source_path = "./assets/images/source/sponza_ceiling_a_diff.tga"
     }
     {
         name = "sponza_column_a_combined"
-        type = "Image"
         path = "./assets/images/sponza_column_a_combined.bbi"
         source_path = "./assets/images/source/sponza_column_a_combined.png"
     }
     {
         name = "sponza_column_a_ddn"
-        type = "Image"
         path = "./assets/images/sponza_column_a_ddn.bbi"
         source_path = "./assets/images/source/sponza_column_a_ddn.tga"
     }
     {
         name = "sponza_column_a_diff"
-        type = "Image"
         path = "./assets/images/sponza_column_a_diff.bbi"
         source_path = "./assets/images/source/sponza_column_a_diff.tga"
     }
     {
         name = "sponza_column_b_combined"
-        type = "Image"
         path = "./assets/images/sponza_column_b_combined.bbi"
         source_path = "./assets/images/source/sponza_column_b_combined.png"
     }
     {
         name = "sponza_column_b_ddn"
-        type = "Image"
         path = "./assets/images/sponza_column_b_ddn.bbi"
         source_path = "./assets/images/source/sponza_column_b_ddn.tga"
     }
     {
         name = "sponza_column_b_diff"
-        type = "Image"
         path = "./assets/images/sponza_column_b_diff.bbi"
         source_path = "./assets/images/source/sponza_column_b_diff.tga"
     }
     {
         name = "sponza_column_c_combined"
-        type = "Image"
         path = "./assets/images/sponza_column_c_combined.bbi"
         source_path = "./assets/images/source/sponza_column_c_combined.png"
     }
     {
         name = "sponza_column_c_ddn"
-        type = "Image"
         path = "./assets/images/sponza_column_c_ddn.bbi"
         source_path = "./assets/images/source/sponza_column_c_ddn.tga"
     }
     {
         name = "sponza_column_c_diff"
-        type = "Image"
         path = "./assets/images/sponza_column_c_diff.bbi"
         source_path = "./assets/images/source/sponza_column_c_diff.tga"
     }
     {
         name = "sponza_curtain_blue_diff"
-        type = "Image"
         path = "./assets/images/sponza_arch_diff.bbi"
         source_path = "./assets/images/source/sponza_arch_diff.tga"
     }
     {
         name = "sponza_curtain_combined"
-        type = "Image"
         path = "./assets/images/sponza_arch_combined.bbi"
         source_path = "./assets/images/source/sponza_arch_combined.png"
     }
     {
         name = "sponza_curtain_ddn"
-        type = "Image"
         path = "./assets/images/sponza_arch_ddn.bbi"
         source_path = "./assets/images/source/sponza_arch_ddn.tga"
     }
     {
         name = "sponza_curtain_green_diff"
-        type = "Image"
         path = "./assets/images/sponza_arch_diff.bbi"
         source_path = "./assets/images/source/sponza_arch_diff.tga"
     }
     {
         name = "sponza_details_combined"
-        type = "Image"
         path = "./assets/images/sponza_details_combined.bbi"
         source_path = "./assets/images/source/sponza_details_combined.png"
     }
     {
         name = "sponza_details_ddn"
-        type = "Image"
         path = "./assets/images/sponza_details_ddn.bbi"
         source_path = "./assets/images/source/sponza_details_ddn.tga"
     }
     {
         name = "sponza_details_diff"
-        type = "Image"
         path = "./assets/images/sponza_details_diff.bbi"
         source_path = "./assets/images/source/sponza_details_diff.tga"
     }
     {
         name = "sponza_fabric_blue_diff"
-        type = "Image"
         path = "./assets/images/sponza_fabric_blue_diff.bbi"
         source_path = "./assets/images/source/sponza_fabric_blue_diff.tga"
     }
     {
         name = "sponza_fabric_combined"
-        type = "Image"
         path = "./assets/images/sponza_fabric_combined.bbi"
         source_path = "./assets/images/source/sponza_fabric_combined.png"
     }
     {
         name = "sponza_fabric_ddn"
-        type = "Image"
         path = "./assets/images/sponza_fabric_ddn.bbi"
         source_path = "./assets/images/source/sponza_fabric_ddn.tga"
     }
     {
         name = "sponza_fabric_green_diff"
-        type = "Image"
         path = "./assets/images/sponza_fabric_green_diff.bbi"
         source_path = "./assets/images/source/sponza_fabric_green_diff.tga"
     }
     {
         name = "sponza_flagpole_diff"
-        type = "Image"
         path = "./assets/images/sponza_flagpole_diff.bbi"
         source_path = "./assets/images/source/sponza_flagpole_diff.tga"
     }
     {
         name = "sponza_flagpole_combined"
-        type = "Image"
         path = "./assets/images/sponza_flagpole_combined.bbi"
         source_path = "./assets/images/source/sponza_flagpole_combined.png"
     }
     {
         name = "sponza_flagpole_ddn"
-        type = "Image"
         path = "./assets/images/sponza_flagpole_ddn.bbi"
         source_path = "./assets/images/source/sponza_flagpole_ddn.tga"
     }
     {
         name = "sponza_floor_a_diff"
-        type = "Image"
         path = "./assets/images/sponza_floor_a_diff.bbi"
         source_path = "./assets/images/source/sponza_floor_a_diff.tga"
     }
     {
         name = "sponza_floor_a_combined"
-        type = "Image"
         path = "./assets/images/sponza_floor_a_combined.bbi"
         source_path = "./assets/images/source/sponza_floor_a_combined.png"
     }
     {
         name = "sponza_floor_a_ddn"
-        type = "Image"
         path = "./assets/images/sponza_floor_a_ddn.bbi"
         source_path = "./assets/images/source/sponza_floor_a_ddn.tga"
     }
     {
         name = "sponza_roof_diff"
-        type = "Image"
         path = "./assets/images/sponza_roof_diff.bbi"
         source_path = "./assets/images/source/sponza_roof_diff.tga"
     }
     {
         name = "sponza_roof_combined"
-        type = "Image"
         path = "./assets/images/sponza_roof_combined.bbi"
         source_path = "./assets/images/source/sponza_roof_combined.png"
     }
     {
         name = "sponza_roof_ddn"
-        type = "Image"
         path = "./assets/images/sponza_roof_ddn.bbi"
         source_path = "./assets/images/source/sponza_roof_ddn.tga"
     }
     {
         name = "sponza_thorn_diff"
-        type = "Image"
         path = "./assets/images/sponza_thorn_diff.bbi"
         source_path = "./assets/images/source/sponza_thorn_diff.tga"
     }
     {
         name = "sponza_thorn_combined"
-        type = "Image"
         path = "./assets/images/sponza_thorn_combined.bbi"
         source_path = "./assets/images/source/sponza_thorn_combined.png"
     }
     {
         name = "sponza_thorn_ddn"
-        type = "Image"
         path = "./assets/images/sponza_thorn_ddn.bbi"
         source_path = "./assets/images/source/sponza_thorn_ddn.tga"
     }
     {
         name = "terrain_heightmap"
-        type = "Image"
         path = "./assets/images/terrain_heightmap.bbi"
         source_path = "./assets/images/source/terrain_heightmap.png"
     }
     {
         name = "terrain_heightmap3"
-        type = "Image"
         path = "./assets/images/terrain_heightmap3.bbi"
         source_path = "./assets/images/source/terrain_heightmap3.png"
     }
     {
         name = "terrain_heightmap_256"
-        type = "Image"
         path = "./assets/images/terrain_heightmap_256.bbi"
         source_path = "./assets/images/source/terrain_heightmap_256.png"
     }
     {
         name = "terrain_heightmap_512"
-        type = "Image"
         path = "./assets/images/terrain_heightmap_512.bbi"
         source_path = "./assets/images/source/terrain_heightmap_512.png"
     }
     {
         name = "transparent_test"
-        type = "Image"
         path = "./assets/images/transparent_test.bbi"
         source_path = "./assets/images/source/transparent_test.png"
     }
     {
         name = "vase_dif"
-        type = "Image"
         path = "./assets/images/vase_dif.bbi"
         source_path = "./assets/images/source/vase_dif.tga"
     }
     {
         name = "vase_combined"
-        type = "Image"
         path = "./assets/images/vase_combined.bbi"
         source_path = "./assets/images/source/vase_combined.png"
     }
     {
         name = "vase_ddn"
-        type = "Image"
         path = "./assets/images/vase_ddn.bbi"
         source_path = "./assets/images/source/vase_ddn.tga"
     }
     {
         name = "vase_hanging"
-        type = "Image"
         path = "./assets/images/vase_hanging.bbi"
         source_path = "./assets/images/source/vase_hanging.tga"
     }
     {
         name = "vase_hanging_combined"
-        type = "Image"
         path = "./assets/images/vase_hanging_combined.bbi"
         source_path = "./assets/images/source/vase_hanging_combined.png"
     }
     {
         name = "vase_hanging_ddn"
-        type = "Image"
         path = "./assets/images/vase_hanging_ddn.bbi"
         source_path = "./assets/images/source/vase_hanging_ddn.tga"
     }
     {
         name = "vase_plant"
-        type = "Image"
         path = "./assets/images/vase_plant.bbi"
         source_path = "./assets/images/source/vase_plant.tga"
     }
     {
         name = "vase_plant_combined"
-        type = "Image"
         path = "./assets/images/vase_plant_combined.bbi"
         source_path = "./assets/images/source/vase_plant_combined.png"
     }
     {
         name = "vase_plant_ddn"
-        type = "Image"
         path = "./assets/images/vase_plant_ddn.bbi"
         source_path = "./assets/images/source/vase_plant_ddn.tga"
     }
     {
         name = "vase_round"
-        type = "Image"
         path = "./assets/images/vase_round.bbi"
         source_path = "./assets/images/source/vase_round.tga"
     }
     {
         name = "vase_round_combined"
-        type = "Image"
         path = "./assets/images/vase_round_combined.bbi"
         source_path = "./assets/images/source/vase_round_combined.png"
     }
     {
         name = "vase_round_ddn"
-        type = "Image"
         path = "./assets/images/vase_round_ddn.bbi"
         source_path = "./assets/images/source/vase_round_ddn.tga"
     }
     {
         name = "wavy-sand_albedo"
-        type = "Image"
         path = "./assets/images/wavy-sand_albedo.bbi"
         source_path = "./assets/images/source/wavy-sand_albedo.png"
     }
     {
         name = "wavy-sand_combined"
-        type = "Image"
         path = "./assets/images/wavy-sand_combined.bbi"
         source_path = "./assets/images/source/wavy-sand_combined.png"
     }
     {
         name = "wavy-sand_normal"
-        type = "Image"
         path = "./assets/images/wavy-sand_normal.bbi"
         source_path = "./assets/images/source/wavy-sand_normal.png"
     }
     {
         name = "wispy-grass-meadow_albedo"
-        type = "Image"
         path = "./assets/images/wispy-grass-meadow_albedo.bbi"
         source_path = "./assets/images/source/wispy-grass-meadow_albedo.png"
     }
     {
         name = "wispy-grass-meadow_combined"
-        type = "Image"
         path = "./assets/images/wispy-grass-meadow_combined.bbi"
         source_path = "./assets/images/source/wispy-grass-meadow_combined.png"
     }
     {
         name = "wispy-grass-meadow_normal"
-        type = "Image"
         path = "./assets/images/wispy-grass-meadow_normal.bbi"
         source_path = "./assets/images/source/wispy-grass-meadow_normal.png"
     }
