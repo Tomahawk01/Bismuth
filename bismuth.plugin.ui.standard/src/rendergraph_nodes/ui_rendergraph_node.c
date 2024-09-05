@@ -40,7 +40,7 @@ typedef struct ui_pass_internal_data
 
     struct texture* colorbuffer_texture;
     struct texture* depthbuffer_texture;
-    struct texture_map* ui_atlas;
+    struct bresource_texture_map* atlas;
     standard_ui_render_data render_data;
 
     viewport vp;
@@ -267,7 +267,7 @@ b8 ui_rendergraph_node_execute(struct rendergraph_node* self, struct frame_data*
         shader_system_bind_instance(internal_data->shader_id, *renderable->instance_id);
         // NOTE: Expand this to a structure if more data is needed
         shader_system_uniform_set_by_location(internal_data->shader_id, internal_data->sui_locations.properties, &renderable->render_data.diffuse_color);
-        texture_map* atlas = renderable->atlas_override ? renderable->atlas_override : internal_data->ui_atlas;
+        bresource_texture_map* atlas = renderable->atlas_override ? renderable->atlas_override : internal_data->atlas;
         shader_system_uniform_set_by_location(internal_data->shader_id, internal_data->sui_locations.diffuse_map, atlas);
         shader_system_apply_instance(internal_data->shader_id);
 
@@ -310,12 +310,12 @@ void ui_rendergraph_node_destroy(struct rendergraph_node* self)
     }
 }
 
-void ui_rendergraph_node_set_atlas(struct rendergraph_node* self, texture_map* atlas)
+void ui_rendergraph_node_set_atlas(struct rendergraph_node* self, bresource_texture_map* atlas)
 {
     if (self)
     {
         ui_pass_internal_data* internal_data = self->internal_data;
-        internal_data->ui_atlas = atlas;
+        internal_data->atlas = atlas;
     }
 }
 

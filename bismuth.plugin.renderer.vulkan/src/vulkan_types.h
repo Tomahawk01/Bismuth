@@ -270,6 +270,8 @@ typedef struct vulkan_uniform_sampler_state
 
     struct texture_map** uniform_texture_maps;
 
+    bresource_texture_map** uniform_bresource_texture_maps;
+
     vulkan_descriptor_state* descriptor_states;
 } vulkan_uniform_sampler_state;
 

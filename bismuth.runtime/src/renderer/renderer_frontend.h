@@ -135,6 +135,9 @@ BAPI b8 renderer_shader_uniform_set(struct renderer_system_state* state, struct 
 BAPI b8 renderer_texture_map_resources_acquire(struct texture_map* map);
 BAPI void renderer_texture_map_resources_release(struct texture_map* map);
 
+BAPI b8 renderer_bresource_texture_map_resources_acquire(struct renderer_system_state* state, struct bresource_texture_map* map);
+BAPI void renderer_bresource_texture_map_resources_release(struct renderer_system_state* state, struct bresource_texture_map* map);
+
 BAPI b8 renderer_is_multithreaded(void);
 
 BAPI b8 renderer_flag_enabled_get(renderer_config_flags flag);

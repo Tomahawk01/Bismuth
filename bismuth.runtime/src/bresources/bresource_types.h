@@ -87,13 +87,17 @@ typedef struct bresource_asset_info
 
 ARRAY_TYPE(bresource_asset_info);
 
+typedef void (*PFN_resource_loaded_user_callback)(bresource* resource, void* listener);
+
 typedef struct bresource_request_info
 {
     bresource_type type;
     // The list of assets to be loaded
     array_bresource_asset_info assets;
-    // The callback made whenever one of the listed asset is loaded
-    PFN_basset_on_result callback;
+    // The callback made whenever all listed assets are loaded
+    PFN_resource_loaded_user_callback user_callback;
+    // Listener user data
+    void* listener_inst;
 } bresource_request_info;
 
 /** @brief Represents various types of textures */
@@ -157,6 +161,17 @@ typedef struct bresource_texture
     b_handle renderer_texture_handle;
 } bresource_texture;
 
+typedef struct bresource_texture_pixel_data
+{
+    u8* pixels;
+    u32 pixel_array_size;
+    u32 width;
+    u32 height;
+    u32 channel_count;
+} bresource_texture_pixel_data;
+
+ARRAY_TYPE(bresource_texture_pixel_data);
+
 typedef struct bresource_texture_request_info
 {
     bresource_request_info base;
@@ -164,4 +179,8 @@ typedef struct bresource_texture_request_info
     bresource_texture_type texture_type;
     u8 array_size;
     bresource_texture_flag_bits flags;
+
+    // Optionally provide pixel data per layer. Must match array_size in length.
+    // Only used where asset at index has type of undefined
+    array_bresource_texture_pixel_data pixel_data;
 } bresource_texture_request_info;

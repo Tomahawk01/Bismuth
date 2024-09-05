@@ -32,8 +32,15 @@ bname bname_create(const char* str)
         // Storing a copy of the *original* string for reference, even though this is _not_ what is used for lookup
         bt_node_value value;
         value.str = string_duplicate(str);
-        if (!u64_bst_insert(string_lookup, name, value))
+        bt_node* inserted = u64_bst_insert(string_lookup, name, value);
+        if (!inserted)
+        {
             BERROR("Failed to save bname string '%s' to global lookup table");
+        }
+        else if (!string_lookup)
+        {
+            string_lookup = inserted;
+        }
     }
     return name;
 }

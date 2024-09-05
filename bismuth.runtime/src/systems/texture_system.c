@@ -1,17 +1,21 @@
 #include "texture_system.h"
 
+#include "assets/basset_types.h"
 #include "containers/hashtable.h"
 #include "core/engine.h"
 #include "defines.h"
 #include "identifiers/bhandle.h"
+#include "bresources/bresource_types.h"
 #include "logger.h"
 #include "memory/bmemory.h"
 #include "renderer/renderer_frontend.h"
 #include "resources/resource_types.h"
 #include "resources/loaders/image_loader.h"
 #include "systems/resource_system.h"
+#include "strings/bname.h"
 #include "strings/bstring.h"
 #include "systems/job_system.h"
+#include "systems/bresource_system.h"
 #include "threads/threadpool.h"
 #include "threads/worker_thread.h"
 
@@ -19,6 +23,7 @@ typedef struct texture_system_state
 {
     texture_system_config config;
     texture default_texture;
+    bresource_texture default_bresource_texture;
     texture default_diffuse_texture;
     texture default_specular_texture;
     texture default_normal_texture;
@@ -162,6 +167,28 @@ void texture_system_shutdown(void* state)
         state_ptr->renderer = 0;
         state_ptr = 0;
     }
+}
+
+b8 texture_system_request(bname name, bname package_name, void* listener, PFN_resource_loaded_user_callback callback, bresource_texture* out_resource)
+{
+    // TODO: Check that name is not the name of a default texture. If it is, immediately make the callback with the appropriate default texture
+    bresource_request_info request = {0};
+    request.type = BRESOURCE_TYPE_TEXTURE;
+    request.listener_inst = listener;
+    request.user_callback = callback;
+
+    request.assets = array_bresource_asset_info_create(1);
+    request.assets.data[0].type = BASSET_TYPE_IMAGE;
+    request.assets.data[0].package_name = package_name;
+    request.assets.data[0].asset_name = name;
+
+    struct bresource_system_state* resource_state = engine_systems_get()->bresource_state;
+
+    b8 result = bresource_system_request(resource_state, name, &request, (bresource*)out_resource);
+    if (!result)
+        BERROR("Failed to properly request resource for texture '%s'", bname_string_get(name));
+
+    return result;
 }
 
 texture* texture_system_acquire(const char* name, b8 auto_release)
@@ -322,6 +349,12 @@ void texture_system_release(const char* name)
         BERROR("texture_system_release failed to release texture '%s' properly", name);
 }
 
+void texture_system_release_resource(bresource_texture* t)
+{
+    struct bresource_system_state* state = engine_systems_get()->bresource_state;
+    bresource_system_release(state, (bresource*)t);
+}
+
 void texture_system_wrap_internal(const char* name, u32 width, u32 height, u8 channel_count, b8 has_transparency, b8 is_writeable, b8 register_texture, b_handle renderer_texture_handle, texture* out_texture)
 {
     u32 id = INVALID_ID;
@@ -424,6 +457,11 @@ texture* texture_system_get_default_texture(void)
     RETURN_TEXT_PTR_OR_NULL(state_ptr->default_texture, "texture_system_get_default_texture");
 }
 
+bresource_texture* texture_system_get_default_bresource_texture(void)
+{
+    RETURN_TEXT_PTR_OR_NULL(state_ptr->default_bresource_texture, "texture_system_get_default_bresource_texture");
+}
+
 texture* texture_system_get_default_diffuse_texture(void)
 {
     RETURN_TEXT_PTR_OR_NULL(state_ptr->default_diffuse_texture, "texture_system_get_default_diffuse_texture");
@@ -497,6 +535,53 @@ struct texture_internal_data* texture_system_get_internal_or_default(texture* t,
     }
 
     return renderer_texture_internal_get(state_ptr->renderer, t->renderer_texture_handle);
+}
+
+struct texture_internal_data* texture_system_resource_get_internal_or_default(bresource_texture* t, u32* out_generation)
+{
+    if (!t || !out_generation)
+        return 0;
+
+    b_handle tex_handle = t->renderer_texture_handle;
+
+    // Texture isn't loaded yet, use a default
+    if (t->base.generation == INVALID_ID)
+    {
+        // Texture generations are always invalid for default textures, so check first if already using one
+        // TODO: Default texture for bresource_texture
+        // if (!texture_system_is_default_texture(t)) {
+
+        // If not using one, grab the default by type. This is only here as a failsafe and to be used while assets are loading
+        switch (t->type)
+        {
+        case TEXTURE_TYPE_2D:
+            tex_handle = texture_system_get_default_texture()->renderer_texture_handle;
+            break;
+        case TEXTURE_TYPE_2D_ARRAY:
+            // TODO: Making the assumption this is a terrain
+            // Should acquire a new default texture with the corresponding number of layers instead
+            tex_handle = texture_system_get_default_terrain_texture()->renderer_texture_handle;
+            break;
+        case TEXTURE_TYPE_CUBE:
+            tex_handle = texture_system_get_default_cube_texture()->renderer_texture_handle;
+            break;
+        default:
+            BWARN("Texture system failed to determine texture type while getting internal data. Falling back to 2D");
+            tex_handle = texture_system_get_default_texture()->renderer_texture_handle;
+            break;
+        }
+        //}
+
+        // Since using a default texture, set the outward generation to invalid id
+        *out_generation = INVALID_ID_U8;
+    }
+    else
+    {
+        // Set the actual texture generation
+        *out_generation = t->base.generation;
+    }
+
+    return renderer_texture_internal_get(state_ptr->renderer, tex_handle);
 }
 
 static b8 create_and_upload_texture(texture* t, const char* name, texture_type type, u32 width, u32 height, u8 channel_count, u8 mip_levels, u16 array_size, texture_flag_bits flags, u32 offset, u8* pixels)
@@ -650,8 +735,30 @@ static b8 create_default_textures(texture_system_state* state)
         }
     }
 
-    // Default texture
+    // Create old-style default texture
     create_default_texture(&state->default_texture, pixels, tex_dimension, DEFAULT_TEXTURE_NAME);
+
+    // Request new resource texture
+    struct bresource_system_state* bresource_system = engine_systems_get()->bresource_state;
+    bresource_texture_request_info info = {0};
+    bzero_memory(&info, sizeof(bresource_texture_request_info));
+    info.texture_type = BRESOURCE_TEXTURE_TYPE_2D;
+    info.array_size = 1;
+    info.flags = BRESOURCE_TEXTURE_FLAG_IS_WRITEABLE;
+    info.pixel_data = array_bresource_texture_pixel_data_create(1);
+    bresource_texture_pixel_data* px = &info.pixel_data.data[0];
+    px->pixel_array_size = sizeof(u8) * pixel_count * channels;
+    px->pixels = ballocate(px->pixel_array_size, MEMORY_TAG_TEXTURE);
+    px->width = tex_dimension;
+    px->height = tex_dimension;
+    px->channel_count = channels;
+    bcopy_memory(px->pixels, pixels, px->pixel_array_size);
+    info.base.type = BRESOURCE_TYPE_TEXTURE;
+    if (!bresource_system_request(bresource_system, bname_create(DEFAULT_TEXTURE_NAME), (bresource_request_info*)&info, (bresource*)&state->default_bresource_texture))
+    {
+        BERROR("Failed to request resources for default texture");
+        return false;
+    }
 
     // Diffuse texture
     // BTRACE("Creating default diffuse texture...");

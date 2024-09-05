@@ -5,6 +5,7 @@
 #include "defines.h"
 #include "identifiers/identifier.h"
 #include "input_types.h"
+#include "bresources/bresource_types.h"
 #include "renderer/renderer_types.h"
 #include "resources/resource_types.h"
 #include "systems/xform_system.h"
@@ -21,14 +22,14 @@ typedef struct standard_ui_system_config
 typedef struct standard_ui_renderable
 {
     u32* instance_id;
-    texture_map* atlas_override;
+    bresource_texture_map* atlas_override;
     geometry_render_data render_data;
     geometry_render_data* clip_mask_render_data;
 } standard_ui_renderable;
 
 typedef struct standard_ui_render_data
 {
-    texture_map* ui_atlas;
+    bresource_texture_map* ui_atlas;
     // darray
     standard_ui_renderable* renderables;
 } standard_ui_render_data;
@@ -118,7 +119,10 @@ typedef struct standard_ui_state
     u32 inactive_control_count;
     sui_control** inactive_controls;
     sui_control root;
-    texture_map ui_atlas;
+    // texture_map ui_atlas;
+
+    bresource_texture atlas_texture;
+    bresource_texture_map atlas;
 
     u64 focused_id;
 

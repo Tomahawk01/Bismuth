@@ -4,8 +4,6 @@
 #include "bresources/handlers/bresource_handler_texture.h"
 #include "bresources/bresource_types.h"
 #include "logger.h"
-// TODO: test, remove
-#include "containers/stackarray.h"
 
 typedef struct bresource_system_state
 {

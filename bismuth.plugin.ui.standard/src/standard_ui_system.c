@@ -162,6 +162,19 @@ static b8 standard_ui_system_move(u16 code, void* sender, void* listener_inst, e
     return false;
 }
 
+static void texture_resource_loaded(bresource* resource, void* listener)
+{
+    standard_ui_state* state = (standard_ui_state*)listener;
+
+    // Setup the texture map
+    bresource_texture_map* map = &state->atlas;
+    map->repeat_u = map->repeat_v = map->repeat_w = TEXTURE_REPEAT_CLAMP_TO_EDGE;
+    map->filter_minify = map->filter_magnify = TEXTURE_FILTER_MODE_NEAREST;
+    map->texture = &state->atlas_texture;
+    if (!renderer_bresource_texture_map_resources_acquire(state->renderer, map))
+        BERROR("Unable to acquire texture map resources. StandardUI cannot be initialized");
+}
+
 b8 standard_ui_system_initialize(u64* memory_requirement, standard_ui_state* state, standard_ui_system_config* config)
 {
     if (!memory_requirement)
@@ -192,21 +205,28 @@ b8 standard_ui_system_initialize(u64* memory_requirement, standard_ui_state* sta
 
     sui_base_control_create(state, "__ROOT__", &state->root);
 
-    texture* atlas = texture_system_acquire("StandardUIAtlas", true);
+    /* texture* atlas = texture_system_acquire("StandardUIAtlas", true);
     if (!atlas)
     {
         BWARN("Unable to load atlas texture, using default");
         atlas = texture_system_get_default_texture();
-    }
+    } */
 
     // Setup the texture map
-    texture_map* map = &state->ui_atlas;
+    /* texture_map* map = &state->ui_atlas;
     map->repeat_u = map->repeat_v = map->repeat_w = TEXTURE_REPEAT_CLAMP_TO_EDGE;
     map->filter_minify = map->filter_magnify = TEXTURE_FILTER_MODE_NEAREST;
     map->texture = atlas;
     if (!renderer_texture_map_resources_acquire(map))
     {
         BERROR("Unable to acquire texture map resources. StandardUI cannot be initialized");
+        return false;
+    } */
+
+    b8 request_result = texture_system_request(bname_create("StandardUIAtlas"), bname_create("PluginUiStandard"), state, texture_resource_loaded, &state->atlas_texture);
+    if (!request_result)
+    {
+        BERROR("Failed to request atlas texture for standard UI");
         return false;
     }
 
@@ -251,16 +271,14 @@ void standard_ui_system_shutdown(standard_ui_state* state)
         }
 
         // Release texture map for UI atlas
-        renderer_texture_map_resources_release(&state->ui_atlas);
+        renderer_bresource_texture_map_resources_release(state->renderer, &state->atlas);
 
         // Release texture for UI atlas
-        if (state->ui_atlas.texture)
+        if (state->atlas.texture)
         {
-            texture_system_release(state->ui_atlas.texture->name);
-            state->ui_atlas.texture = 0;
+            texture_system_release_resource(state->atlas.texture);
+            state->atlas.texture = 0;
         }
-
-        renderer_texture_map_resources_release(&state->ui_atlas);
     }
 }
 
@@ -296,7 +314,7 @@ b8 standard_ui_system_render(standard_ui_state* state, sui_control* root, struct
     if (!state)
         return false;
 
-    render_data->ui_atlas = &state->ui_atlas;
+    render_data->ui_atlas = &state->atlas;
 
     if (!root)
         root = &state->root;

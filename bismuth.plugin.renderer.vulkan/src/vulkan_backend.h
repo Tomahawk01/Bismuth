@@ -79,6 +79,10 @@ b8 vulkan_renderer_texture_map_resources_acquire(renderer_backend_interface* bac
 void vulkan_renderer_texture_map_resources_release(renderer_backend_interface* backend, texture_map* map);
 b8 vulkan_renderer_texture_map_resources_refresh(renderer_backend_interface* backend, texture_map* map);
 
+b8 vulkan_renderer_bresource_texture_map_resources_acquire(renderer_backend_interface* backend, bresource_texture_map* map);
+void vulkan_renderer_bresource_texture_map_resources_release(renderer_backend_interface* backend, bresource_texture_map* map);
+b8 vulkan_renderer_bresource_texture_map_resources_refresh(renderer_backend_interface* backend, bresource_texture_map* map);
+
 b8 vulkan_renderer_is_multithreaded(renderer_backend_interface* backend);
 
 b8 vulkan_renderer_flag_enabled_get(renderer_backend_interface* backend, renderer_config_flags flag);

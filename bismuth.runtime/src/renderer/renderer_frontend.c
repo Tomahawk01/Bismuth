@@ -155,6 +155,11 @@ b8 renderer_system_initialize(u64* memory_requirement, renderer_system_state* st
     // Get the configured plugin
     const engine_system_states* systems = engine_systems_get();
     state->backend_plugin = plugin_system_get(systems->plugin_system, config->backend_plugin_name);
+    if (!state->backend_plugin)
+    {
+        BERROR("Failed to load required backend plugin for renderer. See logs for details");
+        return false;
+    }
 
     // Cold-cast to the known type and keep a convenience pointer
     state->backend = (renderer_backend_interface*)state->backend_plugin->plugin_state;
@@ -505,6 +510,7 @@ b8 renderer_texture_resources_acquire(struct renderer_system_state* state, const
     if (!state->textures)
         state->textures = darray_create(texture_lookup);
 
+    // TODO: Upon backend creation, setup a large contiguous array of some configured amount of these, and retrieve from there
     struct texture_internal_data* data = ballocate(state->backend->texture_internal_data_size, MEMORY_TAG_RENDERER);
     b8 success;
     if (flags & TEXTURE_FLAG_IS_WRAPPED)
@@ -1178,6 +1184,16 @@ void renderer_texture_map_resources_release(struct texture_map* map)
 {
     renderer_system_state* state_ptr = engine_systems_get()->renderer_system;
     state_ptr->backend->texture_map_resources_release(state_ptr->backend, map);
+}
+
+b8 renderer_bresource_texture_map_resources_acquire(struct renderer_system_state* state, struct bresource_texture_map* map)
+{
+    return state->backend->bresource_texture_map_resources_acquire(state->backend, map);
+}
+
+void renderer_bresource_texture_map_resources_release(struct renderer_system_state* state, struct bresource_texture_map* map)
+{
+    state->backend->bresource_texture_map_resources_release(state->backend, map);
 }
 
 b8 renderer_is_multithreaded(void)

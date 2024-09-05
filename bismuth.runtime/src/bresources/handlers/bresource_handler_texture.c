@@ -37,6 +37,7 @@ b8 bresource_handler_texture_request(struct bresource_handler* self, bresource* 
 
     bresource_texture* typed_resource = (bresource_texture*)resource;
     bresource_texture_request_info* typed_request = (bresource_texture_request_info*)info;
+    struct renderer_system_state* renderer = engine_systems_get()->renderer_system;
 
     b8 assets_required = true;
 
@@ -73,17 +74,43 @@ b8 bresource_handler_texture_request(struct bresource_handler* self, bresource* 
     listener_inst->assets = array_bimage_ptr_create(info->assets.base.length);
 
     // Load all assets (might only be one)
-    for (array_iterator it = info->assets.begin(&info->assets.base); !it.end(&it); it.next(&it))
+    if (info->assets.data)
     {
-        bresource_asset_info* asset_info = it.value(&it);
-        asset_system_request(
-            self->asset_system,
-            asset_info->type,
-            asset_info->package_name,
-            asset_info->asset_name,
-            true,
-            listener_inst,
-            texture_basset_on_result);
+        for (array_iterator it = info->assets.begin(&info->assets.base); !it.end(&it); it.next(&it))
+        {
+            bresource_asset_info* asset_info = it.value(&it);
+            if (asset_info->type == BASSET_TYPE_IMAGE)
+            {
+                asset_system_request(
+                    self->asset_system,
+                    asset_info->type,
+                    asset_info->package_name,
+                    asset_info->asset_name,
+                    true,
+                    listener_inst,
+                    texture_basset_on_result);
+            }
+            else if (asset_info->type == BASSET_TYPE_UNKNOWN)
+            {
+                // This means load pixel data
+                bresource_texture_pixel_data* px = &typed_request->pixel_data.data[it.pos];
+                u32 texture_data_offset = 0; // NOTE: The only time this potentially could be nonzero is when explicitly loading a layer of texture data
+                b8 write_result = renderer_texture_write_data(renderer, typed_resource->renderer_texture_handle, texture_data_offset, px->pixel_array_size, px->pixels);
+                if (!write_result)
+                    BERROR("Failed to write renderer texture data resource '%s'", bname_string_get(typed_resource->base.name));
+            }
+        }
+    }
+    else if (typed_request->pixel_data.data)
+    {
+        for (array_iterator it = typed_request->pixel_data.begin(&typed_request->pixel_data.base); !it.end(&it); it.next(&it))
+        {
+            bresource_texture_pixel_data* px = it.value(&it);
+            u32 texture_data_offset = 0; // NOTE: The only time this potentially could be nonzero is when explicitly loading a layer of texture data
+            b8 write_result = renderer_texture_write_data(renderer, typed_resource->renderer_texture_handle, texture_data_offset, px->pixel_array_size, px->pixels);
+            if (!write_result)
+                BERROR("Failed to write renderer texture data resource '%s'", bname_string_get(typed_resource->base.name));
+        }
     }
 
     return true;
