@@ -277,35 +277,51 @@ texture* texture_system_acquire_cube(const char* name, b8 auto_release)
     return t;
 }
 
-texture* texture_system_acquire_writeable(const char* name, u32 width, u32 height, u8 channel_count, b8 has_transparency)
+b8 texture_system_request_writeable(bname name, u32 width, u32 height, bresource_texture_format format, b8 has_transparency, bresource_texture* out_texture)
 {
-    return texture_system_acquire_writeable_arrayed(name, width, height, channel_count, has_transparency, TEXTURE_TYPE_2D, 1);
+    return texture_system_request_writeable_arrayed(name, width, height, format, has_transparency, BRESOURCE_TEXTURE_TYPE_2D, 1, out_texture);
 }
 
-texture* texture_system_acquire_writeable_arrayed(const char* name, u32 width, u32 height, u8 channel_count, b8 has_transparency, texture_type type, u16 array_size)
+b8 texture_system_request_writeable_arrayed(bname name, u32 width, u32 height, bresource_texture_format format, b8 has_transparency, bresource_texture_type type, u16 array_size, bresource_texture* out_texture)
 {
-    u32 id = INVALID_ID;
+    /* u32 id = INVALID_ID;
     b8 needs_creation = false;
     if (!process_texture_reference(name, 1, false, &id, &needs_creation))
     {
         BERROR("texture_system_acquire_writeable_arrayed failed to obtain a new texture id");
         return 0;
-    }
+    } */
 
-    texture* t = &state_ptr->registered_textures[id];
+    // texture* t = &state_ptr->registered_textures[id];
 
-    if (needs_creation)
+    /* if (needs_creation)
     {
         if (!create_texture(t, type, width, height, channel_count, array_size, 0, true, true))
         {
             BERROR("texture_system_acquire failed to create new texture");
             return 0;
         }
+    } */
+
+    struct bresource_system_state* bresource_system = engine_systems_get()->bresource_state;
+    bresource_texture_request_info info = {0};
+    bzero_memory(&info, sizeof(bresource_texture_request_info));
+    info.texture_type = type;
+    info.array_size = array_size;
+    info.flags = BRESOURCE_TEXTURE_FLAG_IS_WRITEABLE;
+    info.flags |= has_transparency ? BRESOURCE_TEXTURE_FLAG_HAS_TRANSPARENCY : 0;
+    info.width = width;
+    info.height = height;
+    info.format = format;
+    info.mip_levels = 1; // TODO: configurable?
+    info.base.type = BRESOURCE_TYPE_TEXTURE;
+    if (!bresource_system_request(bresource_system, name, (bresource_request_info*)&info, (bresource*)out_texture))
+    {
+        BERROR("Failed to request resources for writeable texture");
+        return false;
     }
 
-    t->flags |= has_transparency ? TEXTURE_FLAG_HAS_TRANSPARENCY : 0;
-
-    return t;
+    return true;
 }
 
 texture* texture_system_acquire_textures_as_arrayed(const char* name, u32 layer_count, const char** layer_texture_names, b8 auto_release)

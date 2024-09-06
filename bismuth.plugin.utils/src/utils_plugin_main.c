@@ -21,18 +21,6 @@ b8 bplugin_create(struct bruntime_plugin* out_plugin)
     out_plugin->plugin_state_size = 0;
     out_plugin->plugin_state = 0;
 
-    BINFO("Bismuth Utils Plugin Creation successful");
-
-    return true;
-}
-
-b8 bplugin_initialize(struct bruntime_plugin* plugin)
-{
-    if (!plugin)
-    {
-        BERROR("Cannot initialize a plugin without a pointer to it!");
-        return false;
-    }
     // TODO: Register known importer types
 
     // Images - one per file extension
@@ -59,6 +47,19 @@ b8 bplugin_initialize(struct bruntime_plugin* plugin)
             BERROR("Failed to register static mesh Wavefront OBJ asset importer!");
             return false;
         }
+    }
+
+    BINFO("Bismuth Utils Plugin Creation successful");
+
+    return true;
+}
+
+b8 bplugin_initialize(struct bruntime_plugin* plugin)
+{
+    if (!plugin)
+    {
+        BERROR("Cannot initialize a plugin without a pointer to it");
+        return false;
     }
 
     BINFO("Bismuth Utils plugin initialized successfully");

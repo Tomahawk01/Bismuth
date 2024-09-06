@@ -185,4 +185,15 @@ typedef struct bresource_texture_request_info
     // Optionally provide pixel data per layer. Must match array_size in length.
     // Only used where asset at index has type of undefined
     array_bresource_texture_pixel_data pixel_data;
+
+    // Texture width in pixels. Ignored unless there are no assets or pixel data
+    u32 width;
+    // Texture height in pixels. Ignored unless there are no assets or pixel data
+    u32 height;
+
+    // Texture format. Ignored unless there are no assets or pixel data
+    bresource_texture_format format;
+
+    // The number of mip levels. Ignored unless there are no assets or pixel data
+    u8 mip_levels;
 } bresource_texture_request_info;

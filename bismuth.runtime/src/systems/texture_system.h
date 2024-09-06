@@ -23,8 +23,8 @@ BAPI b8 texture_system_request(bname name, bname package_name, void* listener, P
 
 BAPI texture* texture_system_acquire(const char* name, b8 auto_release);
 BAPI texture* texture_system_acquire_cube(const char* name, b8 auto_release);
-BAPI texture* texture_system_acquire_writeable(const char* name, u32 width, u32 height, u8 channel_count, b8 has_transparency);
-BAPI texture* texture_system_acquire_writeable_arrayed(const char* name, u32 width, u32 height, u8 channel_count, b8 has_transparency, texture_type type, u16 array_size);
+BAPI b8 texture_system_request_writeable(bname name, u32 width, u32 height, bresource_texture_format format, b8 has_transparency, bresource_texture* out_texture);
+BAPI b8 texture_system_request_writeable_arrayed(bname name, u32 width, u32 height, bresource_texture_format format, b8 has_transparency, bresource_texture_type type, u16 array_size, bresource_texture* out_texture);
 texture* texture_system_acquire_textures_as_arrayed(const char* name, u32 layer_count, const char** layer_texture_names, b8 auto_release);
 BAPI void texture_system_release(const char* name);
 BAPI void texture_system_release_resource(bresource_texture* t);
