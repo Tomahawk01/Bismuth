@@ -147,8 +147,6 @@ void vfs_request_asset_sync(vfs_state* state, bname package_name, bname asset_na
 
         if (package->name == package_name)
         {
-            bzero_memory(out_data, sizeof(vfs_asset_data));
-
             // Determine if the asset type is text
             bpackage_result result = BPACKAGE_RESULT_INTERNAL_FAILURE;
             if (is_binary)

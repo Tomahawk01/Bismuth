@@ -168,6 +168,8 @@ typedef struct bresource_texture_pixel_data
     u32 width;
     u32 height;
     u32 channel_count;
+    bresource_texture_format format;
+    u8 mip_levels;
 } bresource_texture_pixel_data;
 
 ARRAY_TYPE(bresource_texture_pixel_data);

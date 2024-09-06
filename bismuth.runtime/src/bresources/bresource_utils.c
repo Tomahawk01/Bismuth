@@ -25,3 +25,16 @@ basset_image_format texture_format_to_image_format(bresource_texture_format form
         return BASSET_IMAGE_FORMAT_UNDEFINED;
     }
 }
+
+u8 channel_count_from_texture_format(bresource_texture_format format)
+{
+    switch (format)
+    {
+    case BRESOURCE_TEXTURE_FORMAT_RGBA8:
+        return 4;
+    case BRESOURCE_TEXTURE_FORMAT_RGB8:
+        return 3;
+    default:
+        return 4;
+    }
+}

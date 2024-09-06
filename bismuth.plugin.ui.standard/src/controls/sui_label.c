@@ -74,14 +74,15 @@ b8 sui_label_control_create(standard_ui_state* state, const char* name, font_typ
     typed_data->frame_number = INVALID_ID_U64;
 
     // Acquire resources for font texture map
-    texture_map* maps[1] = {&typed_data->data->atlas};
+    // FIXME: Convert fonts to use new texture resource type
+    bresource_texture_map* maps[1] = {&state->atlas}; // {&typed_data->data->atlas};
     shader* s = shader_system_get("Shader.StandardUI");
     // u16 atlas_location = s->uniforms[s->instance_sampler_indices[0]].index;
     shader_instance_resource_config instance_resource_config = {0};
     // Map count for this type is known
     shader_instance_uniform_texture_config atlas_texture = {0};
-    atlas_texture.texture_map_count = 1;
-    atlas_texture.texture_maps = maps;
+    atlas_texture.bresource_texture_map_count = 1;
+    atlas_texture.bresource_texture_maps = maps;
 
     instance_resource_config.uniform_config_count = 1;
     instance_resource_config.uniform_configs = &atlas_texture;

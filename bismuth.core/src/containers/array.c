@@ -1,9 +1,15 @@
 #include "array.h"
 
+#include "debug/bassert.h"
 #include "memory/bmemory.h"
 
 void _barray_init(u32 length, u32 stride, u32* out_length, u32* out_stride, void** block)
 {
+    BASSERT_DEBUG(length);
+    BASSERT_DEBUG(stride);
+    BASSERT_DEBUG(out_length);
+    BASSERT_DEBUG(out_stride);
+    BASSERT_DEBUG(block);
     *out_length = length;
     *out_stride = stride;
     *block = ballocate_aligned(length * stride, 16, MEMORY_TAG_ARRAY);

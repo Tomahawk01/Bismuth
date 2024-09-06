@@ -196,6 +196,8 @@ b8 standard_ui_system_initialize(u64* memory_requirement, standard_ui_state* sta
 
     if (!state)
         return true;
+    
+    state->renderer = engine_systems_get()->renderer_system;
 
     state->config = *config;
     state->active_controls = (void*)((u8*)state + struct_requirement);
@@ -205,28 +207,23 @@ b8 standard_ui_system_initialize(u64* memory_requirement, standard_ui_state* sta
 
     sui_base_control_create(state, "__ROOT__", &state->root);
 
-    /* texture* atlas = texture_system_acquire("StandardUIAtlas", true);
-    if (!atlas)
-    {
-        BWARN("Unable to load atlas texture, using default");
-        atlas = texture_system_get_default_texture();
-    } */
-
-    // Setup the texture map
-    /* texture_map* map = &state->ui_atlas;
-    map->repeat_u = map->repeat_v = map->repeat_w = TEXTURE_REPEAT_CLAMP_TO_EDGE;
-    map->filter_minify = map->filter_magnify = TEXTURE_FILTER_MODE_NEAREST;
-    map->texture = atlas;
-    if (!renderer_texture_map_resources_acquire(map))
-    {
-        BERROR("Unable to acquire texture map resources. StandardUI cannot be initialized");
-        return false;
-    } */
-
+    // Atlas texture
     b8 request_result = texture_system_request(bname_create("StandardUIAtlas"), bname_create("PluginUiStandard"), state, texture_resource_loaded, &state->atlas_texture);
     if (!request_result)
     {
         BERROR("Failed to request atlas texture for standard UI");
+        // TODO: use default texture instead
+        return false;
+    }
+
+    // Atlas texture map
+    bresource_texture_map* map = &state->atlas;
+    map->repeat_u = map->repeat_v = map->repeat_w = TEXTURE_REPEAT_CLAMP_TO_EDGE;
+    map->filter_minify = map->filter_magnify = TEXTURE_FILTER_MODE_NEAREST;
+    map->texture = &state->atlas_texture;
+    if (!renderer_bresource_texture_map_resources_acquire(state->renderer, map))
+    {
+        BERROR("Unable to acquire atlas texture map resources. StandardUI cannot be initialized");
         return false;
     }
 
@@ -239,8 +236,6 @@ b8 standard_ui_system_initialize(u64* memory_requirement, standard_ui_state* sta
     state->focused_id = INVALID_ID_U64;
 
     BTRACE("Initialized standard UI system");
-
-    state->renderer = engine_systems_get()->renderer_system;
 
     return true;
 }

@@ -1,12 +1,17 @@
 #include "bresource_system.h"
+
+#include "core/engine.h"
 #include "debug/bassert.h"
 #include "defines.h"
 #include "bresources/handlers/bresource_handler_texture.h"
 #include "bresources/bresource_types.h"
 #include "logger.h"
 
+struct asset_system_state;
+
 typedef struct bresource_system_state
 {
+    struct asset_system_state* asset_system;
     bresource_handler handlers[BRESOURCE_TYPE_COUNT];
 } bresource_system_state;
 
@@ -20,6 +25,7 @@ b8 bresource_system_initialize(u64* memory_requirement, struct bresource_system_
         return true;
 
     // TODO: configure state, etc
+    state->asset_system = engine_systems_get()->asset_state;
 
     // Register known handler types
     bresource_handler texture_handler = {0};
@@ -101,6 +107,7 @@ b8 bresource_system_handler_register(struct bresource_system_state* state, breso
         return false;
     }
 
+    h->asset_system = state->asset_system;
     h->request = handler.request;
     h->release = handler.release;
 

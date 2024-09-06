@@ -62,6 +62,7 @@ b8 bpackage_create_from_manifest(const asset_manifest* manifest, bpackage* out_p
         asset_entry new_entry = {0};
         new_entry.name = asset->name;
         new_entry.path = string_duplicate(asset->path);
+        new_entry.source_path = string_duplicate(asset->source_path);
         // NOTE: Size and offset don't get filled out/used with a manifest version of a package
         // Allocate the entry type array if it isn't already
         if (!out_package->internal_data->entries)
@@ -160,16 +161,17 @@ static bpackage_result asset_get_data(const bpackage* package, b8 is_binary, bna
                 {
                     BERROR("Package '%s': No %s asset path exists for asset '%s'. Load operation failed", package_name, get_source ? "source" : "primary", name_str);
                     result = get_source ? BPACKAGE_RESULT_SOURCE_GET_FAILURE : BPACKAGE_RESULT_PRIMARY_GET_FAILURE;
-                    goto get_data_cleanup;
+                    return result;
                 }
 
                 // Validate that the file exists
                 if (!filesystem_exists(asset_path))
                 {
-                    BERROR("Package '%s': Invalid %s asset path for asset '%s'. Load operation failed", package_name, get_source ? "source" : "primary", name_str);
+                    BERROR("Package '%s': Invalid %s asset path ('%s') for asset '%s'. Load operation failed", package_name, get_source ? "source" : "primary", asset_path, name_str);
                     result = get_source ? BPACKAGE_RESULT_SOURCE_GET_FAILURE : BPACKAGE_RESULT_PRIMARY_GET_FAILURE;
-                    goto get_data_cleanup;
+                    return result;
                 }
+                void* data = 0;
 
                 // load the file content from disk
                 file_handle f = {0};
@@ -189,7 +191,7 @@ static bpackage_result asset_get_data(const bpackage* package, b8 is_binary, bna
                     goto get_data_cleanup;
                 }
 
-                void* data = ballocate(file_size, MEMORY_TAG_ASSET);
+                data = ballocate(file_size, MEMORY_TAG_ASSET);
 
                 u64 read_size = 0;
                 if (is_binary)
@@ -242,7 +244,7 @@ static bpackage_result asset_get_data(const bpackage* package, b8 is_binary, bna
                 }
                 else
                 {
-                    BERROR("Package '%s' does not contain asset '%s'", package_name, name_str);
+                    // BERROR("Package '%s' does not contain asset '%s'", package_name, name_str);
                 }
                 return result;
             }
@@ -348,6 +350,8 @@ static b8 bpackage_asset_write_file_internal(bpackage* package, bname name, u64 
             if (bytes_written != size)
                 BWARN("Asset bytes written/size mismatch: %llu/%llu", bytes_written, size);
 
+            filesystem_close(&f);
+
             return true;
         }
     }
@@ -436,6 +440,16 @@ b8 bpackage_parse_manifest_file_content(const char* path, asset_manifest* out_ma
         goto bpackage_parse_cleanup;
     }
 
+    // Take a copy of the file path
+    out_manifest->file_path = string_duplicate(path);
+
+    // Take a copy of the directory to the file path
+    char base_path[512];
+    bzero_memory(base_path, sizeof(char) * 512);
+    string_directory_from_path(base_path, path);
+    string_trim(base_path);
+    out_manifest->path = string_duplicate(base_path);
+
     // Process references
     bson_array references = {0};
     b8 contains_references = bson_object_property_value_get_object(&tree.root, "references", &references);
@@ -521,18 +535,24 @@ b8 bpackage_parse_manifest_file_content(const char* path, asset_manifest* out_ma
                 asset.name = bname_create(asset_name);
 
                 // Path
-                if (!bson_object_property_value_get_string(&asset_obj, "path", &asset.path))
+                const char* asset_path_temp = 0;
+                if (!bson_object_property_value_get_string(&asset_obj, "path", &asset_path_temp))
                 {
                     BWARN("Failed to get asset path at array index %u. Skipping...", i);
                     continue;
                 }
-                /* if (!bson_object_property_value_get_string(&asset_obj, "type", &asset.type))
+                // Full path of the asset
+                asset.path = string_format("%s/%s", out_manifest->path, asset_path_temp);
+                string_free(asset_path_temp);
+
+                // Source Path - optional
+                const char* asset_source_path_temp = 0;
+                if (bson_object_property_value_get_string(&asset_obj, "source_path", &asset_source_path_temp))
                 {
-                    BWARN("Failed to get asset type at array index %u. Skipping...", i);
-                    if (asset.path)
-                        string_free(asset.path);
-                    continue;
-                } */
+                    // Full source path of the asset
+                    asset.source_path = string_format("%s/%s", out_manifest->path, asset_source_path_temp);
+                    string_free(asset_source_path_temp);
+                }
 
                 // Add to assets
                 darray_push(out_manifest->assets, asset);
@@ -590,8 +610,8 @@ void bpackage_manifest_destroy(asset_manifest* manifest)
                 asset_manifest_asset* asset = &manifest->assets[i];
                 if (asset->path)
                     string_free(asset->path);
-                /* if (asset->type)
-                    string_free(asset->type); */
+                if (asset->source_path)
+                    string_free(asset->source_path);
             }
             darray_destroy(manifest->assets);
         }

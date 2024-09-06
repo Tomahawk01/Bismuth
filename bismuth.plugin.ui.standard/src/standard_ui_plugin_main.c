@@ -6,7 +6,6 @@
 #include <plugins/plugin_types.h>
 
 #include "containers/darray.h"
-#include "renderer/rendergraph.h"
 #include "rendergraph_nodes/ui_rendergraph_node.h"
 #include "standard_ui_system.h"
 

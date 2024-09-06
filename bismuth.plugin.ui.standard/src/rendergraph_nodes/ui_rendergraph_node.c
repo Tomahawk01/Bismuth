@@ -2,7 +2,6 @@
 
 #include "containers/darray.h"
 #include "core/engine.h"
-#include "identifiers/bhandle.h"
 #include "logger.h"
 #include "memory/bmemory.h"
 #include "renderer/renderer_frontend.h"
@@ -40,7 +39,7 @@ typedef struct ui_pass_internal_data
 
     struct texture* colorbuffer_texture;
     struct texture* depthbuffer_texture;
-    struct bresource_texture_map* atlas;
+    struct bresource_texture_map* ui_atlas;
     standard_ui_render_data render_data;
 
     viewport vp;
@@ -267,7 +266,7 @@ b8 ui_rendergraph_node_execute(struct rendergraph_node* self, struct frame_data*
         shader_system_bind_instance(internal_data->shader_id, *renderable->instance_id);
         // NOTE: Expand this to a structure if more data is needed
         shader_system_uniform_set_by_location(internal_data->shader_id, internal_data->sui_locations.properties, &renderable->render_data.diffuse_color);
-        bresource_texture_map* atlas = renderable->atlas_override ? renderable->atlas_override : internal_data->atlas;
+        bresource_texture_map* atlas = renderable->atlas_override ? renderable->atlas_override : internal_data->ui_atlas;
         shader_system_uniform_set_by_location(internal_data->shader_id, internal_data->sui_locations.diffuse_map, atlas);
         shader_system_apply_instance(internal_data->shader_id);
 
@@ -315,7 +314,7 @@ void ui_rendergraph_node_set_atlas(struct rendergraph_node* self, bresource_text
     if (self)
     {
         ui_pass_internal_data* internal_data = self->internal_data;
-        internal_data->atlas = atlas;
+        internal_data->ui_atlas = atlas;
     }
 }
 

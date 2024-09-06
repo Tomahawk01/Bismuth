@@ -327,10 +327,8 @@ typedef struct renderer_backend_interface
     void (*color_texture_prepare_for_present)(struct renderer_backend_interface* backend, struct texture_internal_data* tex_internal);
     void (*texture_prepare_for_sampling)(struct renderer_backend_interface* backend, struct texture_internal_data* tex_internal, texture_flag_bits flags);
 
-    BDEPRECATED("Old texture structure")
     b8 (*texture_resources_acquire)(struct renderer_backend_interface* backend, struct texture_internal_data* data, const char* name, texture_type type, u32 width, u32 height, u8 channel_count, u8 mip_levels, u16 array_size, texture_flag_bits flags);
 
-    b8 (*bresource_texture_resources_acquire)(struct renderer_backend_interface* backend, struct texture_internal_data* data, bname name, bresource_texture_type type, u32 width, u32 height, u8 channel_count, u8 mip_levels, u16 array_size, bresource_texture_flag_bits flags);
     void (*texture_resources_release)(struct renderer_backend_interface* backend, struct texture_internal_data* data);
 
     b8 (*texture_resize)(struct renderer_backend_interface* backend, struct texture_internal_data* data, u32 new_width, u32 new_height);

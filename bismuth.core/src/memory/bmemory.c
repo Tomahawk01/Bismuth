@@ -1,5 +1,6 @@
 #include "memory/bmemory.h"
 
+#include "debug/bassert.h"
 #include "logger.h"
 #include "strings/bstring.h"
 #include "threads/bmutex.h"
@@ -163,6 +164,7 @@ void* ballocate(u64 size, memory_tag tag)
 
 void* ballocate_aligned(u64 size, u16 alignment, memory_tag tag)
 {
+    BASSERT_MSG(size, "ballocate_aligned requires a nonzero size");
     if (tag == MEMORY_TAG_UNKNOWN)
         BWARN("ballocate_aligned called using MEMORY_TAG_UNKNOWN. Re-class this allocation");
 

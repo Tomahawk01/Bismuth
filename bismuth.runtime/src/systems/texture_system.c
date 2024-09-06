@@ -172,19 +172,23 @@ void texture_system_shutdown(void* state)
 b8 texture_system_request(bname name, bname package_name, void* listener, PFN_resource_loaded_user_callback callback, bresource_texture* out_resource)
 {
     // TODO: Check that name is not the name of a default texture. If it is, immediately make the callback with the appropriate default texture
-    bresource_request_info request = {0};
-    request.type = BRESOURCE_TYPE_TEXTURE;
-    request.listener_inst = listener;
-    request.user_callback = callback;
+    bresource_texture_request_info request = {0};
+    request.base.type = BRESOURCE_TYPE_TEXTURE;
+    request.base.listener_inst = listener;
+    request.base.user_callback = callback;
 
-    request.assets = array_bresource_asset_info_create(1);
-    request.assets.data[0].type = BASSET_TYPE_IMAGE;
-    request.assets.data[0].package_name = package_name;
-    request.assets.data[0].asset_name = name;
+    request.base.assets = array_bresource_asset_info_create(1);
+    request.base.assets.data[0].type = BASSET_TYPE_IMAGE;
+    request.base.assets.data[0].package_name = package_name;
+    request.base.assets.data[0].asset_name = name;
+
+    request.array_size = 1;
+    request.texture_type = BRESOURCE_TEXTURE_TYPE_2D;
+    request.flags = 0;
 
     struct bresource_system_state* resource_state = engine_systems_get()->bresource_state;
 
-    b8 result = bresource_system_request(resource_state, name, &request, (bresource*)out_resource);
+    b8 result = bresource_system_request(resource_state, name, (bresource_request_info*)&request, (bresource*)out_resource);
     if (!result)
         BERROR("Failed to properly request resource for texture '%s'", bname_string_get(name));
 
@@ -739,6 +743,7 @@ static b8 create_default_textures(texture_system_state* state)
     create_default_texture(&state->default_texture, pixels, tex_dimension, DEFAULT_TEXTURE_NAME);
 
     // Request new resource texture
+    BTRACE("Creating default resource texture...");
     struct bresource_system_state* bresource_system = engine_systems_get()->bresource_state;
     bresource_texture_request_info info = {0};
     bzero_memory(&info, sizeof(bresource_texture_request_info));
@@ -752,6 +757,8 @@ static b8 create_default_textures(texture_system_state* state)
     px->width = tex_dimension;
     px->height = tex_dimension;
     px->channel_count = channels;
+    px->format = BRESOURCE_TEXTURE_FORMAT_RGBA8;
+    px->mip_levels = 1;
     bcopy_memory(px->pixels, pixels, px->pixel_array_size);
     info.base.type = BRESOURCE_TYPE_TEXTURE;
     if (!bresource_system_request(bresource_system, bname_create(DEFAULT_TEXTURE_NAME), (bresource_request_info*)&info, (bresource*)&state->default_bresource_texture))

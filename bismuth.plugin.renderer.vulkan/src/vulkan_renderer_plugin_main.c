@@ -57,6 +57,7 @@ b8 bplugin_create(bruntime_plugin* out_plugin)
 
     backend->texture_resources_acquire = vulkan_renderer_texture_resources_acquire;
     backend->texture_resources_release = vulkan_renderer_texture_resources_release;
+    
     backend->texture_resize = vulkan_renderer_texture_resize;
     backend->texture_write_data = vulkan_renderer_texture_write_data;
     backend->texture_read_data = vulkan_renderer_texture_read_data;

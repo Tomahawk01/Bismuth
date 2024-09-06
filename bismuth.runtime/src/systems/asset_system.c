@@ -193,6 +193,10 @@ void asset_system_request(struct asset_system_state* state, basset_type type, bn
 
                 // Found a free slot, setup the asset
                 lookup->asset.id = identifier_create();
+                lookup->asset.type = type;
+                lookup->asset.name = asset_name;
+                lookup->asset.package_name = package_name;
+                lookup->auto_release = auto_release;
 
                 // Get the appropriate asset handler for the type and request the asset
                 asset_handler* handler = &state->handlers[lookup->asset.type];

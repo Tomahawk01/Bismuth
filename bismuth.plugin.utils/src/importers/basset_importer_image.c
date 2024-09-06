@@ -21,13 +21,23 @@ b8 basset_importer_image_import(const struct basset_importer* self, u64 data_siz
         return false;
     }
 
+    // Defaults
+    basset_image_import_options default_options = {0};
+    default_options.flip_y = true;
+    default_options.format = BASSET_IMAGE_FORMAT_RGBA8;
+
+    basset_image_import_options* options = 0;
     if (!params)
     {
-        BERROR("basset_importer_image_import requires parameters to be present");
-        return false;
+        // BERROR("basset_importer_image_import requires parameters to be present");
+        // return false;
+        BWARN("basset_importer_image_import - no params defined, using defaults");
+        options = &default_options;
     }
-
-    basset_image_import_options* options = (basset_image_import_options*)params;
+    else
+    {
+        options = (basset_image_import_options*)params;
+    }
     basset_image* typed_asset = (basset_image*)out_asset;
 
     // Determine channel count
@@ -47,6 +57,10 @@ b8 basset_importer_image_import(const struct basset_importer* self, u64 data_siz
         break;
     }
 
+    // Set the "flip" as described in the options
+    stbi_set_flip_vertically_on_load_thread(options->flip_y);
+
+    // Load the image
     u8* pixels = stbi_load_from_memory(data, data_size, (i32*)&typed_asset->width, (i32*)&typed_asset->height, (i32*)&typed_asset->channel_count, required_channel_count);
     if (!pixels)
     {
@@ -84,7 +98,7 @@ b8 basset_importer_image_import(const struct basset_importer* self, u64 data_siz
     }
 
     b8 success = true;
-    if (vfs_asset_write(vfs, out_asset, true, serialized_block_size, serialized_block))
+    if (!vfs_asset_write(vfs, out_asset, true, serialized_block_size, serialized_block))
     {
         BERROR("Failed to write Binary Image asset data to VFS. See logs for details");
         success = false;

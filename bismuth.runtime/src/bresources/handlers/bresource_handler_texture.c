@@ -45,22 +45,24 @@ b8 bresource_handler_texture_request(struct bresource_handler* self, bresource* 
     if (typed_request->flags & BRESOURCE_TEXTURE_FLAG_IS_WRITEABLE || typed_request->flags & BRESOURCE_TEXTURE_FLAG_DEPTH)
         assets_required = false;
 
-    if (assets_required && typed_request->base.assets.base.length < 1)
-    {
-        BERROR("A texture resource request requires at least one asset for textures that are not depth or writeable textures");
-        return false;
-    }
-
     // Some type-specific validation
-    if (typed_request->texture_type == BRESOURCE_TEXTURE_TYPE_2D && typed_request->base.assets.base.length != 1)
+    if (assets_required)
     {
-        BERROR("Non-writeable 2d textures must have exactly one texture asset. Instead, %u was provided", typed_request->base.assets.base.length);
-        return false;
-    }
-    else if (typed_request->texture_type == BRESOURCE_TEXTURE_TYPE_CUBE && typed_request->base.assets.base.length != 6)
-    {
-        BERROR("Non-writeable cube textures must have exactly 6 texture assets. Instead, %u was provided", typed_request->base.assets.base.length);
-        return false;
+        if (typed_request->texture_type == BRESOURCE_TEXTURE_TYPE_2D && typed_request->base.assets.base.length != 1)
+        {
+            BERROR("Non-writeable 2d textures must have exactly one texture asset. Instead, %u was provided", typed_request->base.assets.base.length);
+            return false;
+        }
+        else if (typed_request->texture_type == BRESOURCE_TEXTURE_TYPE_CUBE && typed_request->base.assets.base.length != 6)
+        {
+            BERROR("Non-writeable cube textures must have exactly 6 texture assets. Instead, %u was provided", typed_request->base.assets.base.length);
+            return false;
+        }
+        else if (assets_required && typed_request->base.assets.base.length < 1)
+        {
+            BERROR("A texture resource request requires at least one asset for textures that are not depth or writeable textures");
+            return false;
+        }
     }
 
     // NOTE: dynamically allocating this so lifetime isn't a concern
@@ -71,7 +73,8 @@ b8 bresource_handler_texture_request(struct bresource_handler* self, bresource* 
     listener_inst->typed_resource = typed_resource;
     listener_inst->handler = self;
     listener_inst->loaded_count = 0;
-    listener_inst->assets = array_bimage_ptr_create(info->assets.base.length);
+    if (assets_required)
+        listener_inst->assets = array_bimage_ptr_create(info->assets.base.length);
 
     // Load all assets (might only be one)
     if (info->assets.data)
@@ -103,6 +106,47 @@ b8 bresource_handler_texture_request(struct bresource_handler* self, bresource* 
     }
     else if (typed_request->pixel_data.data)
     {
+        // Pixel data is available immediately and can be loaded thusly
+
+        struct renderer_system_state* renderer = engine_systems_get()->renderer_system;
+
+        // Flip to a "loading" state
+        typed_resource->base.state = BRESOURCE_STATE_LOADING;
+
+        // Apply properties taken from request
+        typed_resource->type = typed_request->texture_type;
+        typed_resource->array_size = typed_request->array_size;
+        typed_resource->flags = typed_request->flags;
+
+        // Save off the properties of the first asset
+        // Start by taking the dimensions of just the first pixel data
+        bresource_texture_pixel_data* first_px_data = &typed_request->pixel_data.data[0];
+        typed_resource->width = first_px_data->width;
+        typed_resource->height = first_px_data->height;
+        typed_resource->format = first_px_data->format;
+        typed_resource->mip_levels = first_px_data->mip_levels;
+        typed_resource->array_size = typed_request->pixel_data.base.length;
+
+        // Acquire the resources for the texture
+        b8 acquisition_result = renderer_bresource_texture_resources_acquire(
+            renderer,
+            resource->name,
+            typed_resource->type,
+            typed_resource->width,
+            typed_resource->height,
+            channel_count_from_texture_format(typed_resource->format),
+            typed_resource->mip_levels,
+            typed_resource->array_size,
+            typed_resource->flags,
+            &typed_resource->renderer_texture_handle);
+
+        if (!acquisition_result)
+        {
+            BERROR("Failed to acquire renderer texture resources (from pixel data) for resource '%s'", bname_string_get(typed_resource->base.name));
+            return false;
+        }
+
+        // TODO: offsets per layer. Each pixel data would be a layer of its own
         for (array_iterator it = typed_request->pixel_data.begin(&typed_request->pixel_data.base); !it.end(&it); it.next(&it))
         {
             bresource_texture_pixel_data* px = it.value(&it);
@@ -111,6 +155,9 @@ b8 bresource_handler_texture_request(struct bresource_handler* self, bresource* 
             if (!write_result)
                 BERROR("Failed to write renderer texture data resource '%s'", bname_string_get(typed_resource->base.name));
         }
+
+        // Flip to a "loaded" state
+        typed_resource->base.state = BRESOURCE_STATE_LOADED;
     }
 
     return true;
@@ -187,10 +234,10 @@ static void texture_basset_on_result(asset_request_result result, const struct b
                 // Iterate the assets and ensure the dimensions are all the same. This is because a texture that is using multiple assets is either
                 // using them one-per-layer OR is combining multiple image assets into one (i.e. the "combined" image for materials). In either case, all dimensions must be the same
                 array_b8 mismatches = array_b8_create(listener->assets.base.length);
-                for (array_iterator it = listener->assets.begin(&listener->assets.base); !it.end(&it); it.next(&it))
+                for (array_iterator it = listener->assets.begin((const array_base*)&listener->assets); !it.end(&it); it.next(&it))
                 {
                     b8 mismatch = false;
-                    basset_image* image = it.value(&it);
+                    const basset_image* image =  listener->assets.data[it.pos]; // it.value(&it);
 
                     // Verify and report any mismatches
                     if (image->width != width)
@@ -224,7 +271,8 @@ static void texture_basset_on_result(asset_request_result result, const struct b
                         // Skip mismatched textures
                         if (mismatches.data[it.pos])
                             continue;
-                        basset_image* image = it.value(&it);
+                        // basset_image* image = it.value(&it);
+                        const basset_image* image = listener->assets.data[it.pos];
                         bcopy_memory(all_pixels + pixel_array_offset, image->pixels, image->pixel_array_size);
                         pixel_array_offset += image->pixel_array_size;
 

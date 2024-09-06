@@ -7,6 +7,7 @@ typedef struct asset_manifest_asset
 {
     bname name;
     const char* path;
+    const char* source_path;
 } asset_manifest_asset;
 
 /** @brief A reference to another package in an asset manifest */
@@ -20,6 +21,8 @@ typedef struct asset_manifest
 {
     bname name;
     // Path to .bpackage file. Null if loading from disk
+     const char* file_path;
+    // Path containing the .bpackage file, without the filename itself
     const char* path;
 
     // darray

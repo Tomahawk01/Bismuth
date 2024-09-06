@@ -1,6 +1,7 @@
 #include "basset_binary_image_serializer.h"
 
 #include "assets/basset_types.h"
+#include "assets/basset_utils.h"
 #include "logger.h"
 #include "memory/bmemory.h"
 
@@ -96,6 +97,7 @@ BAPI b8 basset_binary_image_deserialize(u64 size, const void* block, basset* out
     out_image->pixel_array_size = header->base.data_block_size;
     out_image->base.meta.version = header->base.version;
     out_image->base.type = type;
+    out_image->channel_count = channel_count_from_image_format(header->format);
 
     // Copy the actual image data block
     out_image->pixels = ballocate(out_image->pixel_array_size, MEMORY_TAG_ASSET);

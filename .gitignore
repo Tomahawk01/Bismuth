@@ -2,5 +2,8 @@ bin/
 obj/
 *.spv
 
+# Bismuth Binary Image
+*.bbi
+
 bismuth.core/src/version.h
 bismuth.runtime/src/version.h

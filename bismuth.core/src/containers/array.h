@@ -46,7 +46,7 @@ BAPI void array_iterator_prev(array_iterator* it);
     {                                                                                                                    \
         array_##name arr;                                                                                                \
         _barray_init(length, sizeof(type), &arr.base.length, &arr.base.stride, (void**)&arr.data);                       \
-        arr.base.p_data = arr.data;                                                                                      \
+        arr.base.p_data = (void*)arr.data;                                                                               \
         arr.begin = array_iterator_begin;                                                                                \
         arr.rbegin = array_iterator_rbegin;                                                                              \
         return arr;                                                                                                      \
