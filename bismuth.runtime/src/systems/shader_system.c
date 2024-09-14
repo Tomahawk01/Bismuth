@@ -476,7 +476,7 @@ b8 shader_system_apply_local(u32 shader_id)
     return renderer_shader_apply_local(state_ptr->renderer, s);
 }
 
-b8 shader_system_shader_instance_acquire(u32 shader_id, u32 map_count, texture_map* maps, u32* out_instance_id)
+b8 shader_system_shader_instance_acquire(u32 shader_id, u32 map_count, bresource_texture_map* maps, u32* out_instance_id)
 {
     shader* selected_shader = shader_system_get_by_id(shader_id);
 
@@ -496,16 +496,16 @@ b8 shader_system_shader_instance_acquire(u32 shader_id, u32 map_count, texture_m
         shader_uniform* u = &selected_shader->uniforms[selected_shader->instance_sampler_indices[i]];
         shader_instance_uniform_texture_config* uniform_config = &instance_resource_config.uniform_configs[i];
         /* uniform_config->uniform_location = u->location; */
-        uniform_config->texture_map_count = BMAX(u->array_length, 1);
-        uniform_config->texture_maps = ballocate(sizeof(texture_map*) * uniform_config->texture_map_count, MEMORY_TAG_ARRAY);
-        for (u32 j = 0; j < uniform_config->texture_map_count; ++j)
+        uniform_config->bresource_texture_map_count = BMAX(u->array_length, 1);
+        uniform_config->bresource_texture_maps = ballocate(sizeof(bresource_texture_map*) * uniform_config->bresource_texture_map_count, MEMORY_TAG_ARRAY);
+        for (u32 j = 0; j < uniform_config->bresource_texture_map_count; ++j)
         {
-            uniform_config->texture_maps[j] = &maps[i];
+            uniform_config->bresource_texture_maps[j] = &maps[i];
 
             // Acquire resources for the map, but only if a texture is assigned
-            if (uniform_config->texture_maps[j]->texture)
+            if (uniform_config->bresource_texture_maps[j]->texture)
             {
-                if (!renderer_texture_map_resources_acquire(uniform_config->texture_maps[j]))
+                if (!renderer_bresource_texture_map_resources_acquire(state_ptr->renderer, uniform_config->bresource_texture_maps[j]))
                 {
                     BERROR("Unable to acquire resources for texture map");
                     return false;
@@ -534,13 +534,13 @@ b8 shader_system_shader_instance_acquire(u32 shader_id, u32 map_count, texture_m
     return result;
 }
 
-b8 shader_system_shader_instance_release(u32 shader_id, u32 instance_id, u32 map_count, texture_map* maps)
+b8 shader_system_shader_instance_release(u32 shader_id, u32 instance_id, u32 map_count, bresource_texture_map* maps)
 {
     shader* selected_shader = shader_system_get_by_id(shader_id);
 
     // Release texture map resources
     for (u32 i = 0; i < map_count; ++i)
-        renderer_texture_map_resources_release(&maps[i]);
+        renderer_bresource_texture_map_resources_release(state_ptr->renderer, &maps[i]);
 
     // Release the instance resources for this shader
     b8 result = renderer_shader_instance_resources_release(state_ptr->renderer, selected_shader, instance_id);

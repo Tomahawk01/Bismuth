@@ -10,6 +10,8 @@
 /** @brief Pre-defined resource types */
 typedef enum bresource_type
 {
+    /** @brief Unassigned resource type */
+    BRESOURCE_TYPE_UNKNOWN,
     /** @brief Texture resource type */
     BRESOURCE_TYPE_TEXTURE,
     /** @brief Material resource type */

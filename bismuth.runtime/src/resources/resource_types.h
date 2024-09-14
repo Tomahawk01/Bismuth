@@ -2,7 +2,9 @@
 
 #include "identifiers/identifier.h"
 #include "identifiers/bhandle.h"
+#include "bresources/bresource_types.h"
 #include "math/math_types.h"
+#include "strings/bname.h"
 
 #include <core_render_types.h>
 
@@ -301,19 +303,19 @@ typedef struct material
     material_type type;
     u32 generation;
     u32 internal_id;
-    char name[MATERIAL_NAME_MAX_LENGTH];
+    bname name;
+    /** @brief The name of the package containing this material */
+    bname package_name;
 
-    struct texture_map* maps;
+    struct bresource_texture_map* maps;
 
     u32 property_struct_size;
 
     /** @brief array of material property structures, which varies based on material type. e.g. material_phong_properties */
     void* properties;
 
-    /**
-     * @brief Explicitly-set irradiance texture for this material
-     */
-    texture* irradiance_texture;
+    /** @brief Explicitly-set irradiance texture for this material */
+    bresource_texture* irradiance_texture;
 
     u32 shader_id;
 } material;

@@ -3,7 +3,6 @@
 
 #include "defines.h"
 #include "renderer/renderer_types.h"
-#include "resources/resource_types.h"
 
 #define RG_CHECK(expr)                            \
     if (!expr)                                    \
@@ -12,7 +11,7 @@
         return false;                             \
     }
 
-struct texture;
+struct bresource_texture;
 struct rendergraph_system_state;
 
 typedef enum rendergraph_resource_type
@@ -31,7 +30,7 @@ typedef struct rendergraph_source
 
     union
     {
-        struct texture* t;
+        struct bresource_texture* t;
         u64 u64;
     } value;
 } rendergraph_source;
@@ -75,9 +74,9 @@ typedef struct rendergraph
     char* name;
 
     // A pointer to the global colorbuffer framebuffer
-    struct texture* global_colorbuffer;
+    struct bresource_texture* global_colorbuffer;
     // A pointer to the global depthbuffer framebuffer
-    struct texture* global_depthbuffer;
+    struct bresource_texture* global_depthbuffer;
 
     u32 node_count;
     // Array of nodes in this graph
@@ -115,7 +114,7 @@ typedef struct rendergraph_node_factory
     b8 (*create)(rendergraph* graph, rendergraph_node* node, const struct rendergraph_node_config* config);
 } rendergraph_node_factory;
 
-BAPI b8 rendergraph_create(const char* config_str, struct texture* global_colorbuffer, struct texture* global_depthbuffer, rendergraph* out_graph);
+BAPI b8 rendergraph_create(const char* config_str, struct bresource_texture* global_colorbuffer, struct bresource_texture* global_depthbuffer, rendergraph* out_graph);
 BAPI void rendergraph_destroy(rendergraph* graph);
 
 BAPI b8 rendergraph_finalize(rendergraph* graph);

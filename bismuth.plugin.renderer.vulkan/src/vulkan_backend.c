@@ -2620,7 +2620,7 @@ static b8 vulkan_descriptorset_update_and_bind(renderer_backend_interface* backe
                     if (binding_sampler_state->uniform_bresource_texture_maps)
                     {
                         bresource_texture_map* map = binding_sampler_state->uniform_bresource_texture_maps[d];
-                        bresource_texture* t = map->texture;
+                        const bresource_texture* t = map->texture;
 
                         // TODO: The renderer should not rely on the texture system
                         u32 t_generation;
@@ -3139,7 +3139,7 @@ b8 vulkan_renderer_shader_instance_resources_acquire(renderer_backend_interface*
     }
 
     texture* default_texture = texture_system_get_default_texture();
-    bresource_texture* default_bresource_texture = texture_system_get_default_bresource_texture();
+    const bresource_texture* default_bresource_texture = texture_system_get_default_bresource_texture();
 
     // Map texture maps in the config to the correct uniforms
     vulkan_shader_instance_state* instance_state = &internal->instance_states[*out_instance_id];

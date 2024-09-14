@@ -1,14 +1,15 @@
 #include "geometry.h"
 
 #include "debug/bassert.h"
-#include "memory/bmemory.h"
-#include "strings/bstring.h"
 #include "logger.h"
+#include "math/geometry.h"
 #include "math/bmath.h"
 #include "math/math_types.h"
-#include "math/geometry.h"
+#include "memory/bmemory.h"
+#include "strings/bname.h"
+#include "strings/bstring.h"
 
-void geometry_generate_normals(u32 vertex_count, vertex_3d *vertices, u32 index_count, u32 *indices)
+void geometry_generate_normals(u32 vertex_count, vertex_3d* vertices, u32 index_count, u32* indices)
 {
     for (u32 i = 0; i < index_count; i += 3)
     {
@@ -27,7 +28,7 @@ void geometry_generate_normals(u32 vertex_count, vertex_3d *vertices, u32 index_
     }
 }
 
-void geometry_generate_tangents(u32 vertex_count, vertex_3d *vertices, u32 index_count, u32 *indices)
+void geometry_generate_tangents(u32 vertex_count, vertex_3d* vertices, u32 index_count, u32* indices)
 {
     for (u32 i = 0; i < index_count; i += 3)
     {
@@ -73,7 +74,7 @@ b8 vertex3d_equal(vertex_3d vert_0, vertex_3d vert_1)
            vec3_compare(vert_0.tangent, vert_1.tangent, B_FLOAT_EPSILON);
 }
 
-void reassign_index(u32 index_count, u32 *indices, u32 from, u32 to)
+void reassign_index(u32 index_count, u32* indices, u32 from, u32 to)
 {
     for (u32 i = 0; i < index_count; ++i)
     {
@@ -84,10 +85,10 @@ void reassign_index(u32 index_count, u32 *indices, u32 from, u32 to)
     }
 }
 
-void geometry_deduplicate_vertices(u32 vertex_count, vertex_3d *vertices, u32 index_count, u32 *indices, u32 *out_vertex_count, vertex_3d **out_vertices)
+void geometry_deduplicate_vertices(u32 vertex_count, vertex_3d* vertices, u32 index_count, u32* indices, u32* out_vertex_count, vertex_3d** out_vertices)
 {
     // Create new arrays for the collection to sit in
-    vertex_3d *unique_verts = ballocate(sizeof(vertex_3d) * vertex_count, MEMORY_TAG_ARRAY);
+    vertex_3d* unique_verts = ballocate(sizeof(vertex_3d) * vertex_count, MEMORY_TAG_ARRAY);
     *out_vertex_count = 0;
 
     u32 found_count = 0;
@@ -124,7 +125,7 @@ void geometry_deduplicate_vertices(u32 vertex_count, vertex_3d *vertices, u32 in
     BDEBUG("geometry_deduplicate_vertices: removed %d vertices, orig/now %d/%d", vertex_count - *out_vertex_count, vertex_count, *out_vertex_count);
 }
 
-void generate_uvs_from_image_coords(u32 img_width, u32 img_height, u32 px_x, u32 px_y, f32 *out_tx, f32 *out_ty)
+void generate_uvs_from_image_coords(u32 img_width, u32 img_height, u32 px_x, u32 px_y, f32* out_tx, f32* out_ty)
 {
     BASSERT_DEBUG(out_tx);
     BASSERT_DEBUG(out_ty);
@@ -132,7 +133,7 @@ void generate_uvs_from_image_coords(u32 img_width, u32 img_height, u32 px_x, u32
     *out_ty = (f32)px_y / img_height;
 }
 
-void generate_quad_2d(const char *name, f32 width, f32 height, f32 tx_min, f32 tx_max, f32 ty_min, f32 ty_max, geometry_config *out_config)
+void generate_quad_2d(const char* name, f32 width, f32 height, f32 tx_min, f32 tx_max, f32 ty_min, f32 ty_max, geometry_config* out_config)
 {
     if (out_config)
     {
@@ -143,7 +144,7 @@ void generate_quad_2d(const char *name, f32 width, f32 height, f32 tx_min, f32 t
         out_config->index_size = sizeof(u32);
         out_config->index_count = 6;
         out_config->indices = ballocate(out_config->index_size * out_config->index_count, MEMORY_TAG_ARRAY);
-        string_ncopy(out_config->name, name, GEOMETRY_NAME_MAX_LENGTH);
+        out_config->name = bname_create(name);
 
         vertex_2d uiverts[4];
         uiverts[0].position.x = 0.0f;    // 0    3

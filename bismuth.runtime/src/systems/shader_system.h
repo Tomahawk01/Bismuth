@@ -301,5 +301,5 @@ BAPI b8 shader_system_apply_global(u32 shader_id);
 BAPI b8 shader_system_apply_instance(u32 shader_id);
 BAPI b8 shader_system_apply_local(u32 shader_id);
 
-BAPI b8 shader_system_shader_instance_acquire(u32 shader_id, u32 map_count, texture_map* maps, u32* out_instance_id);
-BAPI b8 shader_system_shader_instance_release(u32 shader_id, u32 instance_id, u32 map_count, texture_map* maps);
+BAPI b8 shader_system_shader_instance_acquire(u32 shader_id, u32 map_count, bresource_texture_map* maps, u32* out_instance_id);
+BAPI b8 shader_system_shader_instance_release(u32 shader_id, u32 instance_id, u32 map_count, bresource_texture_map* maps);

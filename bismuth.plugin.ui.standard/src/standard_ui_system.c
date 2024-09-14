@@ -24,6 +24,7 @@
 #include <systems/xform_system.h>
 
 #include "core/engine.h"
+#include "bresources/bresource_types.h"
 
 static b8 standard_ui_system_mouse_down(u16 code, void* sender, void* listener_inst, event_context context)
 {
@@ -164,15 +165,6 @@ static b8 standard_ui_system_move(u16 code, void* sender, void* listener_inst, e
 
 static void texture_resource_loaded(bresource* resource, void* listener)
 {
-    standard_ui_state* state = (standard_ui_state*)listener;
-
-    // Setup the texture map
-    bresource_texture_map* map = &state->atlas;
-    map->repeat_u = map->repeat_v = map->repeat_w = TEXTURE_REPEAT_CLAMP_TO_EDGE;
-    map->filter_minify = map->filter_magnify = TEXTURE_FILTER_MODE_NEAREST;
-    map->texture = &state->atlas_texture;
-    if (!renderer_bresource_texture_map_resources_acquire(state->renderer, map))
-        BERROR("Unable to acquire texture map resources. StandardUI cannot be initialized");
 }
 
 b8 standard_ui_system_initialize(u64* memory_requirement, standard_ui_state* state, standard_ui_system_config* config)
@@ -208,8 +200,12 @@ b8 standard_ui_system_initialize(u64* memory_requirement, standard_ui_state* sta
     sui_base_control_create(state, "__ROOT__", &state->root);
 
     // Atlas texture
-    b8 request_result = texture_system_request(bname_create("StandardUIAtlas"), bname_create("PluginUiStandard"), state, texture_resource_loaded, &state->atlas_texture);
-    if (!request_result)
+    state->atlas_texture = texture_system_request(
+        bname_create("StandardUIAtlas"),
+        bname_create("PluginUiStandard"),
+        state,
+        texture_resource_loaded);
+    if (!state->atlas_texture)
     {
         BERROR("Failed to request atlas texture for standard UI");
         // TODO: use default texture instead
@@ -220,7 +216,7 @@ b8 standard_ui_system_initialize(u64* memory_requirement, standard_ui_state* sta
     bresource_texture_map* map = &state->atlas;
     map->repeat_u = map->repeat_v = map->repeat_w = TEXTURE_REPEAT_CLAMP_TO_EDGE;
     map->filter_minify = map->filter_magnify = TEXTURE_FILTER_MODE_NEAREST;
-    map->texture = &state->atlas_texture;
+    map->texture = state->atlas_texture;
     if (!renderer_bresource_texture_map_resources_acquire(state->renderer, map))
     {
         BERROR("Unable to acquire atlas texture map resources. StandardUI cannot be initialized");
@@ -271,7 +267,7 @@ void standard_ui_system_shutdown(standard_ui_state* state)
         // Release texture for UI atlas
         if (state->atlas.texture)
         {
-            texture_system_release_resource(state->atlas.texture);
+            texture_system_release_resource((bresource_texture*)state->atlas.texture);
             state->atlas.texture = 0;
         }
     }

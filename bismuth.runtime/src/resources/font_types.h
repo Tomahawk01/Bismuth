@@ -39,7 +39,7 @@ typedef struct font_data
     i32 baseline;
     i32 atlas_size_x;
     i32 atlas_size_y;
-    bresource_texture atlas_texture;
+    const bresource_texture* atlas_texture;
     bresource_texture_map atlas;
     u32 glyph_count;
     font_glyph* glyphs;

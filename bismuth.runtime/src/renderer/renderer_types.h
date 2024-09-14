@@ -208,9 +208,9 @@ typedef struct bwindow_renderer_state
     struct viewport* active_viewport;
 
     // This is technically the swapchain images, which should be wrapped into a single texture
-    texture colorbuffer;
+    bresource_texture* colorbuffer;
     // This is technically the per-frame depth image, which should be wrapped into a single texture
-    texture depthbuffer;
+    bresource_texture* depthbuffer;
 
     // The internal state of the window containing renderer backend data
     struct bwindow_renderer_backend_state* backend_state;
@@ -252,8 +252,8 @@ typedef struct bresource_texture_map
     u32 generation;
     /** @brief Cached mip map levels. Should match assigned texture. Must always be at least 1 */
     u32 mip_levels;
-    /** @brief A pointer to a texture resource */
-    bresource_texture* texture;
+    /** @brief A constant pointer to a texture resource */
+    const bresource_texture* texture;
     /** @brief Texture filtering mode for minification */
     texture_filter filter_minify;
     /** @brief Texture filtering mode for magnification */

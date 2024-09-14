@@ -1,16 +1,15 @@
 #include "debug_rendergraph_node.h"
 
 #include "core/engine.h"
-#include "identifiers/bhandle.h"
 #include "logger.h"
 #include "memory/bmemory.h"
 #include "renderer/renderer_frontend.h"
 #include "renderer/renderer_types.h"
 #include "renderer/rendergraph.h"
+#include "renderer/viewport.h"
 #include "strings/bstring.h"
 #include "systems/material_system.h"
 #include "systems/shader_system.h"
-#include "renderer/viewport.h"
 
 typedef struct debug_shader_locations
 {
@@ -27,8 +26,8 @@ typedef struct debug_rendergraph_node_internal_data
     shader* color_shader;
     debug_shader_locations debug_locations;
 
-    struct texture* colorbuffer_texture;
-    struct texture* depthbuffer_texture;
+    struct bresource_texture* colorbuffer_texture;
+    struct bresource_texture* depthbuffer_texture;
 
     viewport vp;
     mat4 view;

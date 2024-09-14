@@ -121,7 +121,7 @@ typedef struct standard_ui_state
     sui_control root;
     // texture_map ui_atlas;
 
-    bresource_texture atlas_texture;
+    bresource_texture* atlas_texture;
     bresource_texture_map atlas;
 
     u64 focused_id;

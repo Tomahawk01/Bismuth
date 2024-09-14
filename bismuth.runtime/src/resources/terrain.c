@@ -3,15 +3,12 @@
 #include "defines.h"
 #include "identifiers/identifier.h"
 #include "logger.h"
-#include "strings/bstring.h"
-#include "memory/bmemory.h"
 #include "math/bmath.h"
-#include "math/geometry.h"
+#include "memory/bmemory.h"
 #include "renderer/renderer_frontend.h"
 #include "renderer/renderer_types.h"
 #include "resources/resource_types.h"
-#include "systems/shader_system.h"
-#include "systems/light_system.h"
+#include "strings/bstring.h"
 #include "systems/material_system.h"
 #include "systems/resource_system.h"
 
@@ -343,7 +340,7 @@ b8 terrain_chunk_unload(terrain* t, terrain_chunk* chunk)
     chunk->generation = INVALID_ID_U16;
 
     // Release material reference
-    material_system_release(chunk->material->name);
+    material_system_release(bname_string_get(chunk->material->name));
     chunk->material = 0;
 
     if (chunk->vertices)

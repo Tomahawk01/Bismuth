@@ -6,7 +6,7 @@ struct bresource_system_state;
 
 typedef struct bresource_system_config
 {
-    u32 dummy;
+    u32 max_resource_count;
 } bresource_system_config;
 
 typedef struct bresource_handler
@@ -19,7 +19,7 @@ typedef struct bresource_handler
 BAPI b8 bresource_system_initialize(u64* memory_requirement, struct bresource_system_state* state, const bresource_system_config* config);
 BAPI void bresource_system_shutdown(struct bresource_system_state* state);
 
-BAPI b8 bresource_system_request(struct bresource_system_state* state, bname name, const struct bresource_request_info* info, bresource* out_resource);
+BAPI bresource* bresource_system_request(struct bresource_system_state* state, bname name, const struct bresource_request_info* info);
 BAPI void bresource_system_release(struct bresource_system_state* state, bresource* resource);
 
 BAPI b8 bresource_system_handler_register(struct bresource_system_state* state, bresource_type type, bresource_handler handler);

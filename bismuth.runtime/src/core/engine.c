@@ -263,7 +263,7 @@ b8 engine_create(application* game_inst)
 
         // TODO: deserialize from application config, if provided
         bresource_system_config resource_sys_config = {0};
-        resource_sys_config.dummy = 69;
+        resource_sys_config.max_resource_count = 2000;
 
         bresource_system_initialize(&systems->bresource_system_memory_requirement, 0, &resource_sys_config);
         systems->bresource_state = ballocate(systems->bresource_system_memory_requirement, MEMORY_TAG_ENGINE);

@@ -1,11 +1,12 @@
 #include "geometry_system.h"
 
-#include "memory/bmemory.h"
-#include "strings/bstring.h"
 #include "logger.h"
 #include "math/geometry.h"
-#include "systems/material_system.h"
+#include "memory/bmemory.h"
 #include "renderer/renderer_frontend.h"
+#include "strings/bname.h"
+#include "strings/bstring.h"
+#include "systems/material_system.h"
 
 typedef struct geometry_reference
 {
@@ -210,9 +211,9 @@ static b8 create_geometry(geometry_system_state* state, geometry_config config, 
     g->generation++;
 
     // Acquire material
-    if (string_length(config.material_name) > 0)
+    if (config.material_name != INVALID_BNAME)
     {
-        g->material = material_system_acquire(config.material_name);
+        g->material = material_system_acquire(bname_string_get(config.material_name));
         if (!g->material)
             g->material = material_system_get_default();
     }
@@ -229,9 +230,10 @@ static void destroy_geometry(geometry_system_state* state, geometry* g)
     string_empty(g->name);
 
     // Release material
-    if (g->material && string_length(g->material->name) > 0)
+    const char* name_str = bname_string_get(g->material->name);
+    if (g->material && string_length(name_str) > 0)
     {
-        material_system_release(g->material->name);
+        material_system_release(name_str);
         g->material = 0;
     }
 }
@@ -283,7 +285,7 @@ static b8 create_default_geometries(geometry_system_state* state)
     return true;
 }
 
-geometry_config geometry_system_generate_plane_config(f32 width, f32 height, u32 x_segment_count, u32 y_segment_count, f32 tile_x, f32 tile_y, const char* name, const char* material_name)
+geometry_config geometry_system_generate_plane_config(f32 width, f32 height, u32 x_segment_count, u32 y_segment_count, f32 tile_x, f32 tile_y, bname name, bname material_name)
 {
     if (width == 0)
     {
@@ -381,28 +383,28 @@ geometry_config geometry_system_generate_plane_config(f32 width, f32 height, u32
         }
     }
 
-    if (name && string_length(name) > 0)
+    if (name == INVALID_BNAME)
     {
-        string_ncopy(config.name, name, GEOMETRY_NAME_MAX_LENGTH);
+        config.name = bname_create(DEFAULT_GEOMETRY_NAME);
     }
     else
     {
-        string_ncopy(config.name, DEFAULT_GEOMETRY_NAME, GEOMETRY_NAME_MAX_LENGTH);
+        config.name = name;
     }
 
-    if (material_name && string_length(material_name) > 0)
+    if (material_name == INVALID_BNAME)
     {
-        string_ncopy(config.material_name, material_name, MATERIAL_NAME_MAX_LENGTH);
+        config.material_name = bname_create(DEFAULT_PBR_MATERIAL_NAME);
     }
     else
     {
-        string_ncopy(config.material_name, DEFAULT_PBR_MATERIAL_NAME, MATERIAL_NAME_MAX_LENGTH);
+        config.material_name = material_name;
     }
 
     return config;
 }
 
-geometry_config geometry_system_generate_cube_config(f32 width, f32 height, f32 depth, f32 tile_x, f32 tile_y, const char* name, const char* material_name)
+geometry_config geometry_system_generate_cube_config(f32 width, f32 height, f32 depth, f32 tile_x, f32 tile_y, bname name, bname material_name)
 {
     if (width == 0)
     {
@@ -563,22 +565,22 @@ geometry_config geometry_system_generate_cube_config(f32 width, f32 height, f32 
         ((u32*)config.indices)[i_offset + 5] = v_offset + 1;
     }
 
-    if (name && string_length(name) > 0)
+    if (name == INVALID_BNAME)
     {
-        string_ncopy(config.name, name, GEOMETRY_NAME_MAX_LENGTH);
+        config.name = bname_create(DEFAULT_GEOMETRY_NAME);
     }
     else
     {
-        string_ncopy(config.name, DEFAULT_GEOMETRY_NAME, GEOMETRY_NAME_MAX_LENGTH);
+        config.name = name;
     }
 
-    if (material_name && string_length(material_name) > 0)
+    if (material_name == INVALID_BNAME)
     {
-        string_ncopy(config.material_name, material_name, MATERIAL_NAME_MAX_LENGTH);
+        config.material_name = bname_create(DEFAULT_PBR_MATERIAL_NAME);
     }
     else
     {
-        string_ncopy(config.material_name, DEFAULT_PBR_MATERIAL_NAME, MATERIAL_NAME_MAX_LENGTH);
+        config.material_name = material_name;
     }
 
     geometry_generate_tangents(config.vertex_count, config.vertices, config.index_count, config.indices);

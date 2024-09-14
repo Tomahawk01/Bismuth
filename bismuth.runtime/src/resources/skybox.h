@@ -23,8 +23,8 @@ typedef struct skybox
 {
     skybox_state state;
 
-    const char* cubemap_name;
-    texture_map cubemap;
+    bname cubemap_name;
+    bresource_texture_map cubemap;
 
     geometry_config g_config;
     geometry* g;

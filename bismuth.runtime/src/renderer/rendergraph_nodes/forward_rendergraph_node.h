@@ -8,7 +8,7 @@ struct rendergraph;
 struct rendergraph_node;
 struct rendergraph_node_config;
 struct frame_data;
-struct texture;
+struct bresource_texture;
 
 struct directional_light;
 struct geometry_render_data;
@@ -30,7 +30,7 @@ BAPI b8 forward_rendergraph_node_static_geometries_set(struct rendergraph_node* 
 BAPI void forward_rendergraph_node_set_skybox(struct rendergraph_node* self, struct skybox* sb);
 BAPI b8 forward_rendergraph_node_terrain_geometries_set(struct rendergraph_node* self, struct frame_data* p_frame_data, u32 geometry_count, const struct geometry_render_data* geometries);
 BAPI b8 forward_rendergraph_node_water_planes_set(struct rendergraph_node* self, struct frame_data* p_frame_data, u32 count, struct water_plane** planes);
-BAPI b8 forward_rendergraph_node_irradiance_texture_set(struct rendergraph_node* self, struct frame_data* p_frame_data, struct texture* irradiance_cube_texture);
+BAPI b8 forward_rendergraph_node_irradiance_texture_set(struct rendergraph_node* self, struct frame_data* p_frame_data, const struct bresource_texture* irradiance_cube_texture);
 
 BAPI b8 forward_rendergraph_node_viewport_set(struct rendergraph_node* self, viewport v);
 BAPI b8 forward_rendergraph_node_camera_projection_set(struct rendergraph_node* self, struct camera* view_camera, mat4 projection_matrix);
