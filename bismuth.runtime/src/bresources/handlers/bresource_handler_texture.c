@@ -79,6 +79,7 @@ b8 bresource_handler_texture_request(struct bresource_handler* self, bresource* 
     // Load all assets (might only be one)
     if (info->assets.data)
     {
+        bzero_memory(listener_inst->typed_resource, sizeof(bresource_texture));
         for (array_iterator it = info->assets.begin(&info->assets.base); !it.end(&it); it.next(&it))
         {
             bresource_asset_info* asset_info = it.value(&it);
@@ -125,7 +126,6 @@ b8 bresource_handler_texture_request(struct bresource_handler* self, bresource* 
         typed_resource->height = first_px_data->height;
         typed_resource->format = first_px_data->format;
         typed_resource->mip_levels = first_px_data->mip_levels;
-        typed_resource->array_size = typed_request->pixel_data.base.length;
 
         // Acquire the resources for the texture
         b8 acquisition_result = renderer_bresource_texture_resources_acquire(
@@ -349,13 +349,18 @@ static void texture_basset_on_result(asset_request_result result, const struct b
                 // Increase the generation also
                 listener->typed_resource->base.generation++;
             }
+            goto destroy_request;
         }
+
+        // Boot out so the request isn't destroyed
+        return;
     }
     else
     {
         BERROR("Failed to load a required asset for texture resource '%s'. Resource may not appear correctly when rendered", bname_string_get(listener->typed_resource->base.name));
     }
 
+destroy_request:
     // Destroy the request
     array_bimage_ptr_destroy(&listener->assets);
     array_bresource_asset_info_destroy(&listener->request_info->base.assets);

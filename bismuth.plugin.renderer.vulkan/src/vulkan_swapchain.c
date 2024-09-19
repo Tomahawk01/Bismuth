@@ -106,7 +106,7 @@ static b8 create(renderer_backend_interface* backend, bwindow* window, renderer_
     }
     
     // Swapchain extent
-    if (context->device.swapchain_support.capabilities.currentExtent.width != 0xffffffff)
+    if (context->device.swapchain_support.capabilities.currentExtent.width != U32_MAX)
         swapchain_extent = context->device.swapchain_support.capabilities.currentExtent;
 
     // Clamp to the value allowed by GPU
@@ -188,7 +188,7 @@ static b8 create(renderer_backend_interface* backend, bwindow* window, renderer_
     }
 
     // Swapchain images are stored in the backend data of the window.colorbuffer
-    if (b_handle_is_invalid(window_internal->colorbuffer.renderer_texture_handle))
+    if (b_handle_is_invalid(window_internal->colorbuffer->renderer_texture_handle))
     {
         // If invalid, then a new one needs to be created. This does not reach out to the
         // texture system to create this, but handles it internally instead. This is because
@@ -203,9 +203,9 @@ static b8 create(renderer_backend_interface* backend, bwindow* window, renderer_
                 1,
                 1,
                 // NOTE: This should be a wrapped texture, so the frontend does not try to
-                // acquire the resources we already have here.
+                // acquire the resources we already have here
                 TEXTURE_FLAG_IS_WRAPPED | TEXTURE_FLAG_IS_WRITEABLE | TEXTURE_FLAG_RENDERER_BUFFERING,
-                &window_internal->colorbuffer.renderer_texture_handle))
+                &window_internal->colorbuffer->renderer_texture_handle))
         {
             BFATAL("Failed to acquire internal texture resources for window.colorbuffer");
             return false;
@@ -214,7 +214,7 @@ static b8 create(renderer_backend_interface* backend, bwindow* window, renderer_
 
     // Get the texture_internal_data based on the existing or newly-created handle above.
     // Use that to setup the internal images/views for the colorbuffer texture.
-    texture_internal_data* texture_data = renderer_texture_resources_get(backend->frontend_state, window_internal->colorbuffer.renderer_texture_handle);
+    texture_internal_data* texture_data = renderer_texture_resources_get(backend->frontend_state, window_internal->colorbuffer->renderer_texture_handle);
     if (!texture_data)
     {
         BFATAL("Unable to get internal data for colorbuffer image. Swapchain creation failed");
@@ -222,8 +222,8 @@ static b8 create(renderer_backend_interface* backend, bwindow* window, renderer_
     }
 
     // Name is meaningless here, but might be useful for debugging
-    if (!window_internal->colorbuffer.name)
-        window_internal->colorbuffer.name = string_duplicate("__window_colorbuffer_texture__");
+    if (window_internal->colorbuffer->base.name == INVALID_BNAME)
+        window_internal->colorbuffer->base.name = bname_create("__window_colorbuffer_texture__");
 
     texture_data->image_count = swapchain->image_count;
     // Create the array if it doesn't exist
@@ -294,7 +294,7 @@ static void destroy(renderer_backend_interface* backend, vulkan_swapchain* swapc
     bwindow_renderer_state* window_internal = window->renderer_state;
     // bwindow_renderer_backend_state* window_backend = window_internal->backend_state;
 
-    texture_internal_data* texture_data = renderer_texture_resources_get(backend->frontend_state, window_internal->colorbuffer.renderer_texture_handle);
+    texture_internal_data* texture_data = renderer_texture_resources_get(backend->frontend_state, window_internal->colorbuffer->renderer_texture_handle);
     if (!texture_data)
     {
         BFATAL("Unable to get internal data for colorbuffer image. Swapchain destruction failed");

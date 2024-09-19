@@ -358,7 +358,7 @@ material* material_system_acquire_terrain_material(const char* material_name, u3
             map->repeat_w = TEXTURE_REPEAT_REPEAT;
             map->filter_minify = TEXTURE_FILTER_MODE_LINEAR;
             map->filter_magnify = TEXTURE_FILTER_MODE_LINEAR;
-            map->texture = texture_system_acquire_textures_as_arrayed(m->name, m->package_name, layer_count, texture_names, true, 0, 0);
+            map->texture = texture_system_acquire_textures_as_arrayed(m->name, m->package_name, layer_count, texture_names, true, false, 0, 0);
             if (!map->texture)
             {
                 // Configured, but not found
@@ -779,9 +779,9 @@ static b8 load_material(material_system_state* state, material_config* config, m
         // IBL cube texture
         shader_instance_uniform_texture_config* ibl_cube_texture = &instance_resource_config.uniform_configs[2];
         // ibl_cube_texture->uniform_location = state_ptr->pbr_locations.ibl_cube_texture;
-        ibl_cube_texture->texture_map_count = 1;
-        ibl_cube_texture->texture_maps = ballocate(sizeof(texture_map*) * ibl_cube_texture->texture_map_count, MEMORY_TAG_ARRAY);
-        ibl_cube_texture->texture_maps[0] = &m->maps[SAMP_IRRADIANCE_MAP];
+        ibl_cube_texture->bresource_texture_map_count = 1;
+        ibl_cube_texture->bresource_texture_maps = ballocate(sizeof(texture_map*) * ibl_cube_texture->bresource_texture_map_count, MEMORY_TAG_ARRAY);
+        ibl_cube_texture->bresource_texture_maps[0] = &m->maps[SAMP_IRRADIANCE_MAP];
     }
     else if (config->type == MATERIAL_TYPE_CUSTOM)
     {
@@ -1016,9 +1016,9 @@ static b8 create_default_pbr_material(material_system_state* state)
     // IBL cube texture
     shader_instance_uniform_texture_config* ibl_cube_texture = &instance_resource_config.uniform_configs[2];
     // ibl_cube_texture->uniform_location = state_ptr->pbr_locations.ibl_cube_texture;
-    ibl_cube_texture->texture_map_count = 1;
-    ibl_cube_texture->texture_maps = ballocate(sizeof(texture_map*) * ibl_cube_texture->texture_map_count, MEMORY_TAG_ARRAY);
-    ibl_cube_texture->texture_maps[0] = &m->maps[SAMP_IRRADIANCE_MAP];
+    ibl_cube_texture->bresource_texture_map_count = 1;
+    ibl_cube_texture->bresource_texture_maps = ballocate(sizeof(texture_map*) * ibl_cube_texture->bresource_texture_map_count, MEMORY_TAG_ARRAY);
+    ibl_cube_texture->bresource_texture_maps[0] = &m->maps[SAMP_IRRADIANCE_MAP];
 
     shader* s = shader_system_get_by_id(state_ptr->pbr_shader_id);
     if (!renderer_shader_instance_resources_acquire(state_ptr->renderer, s, &instance_resource_config, &state->default_pbr_material.internal_id))

@@ -125,134 +125,120 @@ static asset_entry* asset_entry_get(const bpackage* package, bname name)
             return entry;
     }
 
-    BERROR("Package '%s': No entry called '%s' exists", package->name, name);
+    BERROR("Package '%s': No entry called '%s' exists", bname_string_get(package->name), bname_string_get(name));
     return 0;
 }
 
 static bpackage_result asset_get_data(const bpackage* package, b8 is_binary, bname name, b8 get_source, u64* out_size, const void** out_data)
 {
-    asset_entry* entry = asset_entry_get(package, name);
-    if (!entry)
-    {
-    }
-
     const char* package_name = bname_string_get(package->name);
     const char* name_str = bname_string_get(name);
+    asset_entry* entry = asset_entry_get(package, name);
+    if (!entry)
+        return get_source ? BPACKAGE_RESULT_SOURCE_GET_FAILURE : BPACKAGE_RESULT_PRIMARY_GET_FAILURE;
 
-    // Search the type lookup's entries for the matching name
-    u32 entry_count = darray_length(package->internal_data->entries);
-    for (u32 j = 0; j < entry_count; ++j)
+    if (package->is_binary)
     {
-        asset_entry* entry = &package->internal_data->entries[j];
-        if (entry->name == name)
+        BERROR("binary packages not yet supported");
+        return BPACKAGE_RESULT_INTERNAL_FAILURE;
+    }
+    else
+    {
+        bpackage_result result = BPACKAGE_RESULT_INTERNAL_FAILURE;
+
+        // Validate asset path
+        const char* asset_path = get_source ? entry->source_path : entry->path;
+        if (!asset_path)
         {
-            if (package->is_binary)
+            BERROR("Package '%s': No %s asset path exists for asset '%s'. Load operation failed", package_name, get_source ? "source" : "primary", name_str);
+            result = get_source ? BPACKAGE_RESULT_SOURCE_GET_FAILURE : BPACKAGE_RESULT_PRIMARY_GET_FAILURE;
+            return result;
+        }
+
+        // Validate that the file exists
+        if (!filesystem_exists(asset_path))
+        {
+            BERROR("Package '%s': Invalid %s asset path ('%s') for asset '%s'. Load operation failed", package_name, get_source ? "source" : "primary", asset_path, name_str);
+            result = get_source ? BPACKAGE_RESULT_SOURCE_GET_FAILURE : BPACKAGE_RESULT_PRIMARY_GET_FAILURE;
+            return result;
+        }
+        void* data = 0;
+
+        // load the file content from disk
+        file_handle f = {0};
+        if (!filesystem_open(asset_path, FILE_MODE_READ, is_binary, &f))
+        {
+            BERROR("Package '%s': Failed to open asset '%s' file at path: '%s'", package_name, name_str, asset_path);
+            result = get_source ? BPACKAGE_RESULT_SOURCE_GET_FAILURE : BPACKAGE_RESULT_PRIMARY_GET_FAILURE;
+            goto get_data_cleanup;
+        }
+
+        // Get the file size
+        u64 file_size = 0;
+        if (!filesystem_size(&f, &file_size))
+        {
+            BERROR("Package '%s': Failed to get size for asset '%s' file at path: '%s'", package_name, name_str, asset_path);
+            result = get_source ? BPACKAGE_RESULT_SOURCE_GET_FAILURE : BPACKAGE_RESULT_PRIMARY_GET_FAILURE;
+            goto get_data_cleanup;
+        }
+
+        data = ballocate(file_size, MEMORY_TAG_ASSET);
+
+        u64 read_size = 0;
+        if (is_binary)
+        {
+            // Load as binary
+            if (!filesystem_read_all_bytes(&f, data, &read_size))
             {
-                BERROR("binary packages not yet supported");
-                return BPACKAGE_RESULT_INTERNAL_FAILURE;
-            }
-            else
-            {
-                bpackage_result result = BPACKAGE_RESULT_INTERNAL_FAILURE;
-
-                // Validate asset path.
-                const char* asset_path = get_source ? entry->source_path : entry->path;
-                if (!asset_path)
-                {
-                    BERROR("Package '%s': No %s asset path exists for asset '%s'. Load operation failed", package_name, get_source ? "source" : "primary", name_str);
-                    result = get_source ? BPACKAGE_RESULT_SOURCE_GET_FAILURE : BPACKAGE_RESULT_PRIMARY_GET_FAILURE;
-                    return result;
-                }
-
-                // Validate that the file exists
-                if (!filesystem_exists(asset_path))
-                {
-                    BERROR("Package '%s': Invalid %s asset path ('%s') for asset '%s'. Load operation failed", package_name, get_source ? "source" : "primary", asset_path, name_str);
-                    result = get_source ? BPACKAGE_RESULT_SOURCE_GET_FAILURE : BPACKAGE_RESULT_PRIMARY_GET_FAILURE;
-                    return result;
-                }
-                void* data = 0;
-
-                // load the file content from disk
-                file_handle f = {0};
-                if (!filesystem_open(asset_path, FILE_MODE_READ, is_binary, &f))
-                {
-                    BERROR("Package '%s': Failed to open asset '%s' file at path: '%s'", package_name, name_str, asset_path);
-                    result = get_source ? BPACKAGE_RESULT_SOURCE_GET_FAILURE : BPACKAGE_RESULT_PRIMARY_GET_FAILURE;
-                    goto get_data_cleanup;
-                }
-
-                // Get the file size
-                u64 file_size = 0;
-                if (!filesystem_size(&f, &file_size))
-                {
-                    BERROR("Package '%s': Failed to get size for asset '%s' file at path: '%s'", package_name, name_str, asset_path);
-                    result = get_source ? BPACKAGE_RESULT_SOURCE_GET_FAILURE : BPACKAGE_RESULT_PRIMARY_GET_FAILURE;
-                    goto get_data_cleanup;
-                }
-
-                data = ballocate(file_size, MEMORY_TAG_ASSET);
-
-                u64 read_size = 0;
-                if (is_binary)
-                {
-                    // Load as binary
-                    if (!filesystem_read_all_bytes(&f, data, &read_size))
-                    {
-                        BERROR("Package '%s': Failed to read asset '%s' as binary, at file at path: '%s'", package_name, name_str, asset_path);
-                        goto get_data_cleanup;
-                    }
-                }
-                else
-                {
-                    // Load as text
-                    if (!filesystem_read_all_text(&f, data, &read_size))
-                    {
-                        BERROR("Package '%s': Failed to read asset '%s' as text, at file at path: '%s'", package_name, name_str, asset_path);
-                        goto get_data_cleanup;
-                    }
-                }
-
-                // Sanity check to make sure the bounds haven't been breached
-                BASSERT_MSG(read_size <= file_size, "File read exceeded bounds of data allocation based on file size");
-
-                // This means that data is bigger than it needs to be, and that a smaller block of memory can be used
-                if (read_size < file_size)
-                {
-                    BTRACE("Package '%s': asset '%s', file at path: '%s' - Read size/file size mismatch (%llu, %llu)", package_name, name_str, asset_path, read_size, file_size);
-                    void* temp = ballocate(read_size, MEMORY_TAG_ASSET);
-                    bcopy_memory(temp, data, read_size);
-                    bfree(data, file_size, MEMORY_TAG_ASSET);
-                    data = temp;
-                    file_size = read_size;
-                }
-
-                // Set the output
-                *out_data = data;
-                *out_size = file_size;
-
-                // Success!
-                result = BPACKAGE_RESULT_SUCCESS;
-
-            get_data_cleanup:
-                filesystem_close(&f);
-
-                if (result != BPACKAGE_RESULT_SUCCESS)
-                {
-                    if (data)
-                        bfree(data, file_size, MEMORY_TAG_ASSET);
-                }
-                else
-                {
-                    // BERROR("Package '%s' does not contain asset '%s'", package_name, name_str);
-                }
-                return result;
+                BERROR("Package '%s': Failed to read asset '%s' as binary, at file at path: '%s'", package_name, name_str, asset_path);
+                goto get_data_cleanup;
             }
         }
+        else
+        {
+            // Load as text
+            if (!filesystem_read_all_text(&f, data, &read_size))
+            {
+                BERROR("Package '%s': Failed to read asset '%s' as text, at file at path: '%s'", package_name, name_str, asset_path);
+                goto get_data_cleanup;
+            }
+        }
+
+        // Sanity check to make sure the bounds haven't been breached
+        BASSERT_MSG(read_size <= file_size, "File read exceeded bounds of data allocation based on file size");
+        
+        // This means that data is bigger than it needs to be, and that a smaller block of memory can be used
+        if (read_size < file_size)
+        {
+            BTRACE("Package '%s': asset '%s', file at path: '%s' - Read size/file size mismatch (%llu, %llu)", package_name, name_str, asset_path, read_size, file_size);
+            void* temp = ballocate(read_size, MEMORY_TAG_ASSET);
+            bcopy_memory(temp, data, read_size);
+            bfree(data, file_size, MEMORY_TAG_ASSET);
+            data = temp;
+            file_size = read_size;
+        }
+
+        // Set the output
+        *out_data = data;
+        *out_size = file_size;
+
+        // Success!
+        result = BPACKAGE_RESULT_SUCCESS;
+
+    get_data_cleanup:
+        filesystem_close(&f);
+
+        if (result != BPACKAGE_RESULT_SUCCESS)
+        {
+            if (data)
+                bfree(data, file_size, MEMORY_TAG_ASSET);
+        }
+        else
+        {
+            // BERROR("Package '%s' does not contain asset '%s'", package_name, name_str);
+        }
+        return result;
     }
-    
-    BERROR("Package '%s': No entry called '%s' exists", package_name, name_str);
-    return 0;
 }
 
 bpackage_result bpackage_asset_bytes_get(const bpackage* package, bname name, b8 get_source, u64* out_size, const void** out_data)

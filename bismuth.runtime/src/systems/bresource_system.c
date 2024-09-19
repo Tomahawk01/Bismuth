@@ -112,7 +112,7 @@ bresource* bresource_system_request(struct bresource_system_state* state, bname 
         // Look for an empty slot
         for (u32 i = 0; i < state->max_resource_count; ++i)
         {
-            resource_lookup* lookup = &state->lookups[lookup_index];
+            resource_lookup* lookup = &state->lookups[i];
             if (lookup->r.name == INVALID_BNAME)
             {
                 // Add an entry to the bst for this node

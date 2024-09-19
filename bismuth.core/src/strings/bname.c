@@ -11,6 +11,9 @@ static bt_node* string_lookup = 0;
 
 bname bname_create(const char* str)
 {
+    if (!str || string_length(str) == 0)
+        return INVALID_BNAME;
+
     // Take a copy of the string to hash
     char* copy = string_duplicate(str);
     // Convert it to lowercase before hashing

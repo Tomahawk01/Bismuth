@@ -779,7 +779,7 @@ b8 render_scene(forward_rendergraph_node_internal_data* internal_data, bresource
         for (u32 i = 0; i < terrain_geometry_count; ++i)
         {
             material* m = internal_data->terrain_geometries[i].material;
-            if (!m)
+            if (!m || m->internal_id == INVALID_ID)
                 m = material_system_get_default_terrain();
 
             // Update material if it hasn't already been this frame

@@ -64,7 +64,7 @@ void asset_handler_base_on_asset_loaded(struct vfs_state* vfs, vfs_asset_data as
     // 5. On success, attempt to load the binary asset again. Return result of that load request. NOTE: not currently doing this
     if (asset_data.result == VFS_REQUEST_RESULT_SUCCESS)
     {
-        BTRACE("Asset load from VFS successful");
+        BTRACE("Asset '%s' load from VFS successful", bname_string_get(asset_data.asset_name));
 
         // Default to an internal failure
         asset_request_result result = ASSET_REQUEST_RESULT_INTERNAL_FAILURE;
@@ -91,6 +91,7 @@ void asset_handler_base_on_asset_loaded(struct vfs_state* vfs, vfs_asset_data as
                 goto from_source_cleanup;
             }
 
+            context.asset->package_name = asset_data.package_name;
             if (!importer->import(importer, asset_data.size, asset_data.bytes, 0, context.asset))
             {
                 BERROR("Automatic asset import failed. See logs for details");
@@ -142,7 +143,7 @@ void asset_handler_base_on_asset_loaded(struct vfs_state* vfs, vfs_asset_data as
         }
         else
         {
-            BTRACE("Primary asset loaded");
+            BTRACE("Primary asset '%s' loaded", bname_string_get(asset_data.asset_name));
             // From primary file
             // Deserialize directly. This either means that the primary asset already existed or was imported successfully
             if (context.handler->binary_deserialize)

@@ -275,9 +275,11 @@ b8 renderer_on_window_created(struct renderer_system_state* state, struct bwindo
     // Create a new window state and register it
     window->renderer_state = ballocate(sizeof(bwindow_renderer_state), MEMORY_TAG_RENDERER);
 
-    // Start with invalid color/depth buffer texture handles
-    window->renderer_state->colorbuffer.renderer_texture_handle = b_handle_invalid();
-    window->renderer_state->depthbuffer.renderer_texture_handle = b_handle_invalid();
+    window->renderer_state->colorbuffer = ballocate(sizeof(bresource_texture), MEMORY_TAG_RENDERER);
+    window->renderer_state->depthbuffer = ballocate(sizeof(bresource_texture), MEMORY_TAG_RENDERER);
+    // Start with invalid colour/depth buffer texture handles
+    window->renderer_state->colorbuffer->renderer_texture_handle = b_handle_invalid();
+    window->renderer_state->depthbuffer->renderer_texture_handle = b_handle_invalid();
 
     // Create backend resources (i.e swapchain, surface, images, etc)
     if (!state->backend->window_create(state->backend, window))

@@ -116,18 +116,18 @@ b8 water_plane_load(water_plane* plane)
         u32 tex_height = window->height;
 
         // Create reflection textures
-        plane->reflection_color = texture_system_request_writeable(bname_create("__waterplane_reflection_color__"), tex_width, tex_height, BRESOURCE_TEXTURE_FORMAT_RGBA8, false);
+        plane->reflection_color = texture_system_request_writeable(bname_create("__waterplane_reflection_color__"), tex_width, tex_height, BRESOURCE_TEXTURE_FORMAT_RGBA8, false, true);
         if (!plane->reflection_color)
             return false;
-        plane->reflection_depth = texture_system_request_depth(bname_create("__waterplane_reflection_depth__"), tex_width, tex_height);
+        plane->reflection_depth = texture_system_request_depth(bname_create("__waterplane_reflection_depth__"), tex_width, tex_height, true);
         if (!plane->reflection_depth)
             return false;
 
         // Create refraction textures
-        plane->refraction_color = texture_system_request_writeable(bname_create("__waterplane_refraction_color__"), tex_width, tex_height, BRESOURCE_TEXTURE_FORMAT_RGBA8, false);
+        plane->refraction_color = texture_system_request_writeable(bname_create("__waterplane_refraction_color__"), tex_width, tex_height, BRESOURCE_TEXTURE_FORMAT_RGBA8, false, true);
         if (!plane->refraction_color)
             return false;
-        plane->refraction_depth = texture_system_request_depth(bname_create("__waterplane_refraction_depth__"), tex_width, tex_height);
+        plane->refraction_depth = texture_system_request_depth(bname_create("__waterplane_refraction_depth__"), tex_width, tex_height, true);
         if (!plane->refraction_depth)
             return false;
 

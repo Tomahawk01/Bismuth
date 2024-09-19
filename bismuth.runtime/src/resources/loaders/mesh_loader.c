@@ -183,13 +183,19 @@ static b8 load_bsm_file(file_handle* bsm_file, geometry_config** out_geometries_
 
         // Name
         u32 g_name_length = 0;
+        char geometry_name[256];
+        bzero_memory(geometry_name, sizeof(char) * 256);
         filesystem_read(bsm_file, sizeof(u32), &g_name_length, &bytes_read);
-        filesystem_read(bsm_file, sizeof(char) * g_name_length, g.name, &bytes_read);
+        filesystem_read(bsm_file, sizeof(char) * g_name_length, geometry_name, &bytes_read);
+        g.name = bname_create(geometry_name);
 
         // Material Name
         u32 m_name_length = 0;
+        char mat_name[256];
+        bzero_memory(mat_name, sizeof(char) * 256);
         filesystem_read(bsm_file, sizeof(u32), &m_name_length, &bytes_read);
-        filesystem_read(bsm_file, sizeof(char) * m_name_length, g.material_name, &bytes_read);
+        filesystem_read(bsm_file, sizeof(char) * m_name_length, mat_name, &bytes_read);
+        g.material_name = bname_create(mat_name);
 
         // Center
         filesystem_read(bsm_file, sizeof(vec3), &g.center, &bytes_read);
@@ -250,14 +256,16 @@ static b8 write_bsm_file(const char* path, const char* name, u32 geometry_count,
         filesystem_write(&f, g->index_size * g->index_count, g->indices, &written);
 
         // Name
-        u32 g_name_length = string_length(g->name) + 1;
+        const char* geometry_name_str = bname_string_get(g->name);
+        u32 g_name_length = string_length(geometry_name_str) + 1;
         filesystem_write(&f, sizeof(u32), &g_name_length, &written);
-        filesystem_write(&f, sizeof(char) * g_name_length, g->name, &written);
+        filesystem_write(&f, sizeof(char) * g_name_length, geometry_name_str, &written);
 
         // Material Name
-        u32 m_name_length = string_length(g->material_name) + 1;
+        const char* mat_name_str = bname_string_get(g->material_name);
+        u32 m_name_length = string_length(mat_name_str) + 1;
         filesystem_write(&f, sizeof(u32), &m_name_length, &written);
-        filesystem_write(&f, sizeof(char) * m_name_length, g->material_name, &written);
+        filesystem_write(&f, sizeof(char) * m_name_length, mat_name_str, &written);
 
         // Center
         filesystem_write(&f, sizeof(vec3), &g->center, &written);
@@ -429,11 +437,15 @@ static b8 import_obj_file(file_handle* obj_file, const char* out_bsm_filename, g
                 for (u64 i = 0; i < group_count; ++i)
                 {
                     geometry_config new_data = {};
-                    string_ncopy(new_data.name, name, 255);
-
+                    char* new_name = 0;
                     if (i > 0)
-                        string_append_int(new_data.name, new_data.name, i);
-                    string_ncopy(new_data.material_name, material_names[i], 255);
+                        string_format("%s%d", name, i);
+                    else
+                        new_name = string_duplicate(name);
+                    new_data.name = bname_create(new_name);
+                    string_free(new_name);
+
+                    new_data.material_name = bname_create(material_names[i]);
 
                     process_subobject(positions, normals, tex_coords, groups[i].faces, &new_data);
                     new_data.vertex_count = darray_length(new_data.vertices);
@@ -467,10 +479,15 @@ static b8 import_obj_file(file_handle* obj_file, const char* out_bsm_filename, g
     for (u64 i = 0; i < group_count; ++i)
     {
         geometry_config new_data = {};
-        string_ncopy(new_data.name, name, 255);
+        char* new_name = 0;
         if (i > 0)
-            string_append_int(new_data.name, new_data.name, i);
-        string_ncopy(new_data.material_name, material_names[i], 255);
+            string_format("%s%d", name, i);
+        else
+            new_name = string_duplicate(name);
+        new_data.name = bname_create(new_name);
+        string_free(new_name);
+
+        new_data.material_name = bname_create(material_names[i]);
 
         process_subobject(positions, normals, tex_coords, groups[i].faces, &new_data);
         new_data.vertex_count = darray_length(new_data.vertices);
@@ -987,22 +1004,22 @@ static b8 write_bmt_file(const char* mtl_file_path, material_config* config)
                 break;
             case SHADER_UNIFORM_TYPE_MATRIX_4:
                 string_format_unsafe(line_buffer, "value=%f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f ",
-                              config->properties[i].value_mat4.data[0],
-                              config->properties[i].value_mat4.data[1],
-                              config->properties[i].value_mat4.data[2],
-                              config->properties[i].value_mat4.data[3],
-                              config->properties[i].value_mat4.data[4],
-                              config->properties[i].value_mat4.data[5],
-                              config->properties[i].value_mat4.data[6],
-                              config->properties[i].value_mat4.data[7],
-                              config->properties[i].value_mat4.data[8],
-                              config->properties[i].value_mat4.data[9],
-                              config->properties[i].value_mat4.data[10],
-                              config->properties[i].value_mat4.data[11],
-                              config->properties[i].value_mat4.data[12],
-                              config->properties[i].value_mat4.data[13],
-                              config->properties[i].value_mat4.data[14],
-                              config->properties[i].value_mat4.data[15]);
+                                    config->properties[i].value_mat4.data[0],
+                                    config->properties[i].value_mat4.data[1],
+                                    config->properties[i].value_mat4.data[2],
+                                    config->properties[i].value_mat4.data[3],
+                                    config->properties[i].value_mat4.data[4],
+                                    config->properties[i].value_mat4.data[5],
+                                    config->properties[i].value_mat4.data[6],
+                                    config->properties[i].value_mat4.data[7],
+                                    config->properties[i].value_mat4.data[8],
+                                    config->properties[i].value_mat4.data[9],
+                                    config->properties[i].value_mat4.data[10],
+                                    config->properties[i].value_mat4.data[11],
+                                    config->properties[i].value_mat4.data[12],
+                                    config->properties[i].value_mat4.data[13],
+                                    config->properties[i].value_mat4.data[14],
+                                    config->properties[i].value_mat4.data[15]);
                 break;
             case SHADER_UNIFORM_TYPE_CUSTOM:
             default:

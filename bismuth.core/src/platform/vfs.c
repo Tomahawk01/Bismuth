@@ -136,17 +136,17 @@ void vfs_request_asset_sync(vfs_state* state, bname package_name, bname asset_na
         out_data->context = 0;
     }
 
-    const char* package_name_str = bname_string_get(package_name);
     const char* asset_name_str = bname_string_get(asset_name);
-    BDEBUG("Loading asset '%s' from package '%s'...", asset_name_str, package_name_str);
 
     u32 package_count = darray_length(state->packages);
     for (u32 i = 0; i < package_count; ++i)
     {
         bpackage* package = &state->packages[i];
 
-        if (package->name == package_name)
+        if (package_name == INVALID_BNAME || package->name == package_name)
         {
+            const char* package_name_str = bname_string_get(package->name);
+            BDEBUG("Attempting to load asset '%s' from package '%s'...", asset_name_str, package_name_str);
             // Determine if the asset type is text
             bpackage_result result = BPACKAGE_RESULT_INTERNAL_FAILURE;
             if (is_binary)
@@ -166,7 +166,7 @@ void vfs_request_asset_sync(vfs_state* state, bname package_name, bname asset_na
             // Translate the result to VFS layer and send on up
             if (result != BPACKAGE_RESULT_SUCCESS)
             {
-                BERROR("Failed to load binary asset. See logs for details");
+                BTRACE("Failed to load binary asset. See logs for details");
                 switch (result)
                 {
                 case BPACKAGE_RESULT_PRIMARY_GET_FAILURE:
@@ -186,17 +186,25 @@ void vfs_request_asset_sync(vfs_state* state, bname package_name, bname asset_na
                 out_data->result = VFS_REQUEST_RESULT_SUCCESS;
                 // Include a copy of the asset path
                 if (get_source)
+                {
+                    // Keep the package name in case an importer needs it later
+                    out_data->package_name = package->name;
                     out_data->path = bpackage_source_string_for_asset(package, asset_name);
+                }
                 else
+                {
                     out_data->path = bpackage_path_for_asset(package, asset_name);
+                }
             }
 
-            return;
+            // Boot out only if success OR looking through all packages (no package name provided)
+            if (result == BPACKAGE_RESULT_SUCCESS || package_name != INVALID_BNAME)
+                return;
         }
     }
 
-    BERROR("No package named '%s' exists. Nothing was done", package_name_str);
-    out_data->result = VFS_REQUEST_RESULT_PACKAGE_DOES_NOT_EXIST;
+    BERROR("No asset named '%s' exists in any package. Nothing was done", asset_name_str);
+    // out_data->result = VFS_REQUEST_RESULT_PACKAGE_DOES_NOT_EXIST;
     return;
 }
 

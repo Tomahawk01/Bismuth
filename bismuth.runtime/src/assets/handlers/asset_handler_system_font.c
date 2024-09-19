@@ -74,7 +74,7 @@ static void asset_handler_system_font_on_asset_loaded(struct vfs_state* vfs, vfs
 
     if (asset_data.result == VFS_REQUEST_RESULT_SUCCESS)
     {
-        BTRACE("Asset load from VFS successful");
+        BTRACE("Asset '%s' load from VFS successful", bname_string_get(asset_data.asset_name));
 
         // Default to an internal failure
         asset_request_result result = ASSET_REQUEST_RESULT_INTERNAL_FAILURE;
@@ -87,7 +87,7 @@ static void asset_handler_system_font_on_asset_loaded(struct vfs_state* vfs, vfs
         }
         else
         {
-            BTRACE("Primary asset loaded");
+            BTRACE("Primary asset '%s' loaded", bname_string_get(asset_data.asset_name));
             // From primary file
             // Deserialize directly. This either means that the primary asset already existed or was imported successfully
             if (context.handler->binary_deserialize)
