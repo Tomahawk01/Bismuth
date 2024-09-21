@@ -334,7 +334,7 @@ static b8 serialize_attachment(basset_scene_node_attachment* attachment, bson_ob
         // NOTE: Intentionally blank until additional config is added to water planes
     } break;
     case BASSET_SCENE_NODE_ATTACHMENT_TYPE_COUNT:
-        BERROR("Stop trying to serialize the count member of the enum, you dingus!");
+        BERROR("Stop trying to serialize the count member of the enum");
         return false;
     }
 
@@ -717,7 +717,7 @@ static b8 deserialize_attachment(basset* asset, basset_scene_node_attachment* at
         // NOTE: Intentionally blank until additional config is added to water planes
     } break;
     case BASSET_SCENE_NODE_ATTACHMENT_TYPE_COUNT:
-        BERROR("Stop trying to serialize the count member of the enum, you dingus!");
+        BERROR("Stop trying to serialize the count member of the enum");
         return false;
     }
 

@@ -15,7 +15,7 @@ struct asset_system_state;
 typedef struct resource_lookup
 {
     // The resource itself, owned by this lookup
-    bresource r;
+    bresource* r;
     // The current number of references to the resource
     i32 reference_count;
     // Indicates if the resource will be released when the reference_count reaches 0
@@ -54,6 +54,7 @@ b8 bresource_system_initialize(u64* memory_requirement, struct bresource_system_
 
     // Register known handler types
     bresource_handler texture_handler = {0};
+    texture_handler.allocate = bresource_handler_texture_allocate;
     texture_handler.release = bresource_handler_texture_release;
     texture_handler.request = bresource_handler_texture_request;
     if (!bresource_system_handler_register(state, BRESOURCE_TYPE_TEXTURE, texture_handler))
@@ -72,8 +73,8 @@ void bresource_system_shutdown(struct bresource_system_state* state)
     {
         for (u32 i = 0; i < state->max_resource_count; ++i)
         {
-            if (state->lookups[i].r.name != INVALID_BNAME)
-                bresource_system_release_internal(state, &state->lookups[i].r, true);
+            if (state->lookups[i].r)
+                bresource_system_release_internal(state, state->lookups[i].r, true);
         }
 
         // Destroy the bst
@@ -101,10 +102,10 @@ bresource* bresource_system_request(struct bresource_system_state* state, bname 
         lookup->reference_count++;
         // Immediately issue the callback if setup
         if (info->user_callback)
-            info->user_callback(&lookup->r, info->listener_inst);
+            info->user_callback(lookup->r, info->listener_inst);
 
         // Return a pointer to the resource
-        return &lookup->r;
+        return lookup->r;
     }
     else
     {
@@ -113,8 +114,23 @@ bresource* bresource_system_request(struct bresource_system_state* state, bname 
         for (u32 i = 0; i < state->max_resource_count; ++i)
         {
             resource_lookup* lookup = &state->lookups[i];
-            if (lookup->r.name == INVALID_BNAME)
+            if (!lookup->r)
             {
+                // Grab a handler for the resource type, if there is one
+                bresource_handler* h = &state->handlers[info->type];
+                if (!h->allocate)
+                {
+                    BERROR("There is no handler setup for the asset type. Null/0 will be returned");
+                    return 0;
+                }
+                // Have the handler allocate memory for the resource
+                lookup->r = h->allocate();
+                if (!lookup->r)
+                {
+                    BERROR("Resource handler failed to allocate resource. Null/0 will be returned");
+                    return 0;
+                }
+
                 // Add an entry to the bst for this node
                 bt_node_value v;
                 v.u32 = i;
@@ -124,31 +140,23 @@ bresource* bresource_system_request(struct bresource_system_state* state, bname 
                     state->lookup_tree = new_node;
 
                 // Setup the resource
-                lookup->r.name = name;
-                lookup->r.type = info->type;
-                lookup->r.state = BRESOURCE_STATE_UNINITIALIZED;
-                lookup->r.generation = INVALID_ID;
-                lookup->r.tag_count = 0;
-                lookup->r.tags = 0;
+                lookup->r->name = name;
+                lookup->r->type = info->type;
+                lookup->r->state = BRESOURCE_STATE_UNINITIALIZED;
+                lookup->r->generation = INVALID_ID;
+                lookup->r->tag_count = 0;
+                lookup->r->tags = 0;
                 lookup->reference_count = 0;
 
-                // Grab a handler for the resource type, if there is one
-                bresource_handler* h = &state->handlers[info->type];
-                if (!h->request)
-                {
-                    BERROR("There is no handler setup for the asset type. Null/0 will be returned");
-                    return 0;
-                }
-
                 // Make the actual request
-                b8 result = h->request(h, &lookup->r, info);
+                b8 result = h->request(h, lookup->r, info);
                 if (result)
                 {
                     // Increment reference count
                     lookup->reference_count++;
 
                     // Return a pointer to the resource, even if it's not yet ready
-                    return &lookup->r;
+                    return lookup->r;
                 }
 
                 // This means the handler failed
@@ -185,6 +193,7 @@ b8 bresource_system_handler_register(struct bresource_system_state* state, breso
     }
 
     h->asset_system = state->asset_system;
+    h->allocate = handler.allocate;
     h->request = handler.request;
     h->release = handler.release;
 
@@ -217,24 +226,20 @@ static void bresource_system_release_internal(struct bresource_system_state* sta
         if (do_release)
         {
             // Auto release set and criteria met, so call resource handler's 'release' function
-            bresource_handler* handler = &state->handlers[lookup->r.type];
+            bresource_handler* handler = &state->handlers[lookup->r->type];
             if (!handler->release)
             {
-                BTRACE("No release setup on handler for resource type %d, name='%s'", lookup->r.type, bname_string_get(lookup->r.name));
+                BTRACE("No release setup on handler for resource type %d, name='%s'", lookup->r->type, bname_string_get(lookup->r->name));
             }
             else
             {
                 // Release the resource-specific data
-                handler->release(handler, &lookup->r);
+                handler->release(handler, lookup->r);
             }
 
+            lookup->r = 0;
+
             // Ensure the lookup is invalidated
-            lookup->r.type = BRESOURCE_TYPE_UNKNOWN;
-            lookup->r.name = INVALID_BNAME;
-            lookup->r.generation = INVALID_ID;
-            lookup->r.state = BRESOURCE_STATE_UNINITIALIZED;
-            lookup->r.tags = 0;
-            lookup->r.tag_count = 0;
             lookup->reference_count = 0;
             lookup->auto_release = false;
         }

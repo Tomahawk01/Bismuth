@@ -68,6 +68,9 @@ typedef struct vfs_asset_data
 
     u32 context_size;
     void* context;
+
+    u32 import_params_size;
+    void* import_params;
 } vfs_asset_data;
 
 typedef void (*PFN_on_asset_loaded_callback)(struct vfs_state* vfs, vfs_asset_data asset_data);
@@ -75,8 +78,8 @@ typedef void (*PFN_on_asset_loaded_callback)(struct vfs_state* vfs, vfs_asset_da
 BAPI b8 vfs_initialize(u64* memory_requirement, vfs_state* out_state, const vfs_config* config);
 BAPI void vfs_shutdown(vfs_state* state);
 
-BAPI void vfs_request_asset(vfs_state* state, bname package_name, bname asset_name, b8 is_binary, b8 get_source, u32 context_size, const void* context, PFN_on_asset_loaded_callback callback);
-BAPI void vfs_request_asset_sync(vfs_state* state, bname package_name, bname asset_name, b8 is_binary, b8 get_source, u32 context_size, const void* context, vfs_asset_data* out_data);
+BAPI void vfs_request_asset(vfs_state* state, bname package_name, bname asset_name, b8 is_binary, b8 get_source, u32 context_size, const void* context, u32 import_params_size, void* import_params, PFN_on_asset_loaded_callback callback);
+BAPI void vfs_request_asset_sync(vfs_state* state, bname package_name, bname asset_name, b8 is_binary, b8 get_source, u32 context_size, const void* context, u32 import_params_size, void* import_params, vfs_asset_data* out_data);
 
 BAPI const char* vfs_path_for_asset(vfs_state* state, bname package_name, bname asset_name);
 BAPI const char* vfs_source_path_for_asset(vfs_state* state, bname package_name, bname asset_name);

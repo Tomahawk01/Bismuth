@@ -71,9 +71,6 @@ BAPI void renderer_end_rendering(struct renderer_system_state* state, struct fra
 BAPI void renderer_set_stencil_compare_mask(u32 compare_mask);
 BAPI void renderer_set_stencil_write_mask(u32 write_mask);
 
-BDEPRECATED("Old texture structure")
-BAPI b8 renderer_texture_resources_acquire(struct renderer_system_state* state, const char* name, texture_type type, u32 width, u32 height, u8 channel_count, u8 mip_levels, u16 array_size, texture_flag_bits flags, b_handle* out_renderer_texture_handle);
-
 BAPI b8 renderer_bresource_texture_resources_acquire(struct renderer_system_state* state, bname name, bresource_texture_type type, u32 width, u32 height, u8 channel_count, u8 mip_levels, u16 array_size, bresource_texture_flag_bits flags, b_handle* out_renderer_texture_handle);
 BAPI void renderer_texture_resources_release(struct renderer_system_state* state, b_handle* handle);
 BAPI struct texture_internal_data* renderer_texture_resources_get(struct renderer_system_state* state, b_handle renderer_texture_handle);
@@ -131,9 +128,6 @@ BAPI b8 renderer_shader_instance_resources_acquire(struct renderer_system_state*
 BAPI b8 renderer_shader_instance_resources_release(struct renderer_system_state* state, struct shader* s, u32 instance_id);
 
 BAPI b8 renderer_shader_uniform_set(struct renderer_system_state* state, struct shader* s, struct shader_uniform* uniform, u32 array_index, const void* value);
-
-BAPI b8 renderer_texture_map_resources_acquire(struct texture_map* map);
-BAPI void renderer_texture_map_resources_release(struct texture_map* map);
 
 BAPI b8 renderer_bresource_texture_map_resources_acquire(struct renderer_system_state* state, struct bresource_texture_map* map);
 BAPI void renderer_bresource_texture_map_resources_release(struct renderer_system_state* state, struct bresource_texture_map* map);

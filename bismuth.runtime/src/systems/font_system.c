@@ -424,16 +424,6 @@ b8 font_system_bitmap_font_load(bitmap_font_config* config)
     if (!renderer_bresource_texture_map_resources_acquire(engine_systems_get()->renderer_system, map))
         BERROR("Unable to acquire texture map resources. Bitmap font cannot be initialized");
 
-    // Create map resources
-    font->atlas.filter_magnify = font->atlas.filter_minify = TEXTURE_FILTER_MODE_LINEAR;
-    font->atlas.repeat_u = font->atlas.repeat_v = font->atlas.repeat_w = TEXTURE_REPEAT_CLAMP_TO_EDGE;
-    if (!renderer_bresource_texture_map_resources_acquire(engine_systems_get()->renderer_system, &font->atlas))
-    {
-        BERROR("Unable to acquire resources for font atlas texture map");
-        return false;
-    }
-    font->atlas.texture = font->atlas_texture;
-
     b8 result = setup_font_data(&lookup->font.resource_data->data);
 
     // Set entry id here last before updating hashtable

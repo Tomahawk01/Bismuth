@@ -561,7 +561,7 @@ b8 render_water_planes(forward_rendergraph_node_internal_data* internal_data, u3
 
             // Shadow maps
             const bresource_texture* shadow_map_texture = internal_data->shadowmap_source->value.t;
-            plane->maps[WATER_PLANE_MAP_SHADOW].texture = shadow_map_texture ? shadow_map_texture : texture_system_get_default_bresource_diffuse_texture(internal_data->texture_system);
+            plane->maps[WATER_PLANE_MAP_SHADOW].texture = shadow_map_texture ? shadow_map_texture : texture_system_get_default_bresource_terrain_texture(internal_data->texture_system);
             // Ensure there are valid resources acquired first
             if (plane->maps[WATER_PLANE_MAP_SHADOW].internal_id == INVALID_ID)
             {
@@ -799,7 +799,7 @@ b8 render_scene(forward_rendergraph_node_internal_data* internal_data, bresource
 
                 // Shadow Maps TODO: Should this be global?
                 const bresource_texture* shadow_map_texture = internal_data->shadowmap_source->value.t;
-                m->maps[TERRAIN_SAMP_IDX_SHADOW_MAP].texture = shadow_map_texture ? shadow_map_texture : texture_system_get_default_bresource_diffuse_texture(internal_data->texture_system);
+                m->maps[TERRAIN_SAMP_IDX_SHADOW_MAP].texture = shadow_map_texture ? shadow_map_texture : texture_system_get_default_bresource_terrain_texture(internal_data->texture_system);
                 UNIFORM_APPLY_OR_FAIL(shader_system_uniform_set_by_location(internal_data->terrain_shader_id, internal_data->terrain_locations.shadow_textures, &m->maps[TERRAIN_SAMP_IDX_SHADOW_MAP]));
 
                 // Irradience map - use the material-assigned one if exists, otherwise use the "global" assigned one
@@ -948,7 +948,7 @@ b8 render_scene(forward_rendergraph_node_internal_data* internal_data, bresource
 
                     // Shadow Maps
                     const bresource_texture* shadow_map_texture = internal_data->shadowmap_source->value.t;
-                    m->maps[PBR_SAMP_IDX_SHADOW_MAP].texture = shadow_map_texture ? shadow_map_texture : texture_system_get_default_bresource_diffuse_texture(internal_data->texture_system);
+                    m->maps[PBR_SAMP_IDX_SHADOW_MAP].texture = shadow_map_texture ? shadow_map_texture : texture_system_get_default_bresource_terrain_texture(internal_data->texture_system);
                     UNIFORM_APPLY_OR_FAIL(shader_system_uniform_set_by_location(internal_data->pbr_shader_id, internal_data->pbr_locations.shadow_textures, &m->maps[PBR_SAMP_IDX_SHADOW_MAP]));
 
                     // Irradience map - use the material-assigned one if exists, otherwise use the "global" assigned one

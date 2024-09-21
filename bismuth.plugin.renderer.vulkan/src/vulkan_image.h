@@ -5,7 +5,7 @@
 
 void vulkan_image_create(
     vulkan_context* context,
-    texture_type type,
+    bresource_texture_type type,
     u32 width,
     u32 height,
     u16 layer_count,

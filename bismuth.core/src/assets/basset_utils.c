@@ -92,7 +92,7 @@ void asset_handler_base_on_asset_loaded(struct vfs_state* vfs, vfs_asset_data as
             }
 
             context.asset->package_name = asset_data.package_name;
-            if (!importer->import(importer, asset_data.size, asset_data.bytes, 0, context.asset))
+            if (!importer->import(importer, asset_data.size, asset_data.bytes, asset_data.import_params, context.asset))
             {
                 BERROR("Automatic asset import failed. See logs for details");
                 result = ASSET_REQUEST_RESULT_AUTO_IMPORT_FAILED;
@@ -185,7 +185,7 @@ void asset_handler_base_on_asset_loaded(struct vfs_state* vfs, vfs_asset_data as
         if (asset_data.result == VFS_REQUEST_RESULT_FILE_DOES_NOT_EXIST)
         {
             // Request the source asset. Can reuse the passed-in context
-            vfs_request_asset(vfs, context.asset->package_name, context.asset->name, true, true, sizeof(asset_handler_request_context), &context, asset_handler_base_on_asset_loaded);
+            vfs_request_asset(vfs, context.asset->package_name, context.asset->name, true, true, sizeof(asset_handler_request_context), &context, asset_data.import_params_size, asset_data.import_params, asset_handler_base_on_asset_loaded);
         }
         else if (asset_data.result == VFS_REQUEST_RESULT_SOURCE_FILE_DOES_NOT_EXIST)
         {

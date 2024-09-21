@@ -27,6 +27,11 @@ typedef struct texture_resource_handler_info
 
 static void texture_basset_on_result(asset_request_result result, const struct basset* asset, void* listener_inst);
 
+bresource* bresource_handler_texture_allocate(void)
+{
+    return (bresource*)ballocate(sizeof(bresource_texture), MEMORY_TAG_RESOURCE);
+}
+
 b8 bresource_handler_texture_request(struct bresource_handler* self, bresource* resource, const struct bresource_request_info* info)
 {
     if (!self || !resource)
@@ -76,10 +81,14 @@ b8 bresource_handler_texture_request(struct bresource_handler* self, bresource* 
     if (assets_required)
         listener_inst->assets = array_bimage_ptr_create(info->assets.base.length);
 
+    // Asset import params
+    basset_image_import_options import_params = {0};
+    import_params.flip_y = typed_request->flip_y;
+    import_params.format = BASSET_IMAGE_FORMAT_RGBA8; // TODO: configurable per asset?
+
     // Load all assets (might only be one)
     if (info->assets.data)
     {
-        bzero_memory(listener_inst->typed_resource, sizeof(bresource_texture));
         for (array_iterator it = info->assets.begin(&info->assets.base); !it.end(&it); it.next(&it))
         {
             bresource_asset_info* asset_info = it.value(&it);
@@ -92,7 +101,9 @@ b8 bresource_handler_texture_request(struct bresource_handler* self, bresource* 
                     asset_info->asset_name,
                     true,
                     listener_inst,
-                    texture_basset_on_result);
+                    texture_basset_on_result,
+                    sizeof(basset_image_import_options),
+                    &import_params);
             }
             else if (asset_info->type == BASSET_TYPE_UNKNOWN)
             {
@@ -130,7 +141,7 @@ b8 bresource_handler_texture_request(struct bresource_handler* self, bresource* 
         // Acquire the resources for the texture
         b8 acquisition_result = renderer_bresource_texture_resources_acquire(
             renderer,
-            resource->name,
+            typed_resource->base.name,
             typed_resource->type,
             typed_resource->width,
             typed_resource->height,
@@ -185,7 +196,7 @@ b8 bresource_handler_texture_request(struct bresource_handler* self, bresource* 
         // Acquire the resources for the texture
         b8 acquisition_result = renderer_bresource_texture_resources_acquire(
             renderer,
-            resource->name,
+            typed_resource->base.name,
             typed_resource->type,
             typed_resource->width,
             typed_resource->height,
@@ -213,7 +224,15 @@ void bresource_handler_texture_release(struct bresource_handler* self, bresource
 {
     if (resource)
     {
-        //
+        if (resource->type != BRESOURCE_TYPE_TEXTURE)
+        {
+            BERROR("Attempted to release non-texture resource '%s' via texture resource handler. Resource not released");
+            return;
+        }
+        // Release GPU resources
+        bresource_texture* t = (bresource_texture*)resource;
+        renderer_texture_resources_release(engine_systems_get()->renderer_system, &t->renderer_texture_handle);
+        bfree(resource, sizeof(bresource_texture), MEMORY_TAG_RESOURCE);
     }
 }
 
@@ -323,7 +342,7 @@ static void texture_basset_on_result(asset_request_result result, const struct b
                         pixel_array_offset += image->pixel_array_size;
 
                         // Release the asset reference as we are done with it
-                        asset_system_release(asset_system, image->base.package_name, image->base.name);
+                        asset_system_release(asset_system, image->base.name, image->base.package_name);
                     }
 
                     array_b8_destroy(&mismatches);

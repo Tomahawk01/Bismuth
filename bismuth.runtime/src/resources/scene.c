@@ -218,12 +218,12 @@ void scene_node_initialize(scene* s, b_handle parent_handle, scene_node_config* 
                     if (!mesh_create(new_mesh_config, &new_mesh))
                     {
                         BERROR("Failed to create new mesh in scene");
-                        bfree(new_mesh_config.resource_name, string_length(new_mesh_config.resource_name), MEMORY_TAG_STRING);
+                        string_free(new_mesh_config.resource_name);
                         return;
                     }
 
                     // Destroy the config
-                    bfree(new_mesh_config.resource_name, string_length(new_mesh_config.resource_name), MEMORY_TAG_STRING);
+                    string_free(new_mesh_config.resource_name);
 
                     if (!mesh_initialize(&new_mesh))
                     {
@@ -293,8 +293,8 @@ void scene_node_initialize(scene* s, b_handle parent_handle, scene_node_config* 
                     }
 
                     // Destroy the config
-                    bfree(new_terrain_config.resource_name, string_length(new_terrain_config.resource_name), MEMORY_TAG_STRING);
-                    bfree(new_terrain_config.name, string_length(new_terrain_config.name), MEMORY_TAG_STRING);
+                    string_free(new_terrain_config.resource_name);
+                    string_free(new_terrain_config.name);
 
                     if (!terrain_initialize(&new_terrain))
                     {

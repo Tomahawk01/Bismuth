@@ -102,21 +102,6 @@ typedef enum texture_type
 } texture_type;
 
 #define TEXTURE_NAME_MAX_LENGTH 512
-typedef struct texture
-{
-    u32 id;
-    texture_type type;
-    u32 width;
-    u32 height;
-    u8 channel_count;
-    u16 array_size;
-    texture_flag_bits flags;
-    char* name;
-    u32 mip_levels;
-    b_handle renderer_texture_handle;
-    u8 generation;
-} texture;
-
 #define MATERIAL_NAME_MAX_LENGTH 256
 
 struct material;

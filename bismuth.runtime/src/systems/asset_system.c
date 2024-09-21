@@ -158,7 +158,7 @@ void asset_system_shutdown(struct asset_system_state* state)
     }
 }
 
-void asset_system_request(struct asset_system_state* state, basset_type type, bname package_name, bname asset_name, b8 auto_release, void* listener_instance, PFN_basset_on_result callback)
+void asset_system_request(struct asset_system_state* state, basset_type type, bname package_name, bname asset_name, b8 auto_release, void* listener_instance, PFN_basset_on_result callback, u32 import_params_size, void* import_params)
 {
     BASSERT(state);
     // Lookup the asset by fully-qualified name
@@ -217,6 +217,8 @@ void asset_system_request(struct asset_system_state* state, basset_type type, bn
                         false,
                         sizeof(asset_handler_request_context),
                         &context,
+                        import_params_size,
+                        import_params,
                         asset_handler_base_on_asset_loaded);
                 }
                 else

@@ -63,10 +63,10 @@ typedef struct material_system_state
     shader* pbr_shader;
 
     // Current irradiance cubemap texture to be used
-    texture* irradiance_cube_texture;
+    const bresource_texture* irradiance_cube_texture;
 
     // The current shadow texture to be used for the next draw
-    texture* shadow_texture;
+    bresource_texture* shadow_texture;
 
     mat4 directional_light_space[MAX_SHADOW_CASCADE_COUNT];
 
@@ -121,7 +121,7 @@ b8 material_system_initialize(u64* memory_requirement, material_system_state* st
     state->pbr_shader_id = INVALID_ID;
 
     // Array block is after the state. Already allocated, so just set the pointer
-    void* array_block = state + struct_requirement;
+    void* array_block = ((void*)state) + struct_requirement;
     state->registered_materials = array_block;
 
     // Hashtable block is after array
@@ -155,7 +155,7 @@ b8 material_system_initialize(u64* memory_requirement, material_system_state* st
     state->terrain_shader_id = state->terrain_shader->id;
 
     // Grab default cubemap texture as irradiance texture
-    state->irradiance_cube_texture = texture_system_get_default_cube_texture();
+    state->irradiance_cube_texture = texture_system_get_default_bresource_cube_texture(state->texture_system);
 
     // Assign defaults
     for (u32 i = 0; i < MAX_SHADOW_CASCADE_COUNT; ++i)
@@ -345,7 +345,7 @@ material* material_system_acquire_terrain_material(const char* material_name, u3
         properties->padding2 = vec4_zero();
 
         // 3 maps per material for PBR. Allocate enough slots for all materials. Also 1 for irradiance map
-        m->maps = darray_reserve(texture_map, TERRAIN_SAMP_COUNT);
+        m->maps = darray_reserve(bresource_texture_map, TERRAIN_SAMP_COUNT);
         darray_length_set(m->maps, TERRAIN_SAMP_COUNT);
 
         // One map is needed for the entire material array
@@ -372,16 +372,8 @@ material* material_system_acquire_terrain_material(const char* material_name, u3
                 return false;
             }
         }
-        // Release texture names
-        for (u32 i = 0; i < material_count; ++i)
-        {
-            for (u32 j = 0; j < PBR_MATERIAL_TEXTURE_COUNT; ++j)
-            {
-                u32 index = (i * PBR_MATERIAL_TEXTURE_COUNT) + j;
-                string_free((char*)texture_names[index]);
-            }
-        }
-        bfree(texture_names, sizeof(const char*) * material_count * PBR_MATERIAL_TEXTURE_COUNT, MEMORY_TAG_ARRAY);
+        
+        bfree(texture_names, sizeof(bname) * material_count * PBR_MATERIAL_TEXTURE_COUNT, MEMORY_TAG_ARRAY);
 
         // Shadow maps can't be configured, so set them up here
         {
@@ -452,7 +444,7 @@ material* material_system_acquire_terrain_material(const char* material_name, u3
         for (u32 i = 0; i < instance_resource_config.uniform_config_count; ++i)
         {
             shader_instance_uniform_texture_config* ucfg = &instance_resource_config.uniform_configs[i];
-            bfree(ucfg->bresource_texture_maps, sizeof(shader_instance_uniform_texture_config) * ucfg->bresource_texture_map_count, MEMORY_TAG_ARRAY);
+            bfree(ucfg->bresource_texture_maps, sizeof(bresource_texture_map*) * ucfg->bresource_texture_map_count, MEMORY_TAG_ARRAY);
             ucfg->bresource_texture_maps = 0;
         }
         bfree(instance_resource_config.uniform_configs, sizeof(shader_instance_uniform_texture_config) * instance_resource_config.uniform_config_count, MEMORY_TAG_ARRAY);
@@ -591,8 +583,10 @@ static b8 assign_map(material_system_state* state, bresource_texture_map* map, c
     map->repeat_u = config->repeat_u;
     map->repeat_v = config->repeat_v;
     map->repeat_w = config->repeat_w;
+    map->mip_levels = 1;
+    map->generation = INVALID_ID;
 
-    if (!config->texture_name || string_length(config->texture_name) > 0)
+    if (config->texture_name && string_length(config->texture_name) > 0)
     {
         map->texture = texture_system_request(
             bname_create(config->texture_name),
@@ -666,7 +660,7 @@ static b8 load_material(material_system_state* state, material_config* config, m
         }
 
         // Maps. PBR expects albedo, normal, combined (metallic, roughness, AO)
-        m->maps = darray_reserve(texture_map, PBR_MAP_COUNT);
+        m->maps = darray_reserve(bresource_texture_map, PBR_MAP_COUNT);
         darray_length_set(m->maps, PBR_MAP_COUNT);
         u32 configure_map_count = darray_length(config->maps);
 
@@ -780,7 +774,7 @@ static b8 load_material(material_system_state* state, material_config* config, m
         shader_instance_uniform_texture_config* ibl_cube_texture = &instance_resource_config.uniform_configs[2];
         // ibl_cube_texture->uniform_location = state_ptr->pbr_locations.ibl_cube_texture;
         ibl_cube_texture->bresource_texture_map_count = 1;
-        ibl_cube_texture->bresource_texture_maps = ballocate(sizeof(texture_map*) * ibl_cube_texture->bresource_texture_map_count, MEMORY_TAG_ARRAY);
+        ibl_cube_texture->bresource_texture_maps = ballocate(sizeof(bresource_texture_map*) * ibl_cube_texture->bresource_texture_map_count, MEMORY_TAG_ARRAY);
         ibl_cube_texture->bresource_texture_maps[0] = &m->maps[SAMP_IRRADIANCE_MAP];
     }
     else if (config->type == MATERIAL_TYPE_CUSTOM)
@@ -864,7 +858,7 @@ static b8 load_material(material_system_state* state, material_config* config, m
 
         // Maps. Custom materials can have any number of maps
         u32 map_count = darray_length(config->maps);
-        m->maps = darray_reserve(texture_map, map_count);
+        m->maps = darray_reserve(bresource_texture_map, map_count);
         darray_length_set(m->maps, map_count);
         for (u32 i = 0; i < map_count; ++i)
         {
@@ -912,8 +906,8 @@ static b8 load_material(material_system_state* state, material_config* config, m
     for (u32 i = 0; i < instance_resource_config.uniform_config_count; ++i)
     {
         shader_instance_uniform_texture_config* ucfg = &instance_resource_config.uniform_configs[i];
-        bfree(ucfg->texture_maps, sizeof(shader_instance_uniform_texture_config) * ucfg->texture_map_count, MEMORY_TAG_ARRAY);
-        ucfg->texture_maps = 0;
+        bfree(ucfg->bresource_texture_maps, sizeof(shader_instance_uniform_texture_config) * ucfg->bresource_texture_map_count, MEMORY_TAG_ARRAY);
+        ucfg->bresource_texture_maps = 0;
     }
     bfree(instance_resource_config.uniform_configs, sizeof(shader_instance_uniform_texture_config) * instance_resource_config.uniform_config_count, MEMORY_TAG_ARRAY);
 
@@ -966,7 +960,7 @@ static b8 create_default_pbr_material(material_system_state* state)
     material_phong_properties* properties = (material_phong_properties*)state->default_pbr_material.properties;
     properties->diffuse_color = vec4_one();  // white
     properties->shininess = 8.0f;
-    state->default_pbr_material.maps = darray_reserve(texture_map, PBR_MAP_COUNT);
+    state->default_pbr_material.maps = darray_reserve(bresource_texture_map, PBR_MAP_COUNT);
     darray_length_set(state->default_pbr_material.maps, PBR_MAP_COUNT);
     for (u32 i = 0; i < PBR_MAP_COUNT; ++i)
     {
@@ -978,6 +972,10 @@ static b8 create_default_pbr_material(material_system_state* state)
         }
         map->filter_magnify = map->filter_minify = TEXTURE_FILTER_MODE_LINEAR;
         map->repeat_u = map->repeat_v = map->repeat_w = TEXTURE_REPEAT_REPEAT;
+        map->generation = INVALID_ID;
+        map->mip_levels = 1;
+
+        renderer_bresource_texture_map_resources_acquire(state->renderer, map);
     }
 
     // Change clamp mode on the default shadow map to border
@@ -1017,7 +1015,7 @@ static b8 create_default_pbr_material(material_system_state* state)
     shader_instance_uniform_texture_config* ibl_cube_texture = &instance_resource_config.uniform_configs[2];
     // ibl_cube_texture->uniform_location = state_ptr->pbr_locations.ibl_cube_texture;
     ibl_cube_texture->bresource_texture_map_count = 1;
-    ibl_cube_texture->bresource_texture_maps = ballocate(sizeof(texture_map*) * ibl_cube_texture->bresource_texture_map_count, MEMORY_TAG_ARRAY);
+    ibl_cube_texture->bresource_texture_maps = ballocate(sizeof(bresource_texture_map*) * ibl_cube_texture->bresource_texture_map_count, MEMORY_TAG_ARRAY);
     ibl_cube_texture->bresource_texture_maps[0] = &m->maps[SAMP_IRRADIANCE_MAP];
 
     shader* s = shader_system_get_by_id(state_ptr->pbr_shader_id);
@@ -1031,8 +1029,8 @@ static b8 create_default_pbr_material(material_system_state* state)
     for (u32 i = 0; i < instance_resource_config.uniform_config_count; ++i)
     {
         shader_instance_uniform_texture_config* ucfg = &instance_resource_config.uniform_configs[i];
-        bfree(ucfg->bresource_texture_maps, sizeof(bresource_texture_map) * ucfg->bresource_texture_map_count, MEMORY_TAG_ARRAY);
-        ucfg->texture_maps = 0;
+        bfree(ucfg->bresource_texture_maps, sizeof(bresource_texture_map*) * ucfg->bresource_texture_map_count, MEMORY_TAG_ARRAY);
+        ucfg->bresource_texture_maps = 0;
     }
     bfree(instance_resource_config.uniform_configs, sizeof(shader_instance_uniform_texture_config) * instance_resource_config.uniform_config_count, MEMORY_TAG_ARRAY);
 
@@ -1057,19 +1055,25 @@ static b8 create_default_terrain_material(material_system_state* state)
     properties->num_materials = MAX_TERRAIN_MATERIAL_COUNT;
     properties->materials[0].diffuse_color = vec4_one();  // white
     properties->materials[0].shininess = 8.0f;
-    state->default_terrain_material.maps = darray_reserve(texture_map, TERRAIN_SAMP_COUNT);
+    state->default_terrain_material.maps = darray_reserve(bresource_texture_map, TERRAIN_SAMP_COUNT);
     darray_length_set(state->default_terrain_material.maps, TERRAIN_SAMP_COUNT);
     // Material texture array
     bresource_texture_map* map = &state->default_terrain_material.maps[SAMP_TERRAIN_MATERIAL_ARRAY_MAP];
     map->texture = texture_system_get_default_bresource_terrain_texture(state->texture_system);
     // NOTE: setting mode to nearest neighbor to make the chekerboard non-blurry
     map->filter_magnify = map->filter_minify = TEXTURE_FILTER_MODE_NEAREST;
+    map->generation = INVALID_ID;
+    map->mip_levels = 1;
+    renderer_bresource_texture_map_resources_acquire(state->renderer, map);
 
     state->default_terrain_material.maps[SAMP_TERRAIN_SHADOW_MAP].texture = texture_system_get_default_bresource_diffuse_texture(state->texture_system);
 
     // Change clamp mode on the default shadow map to border
     bresource_texture_map* ssm = &state->default_terrain_material.maps[SAMP_TERRAIN_SHADOW_MAP];
     ssm->repeat_u = ssm->repeat_v = ssm->repeat_w = TEXTURE_REPEAT_CLAMP_TO_BORDER;
+    ssm->generation = INVALID_ID;
+    ssm->mip_levels = 1;
+    renderer_bresource_texture_map_resources_acquire(state->renderer, ssm);
 
     // NOTE: PBR materials are required for terrains
     // NOTE: 4 materials * 3 maps will still be loaded in order (albedo/norm/met/rough/ao per mat)
@@ -1103,6 +1107,10 @@ static b8 create_default_terrain_material(material_system_state* state)
     ibl_cube_texture->bresource_texture_map_count = 1;
     ibl_cube_texture->bresource_texture_maps = ballocate(sizeof(bresource_texture_map*) * ibl_cube_texture->bresource_texture_map_count, MEMORY_TAG_ARRAY);
     ibl_cube_texture->bresource_texture_maps[0] = &m->maps[SAMP_TERRAIN_IRRADIANCE_MAP];
+    bresource_texture_map* irm = &m->maps[SAMP_TERRAIN_IRRADIANCE_MAP];
+    renderer_bresource_texture_map_resources_acquire(state->renderer, irm);
+    irm->generation = INVALID_ID;
+    irm->mip_levels = 1;
 
     // Acquire the resources
     shader* s = shader_system_get_by_id(state_ptr->terrain_shader_id);
@@ -1114,8 +1122,8 @@ static b8 create_default_terrain_material(material_system_state* state)
     for (u32 i = 0; i < instance_resource_config.uniform_config_count; ++i)
     {
         shader_instance_uniform_texture_config* ucfg = &instance_resource_config.uniform_configs[i];
-        bfree(ucfg->bresource_texture_maps, sizeof(bresource_texture_map) * ucfg->bresource_texture_map_count, MEMORY_TAG_ARRAY);
-        ucfg->texture_maps = 0;
+        bfree(ucfg->bresource_texture_maps, sizeof(bresource_texture_map*) * ucfg->bresource_texture_map_count, MEMORY_TAG_ARRAY);
+        ucfg->bresource_texture_maps = 0;
     }
     bfree(instance_resource_config.uniform_configs, sizeof(shader_instance_uniform_texture_config) * instance_resource_config.uniform_config_count, MEMORY_TAG_ARRAY);
 

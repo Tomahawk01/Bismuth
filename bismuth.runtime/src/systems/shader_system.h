@@ -107,7 +107,7 @@ typedef struct shader
     u64 local_ubo_stride;
 
     // An array of global texture map pointers
-    texture_map** global_texture_maps;
+    bresource_texture_map** global_texture_maps;
 
     // The number of instance textures
     u8 instance_texture_count;
@@ -269,7 +269,7 @@ BAPI b8 shader_system_uniform_set_arrayed(u32 shader_id, const char* uniform_nam
  * @param t A pointer to the texture to be set.
  * @return True on success; otherwise false.
  */
-BAPI b8 shader_system_sampler_set(u32 shader_id, const char* sampler_name, const texture* t);
+BAPI b8 shader_system_sampler_set(u32 shader_id, const char* sampler_name, const bresource_texture* t);
 
 /**
  * @brief Sets the texture of an arrayed sampler with the given name to the supplied texture.
@@ -280,7 +280,7 @@ BAPI b8 shader_system_sampler_set(u32 shader_id, const char* sampler_name, const
  * @param t A pointer to the texture to be set.
  * @return True on success; otherwise false.
  */
-BAPI b8 shader_system_sampler_set_arrayed(u32 shader_id, const char* sampler_name, u32 array_index, const texture* t);
+BAPI b8 shader_system_sampler_set_arrayed(u32 shader_id, const char* sampler_name, u32 array_index, const bresource_texture* t);
 
 /**
  * @brief Sets a uniform value by location.
@@ -293,8 +293,8 @@ BAPI b8 shader_system_sampler_set_arrayed(u32 shader_id, const char* sampler_nam
 BAPI b8 shader_system_uniform_set_by_location(u32 shader_id, u16 location, const void* value);
 BAPI b8 shader_system_uniform_set_by_location_arrayed(u32 shader_id, u16 location, u32 array_index, const void* value);
 
-BAPI b8 shader_system_sampler_set_by_location(u32 shader_id, u16 location, const struct texture* t);
-BAPI b8 shader_system_sampler_set_by_location_arrayed(u32 shader_id, u16 location, u32 array_index, const struct texture* t);
+BAPI b8 shader_system_sampler_set_by_location(u32 shader_id, u16 location, const struct bresource_texture* t);
+BAPI b8 shader_system_sampler_set_by_location_arrayed(u32 shader_id, u16 location, u32 array_index, const struct bresource_texture* t);
 
 BAPI b8 shader_system_bind_instance(u32 shader_id, u32 instance_id);
 BAPI b8 shader_system_apply_global(u32 shader_id);

@@ -236,17 +236,17 @@ assets = [
     {
         name = "bark_0021"
         path = "./assets/images/bark_0021.bbi"
-        sourcepath = "./assets/images/source/bark_0021.jpg"
+        source_path = "./assets/images/source/bark_0021.jpg"
     }
     {
         name = "beams_and_sticks_bc"
         path = "./assets/images/beams_and_sticks_bc.bbi"
-        sourcepath = "./assets/images/source/beams_and_sticks_bc.png"
+        source_path = "./assets/images/source/beams_and_sticks_bc.png"
     }
     {
         name = "beams_and_sticks_n"
         path = "./assets/images/beams_and_sticks_n.bbi"
-        sourcepath = "./assets/images/source/beams_and_sticks_n.png"
+        source_path = "./assets/images/source/beams_and_sticks_n.png"
     }
     {
         name = "beams_and_sticks_roughness"
@@ -281,12 +281,12 @@ assets = [
     {
         name = "chain_texture_ddn"
         path = "./assets/images/chain_texture_ddn.bbi"
-        source_path = "./assets/images/source/chain_texture_ddn.png"
+        source_path = "./assets/images/source/chain_texture_ddn.tga"
     }
     {
         name = "chain_texture_combined"
         path = "./assets/images/chain_texture_combined.bbi"
-        source_path = "./assets/images/source/chain_texture_combined.tga"
+        source_path = "./assets/images/source/chain_texture_combined.png"
     }
     {
         name = "rocks"
@@ -474,19 +474,19 @@ assets = [
         source_path = "./assets/images/source/sponza_arch_diff.tga"
     }
     {
-        name = "sponza_bricks_combined"
-        path = "./assets/images/sponza_bricks_combined.bbi"
-        source_path = "./assets/images/source/sponza_bricks_combined.png"
+        name = "sponza_bricks_a_combined"
+        path = "./assets/images/sponza_bricks_a_combined.bbi"
+        source_path = "./assets/images/source/sponza_bricks_a_combined.png"
     }
     {
-        name = "sponza_bricks_ddn"
-        path = "./assets/images/sponza_bricks_ddn.bbi"
-        source_path = "./assets/images/source/sponza_bricks_ddn.tga"
+        name = "sponza_bricks_a_ddn"
+        path = "./assets/images/sponza_bricks_a_ddn.bbi"
+        source_path = "./assets/images/source/sponza_bricks_a_ddn.tga"
     }
     {
-        name = "sponza_bricks_diff"
-        path = "./assets/images/sponza_bricks_diff.bbi"
-        source_path = "./assets/images/source/sponza_bricks_diff.tga"
+        name = "sponza_bricks_a_diff"
+        path = "./assets/images/sponza_bricks_a_diff.bbi"
+        source_path = "./assets/images/source/sponza_bricks_a_diff.tga"
     }
     {
         name = "sponza_ceiling_a_combined"
@@ -549,24 +549,29 @@ assets = [
         source_path = "./assets/images/source/sponza_column_c_diff.tga"
     }
     {
+        name = "sponza_curtain_diff"
+        path = "./assets/images/sponza_curtain_diff.bbi"
+        source_path = "./assets/images/source/sponza_curtain_diff.tga"
+    }
+    {
         name = "sponza_curtain_blue_diff"
-        path = "./assets/images/sponza_arch_diff.bbi"
-        source_path = "./assets/images/source/sponza_arch_diff.tga"
+        path = "./assets/images/sponza_curtain_blue_diff.bbi"
+        source_path = "./assets/images/source/sponza_curtain_blue_diff.tga"
     }
     {
         name = "sponza_curtain_combined"
-        path = "./assets/images/sponza_arch_combined.bbi"
-        source_path = "./assets/images/source/sponza_arch_combined.png"
+        path = "./assets/images/sponza_curtain_combined.bbi"
+        source_path = "./assets/images/source/sponza_curtain_combined.png"
     }
     {
         name = "sponza_curtain_ddn"
-        path = "./assets/images/sponza_arch_ddn.bbi"
-        source_path = "./assets/images/source/sponza_arch_ddn.tga"
+        path = "./assets/images/sponza_curtain_ddn.bbi"
+        source_path = "./assets/images/source/sponza_curtain_ddn.tga"
     }
     {
         name = "sponza_curtain_green_diff"
-        path = "./assets/images/sponza_arch_diff.bbi"
-        source_path = "./assets/images/source/sponza_arch_diff.tga"
+        path = "./assets/images/sponza_curtain_green_diff.bbi"
+        source_path = "./assets/images/source/sponza_curtain_green_diff.tga"
     }
     {
         name = "sponza_details_combined"
@@ -582,6 +587,11 @@ assets = [
         name = "sponza_details_diff"
         path = "./assets/images/sponza_details_diff.bbi"
         source_path = "./assets/images/source/sponza_details_diff.tga"
+    }
+    {
+        name = "sponza_fabric_diff"
+        path = "./assets/images/sponza_fabric_diff.bbi"
+        source_path = "./assets/images/source/sponza_fabric_diff.tga"
     }
     {
         name = "sponza_fabric_blue_diff"

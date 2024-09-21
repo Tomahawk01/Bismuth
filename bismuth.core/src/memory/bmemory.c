@@ -16,10 +16,12 @@
 #if !B_USE_CUSTOM_MEMORY_ALLOCATOR
 #if _MSC_VER
     #include <malloc.h>
-    #define aligned_alloc _aligned_malloc
-    #define aligned_free _aligned_free
+    #define baligned_alloc _aligned_malloc
+    #define baligned_free _aligned_free
 #else
     #include <stdlib.h>
+    #define baligned_alloc(size, alignment) aligned_alloc(alignment, size)
+    #define baligned_free free
 #endif
 #endif
 
@@ -122,7 +124,7 @@ b8 memory_system_initialize(memory_system_configuration config)
         return false;
     }
 #else
-    state_ptr = aligned_alloc(sizeof(memory_system_state), 16);
+    state_ptr = baligned_alloc(sizeof(memory_system_state), 16);
     state_ptr->config = config;
     state_ptr->alloc_count = 0;
     state_ptr->allocator_memory_requirement = 0;
@@ -151,7 +153,7 @@ void memory_system_shutdown(void)
         // Free entire block
         platform_free(state_ptr, state_ptr->allocator_memory_requirement + sizeof(memory_system_state));
 #else
-        aligned_free(state_ptr);
+        baligned_free(state_ptr);
 #endif
     }
     state_ptr = 0;
@@ -187,7 +189,7 @@ void* ballocate_aligned(u64 size, u16 alignment, memory_tag tag)
 #if B_USE_CUSTOM_MEMORY_ALLOCATOR
         block = dynamic_allocator_allocate_aligned(&state_ptr->allocator, size, alignment);
 #else
-        block = aligned_alloc(size, alignment);
+        block = baligned_alloc(size, alignment);
 #endif
         bmutex_unlock(&state_ptr->allocation_mutex);
     }
@@ -282,7 +284,7 @@ void bfree_aligned(void* block, u64 size, u16 alignment, memory_tag tag)
 #if B_USE_CUSTOM_MEMORY_ALLOCATOR
         b8 result = dynamic_allocator_free_aligned(&state_ptr->allocator, block);
 #else
-        aligned_free(block);
+        baligned_free(block);
         b8 result = true;
 #endif
 

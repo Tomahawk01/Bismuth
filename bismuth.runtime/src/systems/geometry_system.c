@@ -230,11 +230,14 @@ static void destroy_geometry(geometry_system_state* state, geometry* g)
     string_empty(g->name);
 
     // Release material
-    const char* name_str = bname_string_get(g->material->name);
-    if (g->material && string_length(name_str) > 0)
+    if (g->material)
     {
-        material_system_release(name_str);
-        g->material = 0;
+        const char* name_str = bname_string_get(g->material->name);
+        if (string_length(name_str) > 0)
+        {
+            material_system_release(name_str);
+            g->material = 0;
+        }
     }
 }
 

@@ -32,8 +32,8 @@ assets = [
     }
     {
         name = "StandardUIAtlas"
-        path = "./assets/textures/StandardUIAtlas.bbi"
-        source_path = "./assets/textures/StandardUIAtlas.png"
+        path = "./assets/images/StandardUIAtlas.bbi"
+        source_path = "./assets/images/source/StandardUIAtlas.png"
     }
     {
         name = "OpenSans21px"
@@ -41,8 +41,8 @@ assets = [
     }
     {
         name = "OpenSans21px_0"
-        path = "./assets/textures/OpenSans21px_0.bbi"
-        source_path = "./assets/textures/OpenSans21px_0.png"
+        path = "./assets/images/OpenSans21px_0.bbi"
+        source_path = "./assets/images/source/OpenSans21px_0.png"
     }
     {
         name = "NotoSansCJK"
@@ -50,6 +50,6 @@ assets = [
     }
     {
         name = "NotoSansCJK-Regular"
-        path = "./assets/textures/NotoSansCJK-Regular.ttc"
+        path = "./assets/fonts/NotoSansCJK-Regular.ttc"
     }
 ]

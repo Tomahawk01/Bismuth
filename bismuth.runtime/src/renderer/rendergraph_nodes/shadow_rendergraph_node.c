@@ -219,6 +219,9 @@ b8 shadow_rendergraph_node_load_resources(struct rendergraph_node* self)
         BERROR("Failed to request layered shadow map texture for shadow rendergraph node");
         return false;
     }
+    // Bind it to the source
+    rendergraph_source* shadowmap_source = &self->sources[0];
+    shadowmap_source->value.t = internal_data->depth_texture;
 
     return true;
 }

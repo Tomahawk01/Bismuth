@@ -17,11 +17,11 @@ static VkImageViewType vulkan_view_types[4] = {
 };
 
 // Ensure changes to texture types break this if it isn't also updated
-STATIC_ASSERT(TEXTURE_TYPE_COUNT == (sizeof(vulkan_view_types) / sizeof(*vulkan_view_types)), "Texture type count does not match Vulkan image view lookup table count");
+STATIC_ASSERT(BRESOURCE_TEXTURE_TYPE_COUNT == (sizeof(vulkan_view_types) / sizeof(*vulkan_view_types)), "Texture type count does not match Vulkan image view lookup table count");
 
 void vulkan_image_create(
     vulkan_context* context,
-    texture_type type,
+    bresource_texture_type type,
     u32 width,
     u32 height,
     u16 layer_count,
@@ -61,9 +61,9 @@ void vulkan_image_create(
     switch (type)
     {
         default:
-        case TEXTURE_TYPE_2D:
-        case TEXTURE_TYPE_CUBE:         // Intentional, there is no cube image type
-        case TEXTURE_TYPE_2D_ARRAY:     // Intentional, there is no 2d_array image type
+        case BRESOURCE_TEXTURE_TYPE_2D:
+        case BRESOURCE_TEXTURE_TYPE_CUBE:         // Intentional, there is no cube image type
+        case BRESOURCE_TEXTURE_TYPE_2D_ARRAY:     // Intentional, there is no 2d_array image type
             out_image->image_create_info.imageType = VK_IMAGE_TYPE_2D;
             break;
     }
@@ -78,7 +78,7 @@ void vulkan_image_create(
     out_image->image_create_info.usage = usage;
     out_image->image_create_info.samples = VK_SAMPLE_COUNT_1_BIT;                  // TODO: Configurable sample count
     out_image->image_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;          // TODO: Configurable sharing mode
-    if (type == TEXTURE_TYPE_CUBE)
+    if (type == BRESOURCE_TEXTURE_TYPE_CUBE)
         out_image->image_create_info.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
 
     VK_CHECK(vkCreateImage(context->device.logical_device, &out_image->image_create_info, context->allocator, &out_image->handle));
@@ -148,16 +148,16 @@ void vulkan_image_create(
             out_image->layer_views = ballocate(sizeof(VkImageView) * layer_count, MEMORY_TAG_ARRAY);
             out_image->layer_view_subresource_ranges = ballocate(sizeof(VkImageSubresourceRange) * layer_count, MEMORY_TAG_ARRAY);
             out_image->layer_view_create_infos = ballocate(sizeof(VkImageCreateInfo) * layer_count, MEMORY_TAG_ARRAY);
-            texture_type view_type = type;
-            if (type == TEXTURE_TYPE_CUBE || type == TEXTURE_TYPE_CUBE_ARRAY)
+            bresource_texture_type view_type = type;
+            if (type == BRESOURCE_TEXTURE_TYPE_CUBE || type == BRESOURCE_TEXTURE_TYPE_CUBE_ARRAY)
             {
                 // NOTE: for individual sampling of cubemap/cubemap array layers, the view type needs to be 2d
-                view_type = TEXTURE_TYPE_2D;
+                view_type = BRESOURCE_TEXTURE_TYPE_2D;
             }
-            if (type == TEXTURE_TYPE_2D_ARRAY)
+            if (type == BRESOURCE_TEXTURE_TYPE_2D_ARRAY)
             {
                 // NOTE: for individual sampling of array layers, the view type needs to be 2d
-                view_type = TEXTURE_TYPE_2D;
+                view_type = BRESOURCE_TEXTURE_TYPE_2D;
             }
             for (u32 i = 0; i < layer_count; ++i)
             {

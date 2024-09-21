@@ -277,7 +277,7 @@ b8 renderer_on_window_created(struct renderer_system_state* state, struct bwindo
 
     window->renderer_state->colorbuffer = ballocate(sizeof(bresource_texture), MEMORY_TAG_RENDERER);
     window->renderer_state->depthbuffer = ballocate(sizeof(bresource_texture), MEMORY_TAG_RENDERER);
-    // Start with invalid colour/depth buffer texture handles
+    // Start with invalid color/depth buffer texture handles
     window->renderer_state->colorbuffer->renderer_texture_handle = b_handle_invalid();
     window->renderer_state->depthbuffer->renderer_texture_handle = b_handle_invalid();
 
@@ -505,7 +505,7 @@ void renderer_set_stencil_write_mask(u32 write_mask)
     state_ptr->backend->set_stencil_write_mask(state_ptr->backend, write_mask);
 }
 
-b8 renderer_texture_resources_acquire(struct renderer_system_state* state, const char* name, texture_type type, u32 width, u32 height, u8 channel_count, u8 mip_levels, u16 array_size, texture_flag_bits flags, b_handle* out_renderer_texture_handle)
+/* b8 renderer_texture_resources_acquire(struct renderer_system_state* state, const char* name, texture_type type, u32 width, u32 height, u8 channel_count, u8 mip_levels, u16 array_size, texture_flag_bits flags, b_handle* out_renderer_texture_handle)
 {
     if (!state)
         return false;
@@ -559,7 +559,7 @@ b8 renderer_texture_resources_acquire(struct renderer_system_state* state, const
         bfree(data, state->backend->texture_internal_data_size, MEMORY_TAG_RENDERER);
     }
     return success;
-}
+} */
 
 b8 renderer_bresource_texture_resources_acquire(struct renderer_system_state* state, bname name, bresource_texture_type type, u32 width, u32 height, u8 channel_count, u8 mip_levels, u16 array_size, bresource_texture_flag_bits flags, b_handle* out_renderer_texture_handle)
 {
@@ -580,24 +580,7 @@ b8 renderer_bresource_texture_resources_acquire(struct renderer_system_state* st
     }
     else
     {
-        // FIXME: Convert function call below to use the new type
-        texture_type old_type = TEXTURE_TYPE_2D;
-        switch (type)
-        {
-        default:
-            old_type = TEXTURE_TYPE_2D;
-            break;
-        case BRESOURCE_TEXTURE_TYPE_2D_ARRAY:
-            old_type = TEXTURE_TYPE_2D_ARRAY;
-            break;
-        case BRESOURCE_TEXTURE_TYPE_CUBE:
-            old_type = TEXTURE_TYPE_CUBE;
-            break;
-        case BRESOURCE_TEXTURE_TYPE_CUBE_ARRAY:
-            old_type = TEXTURE_TYPE_CUBE_ARRAY;
-            break;
-        }
-        success = state->backend->texture_resources_acquire(state->backend, data, bname_string_get(name), old_type, width, height, channel_count, mip_levels, array_size, flags);
+        success = state->backend->texture_resources_acquire(state->backend, data, bname_string_get(name), type, width, height, channel_count, mip_levels, array_size, flags);
     }
 
     // Only insert into the lookup table on success
@@ -1192,18 +1175,6 @@ b8 renderer_shader_uniform_set(struct renderer_system_state* state, shader* s, s
 {
     renderer_system_state* state_ptr = engine_systems_get()->renderer_system;
     return state_ptr->backend->shader_uniform_set(state_ptr->backend, s, uniform, array_index, value);
-}
-
-b8 renderer_texture_map_resources_acquire(struct texture_map* map)
-{
-    renderer_system_state* state_ptr = engine_systems_get()->renderer_system;
-    return state_ptr->backend->texture_map_resources_acquire(state_ptr->backend, map);
-}
-
-void renderer_texture_map_resources_release(struct texture_map* map)
-{
-    renderer_system_state* state_ptr = engine_systems_get()->renderer_system;
-    state_ptr->backend->texture_map_resources_release(state_ptr->backend, map);
 }
 
 b8 renderer_bresource_texture_map_resources_acquire(struct renderer_system_state* state, struct bresource_texture_map* map)

@@ -80,14 +80,14 @@ void vfs_shutdown(vfs_state* state)
     }
 }
 
-void vfs_request_asset(vfs_state* state, bname package_name, bname asset_name, b8 is_binary, b8 get_source, u32 context_size, const void* context, PFN_on_asset_loaded_callback callback)
+void vfs_request_asset(vfs_state* state, bname package_name, bname asset_name, b8 is_binary, b8 get_source, u32 context_size, const void* context, u32 import_params_size, void* import_params, PFN_on_asset_loaded_callback callback)
 {
     if (!state || !callback)
         BERROR("vfs_request_asset requires state and callback to be provided");
 
     // TODO: Jobify this call.
     vfs_asset_data data = {0};
-    vfs_request_asset_sync(state, package_name, asset_name, is_binary, get_source, context_size, context, &data);
+    vfs_request_asset_sync(state, package_name, asset_name, is_binary, get_source, context_size, context, import_params_size, import_params, &data);
 
     // TODO: This should be the job result
     // Issue the callback with the data
@@ -102,7 +102,7 @@ void vfs_request_asset(vfs_state* state, bname package_name, bname asset_name, b
     }
 }
 
-void vfs_request_asset_sync(vfs_state* state, bname package_name, bname asset_name, b8 is_binary, b8 get_source, u32 context_size, const void* context, vfs_asset_data* out_data)
+void vfs_request_asset_sync(vfs_state* state, bname package_name, bname asset_name, b8 is_binary, b8 get_source, u32 context_size, const void* context, u32 import_params_size, void* import_params, vfs_asset_data* out_data)
 {
     if (!out_data)
     {
@@ -125,7 +125,7 @@ void vfs_request_asset_sync(vfs_state* state, bname package_name, bname asset_na
     // Take a copy of the context if provided. This will need to be freed by the caller
     if (context_size)
     {
-        BASSERT_MSG(context, "Called vfs_request_asset with a context_size, but not a context. Check yourself before you wreck yourself");
+        BASSERT_MSG(context, "Called vfs_request_asset with a context_size, but not a context");
         out_data->context_size = context_size;
         out_data->context = ballocate(context_size, MEMORY_TAG_PLATFORM);
         bcopy_memory(out_data->context, context, out_data->context_size);
@@ -134,6 +134,20 @@ void vfs_request_asset_sync(vfs_state* state, bname package_name, bname asset_na
     {
         out_data->context_size = 0;
         out_data->context = 0;
+    }
+
+    // Take a copy of the import params. This will need to be freed by the caller
+    if (import_params_size)
+    {
+        BASSERT_MSG(context, "Called vfs_request_asset with a import_params_size, but not a import_params");
+        out_data->import_params_size = context_size;
+        out_data->import_params = ballocate(context_size, MEMORY_TAG_PLATFORM);
+        bcopy_memory(out_data->import_params, import_params, out_data->import_params_size);
+    }
+    else
+    {
+        out_data->import_params_size = 0;
+        out_data->import_params = 0;
     }
 
     const char* asset_name_str = bname_string_get(asset_name);
@@ -282,7 +296,7 @@ void vfs_request_direct_from_disk_sync(vfs_state* state, const char* path, b8 is
     // Take a copy of the context if provided. This will need to be freed by the caller
     if (context_size)
     {
-        BASSERT_MSG(context, "Called vfs_request_asset with a context_size, but not a context. Check yourself before you wreck yourself");
+        BASSERT_MSG(context, "Called vfs_request_asset with a context_size, but not a context");
         out_data->context_size = context_size;
         out_data->context = ballocate(context_size, MEMORY_TAG_PLATFORM);
         bcopy_memory(out_data->context, context, out_data->context_size);
@@ -329,7 +343,7 @@ void vfs_request_direct_from_disk_sync(vfs_state* state, const char* path, b8 is
     // This means the context should be immediately consumed by the callback before any async work is done
     if (context_size)
     {
-        BASSERT_MSG(context, "Called vfs_request_asset with a context_size, but not a context. Check yourself before you wreck yourself");
+        BASSERT_MSG(context, "Called vfs_request_asset with a context_size, but not a context");
         out_data->context_size = context_size;
         out_data->context = ballocate(context_size, MEMORY_TAG_PLATFORM);
         bcopy_memory(out_data->context, context, out_data->context_size);
