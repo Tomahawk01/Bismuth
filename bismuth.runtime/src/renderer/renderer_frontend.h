@@ -127,6 +127,9 @@ BAPI b8 renderer_shader_apply_local(struct renderer_system_state* state, struct 
 BAPI b8 renderer_shader_instance_resources_acquire(struct renderer_system_state* state, struct shader* s, const shader_instance_resource_config* config, u32* out_instance_id);
 BAPI b8 renderer_shader_instance_resources_release(struct renderer_system_state* state, struct shader* s, u32 instance_id);
 
+BAPI b8 renderer_shader_local_resources_acquire(struct renderer_system_state* state, struct shader* s, const shader_instance_resource_config* config, u32* out_local_id);
+BAPI b8 renderer_shader_local_resources_release(struct renderer_system_state* state, struct shader* s, u32 local_id);
+
 BAPI b8 renderer_shader_uniform_set(struct renderer_system_state* state, struct shader* s, struct shader_uniform* uniform, u32 array_index, const void* value);
 
 BAPI b8 renderer_bresource_texture_map_resources_acquire(struct renderer_system_state* state, struct bresource_texture_map* map);

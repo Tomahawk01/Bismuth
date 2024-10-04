@@ -336,8 +336,6 @@ const char* bmaterial_type_to_string(bmaterial_type type)
         return "pbr";
     case BMATERIAL_TYPE_PBR_WATER:
         return "pbr_water";
-    case BMATERIAL_TYPE_PBR_TERRAIN:
-        return "pbr_terrain";
     case BMATERIAL_TYPE_UNLIT:
         return "unlit";
     case BMATERIAL_TYPE_CUSTOM:
@@ -355,9 +353,6 @@ bmaterial_type string_to_bmaterial_type(const char* str)
     }
     else if (strings_equali(str, "pbr_water")) {
         return BMATERIAL_TYPE_PBR_WATER;
-    }
-    else if (strings_equali(str, "pbr_terrain")) {
-        return BMATERIAL_TYPE_PBR_TERRAIN;
     }
     else if (strings_equali(str, "unlit")) {
         return BMATERIAL_TYPE_UNLIT;

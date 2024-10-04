@@ -4,6 +4,7 @@
 #include "core/engine.h"
 #include "debug/bassert.h"
 #include "defines.h"
+#include "bresources/handlers/bresource_handler_material.h"
 #include "bresources/handlers/bresource_handler_texture.h"
 #include "bresources/bresource_types.h"
 #include "logger.h"
@@ -53,14 +54,30 @@ b8 bresource_system_initialize(u64* memory_requirement, struct bresource_system_
     state->asset_system = engine_systems_get()->asset_state;
 
     // Register known handler types
-    bresource_handler texture_handler = {0};
-    texture_handler.allocate = bresource_handler_texture_allocate;
-    texture_handler.release = bresource_handler_texture_release;
-    texture_handler.request = bresource_handler_texture_request;
-    if (!bresource_system_handler_register(state, BRESOURCE_TYPE_TEXTURE, texture_handler))
+    // Texture handler
     {
-        BERROR("Failed to register texture resource handler");
-        return false;
+        bresource_handler handler = {0};
+        handler.allocate = bresource_handler_texture_allocate;
+        handler.release = bresource_handler_texture_release;
+        handler.request = bresource_handler_texture_request;
+        if (!bresource_system_handler_register(state, BRESOURCE_TYPE_TEXTURE, handler))
+        {
+            BERROR("Failed to register texture resource handler");
+            return false;
+        }
+    }
+
+    // Material handler
+    {
+        bresource_handler handler = {0};
+        handler.allocate = bresource_handler_material_allocate;
+        handler.release = bresource_handler_material_release;
+        handler.request = bresource_handler_material_request;
+        if (!bresource_system_handler_register(state, BRESOURCE_TYPE_MATERIAL, handler))
+        {
+            BERROR("Failed to register material resource handler");
+            return false;
+        }
     }
 
     BINFO("Resource system (new) initialized");

@@ -76,6 +76,8 @@ b8 bplugin_create(bruntime_plugin* out_plugin)
     backend->shader_apply_local = vulkan_renderer_shader_apply_local;
     backend->shader_instance_resources_acquire = vulkan_renderer_shader_instance_resources_acquire;
     backend->shader_instance_resources_release = vulkan_renderer_shader_instance_resources_release;
+    backend->shader_local_resources_acquire = vulkan_renderer_shader_local_resources_acquire;
+    backend->shader_local_resources_release = vulkan_renderer_shader_local_resources_release;
     backend->shader_uniform_set = vulkan_renderer_uniform_set;
 
     backend->bresource_texture_map_resources_acquire = vulkan_renderer_bresource_texture_map_resources_acquire;

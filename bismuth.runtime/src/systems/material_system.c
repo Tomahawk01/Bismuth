@@ -14,6 +14,7 @@
 #include "resources/resource_types.h"
 #include "strings/bname.h"
 #include "strings/bstring.h"
+#include "systems/bresource_system.h"
 #include "systems/resource_system.h"
 #include "systems/shader_system.h"
 #include "systems/texture_system.h"
@@ -47,47 +48,27 @@ typedef struct material_system_state
 {
     material_system_config config;
 
-    material default_pbr_material;
-    material default_terrain_material;
+    bresource_material* default_unlit_material;
+    bresource_material* default_phong_material;
+    bresource_material* default_pbr_material;
+    bresource_material* default_terrain_material;
 
-    // Array of registered materials
-    material* registered_materials;
-
-    // Hashtable for material lookups
-    hashtable registered_material_table;
-
+    // FIXME: remove this
     u32 terrain_shader_id;
     shader* terrain_shader;
-
     u32 pbr_shader_id;
     shader* pbr_shader;
-
-    // Current irradiance cubemap texture to be used
-    const bresource_texture* irradiance_cube_texture;
-
-    // The current shadow texture to be used for the next draw
-    bresource_texture* shadow_texture;
-
-    mat4 directional_light_space[MAX_SHADOW_CASCADE_COUNT];
 
     // Keep a pointer to the renderer state for quick access
     struct renderer_system_state* renderer;
     struct texture_system_state* texture_system;
+    struct bresource_system_state* resource_system;
 } material_system_state;
-
-typedef struct material_reference
-{
-    u64 reference_count;
-    u32 handle;
-    b8 auto_release;
-} material_reference;
-
-static material_system_state* state_ptr = 0;
 
 static b8 create_default_pbr_material(material_system_state* state);
 static b8 create_default_terrain_material(material_system_state* state);
 static b8 load_material(material_system_state* state, material_config* config, material* m);
-static void destroy_material(material* m);
+static void destroy_material(bresource_material* m);
 
 static b8 assign_map(material_system_state* state, bresource_texture_map* map, const material_map* config, bname material_name, const bresource_texture* default_tex);
 static void on_material_system_dump(console_command_context context);
@@ -102,64 +83,26 @@ b8 material_system_initialize(u64* memory_requirement, material_system_state* st
     }
 
     // Block of memory will contain state structure, then block for array, then block for hashtable
-    u64 struct_requirement = sizeof(material_system_state);
-    u64 array_requirement = sizeof(material) * typed_config->max_material_count;
-    u64 hashtable_requirement = sizeof(material_reference) * typed_config->max_material_count;
-    *memory_requirement = struct_requirement + array_requirement + hashtable_requirement;
+    *memory_requirement = sizeof(material_system_state);
 
     if (!state)
         return true;
 
-    state_ptr = state;
-
     // Keep a pointer to the renderer system state for quick access
-    state->renderer = engine_systems_get()->renderer_system;
-    state->texture_system = engine_systems_get()->texture_system;
+    const engine_system_states* states = engine_systems_get();
+    state->renderer = states->renderer_system;
+    state->resource_system = states->bresource_state;
+    state->texture_system = states->texture_system;
 
     state->config = *typed_config;
 
-    state->pbr_shader_id = INVALID_ID;
-
-    // Array block is after the state. Already allocated, so just set the pointer
-    void* array_block = ((void*)state) + struct_requirement;
-    state->registered_materials = array_block;
-
-    // Hashtable block is after array
-    void* hashtable_block = array_block + array_requirement;
-
-    // Create hashtable for material lookups
-    hashtable_create(sizeof(material_reference), typed_config->max_material_count, hashtable_block, false, &state->registered_material_table);
-
-    // Fill the hashtable with invalid references to use as a default
-    material_reference invalid_ref;
-    invalid_ref.auto_release = false;
-    invalid_ref.handle = INVALID_ID;  // Primary reason for needing default values
-    invalid_ref.reference_count = 0;
-    hashtable_fill(&state->registered_material_table, &invalid_ref);
-
-    // Invalidate all materials in the array
-    u32 count = state->config.max_material_count;
-    for (u32 i = 0; i < count; ++i)
-    {
-        state->registered_materials[i].id = INVALID_ID;
-        state->registered_materials[i].generation = INVALID_ID;
-        state->registered_materials[i].internal_id = INVALID_ID;
-    }
-
+    // FIXME: remove these
     // Get uniform indices
     // Save locations for known types for quick lookups
     state->pbr_shader = shader_system_get("Shader.PBRMaterial");
     state->pbr_shader_id = state->pbr_shader->id;
-
     state->terrain_shader = shader_system_get("Shader.Builtin.Terrain");
     state->terrain_shader_id = state->terrain_shader->id;
-
-    // Grab default cubemap texture as irradiance texture
-    state->irradiance_cube_texture = texture_system_get_default_bresource_cube_texture(state->texture_system);
-
-    // Assign defaults
-    for (u32 i = 0; i < MAX_SHADOW_CASCADE_COUNT; ++i)
-        state->directional_light_space[i] = mat4_identity();
 
     // Load up some default materials
     if (!create_default_pbr_material(state))
@@ -184,396 +127,72 @@ void material_system_shutdown(struct material_system_state* state)
 {
     if (state)
     {
-        // Invalidate all materials in the array
-        u32 count = state->config.max_material_count;
-        for (u32 i = 0; i < count; ++i)
-        {
-            if (state->registered_materials[i].id != INVALID_ID)
-                destroy_material(&state->registered_materials[i]);
-        }
-
         // Destroy default material
-        destroy_material(&state->default_pbr_material);
-        destroy_material(&state->default_terrain_material);
+        destroy_material(state->default_pbr_material);
+        destroy_material(state->default_terrain_material);
     }
-
-    state_ptr = 0;
 }
 
-material* material_system_acquire(const char* name)
+bresource_material* material_system_acquire(material_system_state* state, bname name, u32* out_local_id)
 {
-    // Load material configuration from resource
-    resource material_resource;
-    if (!resource_system_load(name, RESOURCE_TYPE_MATERIAL, 0, &material_resource))
+    bresource_material_request_info request = {0};
+    request.base.type = BRESOURCE_TYPE_MATERIAL;
+    bresource* out_resource = bresource_system_request(state->resource_system, name, (bresource_request_info*)&request);
+    if (out_resource->state == BRESOURCE_STATE_LOADED)
     {
-        BERROR("Failed to load material resource, returning nullptr");
-        return 0;
+        bresource_material* typed_resource = (bresource_material*)out_resource;
+        if (typed_resource->type == BRESOURCE_MATERIAL_TYPE_PBR)
+        {
+            u32 pbr_shader_id = shader_system_get_id("Shader.PBRMaterial");
+            if (!shader_system_shader_local_acquire(pbr_shader_id, 1, &, &m->instance_id))
+            {
+                BASSERT_MSG(false, "Failed to acquire renderer resources for default PBR material. Application cannot continue");
+            }
+        }
     }
 
-    // Acquire from loaded config
-    material* m = 0;
-    if (material_resource.data)
-        m = material_system_acquire_from_config((material_config*)material_resource.data);
-
-    // Clean up
-    resource_system_unload(&material_resource);
-
-    if (!m)
-        BERROR("Failed to load material resource, returning nullptr");
-
-    return m;
+    return (bresource_material*)out_resource;
 }
 
-static material* material_system_acquire_reference(const char* name, b8 auto_release, b8* needs_creation)
+void material_system_release(material_system_state* state, bresource_material* material)
 {
-    material_reference ref;
-    if (state_ptr && hashtable_get(&state_ptr->registered_material_table, name, &ref))
-    {
-        // This can only be changed the first time material is loaded
-        if (ref.reference_count == 0)
-            ref.auto_release = auto_release;
-        ref.reference_count++;
-        if (ref.handle == INVALID_ID)
-        {
-            // This means no material exists here. Find a free index first
-            u32 count = state_ptr->config.max_material_count;
-            material* m = 0;
-            for (u32 i = 0; i < count; ++i)
-            {
-                if (state_ptr->registered_materials[i].id == INVALID_ID)
-                {
-                    // Free slot has been found. Use its index as handle
-                    ref.handle = i;
-                    m = &state_ptr->registered_materials[i];
-                    break;
-                }
-            }
-
-            // Make sure an empty slot was found
-            if (!m || ref.handle == INVALID_ID)
-            {
-                BFATAL("material_system_acquire - Material system cannot hold anymore materials. Adjust configuration to allow more");
-                return 0;
-            }
-
-            *needs_creation = true;
-
-            // Also use handle as the material id
-            m->id = ref.handle;
-            // BTRACE("Material '%s' does not yet exist. Created, and ref_count is now %i", config->name, ref.reference_count);
-        }
-        else
-        {
-            // BTRACE("Material '%s' already exists, ref_count increased to %i", config->name, ref.reference_count);
-            *needs_creation = false;
-        }
-
-        // Update entry
-        hashtable_set(&state_ptr->registered_material_table, name, &ref);
-        return &state_ptr->registered_materials[ref.handle];
-    }
-
-    // NOTE: This would only happen if something went wrong with the state
-    BERROR("material_system_acquire_from_config failed to acquire material '%s'. Null pointer will be returned", name);
-    return 0;
+    bresource_system_release(state->resource_system, (bresource*)material);
 }
 
-material* material_system_acquire_terrain_material(const char* material_name, u32 material_count, const char** material_names, b8 auto_release)
+const bresource_material* material_system_get_default_unlit(material_system_state* state)
 {
-    // Return default terrain material
-    if (strings_equali(material_name, DEFAULT_TERRAIN_MATERIAL_NAME))
-        return &state_ptr->default_terrain_material;
-
-    material_system_state* state = engine_systems_get()->material_system;
-
-    b8 needs_creation = false;
-    material* m = material_system_acquire_reference(material_name, auto_release, &needs_creation);
-    if (!m)
-    {
-        BERROR("Failed to acquire terrain material '%s'", material_name);
-        return 0;
-    }
-
-    if (needs_creation)
-    {
-        // Gather material names
-        bname* texture_names = ballocate(sizeof(bname) * material_count * PBR_MATERIAL_TEXTURE_COUNT, MEMORY_TAG_ARRAY);
-        for (u32 i = 0; i < material_count; ++i)
-        {
-            // Load material configuration from resource
-            resource material_resource;
-            if (!resource_system_load(material_names[i], RESOURCE_TYPE_MATERIAL, 0, &material_resource))
-            {
-                BERROR("Failed to load material resource, returning nullptr");
-                return 0;
-            }
-
-            material_config* mat_config = (material_config*)material_resource.data;
-            // NOTE: For now, PBR materials are required for terrains
-            if (mat_config->type != MATERIAL_TYPE_PBR)
-            {
-                BERROR("Terrain materials must be PBR materials");
-                return false;
-            }
-
-            // Extract the map names
-            for (u32 j = 0; j < PBR_MATERIAL_TEXTURE_COUNT; ++j)
-            {
-                u32 index = (i * PBR_MATERIAL_TEXTURE_COUNT) + j;
-                texture_names[index] = bname_create(mat_config->maps[j].texture_name);
-            }
-
-            // Clean up the resource
-            resource_system_unload(&material_resource);
-        }
-
-        // Create new material
-        // NOTE: terrain-specific load_material
-        bzero_memory(m, sizeof(material));
-        m->name = bname_create(material_name);
-
-        shader* selected_shader = state_ptr->terrain_shader;
-        m->shader_id = selected_shader->id;
-        m->type = MATERIAL_TYPE_TERRAIN;
-
-        // Allocate maps and properties memory
-        m->property_struct_size = sizeof(material_terrain_properties);
-        m->properties = ballocate(m->property_struct_size, MEMORY_TAG_MATERIAL_INSTANCE);
-        material_terrain_properties* properties = m->properties;
-        properties->num_materials = material_count;
-        properties->padding = vec3_zero();
-        properties->padding2 = vec4_zero();
-
-        // 3 maps per material for PBR. Allocate enough slots for all materials. Also 1 for irradiance map
-        m->maps = darray_reserve(bresource_texture_map, TERRAIN_SAMP_COUNT);
-        darray_length_set(m->maps, TERRAIN_SAMP_COUNT);
-
-        // One map is needed for the entire material array
-        {
-            u32 layer_count = PBR_MATERIAL_TEXTURE_COUNT * MAX_TERRAIN_MATERIAL_COUNT;
-            bresource_texture_map* map = &m->maps[SAMP_TERRAIN_MATERIAL_ARRAY_MAP];
-            // TODO: Read this from config
-            map->repeat_u = TEXTURE_REPEAT_REPEAT;
-            map->repeat_v = TEXTURE_REPEAT_REPEAT;
-            map->repeat_w = TEXTURE_REPEAT_REPEAT;
-            map->filter_minify = TEXTURE_FILTER_MODE_LINEAR;
-            map->filter_magnify = TEXTURE_FILTER_MODE_LINEAR;
-            map->texture = texture_system_acquire_textures_as_arrayed(m->name, m->package_name, layer_count, texture_names, true, false, 0, 0);
-            if (!map->texture)
-            {
-                // Configured, but not found
-                BWARN("Unable to load arrayed texture '%s' for material '%s', using default", m->name, material_name);
-                map->texture = texture_system_get_default_bresource_terrain_texture(state->texture_system);
-            }
-
-            if (!renderer_bresource_texture_map_resources_acquire(state->renderer, map))
-            {
-                BERROR("Unable to acquire resources for texture map");
-                return false;
-            }
-        }
-        
-        bfree(texture_names, sizeof(bname) * material_count * PBR_MATERIAL_TEXTURE_COUNT, MEMORY_TAG_ARRAY);
-
-        // Shadow maps can't be configured, so set them up here
-        {
-            material_map map_config = {0};
-            map_config.filter_mag = map_config.filter_min = TEXTURE_FILTER_MODE_LINEAR;
-            map_config.repeat_u = map_config.repeat_v = map_config.repeat_w = TEXTURE_REPEAT_CLAMP_TO_BORDER;
-            map_config.name = "shadow_map";
-            map_config.texture_name = "";
-            if (!assign_map(state, &m->maps[SAMP_TERRAIN_SHADOW_MAP], &map_config, m->name, texture_system_get_default_bresource_diffuse_texture(state->texture_system)))
-            {
-                BERROR("Failed to assign '%s' texture map for terrain shadow map", map_config.name);
-                return false;
-            }
-        }
-
-        // IBL - cubemap for irradiance
-        {
-            material_map map_config = {0};
-            map_config.filter_mag = map_config.filter_min = TEXTURE_FILTER_MODE_LINEAR;
-            map_config.repeat_u = map_config.repeat_v = map_config.repeat_w = TEXTURE_REPEAT_REPEAT;
-            map_config.name = "ibl_cube";
-            map_config.texture_name = "";
-            // Always assigned to the last index
-            if (!assign_map(state, &m->maps[SAMP_TERRAIN_IRRADIANCE_MAP], &map_config, m->name, texture_system_get_default_bresource_cube_texture(state->texture_system)))
-            {
-                BERROR("Failed to assign '%s' texture map for terrain irradiance map", map_config.name);
-                return false;
-            }
-        }
-
-        // NOTE: 4 materials * 3 maps will still be loaded in order (albedo/norm/combined(met/rough/ao) per mat)
-        // Next group will be shadow mappings
-        // Last irradiance map
-
-        // Setup a configuration to get instance resources for this material
-        shader_instance_resource_config instance_resource_config = {0};
-        // Map count for this type is known
-        instance_resource_config.uniform_config_count = 3;  // NOTE: This includes material maps, shadow maps and irradiance map
-        instance_resource_config.uniform_configs = ballocate(sizeof(shader_instance_uniform_texture_config) * instance_resource_config.uniform_config_count, MEMORY_TAG_ARRAY);
-
-        // Material textures (single array texture)
-        shader_instance_uniform_texture_config* mat_textures = &instance_resource_config.uniform_configs[0];
-        // mat_textures->uniform_location = state_ptr->terrain_locations.material_texures;
-        mat_textures->bresource_texture_map_count = 1;
-        mat_textures->bresource_texture_maps = ballocate(sizeof(bresource_texture_map*) * mat_textures->bresource_texture_map_count, MEMORY_TAG_ARRAY);
-        mat_textures->bresource_texture_maps[0] = &m->maps[SAMP_TERRAIN_MATERIAL_ARRAY_MAP];
-
-        // Shadow textures
-        shader_instance_uniform_texture_config* shadow_textures = &instance_resource_config.uniform_configs[1];
-        // shadow_textures->uniform_location = state_ptr->terrain_locations.shadow_textures;
-        shadow_textures->bresource_texture_map_count = 1;
-        shadow_textures->bresource_texture_maps = ballocate(sizeof(bresource_texture_map*) * shadow_textures->bresource_texture_map_count, MEMORY_TAG_ARRAY);
-        shadow_textures->bresource_texture_maps[0] = &m->maps[SAMP_TERRAIN_SHADOW_MAP];
-
-        // IBL cube texture
-        shader_instance_uniform_texture_config* ibl_cube_texture = &instance_resource_config.uniform_configs[2];
-        // ibl_cube_texture->uniform_location = state_ptr->terrain_locations.ibl_cube_texture;
-        ibl_cube_texture->bresource_texture_map_count = 1;
-        ibl_cube_texture->bresource_texture_maps = ballocate(sizeof(bresource_texture_map*) * ibl_cube_texture->bresource_texture_map_count, MEMORY_TAG_ARRAY);
-        ibl_cube_texture->bresource_texture_maps[0] = &m->maps[SAMP_TERRAIN_IRRADIANCE_MAP];
-
-        // Acquire the resources
-        b8 result = renderer_shader_instance_resources_acquire(state_ptr->renderer, selected_shader, &instance_resource_config, &m->internal_id);
-        if (!result)
-            BERROR("Failed to acquire renderer resources for terrain material '%s'", m->name);
-
-        // Clean up the uniform configs
-        for (u32 i = 0; i < instance_resource_config.uniform_config_count; ++i)
-        {
-            shader_instance_uniform_texture_config* ucfg = &instance_resource_config.uniform_configs[i];
-            bfree(ucfg->bresource_texture_maps, sizeof(bresource_texture_map*) * ucfg->bresource_texture_map_count, MEMORY_TAG_ARRAY);
-            ucfg->bresource_texture_maps = 0;
-        }
-        bfree(instance_resource_config.uniform_configs, sizeof(shader_instance_uniform_texture_config) * instance_resource_config.uniform_config_count, MEMORY_TAG_ARRAY);
-        // NOTE: end terrain-specific load_material
-
-        if (m->generation == INVALID_ID)
-            m->generation = 0;
-        else
-            m->generation++;
-    }
-
-    return m;
+    return state->default_unlit_material;
 }
 
-material* material_system_acquire_from_config(material_config* config)
+const bresource_material* material_system_get_default_phong(material_system_state* state)
 {
-    // Return default material
-    if (strings_equali(config->name, DEFAULT_PBR_MATERIAL_NAME))
-        return &state_ptr->default_pbr_material;
-
-    // Return default terrain material
-    if (strings_equali(config->name, DEFAULT_TERRAIN_MATERIAL_NAME))
-        return &state_ptr->default_terrain_material;
-
-    b8 needs_creation = false;
-    material* m = material_system_acquire_reference(config->name, config->auto_release, &needs_creation);
-
-    if (needs_creation)
-    {
-        material_system_state* state = engine_systems_get()->material_system;
-
-        // Create new material
-        if (!load_material(state, config, m))
-        {
-            BERROR("Failed to load material '%s'", config->name);
-            return 0;
-        }
-
-        if (m->generation == INVALID_ID)
-            m->generation = 0;
-        else
-            m->generation++;
-    }
-
-    return m;
+    return state->default_phong_material;
 }
 
-void material_system_release(const char* name)
+const bresource_material* material_system_get_default_pbr(material_system_state* state)
 {
-    // Ignore release requests for the default material
-    if (strings_equali(name, DEFAULT_PBR_MATERIAL_NAME) || strings_equali(name, DEFAULT_TERRAIN_MATERIAL_NAME))
-        return;
-    material_reference ref;
-    if (state_ptr && hashtable_get(&state_ptr->registered_material_table, name, &ref))
-    {
-        if (ref.reference_count == 0)
-        {
-            BWARN("Tried to release non-existent material: '%s'", name);
-            return;
-        }
-
-        // Take a copy of the name since it would be wiped out if destroyed
-        char name_copy[MATERIAL_NAME_MAX_LENGTH];
-        string_ncopy(name_copy, name, MATERIAL_NAME_MAX_LENGTH);
-
-        ref.reference_count--;
-        if (ref.reference_count == 0 && ref.auto_release)
-        {
-            material* m = &state_ptr->registered_materials[ref.handle];
-
-            // Destroy/reset material
-            destroy_material(m);
-
-            // This makes the reference slot "available"
-            ref.handle = INVALID_ID;
-
-            // Reset reference
-            // BTRACE("Released material '%s', Material unloaded because reference count=0 and auto_release=true", name_copy);
-        }
-        else
-        {
-            // BTRACE("Released material '%s', now has a reference count of '%i' (auto_release=%s)", name_copy, ref.reference_count, ref.auto_release ? "true" : "false");
-        }
-
-        // Update entry
-        hashtable_set(&state_ptr->registered_material_table, name_copy, &ref);
-    }
-    else
-    {
-        BERROR("material_system_release failed to release material '%s'", name);
-    }
+    return state->default_pbr_material;
 }
 
-material* material_system_get_default(void)
+const bresource_material* material_system_get_default_terrain(material_system_state* state)
 {
-    return material_system_get_default_pbr();
+    return state->default_terrain_material;
 }
 
-material* material_system_get_default_pbr(void)
+void material_system_dump(material_system_state* state)
 {
-    if (state_ptr)
-        return &state_ptr->default_pbr_material;
-
-    BFATAL("material_system_get_default_pbr called before system is initialized");
-    return 0;
-}
-
-material* material_system_get_default_terrain(void)
-{
-    if (state_ptr)
-        return &state_ptr->default_terrain_material;
-
-    BFATAL("material_system_get_default_terrain called before system is initialized");
-    return 0;
-}
-
-void material_system_dump(void)
-{
-    material_reference* refs = (material_reference*)state_ptr->registered_material_table.memory;
+    // FIXME: find a way to query this from the bresource system
+    /* material_reference* refs = (material_reference*)state_ptr->registered_material_table.memory;
     for (u32 i = 0; i < state_ptr->registered_material_table.element_count; ++i)
     {
         material_reference* r = &refs[i];
         if (r->reference_count > 0 || r->handle != INVALID_ID)
         {
-            BDEBUG("Found material ref (handle/refCount): (%u/%u)", r->handle, r->reference_count);
+            BTRACE("Found material ref (handle/refCount): (%u/%u)", r->handle, r->reference_count);
             if (r->handle != INVALID_ID)
                 BTRACE("Material name: %s", state_ptr->registered_materials[r->handle].name);
         }
-    }
+    } */
 }
 
 static b8 assign_map(material_system_state* state, bresource_texture_map* map, const material_map* config, bname material_name, const bresource_texture* default_tex)
@@ -624,7 +243,7 @@ static b8 assign_map(material_system_state* state, bresource_texture_map* map, c
     return true;
 }
 
-static b8 load_material(material_system_state* state, material_config* config, material* m)
+/* static b8 load_material(material_system_state* state, material_config* config, material* m)
 {
     bzero_memory(m, sizeof(material));
 
@@ -638,8 +257,8 @@ static b8 load_material(material_system_state* state, material_config* config, m
     // Process the material config by type
     if (config->type == MATERIAL_TYPE_PBR)
     {
-        selected_shader = state_ptr->pbr_shader;
-        m->shader_id = state_ptr->pbr_shader_id;
+        selected_shader = state->pbr_shader;
+        m->shader_id = state->pbr_shader_id;
         // PBR-specific properties
         u32 prop_count = darray_length(config->properties);
 
@@ -912,9 +531,9 @@ static b8 load_material(material_system_state* state, material_config* config, m
     bfree(instance_resource_config.uniform_configs, sizeof(shader_instance_uniform_texture_config) * instance_resource_config.uniform_config_count, MEMORY_TAG_ARRAY);
 
     return result;
-}
+} */
 
-static void destroy_material(material* m)
+/* static void destroy_material(bresource_material* m)
 {
     material_system_state* state = engine_systems_get()->material_system;
     // BTRACE("Destroying material '%s'...", m->name);
@@ -945,48 +564,27 @@ static void destroy_material(material* m)
     m->id = INVALID_ID;
     m->generation = INVALID_ID;
     m->internal_id = INVALID_ID;
-}
+} */
 
 static b8 create_default_pbr_material(material_system_state* state)
 {
-    bzero_memory(&state->default_pbr_material, sizeof(material));
-    state->default_pbr_material.id = INVALID_ID;
-    state->default_pbr_material.type = MATERIAL_TYPE_PBR;
-    state->default_pbr_material.generation = INVALID_ID;
-    state->default_pbr_material.name = bname_create(DEFAULT_PBR_MATERIAL_NAME);
-    // TODO: material PBR properties
-    state->default_pbr_material.property_struct_size = sizeof(material_phong_properties);
-    state->default_pbr_material.properties = ballocate(sizeof(material_phong_properties), MEMORY_TAG_MATERIAL_INSTANCE);
-    material_phong_properties* properties = (material_phong_properties*)state->default_pbr_material.properties;
-    properties->diffuse_color = vec4_one();  // white
-    properties->shininess = 8.0f;
-    state->default_pbr_material.maps = darray_reserve(bresource_texture_map, PBR_MAP_COUNT);
-    darray_length_set(state->default_pbr_material.maps, PBR_MAP_COUNT);
-    for (u32 i = 0; i < PBR_MAP_COUNT; ++i)
-    {
-        bresource_texture_map* map = &state->default_pbr_material.maps[i];
-        if (i == 0)
-        {
-            // NOTE: setting mode to nearest neighbor to make the chekerboard non-blurry
-            map->filter_magnify = map->filter_minify = TEXTURE_FILTER_MODE_NEAREST;
-        }
-        map->filter_magnify = map->filter_minify = TEXTURE_FILTER_MODE_LINEAR;
-        map->repeat_u = map->repeat_v = map->repeat_w = TEXTURE_REPEAT_REPEAT;
-        map->generation = INVALID_ID;
-        map->mip_levels = 1;
-
-        renderer_bresource_texture_map_resources_acquire(state->renderer, map);
-    }
-
-    // Change clamp mode on the default shadow map to border
-    bresource_texture_map* ssm = &state->default_pbr_material.maps[SAMP_SHADOW_MAP];
-    ssm->repeat_u = ssm->repeat_v = ssm->repeat_w = TEXTURE_REPEAT_CLAMP_TO_BORDER;
-
-    state->default_pbr_material.maps[SAMP_ALBEDO].texture = texture_system_get_default_bresource_texture(state->texture_system);
-    state->default_pbr_material.maps[SAMP_NORMAL].texture = texture_system_get_default_bresource_normal_texture(state->texture_system);
-    state->default_pbr_material.maps[SAMP_COMBINED].texture = texture_system_get_default_bresource_combined_texture(state->texture_system);
-    state->default_pbr_material.maps[SAMP_SHADOW_MAP].texture = texture_system_get_default_bresource_diffuse_texture(state->texture_system);
-    state->default_pbr_material.maps[SAMP_IRRADIANCE_MAP].texture = texture_system_get_default_bresource_cube_texture(state->texture_system);
+    bresource_material_request_info request = {0};
+    request.base.type = BRESOURCE_TYPE_MATERIAL;
+    request.material_source_text = "\
+        version = 3\
+        type = \"pbr\"\
+        \
+        maps = [\
+            {\
+                name = \"albedo\"\
+                texture_name = \"default_diffuse\"\
+            }\
+        ]\
+        \
+        properties = [\
+        ]";
+    state->default_pbr_material = (bresource_material*)bresource_system_request(state->resource_system, bname_create("default"), (bresource_request_info*)&request);
+    // FIXME: Move this material shader acquisition code to somewhere else
 
     // Setup a configuration to get instance resources for this material
     material* m = &state->default_pbr_material;
@@ -1018,8 +616,8 @@ static b8 create_default_pbr_material(material_system_state* state)
     ibl_cube_texture->bresource_texture_maps = ballocate(sizeof(bresource_texture_map*) * ibl_cube_texture->bresource_texture_map_count, MEMORY_TAG_ARRAY);
     ibl_cube_texture->bresource_texture_maps[0] = &m->maps[SAMP_IRRADIANCE_MAP];
 
-    shader* s = shader_system_get_by_id(state_ptr->pbr_shader_id);
-    if (!renderer_shader_instance_resources_acquire(state_ptr->renderer, s, &instance_resource_config, &state->default_pbr_material.internal_id))
+    shader* s = shader_system_get_by_id(state->pbr_shader_id);
+    if (!renderer_shader_instance_resources_acquire(state->renderer, s, &instance_resource_config, &state->default_pbr_material->instance_id))
     {
         BFATAL("Failed to acquire renderer resources for default PBR material. Application cannot continue");
         return false;
@@ -1033,9 +631,6 @@ static b8 create_default_pbr_material(material_system_state* state)
         ucfg->bresource_texture_maps = 0;
     }
     bfree(instance_resource_config.uniform_configs, sizeof(shader_instance_uniform_texture_config) * instance_resource_config.uniform_config_count, MEMORY_TAG_ARRAY);
-
-    // Make sure to assign the shader id
-    state->default_pbr_material.shader_id = s->id;
 
     return true;
 }

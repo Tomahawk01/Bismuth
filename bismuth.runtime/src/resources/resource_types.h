@@ -210,6 +210,9 @@ typedef struct shader_config
     // Maximum number of instances allowed
     u32 max_instances;
 
+    // The maximum number of local thingies allowed
+    u32 max_local_count;
+
     // Flags set for this shader
     u32 flags;
 } shader_config;

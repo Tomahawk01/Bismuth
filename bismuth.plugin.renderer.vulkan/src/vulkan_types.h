@@ -300,13 +300,15 @@ typedef struct vulkan_shader
     u16 max_descriptor_set_count;
 
     u8 descriptor_set_count;
-    vulkan_descriptor_set_config descriptor_sets[2];
+    vulkan_descriptor_set_config descriptor_sets[3];
 
     VkVertexInputAttributeDescription attributes[VULKAN_SHADER_MAX_ATTRIBUTES];
 
     face_cull_mode cull_mode;
 
     u32 max_instances;
+
+    u32 max_local_count;
 
     u8 stage_count;
 
@@ -318,7 +320,7 @@ typedef struct vulkan_shader
 
     VkDescriptorPool descriptor_pool;
 
-    VkDescriptorSetLayout descriptor_set_layouts[2];
+    VkDescriptorSetLayout descriptor_set_layouts[3];
 
     VkDescriptorSet* global_descriptor_sets;
 
@@ -339,6 +341,8 @@ typedef struct vulkan_shader
     VkPrimitiveTopology current_topology;
 
     vulkan_shader_instance_state* instance_states;
+
+    vulkan_shader_instance_state* local_states;
 } vulkan_shader;
 
 // Forward declare shaderc compiler

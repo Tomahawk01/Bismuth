@@ -115,6 +115,11 @@ typedef struct shader
     // The identifier of the currently bound instance
     u32 bound_instance_id;
 
+    // The number of local textures
+    u8 local_texture_count;
+    // The identifier of the currently bound local
+    u32 bound_local_id;
+
     // The block of memory used by the uniform hashtable
     void* hashtable_block;
     // A hashtable to store uniform index/locations by name
@@ -137,6 +142,10 @@ typedef struct shader
     u32* instance_sampler_indices;
     // The number of local non-sampler uniforms
     u8 local_uniform_count;
+    // The number of local sampler uniforms
+    u8 local_uniform_sampler_count;
+    // darray. Keeps the uniform indices of local samplers for fast lookups
+    u32* local_sampler_indices;
 
     // An array of attributes. Darray
     shader_attribute* attributes;
@@ -297,9 +306,12 @@ BAPI b8 shader_system_sampler_set_by_location(u32 shader_id, u16 location, const
 BAPI b8 shader_system_sampler_set_by_location_arrayed(u32 shader_id, u16 location, u32 array_index, const struct bresource_texture* t);
 
 BAPI b8 shader_system_bind_instance(u32 shader_id, u32 instance_id);
+BAPI b8 shader_system_bind_local(u32 shader_id, u32 local_id);
 BAPI b8 shader_system_apply_global(u32 shader_id);
 BAPI b8 shader_system_apply_instance(u32 shader_id);
 BAPI b8 shader_system_apply_local(u32 shader_id);
 
-BAPI b8 shader_system_shader_instance_acquire(u32 shader_id, u32 map_count, bresource_texture_map* maps, u32* out_instance_id);
+BAPI b8 shader_system_shader_instance_acquire(u32 shader_id, u32 map_count, bresource_texture_map** maps, u32* out_instance_id);
 BAPI b8 shader_system_shader_instance_release(u32 shader_id, u32 instance_id, u32 map_count, bresource_texture_map* maps);
+BAPI b8 shader_system_shader_local_acquire(u32 shader_id, u32 map_count, bresource_texture_map** maps, u32* out_local_id);
+BAPI b8 shader_system_shader_instance_release(u32 shader_id, u32 local_id, u32 map_count, bresource_texture_map* maps);

@@ -202,3 +202,60 @@ typedef struct bresource_texture_request_info
     // Indicates if loaded image assets should be flipped on the y-axis when loaded. Ignored for non-asset-based textures
     b8 flip_y;
 } bresource_texture_request_info;
+
+typedef struct bresource_texture_map
+{
+    /**
+     * @brief Cached generation of the assigned texture.
+     * Used to determine when to regenerate this texture map's resources when a texture's generation changes
+     */
+    u32 generation;
+    /** @brief Cached mip map levels. Should match assigned texture. Must always be at least 1 */
+    u32 mip_levels;
+    /** @brief A constant pointer to a texture resource */
+    const bresource_texture* texture;
+    /** @brief Texture filtering mode for minification */
+    texture_filter filter_minify;
+    /** @brief Texture filtering mode for magnification */
+    texture_filter filter_magnify;
+    /** @brief The repeat mode on the U axis (or X, or S) */
+    texture_repeat repeat_u;
+    /** @brief The repeat mode on the V axis (or Y, or T) */
+    texture_repeat repeat_v;
+    /** @brief The repeat mode on the W axis (or Z, or U) */
+    texture_repeat repeat_w;
+    /** @brief An identifier used for internal resource lookups/management */
+    // TODO: handle?
+    u32 internal_id;
+} bresource_texture_map;
+
+typedef enum bresource_material_type
+{
+    BRESOURCE_MATERIAL_TYPE_UNKNOWN,
+    BRESOURCE_MATERIAL_TYPE_UNLIT,
+    BRESOURCE_MATERIAL_TYPE_PHONG,
+    BRESOURCE_MATERIAL_TYPE_PBR
+} bresource_material_type;
+
+typedef struct bresource_material
+{
+    bresource base;
+    bresource_material_type type;
+    /** @brief The diffuse color */
+    vec4 diffuse_color;
+    bresource_texture_map albedo_diffuse_map;
+    bresource_texture_map normal_map;
+    bresource_texture_map specular_map;
+    bresource_texture_map metallic_roughness_ao_map;
+    bresource_texture_map emissive_map;
+    /** @brief (Phong-only) The material shininess, determines how concentrated the specular lighting is */
+    f32 specular_strength;
+    u32 instance_id;
+} bresource_material;
+
+typedef struct bresource_material_request_info
+{
+    bresource_request_info base;
+    // Optionally include source text to be used as if it resided in a .bmt file
+    const char* material_source_text;
+} bresource_material_request_info;

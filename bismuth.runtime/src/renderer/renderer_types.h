@@ -212,33 +212,6 @@ typedef struct bwindow_renderer_state
     struct bwindow_renderer_backend_state* backend_state;
 } bwindow_renderer_state;
 
-/** @brief A structure which maps a texture, use and other properties */
-typedef struct bresource_texture_map
-{
-    /**
-     * @brief The cached generation of the assigned texture.
-     * Used to determine when to regenerate this texture map's resources when a texture's generation changes
-     */
-    u32 generation;
-    /** @brief Cached mip map levels. Should match assigned texture. Must always be at least 1 */
-    u32 mip_levels;
-    /** @brief A constant pointer to a texture resource */
-    const bresource_texture* texture;
-    /** @brief Texture filtering mode for minification */
-    texture_filter filter_minify;
-    /** @brief Texture filtering mode for magnification */
-    texture_filter filter_magnify;
-    /** @brief The repeat mode on the U axis (or X, or S) */
-    texture_repeat repeat_u;
-    /** @brief The repeat mode on the V axis (or Y, or T) */
-    texture_repeat repeat_v;
-    /** @brief The repeat mode on the W axis (or Z, or U) */
-    texture_repeat repeat_w;
-    /** @brief An identifier used for internal resource lookups/management */
-    // TODO: handle?
-    u32 internal_id;
-} bresource_texture_map;
-
 typedef struct renderer_backend_interface
 {
     // A pointer to the frontend state in case the backend needs to communicate with it
@@ -323,6 +296,9 @@ typedef struct renderer_backend_interface
 
     b8 (*shader_instance_resources_acquire)(struct renderer_backend_interface* backend, struct shader* s, const shader_instance_resource_config* config, u32* out_instance_id);
     b8 (*shader_instance_resources_release)(struct renderer_backend_interface* backend, struct shader* s, u32 instance_id);
+
+    b8 (*shader_local_resources_acquire)(struct renderer_backend_interface* backend, struct shader* s, const shader_instance_resource_config* config, u32* out_local_id);
+    b8 (*shader_local_resources_release)(struct renderer_backend_interface* backend, struct shader* s, u32 local_id);
 
     b8 (*shader_uniform_set)(struct renderer_backend_interface* backend, struct shader* frontend_shader, struct shader_uniform* uniform, u32 array_index, const void* value);
 
