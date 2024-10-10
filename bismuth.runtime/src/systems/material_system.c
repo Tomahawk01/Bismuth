@@ -4,6 +4,7 @@
 #include "containers/hashtable.h"
 #include "core/console.h"
 #include "core/engine.h"
+#include "debug/bassert.h"
 #include "defines.h"
 #include "bresources/bresource_types.h"
 #include "logger.h"
@@ -144,10 +145,15 @@ bresource_material* material_system_acquire(material_system_state* state, bname 
         if (typed_resource->type == BRESOURCE_MATERIAL_TYPE_PBR)
         {
             u32 pbr_shader_id = shader_system_get_id("Shader.PBRMaterial");
-            if (!shader_system_shader_local_acquire(pbr_shader_id, 1, &, &m->instance_id))
+            // NOTE: No maps for this shader type
+            if (!shader_system_shader_local_acquire(pbr_shader_id, 1, 0, out_local_id))
             {
                 BASSERT_MSG(false, "Failed to acquire renderer resources for default PBR material. Application cannot continue");
             }
+        }
+        else
+        {
+            BASSERT_MSG(false, "Unsupported material type - add local shader acquisition logic");
         }
     }
 

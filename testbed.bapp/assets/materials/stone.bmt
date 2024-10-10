@@ -1,48 +1,45 @@
-#material file
+version = 3
+type = pbr
 
-version=2
-# types can be pbr,custom
-type=pbr
-name=stone
+maps = [
+	{
+		name = "diffuse"
+		texture_name = "stone"
+		filter_min = "linear"
+		filter_mag = "linear"
+		repeat_u = "repeat"
+		repeat_v = "repeat"
+		repeat_w = "repeat"
+	}
+	{
+		name = "specular"
+		texture_name = "stone_spec"
+		filter_min = "linear"
+		filter_mag = "linear"
+		repeat_u = "repeat"
+		repeat_v = "repeat"
+		repeat_w = "repeat"
+	}
+	{
+		name = "normal"
+		texture_name = "stone_norm"
+		filter_min = "linear"
+		filter_mag = "linear"
+		repeat_u = "repeat"
+		repeat_v = "repeat"
+		repeat_w = "repeat"
+	}
+]
 
-[map]
-name=diffuse
-filter_min=linear
-filter_mag=linear
-repeat_u=repeat
-repeat_v=repeat
-repeat_w=repeat
-texture_name=stone
-[/map]
-
-[map]
-name=specular
-filter_min=linear
-filter_mag=linear
-repeat_u=repeat
-repeat_v=repeat
-repeat_w=repeat
-texture_name=stone_spec
-[/map]
-
-[map]
-name=normal
-filter_min=linear
-filter_mag=linear
-repeat_v=repeat
-repeat_u=repeat
-repeat_w=repeat
-texture_name=stone_norm
-[/map]
-
-[prop]
-name=diffuse_color
-type=vec4
-value=1.0 1.0 1.0 1.0
-[/prop]
-
-[prop]
-name=shininess
-type=f32
-value=15.0
-[/prop]
+properties = [
+	{
+		name = "diffuse_color"
+		type = "vec4"
+		value = "1.0 1.0 1.0 1.0"
+	}
+	{
+		name = "shininess"
+		type = "f32"
+		value = 15.0
+	}
+]
