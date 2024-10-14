@@ -1,6 +1,7 @@
 #include "render_type_utils.h"
 
 #include "assets/basset_types.h"
+#include "core_render_types.h"
 #include "debug/bassert.h"
 #include "logger.h"
 #include "strings/bstring.h"
@@ -129,16 +130,16 @@ const char* shader_stage_to_string(shader_stage stage)
     }
 }
 
-const char* shader_scope_to_string(shader_scope scope)
+const char* shader_scope_to_string(shader_update_frequency frequency)
 {
-    switch (scope)
+    switch (frequency)
     {
-    case SHADER_SCOPE_GLOBAL:
-        return "global";
-    case SHADER_SCOPE_INSTANCE:
-        return "instance";
-    case SHADER_SCOPE_LOCAL:
-        return "local";
+    case SHADER_UPDATE_FREQUENCY_PER_FRAME:
+        return "frame";
+    case SHADER_UPDATE_FREQUENCY_PER_GROUP:
+        return "group";
+    case SHADER_UPDATE_FREQUENCY_PER_DRAW:
+        return "draw";
     }
 }
 
@@ -293,38 +294,47 @@ shader_attribute_type string_to_shader_attribute_type(const char* str)
 
 shader_stage string_to_shader_stage(const char* str)
 {
-    if (strings_equali("vertex", str) || strings_equali("vert", str)) {
+    if (strings_equali("vertex", str) || strings_equali("vert", str))
+    {
         return SHADER_STAGE_VERTEX;
     }
-    else if (strings_equali("geometry", str) || strings_equali("geom", str)) {
+    else if (strings_equali("geometry", str) || strings_equali("geom", str))
+    {
         return SHADER_STAGE_GEOMETRY;
     }
-    else if (strings_equali("fragment", str) || strings_equali("frag", str)) {
+    else if (strings_equali("fragment", str) || strings_equali("frag", str))
+    {
         return SHADER_STAGE_FRAGMENT;
     }
-    else if (strings_equali("compute", str) || strings_equali("comp", str)) {
+    else if (strings_equali("compute", str) || strings_equali("comp", str))
+    {
         return SHADER_STAGE_COMPUTE;
     }
-    else {
+    else
+    {
         BERROR("Unknown shader stage '%s'. Defaulting to vertex", str);
         return SHADER_STAGE_VERTEX;
     }
 }
 
-shader_scope string_to_shader_scope(const char* str)
+shader_update_frequency string_to_shader_scope(const char* str)
 {
-    if (strings_equali("global", str)) {
-        return SHADER_SCOPE_GLOBAL;
+    if (strings_equali("frame", str))
+    {
+        return SHADER_UPDATE_FREQUENCY_PER_FRAME;
     }
-    else if (strings_equali("instance", str)) {
-        return SHADER_SCOPE_INSTANCE;
+    else if (strings_equali("group", str))
+    {
+        return SHADER_UPDATE_FREQUENCY_PER_GROUP;
     }
-    else if (strings_equali("local", str)) {
-        return SHADER_SCOPE_LOCAL;
+    else if (strings_equali("draw", str))
+    {
+        return SHADER_UPDATE_FREQUENCY_PER_DRAW;
     }
-    else {
-        BERROR("Unknown shader scope '%s'. Defaulting to global", str);
-        return SHADER_SCOPE_GLOBAL;
+    else
+    {
+        BERROR("Unknown shader scope '%s'. Defaulting to per-frame", str);
+        return SHADER_UPDATE_FREQUENCY_PER_FRAME;
     }
 }
 

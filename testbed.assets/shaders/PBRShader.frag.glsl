@@ -27,6 +27,7 @@ struct point_light
 
 const int MAX_POINT_LIGHTS = 10;
 const int MAX_SHADOW_CASCADES = 4;
+const int IBL_CUBEMAP_COUNT = 4;
 
 struct pbr_properties
 {
@@ -56,13 +57,13 @@ layout(set = 1, binding = 0) uniform instance_uniform_object
     int num_p_lights;
 } instance_ubo;
 
-
 layout(push_constant) uniform push_constants
 {
 	// Only guaranteed a total of 128 bytes
 	mat4 model; // 64 bytes
 	vec4 clipping_plane;
 	int view_index;
+    int ibl_index;
 } u_push_constants;
 
 const int PBR_MATERIAL_TEXTURE_COUNT = 3;
@@ -77,8 +78,8 @@ const float PI = 3.14159265359;
 layout(set = 1, binding = 1) uniform sampler2D material_textures[3];
 // Shadow maps
 layout(set = 1, binding = 2) uniform sampler2DArray shadow_texture;
-// Environment map is at the last index
-layout(set = 1, binding = 3) uniform samplerCube irradiance_texture;
+// Environment map is at the last index. An array of the max number of ibl cubemaps
+layout(set = 1, binding = 3) uniform samplerCube irradiance_textures[IBL_CUBEMAP_COUNT];
 
 layout(location = 0) flat in int in_mode;
 layout(location = 1) flat in int use_pcf;
@@ -243,7 +244,7 @@ void main()
         }
 
         // Irradiance holds all the scene's indirect diffuse light
-        vec3 irradiance = texture(irradiance_texture, normal).rgb;
+        vec3 irradiance = texture(irradiance_textures[u_push_constants.ibl_index], normal).rgb;
 
         // Combine irradiance with albedo and ambient occlusion 
         // Also add in total accumulated reflectance

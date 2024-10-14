@@ -29,16 +29,15 @@ typedef enum shader_stage
     SHADER_STAGE_COMPUTE = 0x0000008
 } shader_stage;
 
-/** @brief Defines shader scope, which indicates how often it gets updated */
-typedef enum shader_scope
+typedef enum shader_update_frequency
 {
-    /** @brief Global shader scope, generally updated once per frame */
-    SHADER_SCOPE_GLOBAL = 0,
-    /** @brief Instance shader scope, generally updated "per-instance" of the shader */
-    SHADER_SCOPE_INSTANCE = 1,
-    /** @brief Local shader scope, generally updated per-object */
-    SHADER_SCOPE_LOCAL = 2
-} shader_scope;
+    /** @brief The uniform is updated once per frame */
+    SHADER_UPDATE_FREQUENCY_PER_FRAME = 0,
+    /** @brief The uniform is updated once per "group", it is up to the shader using this to determine what this means */
+    SHADER_UPDATE_FREQUENCY_PER_GROUP = 1,
+    /** @brief The uniform is updated once per draw call (i.e. "instance" of an object in the world) */
+    SHADER_UPDATE_FREQUENCY_PER_DRAW = 2
+} shader_update_frequency;
 
 /** @brief Available attribute types */
 typedef enum shader_attribute_type

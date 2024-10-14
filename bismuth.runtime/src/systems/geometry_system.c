@@ -1,5 +1,6 @@
 #include "geometry_system.h"
 
+#include "core/engine.h"
 #include "logger.h"
 #include "math/geometry.h"
 #include "memory/bmemory.h"
@@ -213,9 +214,12 @@ static b8 create_geometry(geometry_system_state* state, geometry_config config, 
     // Acquire material
     if (config.material_name != INVALID_BNAME)
     {
-        g->material = material_system_acquire(bname_string_get(config.material_name));
-        if (!g->material)
+        if (!material_system_acquire(engine_systems_get()->material_system, bname_string_get(config.material_name), &g->material_instance))
+        {
+            // FIXME: material instance
+            material_system_get_default_pbr(engine_systems_get()->material_system);
             g->material = material_system_get_default();
+        }
     }
 
     return true;

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "identifiers/identifier.h"
-#include "identifiers/bhandle.h"
 #include "bresources/bresource_types.h"
 #include "math/math_types.h"
 #include "strings/bname.h"
@@ -175,8 +174,8 @@ typedef struct shader_uniform_config
     shader_uniform_type type;
     // The array length, if uniform is an array
     u32 array_length;
-    // The scope of the uniform
-    shader_scope scope;
+    // The update frequency of the uniform
+    shader_update_frequency frequency;
 } shader_uniform_config;
 
 // Configuration for a shader

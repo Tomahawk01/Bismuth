@@ -1,8 +1,9 @@
 #pragma once
 
+#include "containers/hashtable.h"
+#include "core_render_types.h"
 #include "defines.h"
 #include "renderer/renderer_types.h"
-#include "containers/hashtable.h"
 #include "resources/resource_types.h"
 
 typedef struct shader_system_config
@@ -11,10 +12,10 @@ typedef struct shader_system_config
     u16 max_shader_count;
     // @brief The maximum number of uniforms allowed in a single shader
     u8 max_uniform_count;
-    // The maximum number of global-scope textures allowed in a single shader
-    u8 max_global_textures;
-    // The maximum number of instance-scope textures allowed in a single shader
-    u8 max_instance_textures;
+    // The maximum number of per-frame textures allowed in a single shader
+    u8 max_per_frame_textures;
+    // The maximum number of per-group textures allowed in a single shader
+    u8 max_per_group_textures;
 } shader_system_config;
 
 typedef enum shader_state
@@ -37,10 +38,10 @@ typedef struct shader_uniform
     u16 index;
     // The size of the uniform, or 0 for samplers
     u16 size;
-    // The index of the descriptor set the uniform belongs to (0=global, 1=instance, INVALID_ID=local)
+    // The index of the descriptor set the uniform belongs to (0=per_frame, 1=per_group, INVALID_ID=per_draw)
     u8 set_index;
-    // The scope of the uniform
-    shader_scope scope;
+    // The update frequency of the uniform
+    shader_update_frequency frequency;
     // The type of uniform
     shader_uniform_type type;
     u32 array_length;
@@ -89,36 +90,37 @@ typedef struct shader
 
     u64 required_ubo_alignment;
 
-    // The actual size of the global uniform buffer object
-    u64 global_ubo_size;
-    // The stride of the global uniform buffer object
-    u64 global_ubo_stride;
+    // The actual size of the per_frame uniform buffer object
+    u64 per_frame_ubo_size;
+    // The stride of the per_frame uniform buffer object
+    u64 per_frame_ubo_stride;
 
-    u64 global_ubo_offset;
+    u64 per_frame_ubo_offset;
 
-    // The actual size of the instance uniform buffer object
-    u64 ubo_size;
+    // The actual size of the per_group uniform buffer object
+    u64 per_group_ubo_size;
 
-    // The stride of the instance uniform buffer object
-    u64 ubo_stride;
+    // The stride of the per_group uniform buffer object
+    u64 per_group_ubo_stride;
 
-    u64 local_ubo_offset;
-    u64 local_ubo_size;
-    u64 local_ubo_stride;
+    u64 per_draw_ubo_offset;
+    u64 per_draw_ubo_size;
+    u64 per_draw_ubo_stride;
 
-    // An array of global texture map pointers
-    bresource_texture_map** global_texture_maps;
+    // An array of per_frame texture map pointers
+    bresource_texture_map** per_frame_texture_maps;
 
-    // The number of instance textures
-    u8 instance_texture_count;
+    // The number of per_group textures
+    u8 per_group_texture_count;
 
-    // The identifier of the currently bound instance
-    u32 bound_instance_id;
+    // The identifier of the currently bound group
+    u32 bound_per_group_id;
 
-    // The number of local textures
-    u8 local_texture_count;
-    // The identifier of the currently bound local
-    u32 bound_local_id;
+    // The number of per_draw textures
+    u8 per_draw_texture_count;
+
+    // The identifier of the currently bound per_draw resource
+    u32 bound_per_draw_id;
 
     // The block of memory used by the uniform hashtable
     void* hashtable_block;
@@ -128,24 +130,24 @@ typedef struct shader
     // An array of uniforms in this shader. Darray
     shader_uniform* uniforms;
 
-    // The number of global non-sampler uniforms
-    u8 global_uniform_count;
-    // The number of global sampler uniforms
-    u8 global_uniform_sampler_count;
-    // darray. Keeps the uniform indices of global samplers for fast lookups
-    u32* global_sampler_indices;
-    // The number of instance non-sampler uniforms
-    u8 instance_uniform_count;
-    // The number of instance sampler uniforms
-    u8 instance_uniform_sampler_count;
-    // darray. Keeps the uniform indices of instance samplers for fast lookups
-    u32* instance_sampler_indices;
-    // The number of local non-sampler uniforms
-    u8 local_uniform_count;
-    // The number of local sampler uniforms
-    u8 local_uniform_sampler_count;
-    // darray. Keeps the uniform indices of local samplers for fast lookups
-    u32* local_sampler_indices;
+    // The number of per_frame non-sampler uniforms
+    u8 per_frame_uniform_count;
+    // The number of per_frame sampler uniforms
+    u8 per_frame_uniform_sampler_count;
+    // darray Keeps the uniform indices of per_frame samplers for fast lookups
+    u32* per_frame_sampler_indices;
+    // The number of per_group non-sampler uniforms
+    u8 per_group_uniform_count;
+    // The number of per_group sampler uniforms
+    u8 per_group_uniform_sampler_count;
+    // darray Keeps the uniform indices of per_group samplers for fast lookups
+    u32* per_group_sampler_indices;
+    // The number of per_draw non-sampler uniforms
+    u8 per_draw_uniform_count;
+    // The number of per_draw sampler uniforms
+    u8 per_draw_uniform_sampler_count;
+    // darray Keeps the uniform indices of per_draw samplers for fast lookups
+    u32* per_draw_sampler_indices;
 
     // An array of attributes. Darray
     shader_attribute* attributes;
@@ -305,13 +307,13 @@ BAPI b8 shader_system_uniform_set_by_location_arrayed(u32 shader_id, u16 locatio
 BAPI b8 shader_system_sampler_set_by_location(u32 shader_id, u16 location, const struct bresource_texture* t);
 BAPI b8 shader_system_sampler_set_by_location_arrayed(u32 shader_id, u16 location, u32 array_index, const struct bresource_texture* t);
 
-BAPI b8 shader_system_bind_instance(u32 shader_id, u32 instance_id);
-BAPI b8 shader_system_bind_local(u32 shader_id, u32 local_id);
-BAPI b8 shader_system_apply_global(u32 shader_id);
-BAPI b8 shader_system_apply_instance(u32 shader_id);
-BAPI b8 shader_system_apply_local(u32 shader_id);
+BAPI b8 shader_system_bind_group(u32 shader_id, u32 instance_id);
+BAPI b8 shader_system_bind_draw_id(u32 shader_id, u32 local_id);
+BAPI b8 shader_system_apply_per_frame(u32 shader_id);
+BAPI b8 shader_system_apply_per_group(u32 shader_id);
+BAPI b8 shader_system_apply_per_draw(u32 shader_id);
 
-BAPI b8 shader_system_shader_instance_acquire(u32 shader_id, u32 map_count, bresource_texture_map** maps, u32* out_instance_id);
-BAPI b8 shader_system_shader_instance_release(u32 shader_id, u32 instance_id, u32 map_count, bresource_texture_map* maps);
-BAPI b8 shader_system_shader_local_acquire(u32 shader_id, u32 map_count, bresource_texture_map** maps, u32* out_local_id);
-BAPI b8 shader_system_shader_instance_release(u32 shader_id, u32 local_id, u32 map_count, bresource_texture_map* maps);
+BAPI b8 shader_system_shader_group_acquire(u32 shader_id, u32 map_count, bresource_texture_map** maps, u32* out_group_id);
+BAPI b8 shader_system_shader_group_release(u32 shader_id, u32 instance_id, u32 map_count, bresource_texture_map* maps);
+BAPI b8 shader_system_shader_per_draw_acquire(u32 shader_id, u32 map_count, bresource_texture_map** maps, u32* out_per_draw_id);
+BAPI b8 shader_system_shader_per_draw_release(u32 shader_id, u32 per_draw_id, u32 map_count, bresource_texture_map* maps);

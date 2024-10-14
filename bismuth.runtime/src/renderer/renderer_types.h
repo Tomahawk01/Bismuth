@@ -35,7 +35,7 @@ typedef struct renderbuffer_data
 typedef struct geometry_render_data
 {
     mat4 model;
-    struct material* material;
+    struct bresource_material* material;
     u64 unique_id;
     b8 winding_inverted;
     vec4 diffuse_color;
@@ -47,6 +47,8 @@ typedef struct geometry_render_data
     u32 index_count;
     u32 index_element_size;
     u64 index_buffer_offset;
+
+    u32 ibl_probe_index;
 } geometry_render_data;
 
 typedef enum renderer_debug_view_mode

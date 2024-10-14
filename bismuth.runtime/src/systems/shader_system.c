@@ -171,14 +171,15 @@ b8 shader_system_create(const shader_config* config)
     }
     out_shader->state = SHADER_STATE_NOT_CREATED;
     out_shader->name = string_duplicate(config->name);
-    out_shader->local_ubo_offset = 0;
-    out_shader->local_ubo_size = 0;
-    out_shader->local_ubo_stride = 0;
-    out_shader->bound_instance_id = INVALID_ID;
+    out_shader->per_draw_ubo_offset = 0;
+    out_shader->per_draw_ubo_size = 0;
+    out_shader->per_draw_ubo_stride = 0;
+    out_shader->bound_per_group_id = INVALID_ID;
+    out_shader->bound_per_draw_id = INVALID_ID;
     out_shader->attribute_stride = 0;
 
     // Setup arrays
-    out_shader->global_texture_maps = darray_create(bresource_texture_map*);
+    out_shader->per_frame_texture_maps = darray_create(bresource_texture_map*);
     out_shader->uniforms = darray_create(shader_uniform);
     out_shader->attributes = darray_create(shader_attribute);
 
@@ -194,14 +195,15 @@ b8 shader_system_create(const shader_config* config)
     hashtable_fill(&out_shader->uniform_lookup, &invalid);
 
     // A running total of the actual global uniform buffer object size
-    out_shader->global_ubo_size = 0;
+    out_shader->per_frame_ubo_size = 0;
     // A running total of the actual instance uniform buffer object size
-    out_shader->ubo_size = 0;
+    out_shader->per_group_ubo_size = 0;
     // NOTE: UBO alignment requirement set in renderer backend
 
     // This is hard-coded because the Vulkan spec only guarantees that a _minimum_ 128 bytes of space are available,
-    // and it's up to the driver to determine how much is available
-    out_shader->local_ubo_stride = 128;
+    // and it's up to the driver to determine how much is available.
+    // Should be determined by the backend and reported thusly
+    out_shader->per_draw_ubo_stride = 128;
 
     // Take copy of the flags
     out_shader->flags = config->flags;
@@ -345,10 +347,10 @@ static void internal_shader_destroy(shader* s)
     // Set it to be unusable right away
     s->state = SHADER_STATE_NOT_CREATED;
 
-    u32 sampler_count = darray_length(s->global_texture_maps);
+    u32 sampler_count = darray_length(s->per_frame_texture_maps);
     for (u32 i = 0; i < sampler_count; ++i)
-        bfree(s->global_texture_maps[i], sizeof(bresource_texture_map), MEMORY_TAG_RENDERER);
-    darray_destroy(s->global_texture_maps);
+        bfree(s->per_frame_texture_maps[i], sizeof(bresource_texture_map), MEMORY_TAG_RENDERER);
+    darray_destroy(s->per_frame_texture_maps);
 
     // Free the name
     if (s->name)
@@ -456,53 +458,53 @@ b8 shader_system_uniform_set_by_location_arrayed(u32 shader_id, u16 location, u3
     return renderer_shader_uniform_set(state_ptr->renderer, s, uniform, array_index, value);
 }
 
-b8 shader_system_bind_instance(u32 shader_id, u32 instance_id)
+b8 shader_system_bind_group(u32 shader_id, u32 group_id)
 {
-    if (instance_id == INVALID_ID)
+    if (group_id == INVALID_ID)
     {
         BERROR("Cannot bind shader instance INVALID_ID");
         return false;
     }
-    state_ptr->shaders[shader_id].bound_instance_id = instance_id;
+    state_ptr->shaders[shader_id].bound_per_group_id = group_id;
     return true;
 }
 
-b8 shader_system_bind_local(u32 shader_id, u32 local_id)
+b8 shader_system_bind_draw_id(u32 shader_id, u32 draw_id)
 {
-    if (local_id == INVALID_ID)
+    if (draw_id == INVALID_ID)
     {
         BERROR("Cannot bind shader local id INVALID_ID");
         return false;
     }
-    state_ptr->shaders[shader_id].bound_local_id = local_id;
+    state_ptr->shaders[shader_id].bound_per_draw_id = draw_id;
     return true;
 }
 
-b8 shader_system_apply_global(u32 shader_id)
+b8 shader_system_apply_per_frame(u32 shader_id)
 {
     shader* s = &state_ptr->shaders[shader_id];
     return renderer_shader_apply_globals(state_ptr->renderer, s);
 }
 
-b8 shader_system_apply_instance(u32 shader_id)
+b8 shader_system_apply_per_group(u32 shader_id)
 {
     shader* s = &state_ptr->shaders[shader_id];
     return renderer_shader_apply_instance(state_ptr->renderer, s);
 }
 
-b8 shader_system_apply_local(u32 shader_id)
+b8 shader_system_apply_per_draw(u32 shader_id)
 {
     shader* s = &state_ptr->shaders[shader_id];
     return renderer_shader_apply_local(state_ptr->renderer, s);
 }
 
-static b8 instance_local_acquire(u32 shader_id, shader_scope scope, u32 map_count, bresource_texture_map** maps, u32* out_id)
+static b8 per_group_or_per_draw_acquire(u32 shader_id, shader_update_frequency frequency, u32 map_count, bresource_texture_map** maps, u32* out_id)
 {
     shader* selected_shader = shader_system_get_by_id(shader_id);
 
     // Ensure that configs are setup for required texture maps
     shader_instance_resource_config config = {0};
-    u32 sampler_count = selected_shader->instance_uniform_sampler_count;
+    u32 sampler_count = selected_shader->per_group_uniform_sampler_count;
 
     config.uniform_config_count = sampler_count;
     if (sampler_count > 0)
@@ -513,7 +515,7 @@ static b8 instance_local_acquire(u32 shader_id, shader_scope scope, u32 map_coun
     // Create a sampler config for each map
     for (u32 i = 0; i < sampler_count; ++i)
     {
-        shader_uniform* u = &selected_shader->uniforms[selected_shader->instance_sampler_indices[i]];
+        shader_uniform* u = &selected_shader->uniforms[selected_shader->per_group_sampler_indices[i]];
         shader_instance_uniform_texture_config* uniform_config = &config.uniform_configs[i];
         /* uniform_config->uniform_location = u->location; */
         uniform_config->bresource_texture_map_count = BMAX(u->array_length, 1);
@@ -536,11 +538,11 @@ static b8 instance_local_acquire(u32 shader_id, shader_scope scope, u32 map_coun
 
     // Acquire the instance resources for this shader
     b8 result = false;
-    if (scope == SHADER_SCOPE_INSTANCE)
+    if (frequency == SHADER_UPDATE_FREQUENCY_PER_GROUP)
     {
         result = renderer_shader_instance_resources_acquire(state_ptr->renderer, selected_shader, &config, out_id);
     }
-    else if (scope == SHADER_SCOPE_LOCAL)
+    else if (frequency == SHADER_UPDATE_FREQUENCY_PER_DRAW)
     {
         result = renderer_shader_local_resources_acquire(state_ptr->renderer, selected_shader, &config, out_id);
     }
@@ -551,7 +553,7 @@ static b8 instance_local_acquire(u32 shader_id, shader_scope scope, u32 map_coun
     }
 
     if (!result)
-        BERROR("Failed to acquire %s renderer resources for shader '%s'", scope == SHADER_SCOPE_INSTANCE ? "instance" : "local", selected_shader->name);
+        BERROR("Failed to acquire %s renderer resources for shader '%s'", frequency == SHADER_UPDATE_FREQUENCY_PER_GROUP ? "group" : "per-draw", selected_shader->name);
 
     // Clean up the uniform configs
     if (config.uniform_configs)
@@ -573,15 +575,15 @@ static b8 instance_local_acquire(u32 shader_id, shader_scope scope, u32 map_coun
 
 b8 shader_system_shader_instance_acquire(u32 shader_id, u32 map_count, bresource_texture_map** maps, u32* out_instance_id)
 {
-    return instance_local_acquire(shader_id, SHADER_SCOPE_INSTANCE, map_count, maps, out_instance_id);
+    return per_group_or_per_draw_acquire(shader_id, SHADER_UPDATE_FREQUENCY_PER_GROUP, map_count, maps, out_instance_id);
 }
 
-b8 shader_system_shader_local_acquire(u32 shader_id, u32 map_count, bresource_texture_map** maps, u32* out_local_id)
+b8 shader_system_shader_per_draw_acquire(u32 shader_id, u32 map_count, bresource_texture_map** maps, u32* out_local_id)
 {
-    return instance_local_acquire(shader_id, SHADER_SCOPE_LOCAL, map_count, maps, out_local_id);
+    return per_group_or_per_draw_acquire(shader_id, SHADER_UPDATE_FREQUENCY_PER_DRAW, map_count, maps, out_local_id);
 }
 
-static b8 instance_or_local_release(u32 shader_id, shader_scope scope, u32 id, u32 map_count, bresource_texture_map* maps)
+static b8 per_group_or_per_draw_release(u32 shader_id, shader_update_frequency frequency, u32 id, u32 map_count, bresource_texture_map* maps)
 {
     shader* selected_shader = shader_system_get_by_id(shader_id);
 
@@ -590,33 +592,33 @@ static b8 instance_or_local_release(u32 shader_id, shader_scope scope, u32 id, u
         renderer_bresource_texture_map_resources_release(state_ptr->renderer, &maps[i]);
 
     b8 result = false;
-    if (scope == SHADER_SCOPE_INSTANCE)
+    if (frequency == SHADER_UPDATE_FREQUENCY_PER_GROUP)
     {
         result = renderer_shader_instance_resources_release(state_ptr->renderer, selected_shader, id);
     }
-    else if (scope == SHADER_SCOPE_LOCAL)
+    else if (frequency == SHADER_UPDATE_FREQUENCY_PER_DRAW)
     {
         result = renderer_shader_local_resources_release(state_ptr->renderer, selected_shader, id);
     }
     else
     {
-        BASSERT_MSG(false, "Global shader scope should not be used when releasing resources");
+        BASSERT_MSG(false, "Per-frame shader update frequency should not be used when releasing resources");
     }
 
     if (!result)
-        BERROR("Failed to acquire %s renderer resources for shader '%s'", scope == SHADER_SCOPE_INSTANCE ? "instance" : "local", selected_shader->name);
+        BERROR("Failed to acquire %s renderer resources for shader '%s'", frequency == SHADER_UPDATE_FREQUENCY_PER_GROUP ? "group" : "per-draw", selected_shader->name);
 
     return result;
 }
 
-b8 shader_system_shader_instance_release(u32 shader_id, u32 instance_id, u32 map_count, bresource_texture_map* maps)
+b8 shader_system_shader_group_release(u32 shader_id, u32 group_id, u32 map_count, bresource_texture_map* maps)
 {
-    return instance_or_local_release(shader_id, SHADER_SCOPE_INSTANCE, instance_id, map_count, maps);
+    return per_group_or_per_draw_release(shader_id, SHADER_UPDATE_FREQUENCY_PER_GROUP, group_id, map_count, maps);
 }
 
-b8 shader_system_shader_local_release(u32 shader_id, u32 local_id, u32 map_count, bresource_texture_map* maps)
+b8 shader_system_shader_per_draw_release(u32 shader_id, u32 per_draw_id, u32 map_count, bresource_texture_map* maps)
 {
-    return instance_or_local_release(shader_id, SHADER_SCOPE_LOCAL, local_id, map_count, maps);
+    return per_group_or_per_draw_release(shader_id, SHADER_UPDATE_FREQUENCY_PER_DRAW, per_draw_id, map_count, maps);
 }
 
 static b8 internal_attribute_add(shader* shader, const shader_attribute_config* config)
@@ -667,9 +669,9 @@ static b8 internal_attribute_add(shader* shader, const shader_attribute_config* 
 static b8 internal_sampler_add(shader* shader, shader_uniform_config* config)
 {
     // Samples can't be used for push constants
-    if (config->scope == SHADER_SCOPE_LOCAL)
+    if (config->frequency == SHADER_UPDATE_FREQUENCY_PER_DRAW)
     {
-        BERROR("add_sampler cannot add a sampler at local scope");
+        BERROR("add_sampler cannot add a sampler at per-draw scope");
         return false;
     }
 
@@ -677,17 +679,17 @@ static b8 internal_sampler_add(shader* shader, shader_uniform_config* config)
     if (!uniform_name_valid(shader, config->name) || !shader_uniform_add_state_valid(shader))
         return false;
 
-    // If global, push into global list
+    // If per-draw, push into per-frame list
     u32 location = 0;
-    if (config->scope == SHADER_SCOPE_GLOBAL)
+    if (config->frequency == SHADER_UPDATE_FREQUENCY_PER_FRAME)
     {
-        u32 global_texture_count = darray_length(shader->global_texture_maps);
-        if (global_texture_count + 1 > state_ptr->config.max_global_textures)
+        u32 per_frame_texture_count = darray_length(shader->per_frame_texture_maps);
+        if (per_frame_texture_count + 1 > state_ptr->config.max_per_frame_textures)
         {
-            BERROR("Shader global texture count %i exceeds max of %i", global_texture_count, state_ptr->config.max_global_textures);
+            BERROR("Shader per-frame texture count %i exceeds max of %i", per_frame_texture_count, state_ptr->config.max_per_frame_textures);
             return false;
         }
-        location = global_texture_count;
+        location = per_frame_texture_count;
         
         // NOTE: Creating default texture map to be used here. Can always be updated later
         bresource_texture_map default_map = {};
@@ -703,22 +705,22 @@ static b8 internal_sampler_add(shader* shader, shader_uniform_config* config)
 
         if (!renderer_bresource_texture_map_resources_acquire(state_ptr->renderer, map))
         {
-            BERROR("Failed to acquire resources for global texture map during shader creation");
+            BERROR("Failed to acquire resources for per-frame texture map during shader creation");
             return false;
         }
 
-        darray_push(shader->global_texture_maps, map);
+        darray_push(shader->per_frame_texture_maps, map);
     }
     else
     {
         // Otherwise, it's instance-level, so keep count of how many need to be added during the resource acquisition
-        if (shader->instance_texture_count + 1 > state_ptr->config.max_instance_textures)
+        if (shader->per_group_texture_count + 1 > state_ptr->config.max_per_group_textures)
         {
-            BERROR("Shader instance texture count %i exceeds max of %i", shader->instance_texture_count, state_ptr->config.max_instance_textures);
+            BERROR("Shader per_group texture count %i exceeds max of %i", shader->per_group_texture_count, state_ptr->config.max_per_group_textures);
             return false;
         }
-        location = shader->instance_texture_count;
-        shader->instance_texture_count++;
+        location = shader->per_group_texture_count;
+        shader->per_group_texture_count++;
     }
 
     // Treat it like a uniform
@@ -756,10 +758,10 @@ static b8 internal_uniform_add(shader* shader, const shader_uniform_config* conf
     b8 is_sampler = uniform_type_is_sampler(config->type);
     shader_uniform entry;
     entry.index = uniform_count;  // Index is saved to the hashtable for lookups
-    entry.scope = config->scope;
+    entry.frequency = config->frequency;
     entry.type = config->type;
     entry.array_length = config->array_length;
-    b8 is_global = (config->scope == SHADER_SCOPE_GLOBAL);
+    b8 is_global = (config->frequency == SHADER_UPDATE_FREQUENCY_PER_FRAME);
     if (is_sampler)
     {
         // Use passed in location
@@ -770,16 +772,16 @@ static b8 internal_uniform_add(shader* shader, const shader_uniform_config* conf
         entry.location = entry.index;
     }
 
-    if (config->scope == SHADER_SCOPE_LOCAL)
+    if (config->frequency == SHADER_UPDATE_FREQUENCY_PER_DRAW)
     {
         entry.set_index = 2;  // NOTE: set 2 doesn't exist in Vulkan, it's a push constant
-        entry.offset = shader->local_ubo_size;
+        entry.offset = shader->per_draw_ubo_size;
         entry.size = config->size;
     }
     else
     {
-        entry.set_index = (u32)config->scope;
-        entry.offset = is_sampler ? 0 : is_global ? shader->global_ubo_size : shader->ubo_size;
+        entry.set_index = (u32)config->frequency;
+        entry.offset = is_sampler ? 0 : is_global ? shader->per_frame_ubo_size : shader->per_group_ubo_size;
         entry.size = is_sampler ? 0 : config->size;
     }
 
@@ -792,17 +794,17 @@ static b8 internal_uniform_add(shader* shader, const shader_uniform_config* conf
 
     if (!is_sampler)
     {
-        if (entry.scope == SHADER_SCOPE_GLOBAL)
+        if (entry.frequency == SHADER_UPDATE_FREQUENCY_PER_FRAME)
         {
-            shader->global_ubo_size += (entry.size * entry.array_length);
+            shader->per_frame_ubo_size += (entry.size * entry.array_length);
         }
-        else if (entry.scope == SHADER_SCOPE_INSTANCE)
+        else if (entry.frequency == SHADER_UPDATE_FREQUENCY_PER_GROUP)
         {
-            shader->ubo_size += (entry.size * entry.array_length);
+            shader->per_group_ubo_size += (entry.size * entry.array_length);
         }
-        else if (entry.scope == SHADER_SCOPE_LOCAL)
+        else if (entry.frequency == SHADER_UPDATE_FREQUENCY_PER_DRAW)
         {
-            shader->local_ubo_size += (entry.size * entry.array_length);
+            shader->per_draw_ubo_size += (entry.size * entry.array_length);
         }
     }
 

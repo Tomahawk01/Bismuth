@@ -234,7 +234,8 @@ typedef enum bresource_material_type
     BRESOURCE_MATERIAL_TYPE_UNKNOWN,
     BRESOURCE_MATERIAL_TYPE_UNLIT,
     BRESOURCE_MATERIAL_TYPE_PHONG,
-    BRESOURCE_MATERIAL_TYPE_PBR
+    BRESOURCE_MATERIAL_TYPE_PBR,
+    BRESOURCE_MATERIAL_TYPE_LAYERED_PBR
 } bresource_material_type;
 
 typedef struct bresource_material
@@ -248,10 +249,22 @@ typedef struct bresource_material
     bresource_texture_map specular_map;
     bresource_texture_map metallic_roughness_ao_map;
     bresource_texture_map emissive_map;
+
+    /** @brief The number of material layers. Only used for layered materials */
+    u32 layer_count;
+    /** @brief A map used for a texture array. Only used for layered materials */
+    bresource_texture_map layered_material_map;
+
     /** @brief (Phong-only) The material shininess, determines how concentrated the specular lighting is */
     f32 specular_strength;
-    u32 instance_id;
+    u32 group_id;
 } bresource_material;
+
+typedef struct bresource_material_instance
+{
+    bresource_material* material;
+    u32 per_draw_id;
+} bresource_material_instance;
 
 typedef struct bresource_material_request_info
 {

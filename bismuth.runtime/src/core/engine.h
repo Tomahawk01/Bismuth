@@ -5,7 +5,6 @@
 #include "audio/audio_types.h"
 #include "identifiers/bhandle.h"
 #include "platform/vfs.h"
-#include "renderer/renderer_types.h"
 
 struct application;
 struct frame_data;
