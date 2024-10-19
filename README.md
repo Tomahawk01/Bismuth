@@ -5,7 +5,7 @@ I basically follow along [this series](https://www.youtube.com/watch?v=dHPuU-DJo
 
 ## Prerequisites
 - Make for Windows: https://gnuwin32.sourceforge.net/packages/make.htm
-- Clang: https://releases.llvm.org/download.html
+- Clang: https://llvm.org/builds
 - Vulkan SDK: https://vulkan.lunarg.com
 - OpenAL: https://www.openal.org/downloads
 - VSCode: https://code.visualstudio.com
