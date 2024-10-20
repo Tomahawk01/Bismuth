@@ -1,10 +1,12 @@
 #include "bactor.h"
+#include "defines.h"
 #include "bresources/bresource_types.h"
 #include "math/geometry.h"
 #include <debug/bassert.h>
 
 typedef struct bactor_staticmesh_system_state
 {
+    u32 max_components;
     geometry* geometries;
     bresource_material_instance* materials;
 } bactor_staticmesh_system_state;
@@ -19,8 +21,16 @@ b8 bactor_comp_staticmesh_system_initialize(u64* memory_requirement, void* state
         return true;
 
     bactor_staticmesh_system_state* state = (bactor_staticmesh_system_state*)state_block;
+    state->max_components = config->max_components;
     state->geometries = state_block + (sizeof(bactor_staticmesh_system_state));
     state->materials = (bresource_material_instance*)(((u8*)state->geometries) + (sizeof(geometry) * config->max_components));
+
+    // Invalidate all entries in the system
+    for (u32 i = 0; i < state->max_components; ++i)
+    {
+        state->geometries[i].id = INVALID_ID;
+        state->materials[i].per_draw_id = INVALID_ID;
+    }
 
     return true;
 }
