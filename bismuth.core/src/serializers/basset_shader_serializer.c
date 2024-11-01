@@ -126,16 +126,16 @@ const char* basset_shader_serialize(const basset* asset)
                 per_draw_count++;
                 break;
             }
-
-            if (per_frame_count)
-                bson_object_value_add_array(&uniforms_obj, "global", per_frame_array);
-            if (per_group_count)
-                bson_object_value_add_array(&uniforms_obj, "instance", per_group_array);
-            if (per_draw_count)
-                bson_object_value_add_array(&uniforms_obj, "local", per_draw_array);
-
-            bson_object_value_add_object(&tree.root, "uniforms", uniforms_obj);
         }
+
+        if (per_frame_count)
+            bson_object_value_add_array(&uniforms_obj, "global", per_frame_array);
+        if (per_group_count)
+            bson_object_value_add_array(&uniforms_obj, "instance", per_group_array);
+        if (per_draw_count)
+            bson_object_value_add_array(&uniforms_obj, "local", per_draw_array);
+
+        bson_object_value_add_object(&tree.root, "uniforms", uniforms_obj);
     }
 
     // Output to string
