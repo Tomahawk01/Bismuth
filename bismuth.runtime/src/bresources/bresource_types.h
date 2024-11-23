@@ -239,6 +239,11 @@ typedef enum bresource_material_type
     BRESOURCE_MATERIAL_TYPE_LAYERED_PBR
 } bresource_material_type;
 
+typedef struct bresource_material_layer
+{
+    bname name;
+} bresource_material_layer;
+
 typedef struct bresource_material
 {
     bresource base;
@@ -260,13 +265,6 @@ typedef struct bresource_material
     f32 specular_strength;
     u32 group_id;
 } bresource_material;
-
-typedef struct bresource_material_instance
-{
-    const bresource_material* material;
-
-    u32 per_draw_id;
-} bresource_material_instance;
 
 typedef struct bresource_material_request_info
 {

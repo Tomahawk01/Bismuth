@@ -1,6 +1,7 @@
 #pragma once
 
 #include "bresources/bresource_types.h"
+#include "systems/material_system.h"
 
 typedef struct static_mesh_instance
 {
@@ -14,7 +15,7 @@ typedef struct static_mesh_instance
      * @brief An array of material instances associated with the submeshes.
      * Elements match up to mesh_resource->submeshes index-wise. Thus the count of this array is the same as mesh_resource->submesh_count
      */
-    bresource_material_instance* material_instances;
+    material_instance* material_instances;
 
     vec4 tint;
 } static_mesh_instance;
@@ -51,7 +52,7 @@ typedef struct static_mesh_submesh_render_data
     u64 index_buffer_offset;
 
     /** @brief The instance of the material to use with this static mesh when rendering */
-    bresource_material_instance material;
+    material_instance material;
 } static_mesh_submesh_render_data;
 
 /**

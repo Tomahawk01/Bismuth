@@ -27,7 +27,7 @@ b8 bactor_comp_staticmesh_system_initialize(u64* memory_requirement, void* state
     *memory_requirement = sizeof(bactor_staticmesh_comp_system_state) +
                           (sizeof(u64) * config->max_components) +
                           (sizeof(static_mesh_instance) * config->max_components) +
-                          (sizeof(bresource_material_instance) * config->max_components) +
+                          (sizeof(material_instance) * config->max_components) +
                           (sizeof(bname) * config->max_components) +
                           (sizeof(vec4) * config->max_components) +
                           (sizeof(bname) * config->max_components);

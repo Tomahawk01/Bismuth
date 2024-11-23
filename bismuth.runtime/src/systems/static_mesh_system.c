@@ -89,7 +89,7 @@ void static_mesh_system_instance_release(struct static_mesh_system_state* state,
         material_system_release_instance(material_system, &instance->material_instances[i]);
 
     // Cleanup the instance itself
-    BFREE_TYPE_CARRAY(instance->material_instances, bresource_material_instance, instance->mesh_resource->submesh_count);
+    BFREE_TYPE_CARRAY(instance->material_instances, material_instance, instance->mesh_resource->submesh_count);
     instance->material_instances = 0;
     instance->instance_id = INVALID_ID_U64;
     instance->tint = vec4_zero();
@@ -150,7 +150,7 @@ static void static_mesh_on_resource_loaded(bresource* resource, void* listener)
     }
 
     // Request material instances for this static mesh instance
-    typed_listener->instance->material_instances = BALLOC_TYPE_CARRAY(bresource_material_instance, typed_listener->instance->mesh_resource->submesh_count);
+    typed_listener->instance->material_instances = BALLOC_TYPE_CARRAY(material_instance, typed_listener->instance->mesh_resource->submesh_count);
 
     // Process submeshes
     for (u32 i = 0; i < typed_resource->submesh_count; ++i)
