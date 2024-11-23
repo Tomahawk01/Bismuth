@@ -230,14 +230,30 @@ typedef struct bresource_texture_map
     u32 internal_id;
 } bresource_texture_map;
 
-typedef enum bresource_material_type
+typedef enum bresource_material_model
 {
-    BRESOURCE_MATERIAL_TYPE_UNKNOWN,
-    BRESOURCE_MATERIAL_TYPE_UNLIT,
-    BRESOURCE_MATERIAL_TYPE_PHONG,
-    BRESOURCE_MATERIAL_TYPE_PBR,
-    BRESOURCE_MATERIAL_TYPE_LAYERED_PBR
-} bresource_material_type;
+    BRESOURCE_MATERIAL_MODEL_UNKNOWN,
+    /** @brief A material which only contains color information. Does not respond to light */
+    BRESOURCE_MATERIAL_MODEL_UNLIT,
+    /** @brief The "default" shading model for materials. Ideal for solid objects. Responds to lighting */
+    BRESOURCE_MATERIAL_MODEL_PBR,
+    /** @brief Similar to PBR, but essentially contains multiple materials in one (i.e. in "layers") that are blended together in the shader. Great for terrains. Expensive if overused. Responds to lighting */
+    BRESOURCE_MATERIAL_MODEL_LAYERED_PBR
+} bresource_material_model;
+
+typedef enum bresource_material_blend_mode
+{
+    /** @brief Material is fully opaque with no transparency. Recieves lighting */
+    BRESOURCE_MATERIAL_BLEND_MODE_OPAQUE,
+    /** @brief Material has transparency via a mask. If opacity_mask <= opacity_mask_clip, fragment is discarded. Recieves lighting */
+    BRESOURCE_MATERIAL_BLEND_MODE_MASKED,
+    /** @brief Material is blended with background (1 - opacity). Does NOT recieve lighting */
+    BRESOURCE_MATERIAL_BLEND_MODE_TRANSLUCENT,
+    /** @brief Material is blended with background (color + background). Does NOT recieve lighting */
+    BRESOURCE_MATERIAL_BLEND_MODE_ADDITIVE,
+    /** @brief Material is blended with background (color * background). Does NOT recieve lighting */
+    BRESOURCE_MATERIAL_BLEND_MODE_MULTIPLY,
+} bresource_material_blend_mode;
 
 typedef struct bresource_material_layer
 {
@@ -247,14 +263,18 @@ typedef struct bresource_material_layer
 typedef struct bresource_material
 {
     bresource base;
-    bresource_material_type type;
-    /** @brief The diffuse color */
-    vec4 diffuse_color;
+    bresource_material_model shading_model;
+    bresource_material_blend_mode blend_mode;
+
     bresource_texture_map albedo_diffuse_map;
     bresource_texture_map normal_map;
     bresource_texture_map specular_map;
     bresource_texture_map metallic_roughness_ao_map;
     bresource_texture_map emissive_map;
+    /** @brief Defines an opacity map for the material. Only used for the BRESOURCE_MATERIAL_BLEND_MODE_TRANSLUCENT blend mode */
+    bresource_texture_map opacity_map;
+    /** @brief Defines an opacity clip map. If opacity_mask <= opacity_mask_clip, fragment is discarded. Only used for the BRESOURCE_MATERIAL_BLEND_MODE_MASKED blend mode */
+    bresource_texture_map opacity_mask_map;
 
     /** @brief The number of material layers. Only used for layered materials */
     u32 layer_count;

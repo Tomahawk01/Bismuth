@@ -619,36 +619,77 @@ static b8 create_default_pbr_material(material_system_state* state)
     request.material_source_text = "\
         version = 3\
         type = \"pbr\"\
+        blend_mode = \"translucent\"\
+        \
+        inputs = [\
+            {\
+                name = \"albedo\"\
+                type = \"color\"\
+            }\
+            {\
+                name = \"normal\"\
+                type = \"color\"\
+            }\
+            {\
+                name = \"metallic\"\
+                type = \"scalar\"\
+            }\
+            {\
+                name = \"roughness\"\
+                type = \"scalar\"\
+            }\
+            {\
+                name = \"ao\"\
+                type = \"scalar\"\
+            }\
+            {\
+                name = \"emissive\"\
+                type = \"color\"\
+            }\
+        ]\
         \
         maps = [\
             {\
                 name = \"albedo\"\
-                channel = \"albedo\"\
+                input = \"albedo\"\
                 texture_name = \"default_diffuse\"\
             }\
             {\
                 name = \"normal\"\
-                channel = \"normal\"\
+                input = \"normal\"\
                 texture_name = \"default_normal\"\
             }\
             {\
                 name = \"metallic\"\
-                channel = \"metallic\"\
+                input = \"metallic\"\
+                channel = \"r\"\
                 texture_name = \"default_metallic\"\
             }\
             {\
                 name = \"roughness\"\
-                channel = \"roughness\"\
+                input = \"roughness\"\
+                channel = \"r\"\
                 texture_name = \"default_roughness\"\
             }\
             {\
                 name = \"ao\"\
-                channel = \"ao\"\
+                input = \"ao\"\
+                channel = \"r\"\
                 texture_name = \"default_ao\"\
             }\
             {\
+                name = \"opacity\"\
+                input = \"opacity\"\
+                texture_name = \"default_opacity\"\
+            }\
+            {\
+                name = \"opacity_mask\"\
+                input = \"opacity_mask\"\
+                texture_name = \"default_opacity_mask\"\
+            }\
+            {\
                 name = \"emissive\"\
-                channel = \"emissive\"\
+                input = \"emissive\"\
                 texture_name = \"default_emissive\"\
             }\
         ]\
@@ -686,6 +727,8 @@ static b8 create_default_layered_material(material_system_state* state)
     request.material_source_text = "\
         version = 3\
         type = \"layered_pbr\"\
+        channel_size_x = 1024\
+        channel_size_y = 1024\
         \
         layers = [\
             {\
@@ -703,7 +746,8 @@ static b8 create_default_layered_material(material_system_state* state)
                     }\
                     {\
                         name = \"metallic\"\
-                        channel = \"metallic\"\
+                        channel = \"mra\"\
+                        source_channel = \"r\"\
                         texture_name = \"default_metallic\"\
                     }\
                     {\
@@ -715,6 +759,11 @@ static b8 create_default_layered_material(material_system_state* state)
                         name = \"ao\"\
                         channel = \"ao\"\
                         texture_name = \"default_ao\"\
+                    }\
+                    {\
+                        name = \"emissive\"\
+                        channel = \"emissive\"\
+                        texture_name = \"default_emissive\"\
                     }\
                 ]\
             }\
@@ -746,6 +795,11 @@ static b8 create_default_layered_material(material_system_state* state)
                         channel = \"ao\"\
                         texture_name = \"default_ao\"\
                     }\
+                    {\
+                        name = \"emissive\"\
+                        channel = \"emissive\"\
+                        texture_name = \"default_emissive\"\
+                    }\
                 ]\
             }\
             {\
@@ -776,6 +830,11 @@ static b8 create_default_layered_material(material_system_state* state)
                         channel = \"ao\"\
                         texture_name = \"default_ao\"\
                     }\
+                    {\
+                        name = \"emissive\"\
+                        channel = \"emissive\"\
+                        texture_name = \"default_emissive\"\
+                    }\
                 ]\
             }\
             {\
@@ -805,6 +864,11 @@ static b8 create_default_layered_material(material_system_state* state)
                         name = \"ao\"\
                         channel = \"ao\"\
                         texture_name = \"default_ao\"\
+                    }\
+                    {\
+                        name = \"emissive\"\
+                        channel = \"emissive\"\
+                        texture_name = \"default_emissive\"\
                     }\
                 ]\
             }\
