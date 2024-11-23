@@ -230,60 +230,89 @@ typedef struct bresource_texture_map
     u32 internal_id;
 } bresource_texture_map;
 
-typedef enum bresource_material_model
+typedef enum texture_channel
 {
-    BRESOURCE_MATERIAL_MODEL_UNKNOWN,
-    /** @brief A material which only contains color information. Does not respond to light */
-    BRESOURCE_MATERIAL_MODEL_UNLIT,
-    /** @brief The "default" shading model for materials. Ideal for solid objects. Responds to lighting */
-    BRESOURCE_MATERIAL_MODEL_PBR,
-    /** @brief Similar to PBR, but essentially contains multiple materials in one (i.e. in "layers") that are blended together in the shader. Great for terrains. Expensive if overused. Responds to lighting */
-    BRESOURCE_MATERIAL_MODEL_LAYERED_PBR
-} bresource_material_model;
+    TEXTURE_CHANNEL_R,
+    TEXTURE_CHANNEL_G,
+    TEXTURE_CHANNEL_B,
+    TEXTURE_CHANNEL_A,
+} texture_channel;
 
-typedef enum bresource_material_blend_mode
+typedef enum material_texture_filter
 {
-    /** @brief Material is fully opaque with no transparency. Recieves lighting */
-    BRESOURCE_MATERIAL_BLEND_MODE_OPAQUE,
-    /** @brief Material has transparency via a mask. If opacity_mask <= opacity_mask_clip, fragment is discarded. Recieves lighting */
-    BRESOURCE_MATERIAL_BLEND_MODE_MASKED,
-    /** @brief Material is blended with background (1 - opacity). Does NOT recieve lighting */
-    BRESOURCE_MATERIAL_BLEND_MODE_TRANSLUCENT,
-    /** @brief Material is blended with background (color + background). Does NOT recieve lighting */
-    BRESOURCE_MATERIAL_BLEND_MODE_ADDITIVE,
-    /** @brief Material is blended with background (color * background). Does NOT recieve lighting */
-    BRESOURCE_MATERIAL_BLEND_MODE_MULTIPLY,
-} bresource_material_blend_mode;
+    MATERIAL_TEXTURE_FILTER_NEAREST = 0,
+    MATERIAL_TEXTURE_FILTER_LINEAR = 1,
+} material_texture_filter;
 
-typedef struct bresource_material_layer
+typedef enum material_texture_mode
 {
-    bname name;
-} bresource_material_layer;
+    MATERIAL_TEXTURE_MODE_REPEAT,
+    MATERIAL_TEXTURE_MODE_MIRROR,
+    MATERIAL_TEXTURE_MODE_CLAMP,
+} material_texture_mode;
 
+typedef enum material_flag_bits
+{
+    // Material is marked as having transparency. If not set, alpha of albedo will not be used
+    MATERIAL_FLAG_HAS_TRANSPARENCY = 0x0001,
+    // Material is double-sided
+    MATERIAL_FLAG_DOUBLE_SIDED_BIT = 0x0002,
+    // Material recieves shadows
+    MATERIAL_FLAG_RECIEVES_SHADOW_BIT = 0x0004,
+    // Material casts shadows
+    MATERIAL_FLAG_CASTS_SHADOW_BIT = 0x0008,
+    // Material normal map enabled. A default z-up value will be used if not set
+    MATERIAL_FLAG_NORMAL_ENABLED_BIT = 0x0010,
+    // Material AO map is enabled. A default of 1.0 (white) will be used if not set
+    MATERIAL_FLAG_AO_ENABLED_BIT = 0x0020,
+    // Material emissive map is enabled. Emissive map is ignored if not set
+    MATERIAL_FLAG_EMISSIVE_ENABLED_BIT = 0x0040,
+    // Material refraction map is enabled. Refraction map is ignored if not set
+    MATERIAL_FLAG_REFRACTION_ENABLED_BIT = 0x0080,
+    // Material uses vertex color data as the albedo color
+    MATERIAL_FLAG_USE_VERTEX_COLOR_AS_ALBEDO = 0x0100
+} material_flag_bits;
+
+typedef u32 material_flags;
+
+/**
+ * @brief A bresource_material is a configuration of a material to hand off to the material system.
+ * Once a material is loaded, this can just be released
+ */
 typedef struct bresource_material
 {
     bresource base;
-    bresource_material_model shading_model;
-    bresource_material_blend_mode blend_mode;
+    
+    // Albedo color. Default: 1,1,1,1 (white)
+    vec4 albedo_color;
+    // Name of the albedo/diffuse texture
+    bname albedo_diffuse_name;
+    // Name of the normal texture
+    bname normal_name;
+    f32 metallic;
+    // Name of the metallic texture
+    bname metallic_name;
+    texture_channel metallic_texture_channel;
+    f32 roughness;
+    // Name of the roughness texture
+    bname roughness_name;
+    texture_channel roughness_texture_channel;
+    // Name of the ambient occlusion texture
+    bname ao_name;
+    texture_channel ao_texture_channel;
+    // Name of the emissive texture
+    bname emissive_name;
+    f32 emissive_intensity;
+    // Name of the refraction texture
+    bname refraction_name;
+    f32 refraction_scale;
+    // Name of the "combined" metallic/roughness/ao texture
+    bname mra_name;
+    
+    material_flags flags;
 
-    bresource_texture_map albedo_diffuse_map;
-    bresource_texture_map normal_map;
-    bresource_texture_map specular_map;
-    bresource_texture_map metallic_roughness_ao_map;
-    bresource_texture_map emissive_map;
-    /** @brief Defines an opacity map for the material. Only used for the BRESOURCE_MATERIAL_BLEND_MODE_TRANSLUCENT blend mode */
-    bresource_texture_map opacity_map;
-    /** @brief Defines an opacity clip map. If opacity_mask <= opacity_mask_clip, fragment is discarded. Only used for the BRESOURCE_MATERIAL_BLEND_MODE_MASKED blend mode */
-    bresource_texture_map opacity_mask_map;
-
-    /** @brief The number of material layers. Only used for layered materials */
-    u32 layer_count;
-    /** @brief A map used for a texture array. Only used for layered materials */
-    bresource_texture_map layered_material_map;
-
-    /** @brief (Phong-only) The material shininess, determines how concentrated the specular lighting is */
-    f32 specular_strength;
-    u32 group_id;
+    material_texture_mode texture_mode;
+    material_texture_filter texture_filter;
 } bresource_material;
 
 typedef struct bresource_material_request_info

@@ -1,7 +1,9 @@
 #include <containers/darray.h>
 #include <defines.h>
 #include <logger.h>
+#include <stdio.h>
 #include <strings/bstring.h>
+#include <utils/crc64.h>
 
 // For executing shell commands
 #include <stdlib.h>
@@ -23,6 +25,14 @@ i32 main(i32 argc, char** argv)
         BERROR("Bismuth tools requires at least one argument");
         print_help();
         return -1;
+    }
+
+    if (argc == 3 && strings_equali(argv[1], "-crc"))
+    {
+        u64 length = string_length(argv[2]);
+        u64 crc = crc64(0, (u8*)argv[2], length);
+        printf("%llu", crc);
+        return 0;
     }
 
     // Second argument tells what mode to go into
