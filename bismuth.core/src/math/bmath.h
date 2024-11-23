@@ -1,8 +1,8 @@
 #pragma once
 
-#include "memory/bmemory.h"
 #include "defines.h"
 #include "math_types.h"
+#include "memory/bmemory.h"
 
 #define B_PI 3.14159265358979323846f
 #define B_2PI (2.0f * B_PI)
@@ -37,7 +37,7 @@
 #define B_FLOAT_MAX 3.40282e+38F
 
 // -------- General math functions --------
-BINLINE void bswapf(f32 *a, f32 *b)
+BINLINE void bswapf(f32* a, f32* b)
 {
     f32 temp = *a;
     *a = *b;
@@ -87,6 +87,8 @@ BINLINE b8 is_power_of_2(u64 value)
 
 BAPI i32 brandom(void);
 BAPI i32 brandom_in_range(i32 min, i32 max);
+
+BAPI u64 brandom_u64(void);
 
 BAPI f32 bfrandom(void);
 BAPI f32 bfrandom_in_range(f32 min, f32 max);
@@ -382,6 +384,18 @@ BINLINE vec3 vec3_create(f32 x, f32 y, f32 z)
 BINLINE vec3 vec3_from_vec4(vec4 vector)
 {
     return (vec3){vector.x, vector.y, vector.z};
+}
+
+/**
+ * @brief Returns a new vec3 containing the x and y components of the supplied vec2, with a z component specified
+ *
+ * @param vector The 2-component vector to extract from
+ * @param z The value to use for the z element
+ * @return A new vec3
+ */
+BINLINE vec3 vec3_from_vec2(vec2 vector, f32 z)
+{
+    return (vec3){vector.x, vector.y, z};
 }
 
 /**
@@ -1142,7 +1156,7 @@ BINLINE mat4 mat4_transposed(mat4 matrix)
  */
 BINLINE f32 mat4_determinant(mat4 matrix)
 {
-    const f32 *m = matrix.data;
+    const f32* m = matrix.data;
 
     f32 t0 = m[10] * m[15];
     f32 t1 = m[14] * m[11];
@@ -1158,7 +1172,7 @@ BINLINE f32 mat4_determinant(mat4 matrix)
     f32 t11 = m[6] * m[3];
 
     mat3 temp_mat;
-    f32 *o = temp_mat.data;
+    f32* o = temp_mat.data;
 
     o[0] = (t0 * m[5] + t3 * m[9] + t4 * m[13]) - (t1 * m[5] + t2 * m[9] + t5 * m[13]);
     o[1] = (t1 * m[1] + t6 * m[9] + t9 * m[13]) - (t0 * m[1] + t7 * m[9] + t8 * m[13]);
@@ -1765,7 +1779,7 @@ BAPI frustum frustum_create(const vec3* position, const vec3* forward, const vec
 
 BAPI frustum frustum_from_view_projection(mat4 view_projection);
 
-BAPI void frustum_corner_points_world_space(mat4 projection_view, vec4 *corners);
+BAPI void frustum_corner_points_world_space(mat4 projection_view, vec4* corners);
 
 BAPI f32 plane_signed_distance(const plane_3d* p, const vec3* position);
 
@@ -1800,5 +1814,22 @@ BINLINE vec3 extents_3d_half(extents_3d extents)
         (extents.min.x + extents.max.x) * 0.5f,
         (extents.min.y + extents.max.y) * 0.5f,
         (extents.min.z + extents.max.z) * 0.5f
+    };
+}
+
+BINLINE vec2 vec2_mid(vec2 v_0, vec2 v_1)
+{
+    return (vec2){
+        (v_0.x - v_1.x) * 0.5f,
+        (v_0.y - v_1.y) * 0.5f
+    };
+}
+
+BINLINE vec3 vec3_mid(vec3 v_0, vec3 v_1)
+{
+    return (vec3){
+        (v_0.x - v_1.x) * 0.5f,
+        (v_0.y - v_1.y) * 0.5f,
+        (v_0.z - v_1.z) * 0.5f
     };
 }

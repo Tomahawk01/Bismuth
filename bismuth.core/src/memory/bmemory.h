@@ -65,6 +65,12 @@ BAPI b8 memory_system_initialize(memory_system_configuration config);
 BAPI void memory_system_shutdown(void);
 
 BAPI void* ballocate(u64 size, memory_tag tag);
+
+#define BALLOC_TYPE(type, mem_tag) (type*)ballocate(sizeof(type), mem_tag)
+#define BFREE_TYPE(block, type, mem_tag) bfree(block, sizeof(type), mem_tag)
+#define BALLOC_TYPE_CARRAY(type, count) (type*)ballocate(sizeof(type) * count, MEMORY_TAG_ARRAY)
+#define BFREE_TYPE_CARRAY(block, type, count) bfree(block, sizeof(type) * count, MEMORY_TAG_ARRAY)
+
 BAPI void* ballocate_aligned(u64 size, u16 alignment, memory_tag tag);
 BAPI void ballocate_report(u64 size, memory_tag tag);
 
@@ -80,6 +86,10 @@ BAPI b8 bmemory_get_size_alignment(void* block, u64* out_size, u16* out_alignmen
 
 BAPI void* bzero_memory(void* block, u64 size);
 BAPI void* bcopy_memory(void* dest, const void* source, u64 size);
+
+#define BCOPY_TYPE(dest, source, type) bcopy_memory(dest, source, sizeof(type))
+#define BCOPY_TYPE_CARRAY(dest, source, type, count) bcopy_memory(dest, source, sizeof(type) * count)
+
 BAPI void* bset_memory(void* dest, i32 value, u64 size);
 
 BAPI char* get_memory_usage_str(void);

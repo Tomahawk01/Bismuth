@@ -126,8 +126,8 @@ void material_system_shutdown(struct material_system_state* state)
     if (state)
     {
         // Release default materials
-        bresource_system_release(state->resource_system, (bresource*)state->default_pbr_material);
-        bresource_system_release(state->resource_system, (bresource*)state->default_layered_material);
+        bresource_system_release(state->resource_system, state->default_pbr_material->base.name);
+        bresource_system_release(state->resource_system, state->default_layered_material->base.name);
     }
 }
 
@@ -201,7 +201,7 @@ void material_system_release_instance(material_system_state* state, bresource_ma
 
         // Only release if not a default material
         if (do_release)
-            bresource_system_release(state->resource_system, (bresource*)instance->material);
+            bresource_system_release(state->resource_system, instance->material->base.name);
 
         instance->material = 0;
         instance->per_draw_id = INVALID_ID;

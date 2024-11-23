@@ -3,9 +3,9 @@
 #include "core/engine.h"
 #include "bresources/bresource_types.h"
 #include "logger.h"
+#include "math/geometry.h"
 #include "renderer/renderer_frontend.h"
 #include "strings/bname.h"
-#include "systems/geometry_system.h"
 #include "systems/shader_system.h"
 #include "systems/texture_system.h"
 
@@ -36,9 +36,6 @@ b8 skybox_initialize(skybox* sb)
     cube_map->repeat_u = cube_map->repeat_v = cube_map->repeat_w = TEXTURE_REPEAT_CLAMP_TO_EDGE;
     sb->instance_id = INVALID_ID;
 
-    sb->g_config = geometry_system_generate_cube_config(10.0f, 10.0f, 10.0f, 1.0f, 1.0f, sb->cubemap_name, 0);
-    // Clear material name
-    sb->g_config.material_name = INVALID_BNAME;
     sb->state = SKYBOX_STATE_INITIALIZED;
 
     return true;
@@ -53,6 +50,12 @@ b8 skybox_load(skybox* sb)
     }
     sb->state = SKYBOX_STATE_LOADING;
 
+    sb->geometry = geometry_generate_cube(10.0f, 10.0f, 10.0f, 1.0f, 1.0f, sb->cubemap_name);
+    if (!renderer_geometry_upload(&sb->geometry))
+    {
+        BERROR("Failed to upload skybox geometry");
+    }
+
     sb->cubemap.texture = texture_system_request_cube(sb->cubemap_name, true, false, 0, 0);
     if (!renderer_bresource_texture_map_resources_acquire(engine_systems_get()->renderer_system, &sb->cubemap))
     {
@@ -60,7 +63,6 @@ b8 skybox_load(skybox* sb)
         return false;
     }
 
-    sb->g = geometry_system_acquire_from_config(sb->g_config, true);
     sb->render_frame_number = INVALID_ID_U64;
 
     shader* skybox_shader = shader_system_get("Shader.Builtin.Skybox"); // TODO: allow configurable shader
@@ -102,7 +104,9 @@ b8 skybox_unload(skybox* sb)
 
     sb->render_frame_number = INVALID_ID_U64;
 
-    geometry_system_config_dispose(&sb->g_config);
+    renderer_geometry_destroy(&sb->geometry);
+    geometry_destroy(&sb->geometry);
+
     if (sb->cubemap_name)
     {
         if (sb->cubemap.texture)
@@ -113,8 +117,6 @@ b8 skybox_unload(skybox* sb)
 
         sb->cubemap_name = 0;
     }
-
-    geometry_system_release(sb->g);
 
     return true;
 }

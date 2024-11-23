@@ -5,6 +5,7 @@
 #include "debug/bassert.h"
 #include "defines.h"
 #include "bresources/handlers/bresource_handler_material.h"
+#include "bresources/handlers/bresource_handler_static_mesh.h"
 #include "bresources/handlers/bresource_handler_texture.h"
 #include "bresources/bresource_types.h"
 #include "logger.h"
@@ -36,7 +37,7 @@ typedef struct bresource_system_state
     bt_node* lookup_tree;
 } bresource_system_state;
 
-static void bresource_system_release_internal(struct bresource_system_state* state, bresource* resource, b8 force_release);
+static void bresource_system_release_internal(struct bresource_system_state* state, bname resource_name, b8 force_release);
 
 b8 bresource_system_initialize(u64* memory_requirement, struct bresource_system_state* state, const bresource_system_config* config)
 {
@@ -80,6 +81,19 @@ b8 bresource_system_initialize(u64* memory_requirement, struct bresource_system_
         }
     }
 
+    // Static mesh handler
+    {
+        bresource_handler handler = {0};
+        handler.allocate = bresource_handler_static_mesh_allocate;
+        handler.release = bresource_handler_static_mesh_release;
+        handler.request = bresource_handler_static_mesh_request;
+        if (!bresource_system_handler_register(state, BRESOURCE_TYPE_STATIC_MESH, handler))
+        {
+            BERROR("Failed to register static mesh resource handler");
+            return false;
+        }
+    }
+
     BINFO("Resource system (new) initialized");
     return true;
 }
@@ -91,7 +105,7 @@ void bresource_system_shutdown(struct bresource_system_state* state)
         for (u32 i = 0; i < state->max_resource_count; ++i)
         {
             if (state->lookups[i].r)
-                bresource_system_release_internal(state, state->lookups[i].r, true);
+                bresource_system_release_internal(state, state->lookups[i].r->name, true);
         }
 
         // Destroy the bst
@@ -187,11 +201,11 @@ bresource* bresource_system_request(struct bresource_system_state* state, bname 
     }
 }
 
-void bresource_system_release(struct bresource_system_state* state, bresource* resource)
+void bresource_system_release(struct bresource_system_state* state, bname resource_name)
 {
-    BASSERT_MSG(state && resource, "bresource_system_release requires valid pointers to state and resource");
+    BASSERT_MSG(state, "bresource_system_release requires a valid pointer to state");
 
-    bresource_system_release_internal(state, resource, false);
+    bresource_system_release_internal(state, resource_name, false);
 }
 
 b8 bresource_system_handler_register(struct bresource_system_state* state, bresource_type type, bresource_handler handler)
@@ -217,12 +231,12 @@ b8 bresource_system_handler_register(struct bresource_system_state* state, breso
     return true;
 }
 
-static void bresource_system_release_internal(struct bresource_system_state* state, bresource* resource, b8 force_release)
+static void bresource_system_release_internal(struct bresource_system_state* state, bname resource_name, b8 force_release)
 {
-    BASSERT_MSG(state && resource, "bresource_system_release requires valid pointers to state and resource");
+    BASSERT_MSG(state, "bresource_system_release requires a valid pointer to state");
 
     u32 lookup_index = INVALID_ID;
-    const bt_node* node = u64_bst_find(state->lookup_tree, resource->name);
+    const bt_node* node = u64_bst_find(state->lookup_tree, resource_name);
     if (node)
         lookup_index = node->value.u32;
     if (lookup_index != INVALID_ID)
@@ -254,6 +268,13 @@ static void bresource_system_release_internal(struct bresource_system_state* sta
                 handler->release(handler, lookup->r);
             }
 
+            // Release tags, if they exist
+            if (lookup->r->tags)
+            {
+                BFREE_TYPE_CARRAY(lookup->r->tags, bname, lookup->r->tag_count);
+                lookup->r->tags = 0;
+            }
+
             lookup->r = 0;
 
             // Ensure the lookup is invalidated
@@ -264,6 +285,6 @@ static void bresource_system_release_internal(struct bresource_system_state* sta
     else
     {
         // Entry not found, nothing to do
-        BWARN("bresource_system_release: Attempted to release resource '%s', which does not exist or is not already loaded. Nothing to do", bname_string_get(resource->name));
+        BWARN("bresource_system_release: Attempted to release resource '%s', which does not exist or is not already loaded. Nothing to do", bname_string_get(resource_name));
     }
 }

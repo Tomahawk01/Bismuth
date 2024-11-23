@@ -6,6 +6,7 @@
 
 #include "assets/basset_types.h"
 #include "identifiers/bhandle.h"
+#include "math/geometry.h"
 
 /** @brief Pre-defined resource types */
 typedef enum bresource_type
@@ -262,7 +263,8 @@ typedef struct bresource_material
 
 typedef struct bresource_material_instance
 {
-    bresource_material* material;
+    const bresource_material* material;
+
     u32 per_draw_id;
 } bresource_material_instance;
 
@@ -272,3 +274,34 @@ typedef struct bresource_material_request_info
     // Optionally include source text to be used as if it resided in a .bmt file
     const char* material_source_text;
 } bresource_material_request_info;
+
+/*
+ * ==================================================
+ *                  Static mesh
+ * ==================================================
+ */
+
+/** Represents a single static mesh, which contains geometry */
+typedef struct static_mesh_submesh
+{
+    /** @brief The geometry data for this mesh */
+    bgeometry geometry;
+    /** @brief The name of the material associated with this mesh */
+    bname material_name;
+} static_mesh_submesh;
+
+/** @brief A mesh resource that is static in nature (i.e. it does not change over time) */
+typedef struct bresource_static_mesh
+{
+    bresource base;
+
+    /** @brief The number of submeshes in this static mesh resource */
+    u16 submesh_count;
+    /** @brief The array of submeshes in this static mesh resource */
+    static_mesh_submesh* submeshes;
+} bresource_static_mesh;
+
+typedef struct bresource_static_mesh_request_info
+{
+    bresource_request_info base;
+} bresource_static_mesh_request_info;

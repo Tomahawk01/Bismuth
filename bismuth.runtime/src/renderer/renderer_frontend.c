@@ -718,46 +718,7 @@ renderbuffer* renderer_renderbuffer_get(renderbuffer_type type)
     }
 }
 
-b8 renderer_geometry_create(geometry* g, u32 vertex_size, u32 vertex_count, const void* vertices, u32 index_size, u32 index_count, const void* indices)
-{
-    if (!g)
-    {
-        BERROR("renderer_geometry_create requires a valid pointer to geometry");
-        return false;
-    }
-    if (!vertex_count || !vertices)
-    {
-        BERROR("renderer_geometry_create requires vertex data, and none was supplied. vertex_count=%d, vertices=%p", vertex_count, vertices);
-        return false;
-    }
-
-    g->material = 0;
-
-    // Invalidate IDs
-    g->generation = INVALID_ID_U16;
-
-    // Take copy of the vertex data
-    g->vertex_count = vertex_count;
-    g->vertex_element_size = vertex_size;
-    g->vertices = ballocate(vertex_size * vertex_count, MEMORY_TAG_RENDERER);
-    g->vertex_buffer_offset = INVALID_ID_U64;
-    bcopy_memory(g->vertices, vertices, vertex_size * vertex_count);
-
-    g->index_count = index_count;
-    g->index_element_size = index_size;
-    g->indices = 0;
-    // If supplied, take a copy of the index data
-    if (index_size && index_count)
-    {
-        g->indices = ballocate(index_size * index_count, MEMORY_TAG_RENDERER);
-        bcopy_memory(g->indices, indices, index_size * index_count);
-    }
-    g->index_buffer_offset = INVALID_ID_U64;
-
-    return true;
-}
-
-b8 renderer_geometry_upload(geometry* g)
+b8 renderer_geometry_upload(bgeometry* g)
 {
     if (!g)
     {

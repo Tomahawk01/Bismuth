@@ -21,6 +21,6 @@ BAPI b8 bresource_system_initialize(u64* memory_requirement, struct bresource_sy
 BAPI void bresource_system_shutdown(struct bresource_system_state* state);
 
 BAPI bresource* bresource_system_request(struct bresource_system_state* state, bname name, const struct bresource_request_info* info);
-BAPI void bresource_system_release(struct bresource_system_state* state, bresource* resource);
+BAPI void bresource_system_release(struct bresource_system_state* state, bname resource_name);
 
 BAPI b8 bresource_system_handler_register(struct bresource_system_state* state, bresource_type type, bresource_handler handler);

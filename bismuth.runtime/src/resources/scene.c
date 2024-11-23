@@ -102,17 +102,11 @@ b8 scene_create(scene_config* config, scene_flags flags, scene* out_scene)
     // Internal lists of attachments
     /* out_scene->attachments = darray_create(scene_attachment); */
     out_scene->mesh_attachments = darray_create(scene_attachment);
-    out_scene->mesh_attachment_indices = darray_create(u32);
     out_scene->terrain_attachments = darray_create(scene_attachment);
-    out_scene->terrain_attachment_indices = darray_create(u32);
     out_scene->skybox_attachments = darray_create(scene_attachment);
-    out_scene->skybox_attachment_indices = darray_create(u32);
     out_scene->directional_light_attachments = darray_create(scene_attachment);
-    out_scene->directional_light_attachment_indices = darray_create(u32);
     out_scene->point_light_attachments = darray_create(scene_attachment);
-    out_scene->point_light_attachment_indices = darray_create(u32);
     out_scene->water_plane_attachments = darray_create(scene_attachment);
-    out_scene->water_plane_attachment_indices = darray_create(u32);
 
     b8 is_readonly = ((out_scene->flags & SCENE_FLAG_READONLY) != 0);
     if (!is_readonly)
@@ -245,7 +239,6 @@ void scene_node_initialize(scene* s, b_handle parent_handle, scene_node_config* 
                                 s->mesh_attachments[i].resource_handle = b_handle_create(resource_index);
                                 s->mesh_attachments[i].hierarchy_node_handle = node_handle;
                                 s->mesh_attachments[i].attachment_type = SCENE_NODE_ATTACHMENT_TYPE_STATIC_MESH;
-                                s->mesh_attachment_indices[i] = resource_index;
                                 // For "edit" mode, retain metadata
                                 if (!is_readonly)
                                     s->mesh_metadata[i].resource_name = string_duplicate(typed_attachment_config->resource_name);
@@ -256,7 +249,6 @@ void scene_node_initialize(scene* s, b_handle parent_handle, scene_node_config* 
                         {
                             darray_push(s->meshes, new_mesh);
                             resource_index = count;
-                            darray_push(s->mesh_attachment_indices, resource_index);
                             scene_attachment mesh_attachment = {0};
                             mesh_attachment.resource_handle = b_handle_create(resource_index);
                             mesh_attachment.hierarchy_node_handle = node_handle;
@@ -316,7 +308,6 @@ void scene_node_initialize(scene* s, b_handle parent_handle, scene_node_config* 
                                 s->terrain_attachments[i].resource_handle = b_handle_create(index);
                                 s->terrain_attachments[i].hierarchy_node_handle = node_handle;
                                 s->terrain_attachments[i].attachment_type = SCENE_NODE_ATTACHMENT_TYPE_TERRAIN;
-                                s->terrain_attachment_indices[i] = index;
                                 // For "edit" mode, retain metadata
                                 if (!is_readonly)
                                 {
@@ -330,7 +321,6 @@ void scene_node_initialize(scene* s, b_handle parent_handle, scene_node_config* 
                         {
                             darray_push(s->terrains, new_terrain);
                             index = count;
-                            darray_push(s->terrain_attachment_indices, index);
                             scene_attachment terrain_attachment = {0};
                             terrain_attachment.resource_handle = b_handle_create(index);
                             terrain_attachment.hierarchy_node_handle = node_handle;
@@ -382,7 +372,6 @@ void scene_node_initialize(scene* s, b_handle parent_handle, scene_node_config* 
                                 s->skybox_attachments[i].resource_handle = b_handle_create(index);
                                 s->skybox_attachments[i].hierarchy_node_handle = node_handle;
                                 s->skybox_attachments[i].attachment_type = SCENE_NODE_ATTACHMENT_TYPE_SKYBOX;
-                                s->skybox_attachment_indices[i] = index;
                                 // For "edit" mode, retain metadata
                                 if (!is_readonly)
                                     s->skybox_metadata[i].cubemap_name = string_duplicate(typed_attachment->cubemap_name);
@@ -393,7 +382,6 @@ void scene_node_initialize(scene* s, b_handle parent_handle, scene_node_config* 
                         {
                             darray_push(s->skyboxes, sb);
                             index = skybox_count;
-                            darray_push(s->skybox_attachment_indices, index);
                             scene_attachment skybox_attachment = {0};
                             skybox_attachment.resource_handle = b_handle_create(index);
                             skybox_attachment.hierarchy_node_handle = node_handle;
@@ -453,7 +441,6 @@ void scene_node_initialize(scene* s, b_handle parent_handle, scene_node_config* 
                                 s->directional_light_attachments[i].resource_handle = b_handle_create(index);
                                 s->directional_light_attachments[i].hierarchy_node_handle = node_handle;
                                 s->directional_light_attachments[i].attachment_type = SCENE_NODE_ATTACHMENT_TYPE_DIRECTIONAL_LIGHT;
-                                s->directional_light_attachment_indices[i] = index;
                                 break;
                             }
                         }
@@ -461,7 +448,6 @@ void scene_node_initialize(scene* s, b_handle parent_handle, scene_node_config* 
                         {
                             darray_push(s->dir_lights, new_dir_light);
                             index = directional_light_count;
-                            darray_push(s->directional_light_attachment_indices, index);
                             scene_attachment directional_light_attachment = {0};
                             directional_light_attachment.resource_handle = b_handle_create(index);
                             directional_light_attachment.hierarchy_node_handle = node_handle;
@@ -516,7 +502,6 @@ void scene_node_initialize(scene* s, b_handle parent_handle, scene_node_config* 
                                 s->point_light_attachments[i].resource_handle = b_handle_create(index);
                                 s->point_light_attachments[i].hierarchy_node_handle = node_handle;
                                 s->point_light_attachments[i].attachment_type = SCENE_NODE_ATTACHMENT_TYPE_POINT_LIGHT;
-                                s->point_light_attachment_indices[i] = index;
                                 break;
                             }
                         }
@@ -524,7 +509,6 @@ void scene_node_initialize(scene* s, b_handle parent_handle, scene_node_config* 
                         {
                             darray_push(s->point_lights, new_light);
                             index = point_light_count;
-                            darray_push(s->point_light_attachment_indices, index);
                             scene_attachment point_light_attachment = {0};
                             point_light_attachment.resource_handle = b_handle_create(index);
                             point_light_attachment.hierarchy_node_handle = node_handle;
@@ -570,7 +554,6 @@ void scene_node_initialize(scene* s, b_handle parent_handle, scene_node_config* 
                                 s->water_plane_attachments[i].resource_handle = b_handle_create(index);
                                 s->water_plane_attachments[i].hierarchy_node_handle = node_handle;
                                 s->water_plane_attachments[i].attachment_type = SCENE_NODE_ATTACHMENT_TYPE_WATER_PLANE;
-                                s->water_plane_attachment_indices[i] = index;
                                 // For "edit" mode, retain metadata
                                 if (!is_readonly)
                                     s->water_plane_metadata[i].reserved = typed_attachment->reserved;
@@ -581,7 +564,6 @@ void scene_node_initialize(scene* s, b_handle parent_handle, scene_node_config* 
                         {
                             darray_push(s->water_planes, wp);
                             index = water_plane_count;
-                            darray_push(s->water_plane_attachment_indices, index);
                             scene_attachment water_plane_attachment = {0};
                             water_plane_attachment.resource_handle = b_handle_create(index);
                             water_plane_attachment.hierarchy_node_handle = node_handle;
@@ -794,7 +776,7 @@ b8 scene_update(scene* scene, const struct frame_data* p_frame_data)
 
     if (scene->state >= SCENE_STATE_LOADED)
     {
-        hierarchy_graph_update(&scene->hierarchy, p_frame_data);
+        hierarchy_graph_update(&scene->hierarchy);
 
         if (scene->dir_lights)
         {
@@ -821,8 +803,8 @@ b8 scene_update(scene* scene, const struct frame_data* p_frame_data)
             for (u32 i = 0; i < point_light_count; ++i)
             {
                 // Update the point light's data position (world position) to take into account the owning node's transform
-                scene_attachment* point_light_attachment = &scene->point_light_attachments[scene->point_light_attachment_indices[i]];
-                b_handle xform_handle = scene->hierarchy.xform_handles[point_light_attachment->hierarchy_node_handle.handle_index];
+                scene_attachment* point_light_attachment = &scene->point_light_attachments[i];
+                b_handle xform_handle = hierarchy_graph_xform_handle_get(&scene->hierarchy, point_light_attachment->hierarchy_node_handle);
 
                 mat4 world;
                 if (!b_handle_is_invalid(xform_handle))
@@ -880,7 +862,7 @@ b8 scene_update(scene* scene, const struct frame_data* p_frame_data)
                 {
                     // Lookup the attachment to get the xform handle to set as the parent
                     scene_attachment* attachment = &scene->mesh_attachments[i];
-                    b_handle xform_handle = scene->hierarchy.xform_handles[attachment->hierarchy_node_handle.handle_index];
+                    b_handle xform_handle = hierarchy_graph_xform_handle_get(&scene->hierarchy, attachment->hierarchy_node_handle);
                     // Since debug objects aren't actually added to the hierarchy or as attachments, need to manually update
                     // the xform here, using the node's world xform as the parent
                     xform_calculate_local(debug->box.xform);
@@ -947,7 +929,7 @@ void scene_render_frame_prepare(scene* scene, const struct frame_data* p_frame_d
 
                     // Lookup the attachment to get the xform handle to set as the parent
                     scene_attachment* attachment = &scene->point_light_attachments[i];
-                    b_handle xform_handle = scene->hierarchy.xform_handles[attachment->hierarchy_node_handle.handle_index];
+                    b_handle xform_handle = hierarchy_graph_xform_handle_get(&scene->hierarchy, attachment->hierarchy_node_handle);
                     // Since debug objects aren't actually added to the hierarchy or as attachments, need to manually update the xform here, using the node's world xform as the parent
                     xform_calculate_local(debug->box.xform);
                     mat4 local = xform_local_get(debug->box.xform);
@@ -976,7 +958,7 @@ void scene_render_frame_prepare(scene* scene, const struct frame_data* p_frame_d
 
                     // Lookup the attachment to get the xform handle to set as the parent
                     scene_attachment* attachment = &scene->mesh_attachments[i];
-                    b_handle xform_handle = scene->hierarchy.xform_handles[attachment->hierarchy_node_handle.handle_index];
+                    b_handle xform_handle = hierarchy_graph_xform_handle_get(&scene->hierarchy, attachment->hierarchy_node_handle);
                     // Since debug objects aren't actually added to the hierarchy or as attachments, need to manually update the xform here, using the node's world xform as the parent
                     xform_calculate_local(debug->box.xform);
                     mat4 local = xform_local_get(debug->box.xform);
@@ -1005,9 +987,8 @@ void scene_update_lod_from_view_position(scene* scene, const frame_data* p_frame
             terrain* t = &scene->terrains[i];
 
             // Perform a lookup into the attachments array to get the hierarchy node
-            // TODO: simplify the lookup process
-            scene_attachment* attachment = &scene->terrain_attachments[scene->terrain_attachment_indices[i]];
-            b_handle xform_handle = scene->hierarchy.xform_handles[attachment->hierarchy_node_handle.handle_index];
+            scene_attachment* attachment = &scene->terrain_attachments[i];
+            b_handle xform_handle = hierarchy_graph_xform_handle_get(&scene->hierarchy, attachment->hierarchy_node_handle);
             mat4 model = xform_world_get(xform_handle);
 
             // Calculate LOD splits based on clip range
@@ -1068,9 +1049,8 @@ b8 scene_raycast(scene* scene, const struct ray* r, struct raycast_result* out_r
     {
         mesh* m = &scene->meshes[i];
         // Perform a lookup into the attachments array to get the hierarchy node
-        // TODO: simplify the lookup process
         scene_attachment* attachment = &scene->mesh_attachments[i];
-        b_handle xform_handle = scene->hierarchy.xform_handles[attachment->hierarchy_node_handle.handle_index];
+        b_handle xform_handle = hierarchy_graph_xform_handle_get(&scene->hierarchy, attachment->hierarchy_node_handle);
         mat4 model = xform_world_get(xform_handle);
         f32 dist;
         if (raycast_oriented_extents(m->extents, model, r, &dist))
@@ -1087,12 +1067,8 @@ b8 scene_raycast(scene* scene, const struct ray* r, struct raycast_result* out_r
             hit.xform_handle = xform_handle;
             hit.node_handle = attachment->hierarchy_node_handle;
 
-            // Get parent handle if one exists
-            u32 parent_index = scene->hierarchy.parent_indices[attachment->hierarchy_node_handle.handle_index];
-            if (parent_index != INVALID_ID)
-                hit.xform_parent_handle = scene->hierarchy.xform_handles[parent_index];
-            else
-                hit.xform_parent_handle = b_handle_invalid();
+            // Get parent xform handle if one exists
+            hit.xform_parent_handle = hierarchy_graph_parent_xform_handle_get(&scene->hierarchy, attachment->hierarchy_node_handle);
             // TODO: Indicate selection node attachment type
 
             darray_push(out_result->hits, hit);
@@ -1263,7 +1239,7 @@ b8 scene_mesh_render_data_query_from_line(const scene* scene, vec3 direction, ve
         if (m->generation != INVALID_ID_U8)
         {
             scene_attachment* attachment = &scene->mesh_attachments[i];
-            b_handle xform_handle = scene->hierarchy.xform_handles[attachment->hierarchy_node_handle.handle_index];
+            b_handle xform_handle = hierarchy_graph_xform_handle_get(&scene->hierarchy, attachment->hierarchy_node_handle);
             mat4 model = xform_world_get(xform_handle);
 
             // TODO: Cache this instead of calculating all the time
@@ -1354,8 +1330,8 @@ b8 scene_terrain_render_data_query_from_line(const scene* scene, vec3 direction,
     for (u32 i = 0; i < terrain_count; ++i)
     {
         terrain* t = &scene->terrains[i];
-        scene_attachment* attachment = &scene->terrain_attachments[scene->terrain_attachment_indices[i]];
-        b_handle xform_handle = scene->hierarchy.xform_handles[attachment->hierarchy_node_handle.handle_index];
+        scene_attachment* attachment = &scene->terrain_attachments[i];
+        b_handle xform_handle = hierarchy_graph_xform_handle_get(&scene->hierarchy, attachment->hierarchy_node_handle);
         mat4 model = xform_world_get(xform_handle);
 
         // TODO: Cache this somewhere instead of calculating all the time
@@ -1424,7 +1400,7 @@ b8 scene_mesh_render_data_query(const scene* scene, const frustum* f, vec3 cente
         {
             // Attachment lookup - by resource index
             scene_attachment* attachment = &scene->mesh_attachments[resource_index];
-            b_handle xform_handle = scene->hierarchy.xform_handles[attachment->hierarchy_node_handle.handle_index];
+            b_handle xform_handle = hierarchy_graph_xform_handle_get(&scene->hierarchy, attachment->hierarchy_node_handle);
             mat4 model = xform_world_get(xform_handle);
 
             // TODO: Cache this instead of calculating all the time
@@ -1518,8 +1494,8 @@ b8 scene_terrain_render_data_query(const scene* scene, const frustum* f, vec3 ce
     for (u32 i = 0; i < terrain_count; ++i)
     {
         terrain* t = &scene->terrains[i];
-        scene_attachment* attachment = &scene->terrain_attachments[scene->terrain_attachment_indices[i]];
-        b_handle xform_handle = scene->hierarchy.xform_handles[attachment->hierarchy_node_handle.handle_index];
+        scene_attachment* attachment = &scene->terrain_attachments[i];
+        b_handle xform_handle = hierarchy_graph_xform_handle_get(&scene->hierarchy, attachment->hierarchy_node_handle);
         mat4 model = xform_world_get(xform_handle);
 
         // TODO: Cache this somewhere instead of calculating all the time
@@ -1603,12 +1579,12 @@ b8 scene_water_plane_query(const scene* scene, const frustum* f, vec3 center, fr
         if (out_water_planes)
         {
             // scene_attachment* attachment = &scene->mesh_attachments[i];
-            // b_handle xform_handle = scene->hierarchy.xform_handles[attachment->hierarchy_node_handle.handle_index];
+            // b_handle xform_handle = hierarchy_graph_xform_handle_get(&scene->hierarchy, attachment->hierarchy_node_handle);
             // mat4 model = xform_world_get(xform_handle);
 
             water_plane* wp = &scene->water_planes[i];
             scene_attachment* attachment = &scene->water_plane_attachments[i];
-            b_handle xform_handle = scene->hierarchy.xform_handles[attachment->hierarchy_node_handle.handle_index];
+            b_handle xform_handle = hierarchy_graph_xform_handle_get(&scene->hierarchy, attachment->hierarchy_node_handle);
             // FIXME: World should work here, but for some reason isn't being updated...
             wp->model = xform_local_get(xform_handle);
             darray_push(*out_water_planes, wp);
@@ -2101,52 +2077,3 @@ static void scene_node_metadata_ensure_allocated(scene* s, u64 handle_index)
         BWARN("scene_node_metadata_ensure_allocated requires a valid pointer to a scene, and a valid handle index");
     }
 }
-
-/* static scene_attachment *scene_attachment_acquire(scene *s)
-{
-    if (s)
-    {
-        u32 attachment_count = darray_length(s->attachments);
-        for (u32 i = 0; i < attachment_count; ++i)
-        {
-            if (b_handle_is_invalid(s->attachments[i].hierarchy_node_handle))
-                return &s->attachments[i];
-        }
-        // No more space, push a new one and return it
-        scene_attachment new_attachment = {0};
-        darray_push(s->attachments, new_attachment);
-        return &s->attachments[attachment_count];
-    }
-    BERROR("scene_attachment_acquire requires a valid pointer to a scene");
-    return 0;
-} */
-
-/* static void scene_attachment_release(scene *s, scene_attachment *attachment)
-{
-    if (s && attachment)
-    {
-        // Look up the attachment type and release the attachment itself
-        switch (attachment->attachment_type)
-        {
-            case SCENE_NODE_ATTACHMENT_TYPE_SKYBOX:
-                skybox_destroy(&s->skyboxes[attachment->resource_handle.handle_index]);
-                break;
-            case SCENE_NODE_ATTACHMENT_TYPE_STATIC_MESH:
-                // TODO: destroy this
-                break;
-            case SCENE_NODE_ATTACHMENT_TYPE_TERRAIN:
-                // TODO: destroy this
-                break;
-            case SCENE_NODE_ATTACHMENT_TYPE_POINT_LIGHT:
-                // TODO: destroy this
-                break;
-            case SCENE_NODE_ATTACHMENT_TYPE_DIRECTIONAL_LIGHT:
-                // TODO: destroy this
-                break;
-            case SCENE_NODE_ATTACHMENT_TYPE_UNKNOWN:
-            default:
-                // TODO: destroy this
-                break;
-        }
-    }
-} */

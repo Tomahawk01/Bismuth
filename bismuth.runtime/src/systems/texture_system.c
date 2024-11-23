@@ -327,7 +327,7 @@ void texture_system_release_resource(bresource_texture* t)
         return;
     }
 
-    bresource_system_release(resource_system, (bresource*)t);
+    bresource_system_release(resource_system, t->base.name);
 }
 
 b8 texture_system_resize(bresource_texture* t, u32 width, u32 height, b8 regenerate_internal_data)
@@ -855,13 +855,13 @@ static void release_default_textures(texture_system_state* state)
 {
     if (state)
     {
-        bresource_system_release(state->bresource_system, (bresource*)state->default_bresource_texture);
-        bresource_system_release(state->bresource_system, (bresource*)state->default_bresource_diffuse_texture);
-        bresource_system_release(state->bresource_system, (bresource*)state->default_bresource_specular_texture);
-        bresource_system_release(state->bresource_system, (bresource*)state->default_bresource_normal_texture);
-        bresource_system_release(state->bresource_system, (bresource*)state->default_bresource_combined_texture);
-        bresource_system_release(state->bresource_system, (bresource*)state->default_bresource_cube_texture);
-        bresource_system_release(state->bresource_system, (bresource*)state->default_bresource_terrain_texture);
+        bresource_system_release(state->bresource_system, state->default_bresource_texture->base.name);
+        bresource_system_release(state->bresource_system, state->default_bresource_diffuse_texture->base.name);
+        bresource_system_release(state->bresource_system, state->default_bresource_specular_texture->base.name);
+        bresource_system_release(state->bresource_system, state->default_bresource_normal_texture->base.name);
+        bresource_system_release(state->bresource_system, state->default_bresource_combined_texture->base.name);
+        bresource_system_release(state->bresource_system, state->default_bresource_cube_texture->base.name);
+        bresource_system_release(state->bresource_system, state->default_bresource_terrain_texture->base.name);
     }
 }
 

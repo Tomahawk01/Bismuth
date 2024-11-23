@@ -1,9 +1,7 @@
 #pragma once
 
-#include "math/math_types.h"
-#include "resources/resource_types.h"
-#include "renderer/renderer_types.h"
-#include "systems/geometry_system.h"
+#include "bresources/bresource_types.h"
+#include "math/geometry.h"
 
 typedef struct skybox_config
 {
@@ -26,8 +24,7 @@ typedef struct skybox
     bname cubemap_name;
     bresource_texture_map cubemap;
 
-    geometry_config g_config;
-    geometry* g;
+    bgeometry geometry;
     u32 instance_id;
     u64 render_frame_number;
     u8 draw_index;
