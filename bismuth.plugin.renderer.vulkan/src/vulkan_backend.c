@@ -423,7 +423,7 @@ b8 vulkan_renderer_on_window_created(renderer_backend_interface* backend, bwindo
 
     // Create the depthbuffer
     BDEBUG("Creating Vulkan depthbuffer for window '%s'...", window->name);
-    if (b_handle_is_invalid(window_internal->depthbuffer->renderer_texture_handle))
+    if (bhandle_is_invalid(window_internal->depthbuffer->renderer_texture_handle))
     {
         // If invalid, then a new one needs to be created. This does not reach out to the
         // texture system to create this, but handles it internally instead. This is because
@@ -689,7 +689,7 @@ b8 vulkan_renderer_frame_prepare_window_surface(renderer_backend_interface* back
         // Resize depth buffer image
         if (window_backend->skip_frames == window_backend->swapchain.max_frames_in_flight)
         {
-            if (!b_handle_is_invalid(window->renderer_state->depthbuffer->renderer_texture_handle))
+            if (!bhandle_is_invalid(window->renderer_state->depthbuffer->renderer_texture_handle))
             {
                 /* vkQueueWaitIdle(context->device.graphics_queue); */
                 if (!renderer_texture_resize(backend->frontend_state, window->renderer_state->depthbuffer->renderer_texture_handle, window->width, window->height))
@@ -2912,7 +2912,7 @@ static b8 sampler_create_internal(vulkan_context* context, texture_filter filter
     return true;
 }
 
-b_handle vulkan_renderer_sampler_acquire(renderer_backend_interface* backend, texture_filter filter, texture_repeat repeat, f32 anisotropy, u32 mip_levels)
+bhandle vulkan_renderer_sampler_acquire(renderer_backend_interface* backend, texture_filter filter, texture_repeat repeat, f32 anisotropy, u32 mip_levels)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
     
@@ -2936,19 +2936,19 @@ b_handle vulkan_renderer_sampler_acquire(renderer_backend_interface* backend, te
     }
 
     if (!sampler_create_internal(context, filter, repeat, anisotropy, mip_levels, &context->samplers[selected_id]))
-        return b_handle_invalid();
+        return bhandle_invalid();
 
-    b_handle h = b_handle_create(selected_id);
+    bhandle h = bhandle_create(selected_id);
     // Save off the uniqueid for handle validation
     context->samplers[selected_id].handle_uniqueid = h.unique_id.uniqueid;
 
     return h;
 }
 
-void vulkan_renderer_sampler_release(renderer_backend_interface* backend, b_handle* sampler)
+void vulkan_renderer_sampler_release(renderer_backend_interface* backend, bhandle* sampler)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
-    if (!b_handle_is_invalid(*sampler))
+    if (!bhandle_is_invalid(*sampler))
     {
         vulkan_sampler_handle_data* s = &context->samplers[sampler->handle_index];
         if (s->sampler && s->handle_uniqueid == sampler->unique_id.uniqueid)
@@ -2959,15 +2959,15 @@ void vulkan_renderer_sampler_release(renderer_backend_interface* backend, b_hand
             // Invalidate the entry and the handle
             s->sampler = 0;
             s->handle_uniqueid = INVALID_ID_U64;
-            b_handle_invalidate(sampler);
+            bhandle_invalidate(sampler);
         }
     }
 }
 
-b8 vulkan_renderer_sampler_refresh(renderer_backend_interface* backend, b_handle* sampler, texture_filter filter, texture_repeat repeat, f32 anisotropy, u32 mip_levels)
+b8 vulkan_renderer_sampler_refresh(renderer_backend_interface* backend, bhandle* sampler, texture_filter filter, texture_repeat repeat, f32 anisotropy, u32 mip_levels)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
-    if (b_handle_is_invalid(*sampler))
+    if (bhandle_is_invalid(*sampler))
     {
         BERROR("Attempted to refresh a sampler via an invalid handler");
         return false;

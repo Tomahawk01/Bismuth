@@ -24,7 +24,7 @@ b8 xform_system_update(void* state, struct frame_data* p_frame_data);
  * by default.
  * @return A handle to the new xform.
  */
-BAPI b_handle xform_create(void);
+BAPI bhandle xform_create(void);
 
 /**
  * @brief Creates a xform from the given position.
@@ -33,7 +33,7 @@ BAPI b_handle xform_create(void);
  * @param position The position to be used.
  * @return A handle to the new xform.
  */
-BAPI b_handle xform_from_position(vec3 position);
+BAPI bhandle xform_from_position(vec3 position);
 
 /**
  * @brief Creates a xform from the given rotation.
@@ -42,7 +42,7 @@ BAPI b_handle xform_from_position(vec3 position);
  * @param rotation The rotation to be used.
  * @return A handle to the new xform.
  */
-BAPI b_handle xform_from_rotation(quat rotation);
+BAPI bhandle xform_from_rotation(quat rotation);
 
 /**
  * @brief Creates a xform from the given position and rotation. Uses a one scale.
@@ -51,7 +51,7 @@ BAPI b_handle xform_from_rotation(quat rotation);
  * @param rotation The rotation to be used.
  * @return A handle to the new xform.
  */
-BAPI b_handle xform_from_position_rotation(vec3 position, quat rotation);
+BAPI bhandle xform_from_position_rotation(vec3 position, quat rotation);
 
 /**
  * @brief Creates a xform from the given position, rotation and scale.
@@ -61,7 +61,7 @@ BAPI b_handle xform_from_position_rotation(vec3 position, quat rotation);
  * @param scale The scale to be used.
  * @return A handle to the new xform.
  */
-BAPI b_handle xform_from_position_rotation_scale(vec3 position, quat rotation, vec3 scale);
+BAPI bhandle xform_from_position_rotation_scale(vec3 position, quat rotation, vec3 scale);
 
 /**
  * @brief Creates a xform from the provided matrix.
@@ -69,13 +69,13 @@ BAPI b_handle xform_from_position_rotation_scale(vec3 position, quat rotation, v
  * @param m The matrix to decompose and extract a transform from.
  * @return A handle to the new xform.
  */
-BAPI b_handle xform_from_matrix(mat4 m);
+BAPI bhandle xform_from_matrix(mat4 m);
 
 /**
  * @brief Destroys the xform with the given handle, and frees the handle.
  * @param t A pointer to a handle to the transform to be destroyed. The handle itself is also invalidated.
  */
-BAPI void xform_destroy(b_handle* t);
+BAPI void xform_destroy(bhandle* t);
 
 /**
  * @brief Returns the position of the given xform.
@@ -83,7 +83,7 @@ BAPI void xform_destroy(b_handle* t);
  * @param t A handle whose position to get.
  * @return A copy of the position.
  */
-BAPI vec3 xform_position_get(b_handle t);
+BAPI vec3 xform_position_get(bhandle t);
 
 /**
  * @brief Sets the position of the given xform.
@@ -91,7 +91,7 @@ BAPI vec3 xform_position_get(b_handle t);
  * @param t A handle to the xform to be updated.
  * @param position The position to be set.
  */
-BAPI void xform_position_set(b_handle t, vec3 position);
+BAPI void xform_position_set(bhandle t, vec3 position);
 
 /**
  * @brief Applies a translation to the given xform. Not the
@@ -100,7 +100,7 @@ BAPI void xform_position_set(b_handle t, vec3 position);
  * @param t A handle to the xform to be updated.
  * @param translation The translation to be applied.
  */
-BAPI void xform_translate(b_handle t, vec3 translation);
+BAPI void xform_translate(bhandle t, vec3 translation);
 
 /**
  * @brief Returns the rotation of the given xform.
@@ -108,7 +108,7 @@ BAPI void xform_translate(b_handle t, vec3 translation);
  * @param t A handle whose rotation to get.
  * @return A copy of the rotation.
  */
-BAPI quat xform_rotation_get(b_handle t);
+BAPI quat xform_rotation_get(bhandle t);
 
 /**
  * @brief Sets the rotation of the given xform.
@@ -116,7 +116,7 @@ BAPI quat xform_rotation_get(b_handle t);
  * @param t A handle to the xform to be updated.
  * @param rotation The rotation to be set.
  */
-BAPI void xform_rotation_set(b_handle t, quat rotation);
+BAPI void xform_rotation_set(bhandle t, quat rotation);
 
 /**
  * @brief Applies a rotation to the given xform. Not the
@@ -125,7 +125,7 @@ BAPI void xform_rotation_set(b_handle t, quat rotation);
  * @param t A handle to the xform to be updated.
  * @param rotation The rotation to be applied.
  */
-BAPI void xform_rotate(b_handle t, quat rotation);
+BAPI void xform_rotate(bhandle t, quat rotation);
 
 /**
  * @brief Returns the scale of the given xform.
@@ -133,7 +133,7 @@ BAPI void xform_rotate(b_handle t, quat rotation);
  * @param t A handle whose scale to get.
  * @return A copy of the scale.
  */
-BAPI vec3 xform_scale_get(b_handle t);
+BAPI vec3 xform_scale_get(bhandle t);
 
 /**
  * @brief Sets the scale of the given xform.
@@ -141,7 +141,7 @@ BAPI vec3 xform_scale_get(b_handle t);
  * @param t A handle to the xform to be updated.
  * @param scale The scale to be set.
  */
-BAPI void xform_scale_set(b_handle t, vec3 scale);
+BAPI void xform_scale_set(bhandle t, vec3 scale);
 
 /**
  * @brief Applies a scale to the given xform. Not the
@@ -150,7 +150,7 @@ BAPI void xform_scale_set(b_handle t, vec3 scale);
  * @param t A handle to the xform to be updated.
  * @param scale The scale to be applied.
  */
-BAPI void xform_scale(b_handle t, vec3 scale);
+BAPI void xform_scale(bhandle t, vec3 scale);
 
 /**
  * @brief Sets the position and rotation of the given xform.
@@ -159,7 +159,7 @@ BAPI void xform_scale(b_handle t, vec3 scale);
  * @param position The position to be set.
  * @param rotation The rotation to be set.
  */
-BAPI void xform_position_rotation_set(b_handle t, vec3 position, quat rotation);
+BAPI void xform_position_rotation_set(bhandle t, vec3 position, quat rotation);
 
 /**
  * @brief Sets the position, rotation and scale of the given xform.
@@ -169,7 +169,7 @@ BAPI void xform_position_rotation_set(b_handle t, vec3 position, quat rotation);
  * @param rotation The rotation to be set.
  * @param scale The scale to be set.
  */
-BAPI void xform_position_rotation_scale_set(b_handle t, vec3 position, quat rotation, vec3 scale);
+BAPI void xform_position_rotation_scale_set(bhandle t, vec3 position, quat rotation, vec3 scale);
 
 /**
  * @brief Applies translation and rotation to the given xform.
@@ -179,12 +179,12 @@ BAPI void xform_position_rotation_scale_set(b_handle t, vec3 position, quat rota
  * @param rotation The rotation to be applied.
  * @return BAPI
  */
-BAPI void xform_translate_rotate(b_handle t, vec3 translation, quat rotation);
+BAPI void xform_translate_rotate(bhandle t, vec3 translation, quat rotation);
 
 /**
  * Recalculates the local matrix for the transform with the given handle.
  */
-BAPI void xform_calculate_local(b_handle t);
+BAPI void xform_calculate_local(bhandle t);
 
 /**
  * @brief Retrieves the local xformation matrix from the provided xform.
@@ -194,9 +194,9 @@ BAPI void xform_calculate_local(b_handle t);
  * @param t A handle to the xform whose matrix to retrieve.
  * @return A copy of the local xformation matrix.
  */
-BAPI mat4 xform_local_get(b_handle t);
+BAPI mat4 xform_local_get(bhandle t);
 
-BAPI void xform_world_set(b_handle t, mat4 world);
+BAPI void xform_world_set(bhandle t, mat4 world);
 
 /**
  * @brief Obtains the world matrix of the given xform.
@@ -204,7 +204,7 @@ BAPI void xform_world_set(b_handle t, mat4 world);
  * @param t A handle to the xform whose world matrix to retrieve.
  * @return A copy of the world matrix.
  */
-BAPI mat4 xform_world_get(b_handle t);
+BAPI mat4 xform_world_get(bhandle t);
 
 /**
  * @brief Returns a string representation of the xform pointed to by the given handle.
@@ -212,6 +212,6 @@ BAPI mat4 xform_world_get(b_handle t);
  * @param t A handle to the xform to retrieve as a string.
  * @return The xform in string format.
  */
-BAPI const char* xform_to_string(b_handle t);
+BAPI const char* xform_to_string(bhandle t);
 
 #endif

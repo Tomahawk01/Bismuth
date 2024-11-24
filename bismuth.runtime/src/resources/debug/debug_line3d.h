@@ -13,8 +13,8 @@ typedef struct debug_line3d
     vec3 point_0;
     vec3 point_1;
     vec4 color;
-    b_handle xform;
-    b_handle xform_parent;
+    bhandle xform;
+    bhandle xform_parent;
     b8 is_dirty;
 
     bgeometry geometry;
@@ -22,10 +22,10 @@ typedef struct debug_line3d
 
 struct frame_data;
 
-BAPI b8 debug_line3d_create(vec3 point_0, vec3 point_1, b_handle parent_xform, debug_line3d* out_line);
+BAPI b8 debug_line3d_create(vec3 point_0, vec3 point_1, bhandle parent_xform, debug_line3d* out_line);
 BAPI void debug_line3d_destroy(debug_line3d *line);
 
-BAPI void debug_line3d_parent_set(debug_line3d* line, b_handle parent_xform);
+BAPI void debug_line3d_parent_set(debug_line3d* line, bhandle parent_xform);
 BAPI void debug_line3d_color_set(debug_line3d* line, vec4 color);
 BAPI void debug_line3d_points_set(debug_line3d* line, vec3 point_0, vec3 point_1);
 

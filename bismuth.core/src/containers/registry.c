@@ -49,12 +49,12 @@ void bregistry_destroy(bregistry* registry)
     }
 }
 
-b_handle bregistry_add_entry(bregistry* registry, const void* block, u64 size, b8 auto_release)
+bhandle bregistry_add_entry(bregistry* registry, const void* block, u64 size, b8 auto_release)
 {
     if (!registry || !size)
     {
         BERROR("registry_add_entry requires a valid pointer to registry, and a nonzero size. Invalid handle will be returned.");
-        return b_handle_invalid();
+        return bhandle_invalid();
     }
 
     // Check that the block hasn't already been registered
@@ -65,7 +65,7 @@ b_handle bregistry_add_entry(bregistry* registry, const void* block, u64 size, b
         if (entry->block == block)
         {
             BWARN("Block of memory at address 0x%x has already been registered, and will not be re-registered. Returning its handle.");
-            return b_handle_create_with_identifier(i, (identifier){entry->uniqueid});
+            return bhandle_create_with_identifier(i, (identifier){entry->uniqueid});
         }
     }
 
@@ -76,7 +76,7 @@ b_handle bregistry_add_entry(bregistry* registry, const void* block, u64 size, b
         if (entry->uniqueid == INVALID_ID_U64)
         {
             // Found an empty block, use it
-            b_handle new_handle = b_handle_create(i);
+            bhandle new_handle = bhandle_create(i);
             entry->uniqueid = new_handle.unique_id.uniqueid;
 
             // Allocate a block of memory and copy the provided block to it
@@ -97,7 +97,7 @@ b_handle bregistry_add_entry(bregistry* registry, const void* block, u64 size, b
 
     // If this point is reached, an entry doesn't exist and there was no free slot for one to be added to
     {
-        b_handle new_handle = b_handle_create(entry_count);
+        bhandle new_handle = bhandle_create(entry_count);
 
         bregistry_entry new_entry = {0};
         new_entry.uniqueid = new_handle.unique_id.uniqueid;
@@ -121,7 +121,7 @@ b_handle bregistry_add_entry(bregistry* registry, const void* block, u64 size, b
     }
 }
 
-b8 bregistry_entry_set(bregistry* registry, b_handle entry_handle, const void* block, u64 size, void* sender)
+b8 bregistry_entry_set(bregistry* registry, bhandle entry_handle, const void* block, u64 size, void* sender)
 {
     if (!registry || !block || !size)
     {
@@ -129,7 +129,7 @@ b8 bregistry_entry_set(bregistry* registry, b_handle entry_handle, const void* b
         return false;
     }
 
-    if (b_handle_is_invalid(entry_handle))
+    if (bhandle_is_invalid(entry_handle))
     {
         BERROR("registry_entry_set requires a valid handle, yet an invalid one was passed. Nothing was done");
         return false;
@@ -168,7 +168,7 @@ b8 bregistry_entry_set(bregistry* registry, b_handle entry_handle, const void* b
     return true;
 }
 
-b8 bregistry_entry_update_callback_for_listener(bregistry* registry, b_handle entry_handle, void* listener, PFN_on_registry_entry_updated updated_callback)
+b8 bregistry_entry_update_callback_for_listener(bregistry* registry, bhandle entry_handle, void* listener, PFN_on_registry_entry_updated updated_callback)
 {
     if (!registry || !listener || !updated_callback)
     {
@@ -176,7 +176,7 @@ b8 bregistry_entry_update_callback_for_listener(bregistry* registry, b_handle en
         return false;
     }
 
-    if (b_handle_is_invalid(entry_handle))
+    if (bhandle_is_invalid(entry_handle))
     {
         BERROR("bregistry_entry_update_callback_for_listener requires a valid handle, yet an invalid one was passed. Nothing was done");
         return false;
@@ -219,7 +219,7 @@ b8 bregistry_entry_update_callback_for_listener(bregistry* registry, b_handle en
     return false;
 }
 
-void* bregistry_entry_acquire(bregistry* registry, b_handle entry_handle, void* listener, PFN_on_registry_entry_updated updated_callback)
+void* bregistry_entry_acquire(bregistry* registry, bhandle entry_handle, void* listener, PFN_on_registry_entry_updated updated_callback)
 {
     if (!registry)
     {
@@ -227,7 +227,7 @@ void* bregistry_entry_acquire(bregistry* registry, b_handle entry_handle, void* 
         return 0;
     }
 
-    if (b_handle_is_invalid(entry_handle))
+    if (bhandle_is_invalid(entry_handle))
     {
         BERROR("registry_entry_acquire requires a valid handle, yet an invalid one was passed. 0/null will be returned");
         return 0;
@@ -301,7 +301,7 @@ void* bregistry_entry_acquire(bregistry* registry, b_handle entry_handle, void* 
     return entry->block;
 }
 
-void bregistry_entry_release(bregistry* registry, b_handle entry_handle, void* listener)
+void bregistry_entry_release(bregistry* registry, bhandle entry_handle, void* listener)
 {
     if (!registry)
     {
@@ -309,7 +309,7 @@ void bregistry_entry_release(bregistry* registry, b_handle entry_handle, void* l
         return;
     }
 
-    if (b_handle_is_invalid(entry_handle))
+    if (bhandle_is_invalid(entry_handle))
     {
         BERROR("registry_entry_release requires a valid entry_handle");
         return;

@@ -91,7 +91,7 @@ static b8 save_main_scene(struct application* game_inst);
 
 static f32 get_engine_delta_time(void)
 {
-    b_handle engine = timeline_system_get_engine();
+    bhandle engine = timeline_system_get_engine();
     return timeline_system_delta_get(engine);
 }
 
@@ -365,7 +365,7 @@ b8 game_on_button(u16 code, void* sender, void* listener_inst, event_context con
 
                             // Create a debug line where the ray cast starts and ends (at the intersection)
                             debug_line3d test_line;
-                            debug_line3d_create(r.origin, hit->position, b_handle_invalid(), &test_line);
+                            debug_line3d_create(r.origin, hit->position, bhandle_invalid(), &test_line);
                             debug_line3d_initialize(&test_line);
                             debug_line3d_load(&test_line);
                             // Yellow for hits
@@ -376,7 +376,7 @@ b8 game_on_button(u16 code, void* sender, void* listener_inst, event_context con
                             // Create a debug box to show the intersection point
                             debug_box3d test_box;
 
-                            debug_box3d_create((vec3){0.1f, 0.1f, 0.1f}, b_handle_invalid(), &test_box);
+                            debug_box3d_create((vec3){0.1f, 0.1f, 0.1f}, bhandle_invalid(), &test_box);
                             debug_box3d_initialize(&test_box);
                             debug_box3d_load(&test_box);
 
@@ -393,7 +393,7 @@ b8 game_on_button(u16 code, void* sender, void* listener_inst, event_context con
                                 state->selection.node_handle = hit->node_handle;
                                 state->selection.xform_handle = hit->xform_handle;
                                 state->selection.xform_parent_handle = hit->xform_parent_handle;
-                                if (!b_handle_is_invalid(state->selection.xform_handle))
+                                if (!bhandle_is_invalid(state->selection.xform_handle))
                                 {
                                     BINFO("Selected object id %u", hit->node_handle.handle_index);
                                     editor_gizmo_selected_transform_set(&state->gizmo, state->selection.xform_handle, state->selection.xform_parent_handle);
@@ -407,7 +407,7 @@ b8 game_on_button(u16 code, void* sender, void* listener_inst, event_context con
 
                         // Create a debug line where the ray cast starts and continues to
                         debug_line3d test_line;
-                        debug_line3d_create(r.origin, vec3_add(r.origin, vec3_mul_scalar(r.direction, 100.0f)), b_handle_invalid(), &test_line);
+                        debug_line3d_create(r.origin, vec3_add(r.origin, vec3_mul_scalar(r.direction, 100.0f)), bhandle_invalid(), &test_line);
                         debug_line3d_initialize(&test_line);
                         debug_line3d_load(&test_line);
                         // Magenta for non-hits
@@ -415,12 +415,12 @@ b8 game_on_button(u16 code, void* sender, void* listener_inst, event_context con
 
                         darray_push(state->test_lines, test_line);
 
-                        if (b_handle_is_invalid(state->selection.xform_handle))
+                        if (bhandle_is_invalid(state->selection.xform_handle))
                         {
                             BINFO("Object deselected");
-                            state->selection.xform_handle = b_handle_invalid();
-                            state->selection.node_handle = b_handle_invalid();
-                            state->selection.xform_parent_handle = b_handle_invalid();
+                            state->selection.xform_handle = bhandle_invalid();
+                            state->selection.node_handle = bhandle_invalid();
+                            state->selection.xform_parent_handle = bhandle_invalid();
 
                             editor_gizmo_selected_transform_set(&state->gizmo, state->selection.xform_handle, state->selection.xform_parent_handle);
                         }
@@ -564,7 +564,7 @@ b8 application_initialize(struct application* game_inst)
     }
 
     // Invalid handle == no selection
-    state->selection.xform_handle = b_handle_invalid();
+    state->selection.xform_handle = bhandle_invalid();
 
     debug_console_load(&state->debug_console);
 

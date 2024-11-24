@@ -12,8 +12,8 @@ typedef struct debug_box3d
     bname name;
     vec3 size;
     vec4 color;
-    b_handle xform;
-    b_handle parent_xform;
+    bhandle xform;
+    bhandle parent_xform;
 
     b8 is_dirty;
 
@@ -22,10 +22,10 @@ typedef struct debug_box3d
 
 struct frame_data;
 
-BAPI b8 debug_box3d_create(vec3 size, b_handle parent_xform, debug_box3d* out_box);
+BAPI b8 debug_box3d_create(vec3 size, bhandle parent_xform, debug_box3d* out_box);
 BAPI void debug_box3d_destroy(debug_box3d* box);
 
-BAPI void debug_box3d_parent_set(debug_box3d* box, b_handle parent_xform);
+BAPI void debug_box3d_parent_set(debug_box3d* box, bhandle parent_xform);
 BAPI void debug_box3d_color_set(debug_box3d* box, vec4 color);
 BAPI void debug_box3d_extents_set(debug_box3d* box, extents_3d extents);
 BAPI void debug_box3d_points_set(debug_box3d *box, vec3 points[8]);

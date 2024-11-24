@@ -64,9 +64,9 @@ typedef enum editor_gizmo_orientation
 
 typedef struct editor_gizmo
 {
-    b_handle xform_handle;
-    b_handle selected_xform_handle;
-    b_handle selected_xform_parent_handle;
+    bhandle xform_handle;
+    bhandle selected_xform_handle;
+    bhandle selected_xform_parent_handle;
     editor_gizmo_mode mode;
 
     f32 scale_scalar;
@@ -94,7 +94,7 @@ BAPI b8 editor_gizmo_unload(editor_gizmo* gizmo);
 BAPI void editor_gizmo_refresh(editor_gizmo* gizmo);
 BAPI editor_gizmo_orientation editor_gizmo_orientation_get(editor_gizmo* gizmo);
 BAPI void editor_gizmo_orientation_set(editor_gizmo* gizmo, editor_gizmo_orientation orientation);
-BAPI void editor_gizmo_selected_transform_set(editor_gizmo* gizmo, b_handle xform_handle, b_handle parent_xform_handle);
+BAPI void editor_gizmo_selected_transform_set(editor_gizmo* gizmo, bhandle xform_handle, bhandle parent_xform_handle);
 
 BAPI void editor_gizmo_update(editor_gizmo* gizmo);
 

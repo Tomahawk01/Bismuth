@@ -29,7 +29,7 @@ typedef struct shadow_shader_locations
 
 typedef struct cascade_resources
 {
-    b_handle framebuffer_handle;
+    bhandle framebuffer_handle;
 } cascade_resources;
 
 typedef struct shadow_shader_instance_data

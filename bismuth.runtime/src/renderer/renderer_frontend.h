@@ -65,22 +65,22 @@ BAPI void renderer_set_depth_write_enabled(b8 enabled);
 
 BAPI void renderer_set_stencil_op(renderer_stencil_op fail_op, renderer_stencil_op pass_op, renderer_stencil_op depth_fail_op, renderer_compare_op compare_op);
 
-BAPI void renderer_begin_rendering(struct renderer_system_state* state, struct frame_data* p_frame_data, rect_2d render_area, u32 color_target_count, b_handle* color_targets, b_handle depth_stencil_target, u32 depth_stencil_layer);
+BAPI void renderer_begin_rendering(struct renderer_system_state* state, struct frame_data* p_frame_data, rect_2d render_area, u32 color_target_count, bhandle* color_targets, bhandle depth_stencil_target, u32 depth_stencil_layer);
 BAPI void renderer_end_rendering(struct renderer_system_state* state, struct frame_data* p_frame_data);
 
 BAPI void renderer_set_stencil_compare_mask(u32 compare_mask);
 BAPI void renderer_set_stencil_write_mask(u32 write_mask);
 
-BAPI b8 renderer_bresource_texture_resources_acquire(struct renderer_system_state* state, bname name, bresource_texture_type type, u32 width, u32 height, u8 channel_count, u8 mip_levels, u16 array_size, bresource_texture_flag_bits flags, b_handle* out_renderer_texture_handle);
-BAPI void renderer_texture_resources_release(struct renderer_system_state* state, b_handle* handle);
-BAPI struct texture_internal_data* renderer_texture_resources_get(struct renderer_system_state* state, b_handle renderer_texture_handle);
+BAPI b8 renderer_bresource_texture_resources_acquire(struct renderer_system_state* state, bname name, bresource_texture_type type, u32 width, u32 height, u8 channel_count, u8 mip_levels, u16 array_size, bresource_texture_flag_bits flags, bhandle* out_renderer_texture_handle);
+BAPI void renderer_texture_resources_release(struct renderer_system_state* state, bhandle* handle);
+BAPI struct texture_internal_data* renderer_texture_resources_get(struct renderer_system_state* state, bhandle renderer_texture_handle);
 
-BAPI b8 renderer_texture_resize(struct renderer_system_state* state, b_handle renderer_texture_handle, u32 new_width, u32 new_height);
-BAPI b8 renderer_texture_write_data(struct renderer_system_state* state, b_handle renderer_texture_handle, u32 offset, u32 size, const u8* pixels);
+BAPI b8 renderer_texture_resize(struct renderer_system_state* state, bhandle renderer_texture_handle, u32 new_width, u32 new_height);
+BAPI b8 renderer_texture_write_data(struct renderer_system_state* state, bhandle renderer_texture_handle, u32 offset, u32 size, const u8* pixels);
 
-BAPI b8 renderer_texture_read_data(struct renderer_system_state* state, b_handle renderer_texture_handle, u32 offset, u32 size, u8** out_pixels);
-BAPI b8 renderer_texture_read_pixel(struct renderer_system_state* state, b_handle renderer_texture_handle, u32 x, u32 y, u8** out_rgba);
-BAPI struct texture_internal_data* renderer_texture_internal_get(struct renderer_system_state* state, b_handle renderer_texture_handle);
+BAPI b8 renderer_texture_read_data(struct renderer_system_state* state, bhandle renderer_texture_handle, u32 offset, u32 size, u8** out_pixels);
+BAPI b8 renderer_texture_read_pixel(struct renderer_system_state* state, bhandle renderer_texture_handle, u32 x, u32 y, u8** out_rgba);
+BAPI struct texture_internal_data* renderer_texture_internal_get(struct renderer_system_state* state, bhandle renderer_texture_handle);
 
 BAPI renderbuffer* renderer_renderbuffer_get(renderbuffer_type type);
 
@@ -100,11 +100,11 @@ BAPI void renderer_clear_color_set(struct renderer_system_state* state, vec4 col
 BAPI void renderer_clear_depth_set(struct renderer_system_state* state, f32 depth);
 BAPI void renderer_clear_stencil_set(struct renderer_system_state* state, u32 stencil);
 
-BAPI b8 renderer_clear_color(struct renderer_system_state* state, b_handle texture_handle);
-BAPI b8 renderer_clear_depth_stencil(struct renderer_system_state* state, b_handle texture_handle);
+BAPI b8 renderer_clear_color(struct renderer_system_state* state, bhandle texture_handle);
+BAPI b8 renderer_clear_depth_stencil(struct renderer_system_state* state, bhandle texture_handle);
 
-BAPI void renderer_color_texture_prepare_for_present(struct renderer_system_state* state, b_handle texture_handle);
-BAPI void renderer_texture_prepare_for_sampling(struct renderer_system_state* state, b_handle texture_handle, texture_flag_bits flags);
+BAPI void renderer_color_texture_prepare_for_present(struct renderer_system_state* state, bhandle texture_handle);
+BAPI void renderer_texture_prepare_for_sampling(struct renderer_system_state* state, bhandle texture_handle, texture_flag_bits flags);
 
 BAPI b8 renderer_shader_create(struct renderer_system_state* state, struct shader* s, const shader_config* config);
 BAPI void renderer_shader_destroy(struct renderer_system_state* state, struct shader* s);
@@ -129,11 +129,11 @@ BAPI b8 renderer_shader_per_draw_resources_release(struct renderer_system_state*
 
 BAPI b8 renderer_shader_uniform_set(struct renderer_system_state* state, struct shader* s, struct shader_uniform* uniform, u32 array_index, const void* value);
 
-BAPI b_handle renderer_generic_sampler_get(struct renderer_system_state* state, shader_generic_sampler sampler);
+BAPI bhandle renderer_generic_sampler_get(struct renderer_system_state* state, shader_generic_sampler sampler);
 
-BAPI b_handle renderer_sampler_acquire(struct renderer_system_state* state, texture_filter filter, texture_repeat repeat, f32 anisotropy, u32 mip_levels);
-BAPI void renderer_sampler_release(struct renderer_system_state* state, b_handle* sampler);
-BAPI b8 renderer_sampler_refresh(struct renderer_system_state* state, b_handle* sampler, texture_filter filter, texture_repeat repeat, f32 anisotropy, u32 mip_levels);
+BAPI bhandle renderer_sampler_acquire(struct renderer_system_state* state, texture_filter filter, texture_repeat repeat, f32 anisotropy, u32 mip_levels);
+BAPI void renderer_sampler_release(struct renderer_system_state* state, bhandle* sampler);
+BAPI b8 renderer_sampler_refresh(struct renderer_system_state* state, bhandle* sampler, texture_filter filter, texture_repeat repeat, f32 anisotropy, u32 mip_levels);
 
 BAPI b8 renderer_is_multithreaded(void);
 

@@ -41,8 +41,8 @@ typedef struct b_registry
 BAPI void bregistry_create(bregistry* out_registry);
 BAPI void bregistry_destroy(bregistry* registry);
 
-BAPI b_handle bregistry_add_entry(bregistry* registry, const void* block, u64 size, b8 auto_release);
-BAPI b8 bregistry_entry_set(bregistry* registry, b_handle entry_handle, const void* block, u64 size, void* sender);
-BAPI b8 bregistry_entry_update_callback_for_listener(bregistry* registry, b_handle entry_handle, void* listener, PFN_on_registry_entry_updated updated_callback);
-BAPI void* bregistry_entry_acquire(bregistry* registry, b_handle entry_handle, void* listener, PFN_on_registry_entry_updated updated_callback);
-BAPI void bregistry_entry_release(bregistry* registry, b_handle entry_handle, void* listener);
+BAPI bhandle bregistry_add_entry(bregistry* registry, const void* block, u64 size, b8 auto_release);
+BAPI b8 bregistry_entry_set(bregistry* registry, bhandle entry_handle, const void* block, u64 size, void* sender);
+BAPI b8 bregistry_entry_update_callback_for_listener(bregistry* registry, bhandle entry_handle, void* listener, PFN_on_registry_entry_updated updated_callback);
+BAPI void* bregistry_entry_acquire(bregistry* registry, bhandle entry_handle, void* listener, PFN_on_registry_entry_updated updated_callback);
+BAPI void bregistry_entry_release(bregistry* registry, bhandle entry_handle, void* listener);

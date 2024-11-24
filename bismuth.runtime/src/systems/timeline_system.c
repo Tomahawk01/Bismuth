@@ -110,16 +110,16 @@ b8 timeline_system_update(void* state, f32 engine_delta_time)
     return true;
 }
 
-b_handle timeline_system_create(f32 scale)
+bhandle timeline_system_create(f32 scale)
 {
-    b_handle new_handle;
+    bhandle new_handle;
     timeline_system_state* state = engine_systems_get()->timeline_system;
     for (u32 i = 0; i < state->entry_count; ++i)
     {
         if (state->handle_uuids[i] == INVALID_ID_U64)
         {
             // Found a free slot, use it
-            new_handle = b_handle_create(i);
+            new_handle = bhandle_create(i);
 
             state->handle_uuids[i] = new_handle.unique_id.uniqueid;
             state->timelines[i].total_time = 0;
@@ -136,7 +136,7 @@ b_handle timeline_system_create(f32 scale)
     ensure_allocated(state, old_count * 2);
 
     // Found a free slot, use it
-    new_handle = b_handle_create(old_count);
+    new_handle = bhandle_create(old_count);
 
     state->handle_uuids[old_count] = new_handle.unique_id.uniqueid;
     state->timelines[old_count].total_time = 0;
@@ -146,14 +146,14 @@ b_handle timeline_system_create(f32 scale)
     return new_handle;
 }
 
-void timeline_system_destroy(b_handle timeline)
+void timeline_system_destroy(bhandle timeline)
 {
     if (timeline.handle_index < 2)
     {
         BERROR("timeline_system_destroy cannot be called for default engine or game timelines");
         return;
     }
-    if (b_handle_is_invalid(timeline))
+    if (bhandle_is_invalid(timeline))
         return;
 
     timeline_system_state* state = engine_systems_get()->timeline_system;
@@ -169,9 +169,9 @@ void timeline_system_destroy(b_handle timeline)
     state->handle_uuids[timeline.handle_index] = INVALID_ID_U64;
 }
 
-static timeline_data* timeline_get_at(b_handle timeline)
+static timeline_data* timeline_get_at(bhandle timeline)
 {
-    if (b_handle_is_invalid(timeline))
+    if (bhandle_is_invalid(timeline))
     {
         BWARN("Cannot get timeline for invalid handle");
         return 0;
@@ -189,7 +189,7 @@ static timeline_data* timeline_get_at(b_handle timeline)
     return 0;
 }
 
-f32 timeline_system_scale_get(b_handle timeline)
+f32 timeline_system_scale_get(bhandle timeline)
 {
     timeline_data* data = timeline_get_at(timeline);
     if (!data)
@@ -197,7 +197,7 @@ f32 timeline_system_scale_get(b_handle timeline)
 
     return data->time_scale;
 }
-void timeline_system_scale_set(b_handle timeline, f32 scale)
+void timeline_system_scale_set(bhandle timeline, f32 scale)
 {
     if (timeline.handle_index == 0)
     {
@@ -210,7 +210,7 @@ void timeline_system_scale_set(b_handle timeline, f32 scale)
         data->time_scale = scale;
 }
 
-f32 timeline_system_total_get(b_handle timeline)
+f32 timeline_system_total_get(bhandle timeline)
 {
     timeline_data* data = timeline_get_at(timeline);
     if (!data)
@@ -219,7 +219,7 @@ f32 timeline_system_total_get(b_handle timeline)
     return data->total_time;
 }
 
-f32 timeline_system_delta_get(b_handle timeline)
+f32 timeline_system_delta_get(bhandle timeline)
 {
     timeline_data* data = timeline_get_at(timeline);
     if (!data)
@@ -228,19 +228,19 @@ f32 timeline_system_delta_get(b_handle timeline)
     return data->delta_time;
 }
 
-b_handle timeline_system_get_engine(void)
+bhandle timeline_system_get_engine(void)
 {
     timeline_system_state* state = engine_systems_get()->timeline_system;
-    b_handle handle;
+    bhandle handle;
     handle.handle_index = 0;
     handle.unique_id.uniqueid = state->handle_uuids[0];
     return handle;
 }
 
-b_handle timeline_system_get_game(void)
+bhandle timeline_system_get_game(void)
 {
     timeline_system_state* state = engine_systems_get()->timeline_system;
-    b_handle handle;
+    bhandle handle;
     handle.handle_index = 1;
     handle.unique_id.uniqueid = state->handle_uuids[1];
     return handle;

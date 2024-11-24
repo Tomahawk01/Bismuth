@@ -7,8 +7,8 @@ struct frame_data;
 
 typedef struct hierarchy_graph_view_node
 {
-    b_handle node_handle;
-    b_handle xform_handle;
+    bhandle node_handle;
+    bhandle xform_handle;
 
     u32 parent_index;
 
@@ -24,12 +24,12 @@ typedef struct hierarchy_graph_view
 typedef struct hierarchy_graph
 {
     u32 nodes_allocated;
-    b_handle* node_handles;
+    bhandle* node_handles;
     u32* parent_indices;
     u8* levels;
     b8* dirty_flags;
 
-    b_handle* xform_handles;
+    bhandle* xform_handles;
 
     hierarchy_graph_view view;
 } hierarchy_graph;
@@ -39,15 +39,15 @@ BAPI void hierarchy_graph_destroy(hierarchy_graph* graph);
 
 BAPI void hierarchy_graph_update(hierarchy_graph* graph);
 
-BAPI b_handle hierarchy_graph_xform_handle_get(const hierarchy_graph* graph, b_handle node_handle);
-BAPI b_handle hierarchy_graph_parent_handle_get(const hierarchy_graph* graph, b_handle node_handle);
-BAPI b_handle hierarchy_graph_parent_xform_handle_get(const hierarchy_graph* graph, b_handle node_handle);
+BAPI bhandle hierarchy_graph_xform_handle_get(const hierarchy_graph* graph, bhandle node_handle);
+BAPI bhandle hierarchy_graph_parent_handle_get(const hierarchy_graph* graph, bhandle node_handle);
+BAPI bhandle hierarchy_graph_parent_xform_handle_get(const hierarchy_graph* graph, bhandle node_handle);
 
-BAPI b_handle hierarchy_graph_root_add(hierarchy_graph* graph);
-BAPI b_handle hierarchy_graph_root_add_with_xform(hierarchy_graph* graph, b_handle xform_handle);
-BAPI b_handle hierarchy_graph_child_add(hierarchy_graph* graph, b_handle parent_node_handle);
-BAPI b_handle hierarchy_graph_child_add_with_xform(hierarchy_graph* graph, b_handle parent_node_handle, b_handle xform_handle);
+BAPI bhandle hierarchy_graph_root_add(hierarchy_graph* graph);
+BAPI bhandle hierarchy_graph_root_add_with_xform(hierarchy_graph* graph, bhandle xform_handle);
+BAPI bhandle hierarchy_graph_child_add(hierarchy_graph* graph, bhandle parent_node_handle);
+BAPI bhandle hierarchy_graph_child_add_with_xform(hierarchy_graph* graph, bhandle parent_node_handle, bhandle xform_handle);
 
-BAPI void hierarchy_graph_node_remove(hierarchy_graph* graph, b_handle* node_handle, b8 release_xform);
-BAPI quat hierarchy_graph_world_rotation_get(const hierarchy_graph* graph, b_handle node_handle);
-BAPI vec3 hierarchy_graph_world_scale_get(const hierarchy_graph* graph, b_handle node_handle);
+BAPI void hierarchy_graph_node_remove(hierarchy_graph* graph, bhandle* node_handle, b8 release_xform);
+BAPI quat hierarchy_graph_world_rotation_get(const hierarchy_graph* graph, bhandle node_handle);
+BAPI vec3 hierarchy_graph_world_scale_get(const hierarchy_graph* graph, bhandle node_handle);

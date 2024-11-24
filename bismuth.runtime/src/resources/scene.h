@@ -44,9 +44,9 @@ typedef struct scene_attachment
 {
     scene_node_attachment_type attachment_type;
     // Handle into the hierarchy graph
-    b_handle hierarchy_node_handle;
+    bhandle hierarchy_node_handle;
     // A handle indexing into the resource array of the given type (i.e. meshes)
-    b_handle resource_handle;
+    bhandle resource_handle;
 } scene_attachment;
 
 typedef enum scene_flag

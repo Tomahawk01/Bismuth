@@ -161,7 +161,7 @@ typedef struct bresource_texture
     /** @brief The number of mip maps the internal texture has. Must always be at least 1 */
     u8 mip_levels;
     /** @brief The the handle to renderer-specific texture data */
-    b_handle renderer_texture_handle;
+    bhandle renderer_texture_handle;
 } bresource_texture;
 
 typedef struct bresource_texture_pixel_data

@@ -23,7 +23,7 @@
 
 static f32 get_engine_delta_time(void)
 {
-    b_handle engine = timeline_system_get_engine();
+    bhandle engine = timeline_system_get_engine();
     return timeline_system_delta_get(engine);
 }
 

@@ -45,10 +45,10 @@ typedef struct xform_system_state
  */
 static void ensure_allocated(xform_system_state* state, u32 slot_count);
 static void dirty_list_reset(xform_system_state* state);
-static void dirty_list_add(xform_system_state* state, b_handle t);
-static b_handle handle_create(xform_system_state* state);
-static void handle_destroy(xform_system_state* state, b_handle* t);
-static b8 validate_handle(xform_system_state* state, b_handle handle);
+static void dirty_list_add(xform_system_state* state, bhandle t);
+static bhandle handle_create(xform_system_state* state);
+static void handle_destroy(xform_system_state* state, bhandle* t);
+static b8 validate_handle(xform_system_state* state, bhandle handle);
 
 b8 xform_system_initialize(u64* memory_requirement, void* state, void* config)
 {
@@ -128,9 +128,9 @@ b8 xform_system_update(void* state, struct frame_data* p_frame_data)
     return true;
 }
 
-b_handle xform_create(void)
+bhandle xform_create(void)
 {
-    b_handle handle = {0};
+    bhandle handle = {0};
     xform_system_state* state = engine_systems_get()->xform_system;
     if (state)
     {
@@ -146,14 +146,14 @@ b_handle xform_create(void)
     else
     {
         BERROR("Attempted to create a transform before the system was initialized");
-        handle = b_handle_invalid();
+        handle = bhandle_invalid();
     }
     return handle;
 }
 
-b_handle xform_from_position(vec3 position)
+bhandle xform_from_position(vec3 position)
 {
-    b_handle handle = {0};
+    bhandle handle = {0};
     xform_system_state* state = engine_systems_get()->xform_system;
     if (state)
     {
@@ -170,14 +170,14 @@ b_handle xform_from_position(vec3 position)
     else
     {
         BERROR("Attempted to create a transform before the system was initialized");
-        handle = b_handle_invalid();
+        handle = bhandle_invalid();
     }
     return handle;
 }
 
-b_handle xform_from_rotation(quat rotation)
+bhandle xform_from_rotation(quat rotation)
 {
-    b_handle handle = {0};
+    bhandle handle = {0};
     xform_system_state* state = engine_systems_get()->xform_system;;
     if (state)
     {
@@ -194,14 +194,14 @@ b_handle xform_from_rotation(quat rotation)
     else
     {
         BERROR("Attempted to create a transform before the system was initialized");
-        handle = b_handle_invalid();
+        handle = bhandle_invalid();
     }
     return handle;
 }
 
-b_handle xform_from_position_rotation(vec3 position, quat rotation)
+bhandle xform_from_position_rotation(vec3 position, quat rotation)
 {
-    b_handle handle = {0};
+    bhandle handle = {0};
     xform_system_state* state = engine_systems_get()->xform_system;;
     if (state)
     {
@@ -218,14 +218,14 @@ b_handle xform_from_position_rotation(vec3 position, quat rotation)
     else
     {
         BERROR("Attempted to create a transform before the system was initialized");
-        handle = b_handle_invalid();
+        handle = bhandle_invalid();
     }
     return handle;
 }
 
-b_handle xform_from_position_rotation_scale(vec3 position, quat rotation, vec3 scale)
+bhandle xform_from_position_rotation_scale(vec3 position, quat rotation, vec3 scale)
 {
-    b_handle handle = {0};
+    bhandle handle = {0};
     xform_system_state* state = engine_systems_get()->xform_system;;
     if (state)
     {
@@ -242,24 +242,24 @@ b_handle xform_from_position_rotation_scale(vec3 position, quat rotation, vec3 s
     else
     {
         BERROR("Attempted to create a transform before the system was initialized");
-        handle = b_handle_invalid();
+        handle = bhandle_invalid();
     }
     return handle;
 }
 
-b_handle xform_from_matrix(mat4 m)
+bhandle xform_from_matrix(mat4 m)
 {
     // TODO: decompose matrix
     BASSERT_MSG(false, "Not implemented");
-    return b_handle_invalid();
+    return bhandle_invalid();
 }
 
-void xform_destroy(b_handle* t)
+void xform_destroy(bhandle* t)
 {
     handle_destroy(engine_systems_get()->xform_system, t);
 }
 
-vec3 xform_position_get(b_handle t)
+vec3 xform_position_get(bhandle t)
 {
     xform_system_state* state = engine_systems_get()->xform_system;
     if (!validate_handle(state, t))
@@ -270,7 +270,7 @@ vec3 xform_position_get(b_handle t)
     return state->positions[t.handle_index];
 }
 
-void xform_position_set(b_handle t, vec3 position)
+void xform_position_set(bhandle t, vec3 position)
 {
     xform_system_state* state = engine_systems_get()->xform_system;
     if (!validate_handle(state, t))
@@ -284,7 +284,7 @@ void xform_position_set(b_handle t, vec3 position)
     }
 }
 
-void xform_translate(b_handle t, vec3 translation)
+void xform_translate(bhandle t, vec3 translation)
 {
     xform_system_state* state = engine_systems_get()->xform_system;
     if (!validate_handle(state, t))
@@ -298,7 +298,7 @@ void xform_translate(b_handle t, vec3 translation)
     }
 }
 
-quat xform_rotation_get(b_handle t)
+quat xform_rotation_get(bhandle t)
 {
     xform_system_state* state = engine_systems_get()->xform_system;
     if (!validate_handle(state, t))
@@ -309,7 +309,7 @@ quat xform_rotation_get(b_handle t)
     return state->rotations[t.handle_index];
 }
 
-void xform_rotation_set(b_handle t, quat rotation)
+void xform_rotation_set(bhandle t, quat rotation)
 {
     xform_system_state* state = engine_systems_get()->xform_system;
     if (!validate_handle(state, t))
@@ -323,7 +323,7 @@ void xform_rotation_set(b_handle t, quat rotation)
     }
 }
 
-void xform_rotate(b_handle t, quat rotation)
+void xform_rotate(bhandle t, quat rotation)
 {
     xform_system_state* state = engine_systems_get()->xform_system;
     if (!validate_handle(state, t))
@@ -337,7 +337,7 @@ void xform_rotate(b_handle t, quat rotation)
     }
 }
 
-vec3 xform_scale_get(b_handle t)
+vec3 xform_scale_get(bhandle t)
 {
     xform_system_state* state = engine_systems_get()->xform_system;
     if (!validate_handle(state, t))
@@ -348,7 +348,7 @@ vec3 xform_scale_get(b_handle t)
     return state->scales[t.handle_index];
 }
 
-void xform_scale_set(b_handle t, vec3 scale)
+void xform_scale_set(bhandle t, vec3 scale)
 {
     xform_system_state* state = engine_systems_get()->xform_system;
     if (!validate_handle(state, t))
@@ -362,7 +362,7 @@ void xform_scale_set(b_handle t, vec3 scale)
     }
 }
 
-void xform_scale(b_handle t, vec3 scale)
+void xform_scale(bhandle t, vec3 scale)
 {
     xform_system_state* state = engine_systems_get()->xform_system;
     if (!validate_handle(state, t))
@@ -376,7 +376,7 @@ void xform_scale(b_handle t, vec3 scale)
     }
 }
 
-void xform_position_rotation_set(b_handle t, vec3 position, quat rotation)
+void xform_position_rotation_set(bhandle t, vec3 position, quat rotation)
 {
     xform_system_state* state = engine_systems_get()->xform_system;
     if (!validate_handle(state, t))
@@ -391,7 +391,7 @@ void xform_position_rotation_set(b_handle t, vec3 position, quat rotation)
     }
 }
 
-void xform_position_rotation_scale_set(b_handle t, vec3 position, quat rotation, vec3 scale)
+void xform_position_rotation_scale_set(bhandle t, vec3 position, quat rotation, vec3 scale)
 {
     xform_system_state* state = engine_systems_get()->xform_system;
     if (!validate_handle(state, t))
@@ -407,7 +407,7 @@ void xform_position_rotation_scale_set(b_handle t, vec3 position, quat rotation,
     }
 }
 
-void xform_translate_rotate(b_handle t, vec3 translation, quat rotation)
+void xform_translate_rotate(bhandle t, vec3 translation, quat rotation)
 {
     xform_system_state* state = engine_systems_get()->xform_system;
     if (!validate_handle(state, t))
@@ -422,10 +422,10 @@ void xform_translate_rotate(b_handle t, vec3 translation, quat rotation)
     }
 }
 
-void xform_calculate_local(b_handle t)
+void xform_calculate_local(bhandle t)
 {
     xform_system_state* state = engine_systems_get()->xform_system;
-    if (!b_handle_is_invalid(t))
+    if (!bhandle_is_invalid(t))
     {
         u32 index = t.handle_index;
         // TODO: investigate mat4_from_translation_rotation_scale
@@ -434,27 +434,27 @@ void xform_calculate_local(b_handle t)
     }
 }
 
-void xform_world_set(b_handle t, mat4 world)
+void xform_world_set(bhandle t, mat4 world)
 {
     xform_system_state* state = engine_systems_get()->xform_system;
-    if (!b_handle_is_invalid(t))
+    if (!bhandle_is_invalid(t))
         state->world_matrices[t.handle_index] = world;
 }
 
-mat4 xform_world_get(b_handle t)
+mat4 xform_world_get(bhandle t)
 {
     xform_system_state* state = engine_systems_get()->xform_system;
-    if (!b_handle_is_invalid(t))
+    if (!bhandle_is_invalid(t))
         return state->world_matrices[t.handle_index];
 
     BWARN("Invalid handle passed to xform_world_get. Returning identity matrix");
     return mat4_identity();
 }
 
-mat4 xform_local_get(b_handle t)
+mat4 xform_local_get(bhandle t)
 {
     xform_system_state* state = engine_systems_get()->xform_system;
-    if (!b_handle_is_invalid(t))
+    if (!bhandle_is_invalid(t))
     {
         u32 index = t.handle_index;
         return state->local_matrices[index];
@@ -464,10 +464,10 @@ mat4 xform_local_get(b_handle t)
     return mat4_identity();
 }
 
-const char* xform_to_string(b_handle t)
+const char* xform_to_string(bhandle t)
 {
     xform_system_state* state = engine_systems_get()->xform_system;
-    if (!b_handle_is_invalid(t))
+    if (!bhandle_is_invalid(t))
     {
         u32 index = t.handle_index;
         vec3 position = state->positions[index];
@@ -573,7 +573,7 @@ static void dirty_list_reset(xform_system_state* state)
     state->local_dirty_count = 0;
 }
 
-static void dirty_list_add(xform_system_state* state, b_handle t)
+static void dirty_list_add(xform_system_state* state, bhandle t)
 {
     for (u32 i = 0; i < state->local_dirty_count; ++i)
     {
@@ -587,18 +587,18 @@ static void dirty_list_add(xform_system_state* state, b_handle t)
     state->local_dirty_count++;
 }
 
-static b_handle handle_create(xform_system_state* state)
+static bhandle handle_create(xform_system_state* state)
 {
     BASSERT_MSG(state, "xform_system state pointer accessed before initialized");
 
-    b_handle handle;
+    bhandle handle;
     u32 xform_count = state->allocated;
     for (u32 i = 0; i < xform_count; ++i)
     {
         if (state->ids[i].uniqueid == INVALID_ID_U64)
         {
             // Found an entry. Fill out the handle, and update the unique_id.uniqueid
-            handle = b_handle_create(i);
+            handle = bhandle_create(i);
             state->ids[i].uniqueid = handle.unique_id.uniqueid;
             return handle;
         }
@@ -606,24 +606,24 @@ static b_handle handle_create(xform_system_state* state)
 
     // No open slots, expand array and use the first slot of the new memory
     ensure_allocated(state, state->allocated * 2);
-    handle = b_handle_create(xform_count);
+    handle = bhandle_create(xform_count);
     state->ids[xform_count].uniqueid = handle.unique_id.uniqueid;
     return handle;
 }
 
-static void handle_destroy(xform_system_state* state, b_handle* t)
+static void handle_destroy(xform_system_state* state, bhandle* t)
 {
     BASSERT_MSG(state, "xform_system state pointer accessed before initialized");
 
     if (t->handle_index != INVALID_ID)
         state->ids[t->handle_index].uniqueid = INVALID_ID_U64;
 
-    b_handle_invalidate(t);
+    bhandle_invalidate(t);
 }
 
-static b8 validate_handle(xform_system_state* state, b_handle handle)
+static b8 validate_handle(xform_system_state* state, bhandle handle)
 {
-    if (b_handle_is_invalid(handle))
+    if (bhandle_is_invalid(handle))
     {
         BTRACE("Handle validation failed because the handle is invalid");
         return false;

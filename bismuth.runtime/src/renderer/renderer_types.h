@@ -305,9 +305,9 @@ typedef struct renderer_backend_interface
 
     b8 (*shader_uniform_set)(struct renderer_backend_interface* backend, struct shader* frontend_shader, struct shader_uniform* uniform, u32 array_index, const void* value);
 
-    b_handle (*sampler_acquire)(struct renderer_backend_interface* backend, texture_filter filter, texture_repeat repeat, f32 anisotropy, u32 mip_levels);
-    void (*sampler_release)(struct renderer_backend_interface* backend, b_handle* sampler);
-    b8 (*sampler_refresh)(struct renderer_backend_interface* backend, b_handle* sampler, texture_filter filter, texture_repeat repeat, f32 anisotropy, u32 mip_levels);
+    bhandle (*sampler_acquire)(struct renderer_backend_interface* backend, texture_filter filter, texture_repeat repeat, f32 anisotropy, u32 mip_levels);
+    void (*sampler_release)(struct renderer_backend_interface* backend, bhandle* sampler);
+    b8 (*sampler_refresh)(struct renderer_backend_interface* backend, bhandle* sampler, texture_filter filter, texture_repeat repeat, f32 anisotropy, u32 mip_levels);
 
     b8 (*is_multithreaded)(struct renderer_backend_interface* backend);
 

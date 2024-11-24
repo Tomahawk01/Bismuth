@@ -95,7 +95,7 @@ typedef struct material_data
 typedef struct material_instance_data
 {
     // A handle to the material to which this instance references
-    b_handle material;
+    bhandle material;
     // A unique id used for handle validation
     u64 unique_id;
     // Shader draw id for per-draw uniforms
@@ -121,7 +121,7 @@ typedef struct multimaterial_data
 
 typedef struct mulitmaterial_instance_data
 {
-    b_handle instance;
+    bhandle instance;
     u8 submaterial_count;
     material_instance_data* instance_datas;
 } multimaterial_instance_data;
@@ -133,79 +133,79 @@ void material_system_shutdown(struct material_system_state* state);
 // ---------------- MATERIAL -----------------------
 // -------------------------------------------------
 
-BAPI b8 material_system_get_handle(struct material_system_state* state, bname name, b_handle* out_material_handle);
+BAPI b8 material_system_get_handle(struct material_system_state* state, bname name, bhandle* out_material_handle);
 
-BAPI const bresource_texture* material_texture_get(struct material_system_state* state, b_handle material, material_texture_param tex_param);
-BAPI void material_texture_set(struct material_system_state* state, b_handle material, material_texture_param tex_param, const bresource_texture* texture);
+BAPI const bresource_texture* material_texture_get(struct material_system_state* state, bhandle material, material_texture_param tex_param);
+BAPI void material_texture_set(struct material_system_state* state, bhandle material, material_texture_param tex_param, const bresource_texture* texture);
 
-BAPI texture_channel material_metallic_texture_channel_get(struct material_system_state* state, b_handle material);
-BAPI void material_metallic_texture_channel_set(struct material_system_state* state, b_handle material, texture_channel value);
+BAPI texture_channel material_metallic_texture_channel_get(struct material_system_state* state, bhandle material);
+BAPI void material_metallic_texture_channel_set(struct material_system_state* state, bhandle material, texture_channel value);
 
-BAPI texture_channel material_roughness_texture_channel_get(struct material_system_state* state, b_handle material);
-BAPI void material_roughness_texture_channel_set(struct material_system_state* state, b_handle material, texture_channel value);
+BAPI texture_channel material_roughness_texture_channel_get(struct material_system_state* state, bhandle material);
+BAPI void material_roughness_texture_channel_set(struct material_system_state* state, bhandle material, texture_channel value);
 
-BAPI texture_channel material_ao_texture_channel_get(struct material_system_state* state, b_handle material);
-BAPI void material_ao_texture_channel_set(struct material_system_state* state, b_handle material, texture_channel value);
+BAPI texture_channel material_ao_texture_channel_get(struct material_system_state* state, bhandle material);
+BAPI void material_ao_texture_channel_set(struct material_system_state* state, bhandle material, texture_channel value);
 
-BAPI material_texture_filter material_texture_filter_get(struct material_system_state* state, b_handle material);
-BAPI void material_texture_filter_set(struct material_system_state* state, b_handle material, material_texture_filter value);
+BAPI material_texture_filter material_texture_filter_get(struct material_system_state* state, bhandle material);
+BAPI void material_texture_filter_set(struct material_system_state* state, bhandle material, material_texture_filter value);
 
-BAPI material_texture_mode material_texture_mode_get(struct material_system_state* state, b_handle material);
-BAPI void material_texture_mode_set(struct material_system_state* state, b_handle material, material_texture_mode value);
+BAPI material_texture_mode material_texture_mode_get(struct material_system_state* state, bhandle material);
+BAPI void material_texture_mode_set(struct material_system_state* state, bhandle material, material_texture_mode value);
 
-BAPI b8 material_has_transparency_get(struct material_system_state* state, b_handle material);
-BAPI void material_has_transparency_set(struct material_system_state* state, b_handle material, b8 value);
+BAPI b8 material_has_transparency_get(struct material_system_state* state, bhandle material);
+BAPI void material_has_transparency_set(struct material_system_state* state, bhandle material, b8 value);
 
-BAPI b8 material_double_sided_get(struct material_system_state* state, b_handle material);
-BAPI void material_double_sided_set(struct material_system_state* state, b_handle material, b8 value);
+BAPI b8 material_double_sided_get(struct material_system_state* state, bhandle material);
+BAPI void material_double_sided_set(struct material_system_state* state, bhandle material, b8 value);
 
-BAPI b8 material_recieves_shadow_get(struct material_system_state* state, b_handle material);
-BAPI void material_recieves_shadow_set(struct material_system_state* state, b_handle material, b8 value);
+BAPI b8 material_recieves_shadow_get(struct material_system_state* state, bhandle material);
+BAPI void material_recieves_shadow_set(struct material_system_state* state, bhandle material, b8 value);
 
-BAPI b8 material_casts_shadow_get(struct material_system_state* state, b_handle material);
-BAPI void material_casts_shadow_set(struct material_system_state* state, b_handle material, b8 value);
+BAPI b8 material_casts_shadow_get(struct material_system_state* state, bhandle material);
+BAPI void material_casts_shadow_set(struct material_system_state* state, bhandle material, b8 value);
 
-BAPI b8 material_normal_enabled_get(struct material_system_state* state, b_handle material);
-BAPI void material_normal_enabled_set(struct material_system_state* state, b_handle material, b8 value);
+BAPI b8 material_normal_enabled_get(struct material_system_state* state, bhandle material);
+BAPI void material_normal_enabled_set(struct material_system_state* state, bhandle material, b8 value);
 
-BAPI b8 material_ao_enabled_get(struct material_system_state* state, b_handle material);
-BAPI void material_ao_enabled_set(struct material_system_state* state, b_handle material, b8 value);
+BAPI b8 material_ao_enabled_get(struct material_system_state* state, bhandle material);
+BAPI void material_ao_enabled_set(struct material_system_state* state, bhandle material, b8 value);
 
-BAPI b8 material_emissive_enabled_get(struct material_system_state* state, b_handle material);
-BAPI void material_emissive_enabled_set(struct material_system_state* state, b_handle material, b8 value);
+BAPI b8 material_emissive_enabled_get(struct material_system_state* state, bhandle material);
+BAPI void material_emissive_enabled_set(struct material_system_state* state, bhandle material, b8 value);
 
-BAPI b8 material_refraction_enabled_get(struct material_system_state* state, b_handle material);
-BAPI void material_refraction_enabled_set(struct material_system_state* state, b_handle material, b8 value);
+BAPI b8 material_refraction_enabled_get(struct material_system_state* state, bhandle material);
+BAPI void material_refraction_enabled_set(struct material_system_state* state, bhandle material, b8 value);
 
-BAPI f32 material_refraction_scale_get(struct material_system_state* state, b_handle material);
-BAPI void material_refraction_scale_set(struct material_system_state* state, b_handle material, f32 value);
+BAPI f32 material_refraction_scale_get(struct material_system_state* state, bhandle material);
+BAPI void material_refraction_scale_set(struct material_system_state* state, bhandle material, f32 value);
 
-BAPI b8 material_use_vertex_color_as_albedo_get(struct material_system_state* state, b_handle material);
-BAPI void material_use_vertex_color_as_albedo_set(struct material_system_state* state, b_handle material, b8 value);
+BAPI b8 material_use_vertex_color_as_albedo_get(struct material_system_state* state, bhandle material);
+BAPI void material_use_vertex_color_as_albedo_set(struct material_system_state* state, bhandle material, b8 value);
 
-BAPI b8 material_flag_set(struct material_system_state* state, b_handle material, material_flag_bits flag, b8 value);
-BAPI b8 material_flag_get(struct material_system_state* state, b_handle material, material_flag_bits flag);
+BAPI b8 material_flag_set(struct material_system_state* state, bhandle material, material_flag_bits flag, b8 value);
+BAPI b8 material_flag_get(struct material_system_state* state, bhandle material, material_flag_bits flag);
 
 // -------------------------------------------------
 // ------------- MATERIAL INSTANCE -----------------
 // -------------------------------------------------
 
-BAPI b_handle material_acquire_instance(struct material_system_state* state, b_handle material);
-BAPI void material_release_instance(struct material_system_state* state, b_handle material, b_handle instance);
+BAPI bhandle material_acquire_instance(struct material_system_state* state, bhandle material);
+BAPI void material_release_instance(struct material_system_state* state, bhandle material, bhandle instance);
 
-BAPI b8 material_instance_flag_set(struct material_system_state* state, b_handle material, b_handle instance, material_flag_bits flag, b8 value);
-b8 material_instance_flag_get(struct material_system_state* state, b_handle material, b_handle instance, material_flag_bits flag);
+BAPI b8 material_instance_flag_set(struct material_system_state* state, bhandle material, bhandle instance, material_flag_bits flag, b8 value);
+b8 material_instance_flag_get(struct material_system_state* state, bhandle material, bhandle instance, material_flag_bits flag);
 
-BAPI vec4 material_instance_albedo_color_get(struct material_system_state* state, b_handle material, b_handle instance);
-BAPI void material_instance_albedo_color_set(struct material_system_state* state, b_handle material, b_handle instance, vec4 value);
+BAPI vec4 material_instance_albedo_color_get(struct material_system_state* state, bhandle material, bhandle instance);
+BAPI void material_instance_albedo_color_set(struct material_system_state* state, bhandle material, bhandle instance, vec4 value);
 
-BAPI vec3 material_instance_uv_offset_get(struct material_system_state* state, b_handle material, b_handle instance);
-BAPI void material_instance_uv_offset_set(struct material_system_state* state, b_handle material, b_handle instance, vec3 value);
+BAPI vec3 material_instance_uv_offset_get(struct material_system_state* state, bhandle material, bhandle instance);
+BAPI void material_instance_uv_offset_set(struct material_system_state* state, bhandle material, bhandle instance, vec3 value);
 
-BAPI vec3 material_instance_uv_scale_get(struct material_system_state* state, b_handle material, b_handle instance);
-BAPI void material_instance_uv_scale_set(struct material_system_state* state, b_handle material, b_handle instance, vec3 value);
+BAPI vec3 material_instance_uv_scale_get(struct material_system_state* state, bhandle material, bhandle instance);
+BAPI void material_instance_uv_scale_set(struct material_system_state* state, bhandle material, bhandle instance, vec3 value);
 
-BAPI b_handle material_get_default(struct material_system_state* state);
+BAPI bhandle material_get_default(struct material_system_state* state);
 
 // Dumps all of the registered materials and their reference counts/handles
 BAPI void material_system_dump(struct material_system_state* state);

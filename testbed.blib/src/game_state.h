@@ -27,9 +27,9 @@ struct debug_box3d;
 
 typedef struct selected_object
 {
-    b_handle xform_handle;
-    b_handle node_handle;
-    b_handle xform_parent_handle;
+    bhandle xform_handle;
+    bhandle node_handle;
+    bhandle xform_parent_handle;
 } selected_object;
 
 typedef struct testbed_game_state

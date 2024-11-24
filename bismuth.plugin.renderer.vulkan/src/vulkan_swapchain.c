@@ -188,7 +188,7 @@ static b8 create(renderer_backend_interface* backend, bwindow* window, renderer_
     }
 
     // Swapchain images are stored in the backend data of the window.colorbuffer
-    if (b_handle_is_invalid(window_internal->colorbuffer->renderer_texture_handle))
+    if (bhandle_is_invalid(window_internal->colorbuffer->renderer_texture_handle))
     {
         // If invalid, then a new one needs to be created. This does not reach out to the
         // texture system to create this, but handles it internally instead. This is because

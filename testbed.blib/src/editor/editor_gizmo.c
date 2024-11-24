@@ -32,7 +32,7 @@ b8 editor_gizmo_create(editor_gizmo* out_gizmo)
 
     out_gizmo->mode = EDITOR_GIZMO_MODE_NONE;
     out_gizmo->xform_handle = xform_create();
-    out_gizmo->selected_xform_handle = b_handle_invalid();
+    out_gizmo->selected_xform_handle = bhandle_invalid();
     // Default orientation
     out_gizmo->orientation = EDITOR_GIZMO_ORIENTATION_LOCAL;
 
@@ -95,7 +95,7 @@ b8 editor_gizmo_load(editor_gizmo* gizmo)
     }
 
 #ifdef _DEBUG
-    debug_line3d_create(vec3_zero(), vec3_one(), b_handle_invalid(), &gizmo->plane_normal_line);
+    debug_line3d_create(vec3_zero(), vec3_one(), bhandle_invalid(), &gizmo->plane_normal_line);
     debug_line3d_initialize(&gizmo->plane_normal_line);
     debug_line3d_load(&gizmo->plane_normal_line);
     // magenta
@@ -121,7 +121,7 @@ void editor_gizmo_refresh(editor_gizmo* gizmo)
 {
     if (gizmo)
     {
-        if (!b_handle_is_invalid(gizmo->selected_xform_handle))
+        if (!bhandle_is_invalid(gizmo->selected_xform_handle))
         {
             // Set position
             mat4 world = xform_world_get(gizmo->selected_xform_handle);
@@ -177,7 +177,7 @@ void editor_gizmo_orientation_set(editor_gizmo* gizmo, editor_gizmo_orientation 
     }
 }
 
-void editor_gizmo_selected_transform_set(editor_gizmo* gizmo, b_handle xform_handle, b_handle parent_xform_handle)
+void editor_gizmo_selected_transform_set(editor_gizmo* gizmo, bhandle xform_handle, bhandle parent_xform_handle)
 {
     if (gizmo)
     {
@@ -700,13 +700,13 @@ void editor_gizmo_handle_interaction(editor_gizmo* gizmo, struct camera* c, stru
             data->last_interaction_pos = intersection;
 
             // Apply translation to selection and gizmo
-            if (!b_handle_is_invalid(gizmo->selected_xform_handle))
+            if (!bhandle_is_invalid(gizmo->selected_xform_handle))
             {
                 xform_translate(gizmo->xform_handle, translation);
 
                 // Get the world scale of the parent. The inverse of this is used to keep the gizmo positon in the correct place as child objects are moved around
                 vec3 selected_world_scale;
-                if (!b_handle_is_invalid(gizmo->selected_xform_parent_handle))
+                if (!bhandle_is_invalid(gizmo->selected_xform_parent_handle))
                 {
                     mat4 selected_world = xform_world_get(gizmo->selected_xform_parent_handle);
                     selected_world_scale = vec3_create(1.0f / selected_world.data[0], 1.0f / selected_world.data[5], 1.0f / selected_world.data[10]);
@@ -915,7 +915,7 @@ void editor_gizmo_handle_interaction(editor_gizmo* gizmo, struct camera* c, stru
             // For global transforms, get inverse of the rotation and apply that to the scale to scale on absolute (global) axes instead of local
             if (gizmo->orientation == EDITOR_GIZMO_ORIENTATION_GLOBAL)
             {
-                if (!b_handle_is_invalid(gizmo->selected_xform_handle))
+                if (!bhandle_is_invalid(gizmo->selected_xform_handle))
                 {
                     quat q = quat_inverse(xform_rotation_get(gizmo->selected_xform_handle));
                     scale = vec3_rotate(scale, q);
@@ -924,7 +924,7 @@ void editor_gizmo_handle_interaction(editor_gizmo* gizmo, struct camera* c, stru
 
             BTRACE("scale (diff): [%.4f,%.4f,%.4f]", scale.x, scale.y, scale.z);
             // Apply scale to selected object
-            if (!b_handle_is_invalid(gizmo->selected_xform_handle))
+            if (!bhandle_is_invalid(gizmo->selected_xform_handle))
             {
                 vec3 current_scale = xform_scale_get(gizmo->selected_xform_handle);
 
@@ -1080,7 +1080,7 @@ void editor_gizmo_handle_interaction(editor_gizmo* gizmo, struct camera* c, stru
             data->last_interaction_pos = intersection;
 
             // Apply rotation
-            if (!b_handle_is_invalid(gizmo->selected_xform_handle))
+            if (!bhandle_is_invalid(gizmo->selected_xform_handle))
                 xform_rotate(gizmo->selected_xform_handle, rotation);
 
         }

@@ -160,7 +160,7 @@ b8 editor_gizmo_rendergraph_node_execute(struct rendergraph_node* self, struct f
     renderer_begin_debug_label(self->name, (vec3){0.5f, 1.0f, 0.5});
     if (internal_data->enabled)
     {
-        renderer_begin_rendering(internal_data->renderer, p_frame_data, internal_data->vp.rect, 1, &internal_data->colorbuffer_texture->renderer_texture_handle, b_handle_invalid(), 0);
+        renderer_begin_rendering(internal_data->renderer, p_frame_data, internal_data->vp.rect, 1, &internal_data->colorbuffer_texture->renderer_texture_handle, bhandle_invalid(), 0);
 
         // Bind the viewport
         renderer_active_viewport_set(&internal_data->vp);

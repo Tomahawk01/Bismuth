@@ -16,9 +16,9 @@ typedef enum raycast_hit_type
 typedef struct raycast_hi
  {
     raycast_hit_type type;
-    b_handle xform_handle;
-    b_handle node_handle;
-    b_handle xform_parent_handle;
+    bhandle xform_handle;
+    bhandle node_handle;
+    bhandle xform_parent_handle;
     vec3 position;
     f32 distance;
 } raycast_hit;

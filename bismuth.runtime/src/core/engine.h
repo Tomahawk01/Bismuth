@@ -113,8 +113,8 @@ BAPI const struct frame_data* engine_frame_data_get(void);
 
 BAPI const engine_system_states* engine_systems_get(void);
 
-BAPI b_handle engine_external_system_register(u64 system_state_memory_requirement);
+BAPI bhandle engine_external_system_register(u64 system_state_memory_requirement);
 
-BAPI void* engine_external_system_state_get(b_handle system_handle);
+BAPI void* engine_external_system_state_get(bhandle system_handle);
 
 BAPI struct bwindow* engine_active_window_get(void);

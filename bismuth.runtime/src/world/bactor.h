@@ -16,7 +16,7 @@ typedef struct bactor
 {
     u64 id;
     bname name;
-    b_handle xform;
+    bhandle xform;
 } bactor;
 
 // staticmesh system
