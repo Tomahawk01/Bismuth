@@ -45,6 +45,6 @@ BAPI const char* bmaterial_type_to_string(bmaterial_type type);
 /** @brief Converts the given string into a material type. Case-insensitive */
 BAPI bmaterial_type string_to_bmaterial_type(const char* str);
 
-BAPI const char* material_map_channel_to_string(basset_material_map_channel channel);
+BAPI const char* material_map_channel_to_string(basset_material_texture_map_channel channel);
 
-BAPI basset_material_map_channel string_to_material_map_channel(const char* str);
+BAPI basset_material_texture_map_channel string_to_material_map_channel(const char* str);

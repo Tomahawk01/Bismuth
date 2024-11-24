@@ -222,38 +222,45 @@ typedef enum bmaterial_type
     BMATERIAL_TYPE_CUSTOM = 99
 } bmaterial_type;
 
-typedef enum basset_material_map_channel
+typedef enum basset_material_texture_map
 {
-    BASSET_MATERIAL_MAP_CHANNEL_ALBEDO,
-    BASSET_MATERIAL_MAP_CHANNEL_NORMAL,
-    BASSET_MATERIAL_MAP_CHANNEL_METALLIC,
-    BASSET_MATERIAL_MAP_CHANNEL_ROUGHNESS,
-    BASSET_MATERIAL_MAP_CHANNEL_AO,
-    BASSET_MATERIAL_MAP_CHANNEL_EMISSIVE,
-    BASSET_MATERIAL_MAP_CHANNEL_CLEAR_COAT,
-    BASSET_MATERIAL_MAP_CHANNEL_CLEAR_COAT_ROUGHNESS,
-    BASSET_MATERIAL_MAP_CHANNEL_WATER_DUDV,
-    BASSET_MATERIAL_MAP_CHANNEL_DIFFUSE,
-    BASSET_MATERIAL_MAP_CHANNEL_SPECULAR,
-} basset_material_map_channel;
+    BASSET_MATERIAL_TEXTURE_MAP_BASE_COLOR,
+    BASSET_MATERIAL_TEXTURE_MAP_NORMAL,
+    BASSET_MATERIAL_TEXTURE_MAP_METALLIC,
+    BASSET_MATERIAL_TEXTURE_MAP_ROUGHNESS,
+    BASSET_MATERIAL_TEXTURE_MAP_AO,
+    BASSET_MATERIAL_TEXTURE_MAP_MRA,
+    BASSET_MATERIAL_TEXTURE_MAP_EMISSIVE,
+} basset_material_texture_map;
 
-typedef struct basset_material_map
+typedef enum basset_material_texture_map_channel
 {
-    // Material map name
+    BASSET_MATERIAL_TEXTURE_MAP_CHANNEL_R = 0,
+    BASSET_MATERIAL_TEXTURE_MAP_CHANNEL_G = 1,
+    BASSET_MATERIAL_TEXTURE_MAP_CHANNEL_B = 2,
+    BASSET_MATERIAL_TEXTURE_MAP_CHANNEL_A = 3
+} basset_material_texture_map_channel;
+
+typedef struct basset_material_texture
+{
+    bname resource_name;
+    bname sampler_name;
+    bname map_name;
+    basset_material_texture_map map;
+    basset_material_texture_map_channel channel;
+} basset_material_texture;
+
+typedef struct basset_material_sampler
+{
     bname name;
-    // Image asset name
-    bname image_asset_name;
-    // Name of the package containing the image asset
-    bname image_asset_package_name;
-    basset_material_map_channel channel;
     texture_filter filter_min;
     texture_filter filter_mag;
     texture_repeat repeat_u;
     texture_repeat repeat_v;
     texture_repeat repeat_w;
-} basset_material_map;
+} basset_material_sampler;
 
-typedef struct basset_material_property
+/* typedef struct basset_material_property
 {
     bname name;
     shader_uniform_type type;
@@ -272,20 +279,41 @@ typedef struct basset_material_property
         i8 i8;
         mat4 mat4;
     } value;
-} basset_material_property;
+} basset_material_property; */
 
 typedef struct basset_material
 {
     basset base;
     bmaterial_type type;
     // The asset name for a custom shader. Optional
-    char* custom_shader_name;
+    bname custom_shader_name;
 
-    u32 map_count;
-    basset_material_map* maps;
+    vec4 base_color;
+    basset_material_texture base_color_map;
 
-    u32 property_count;
-    basset_material_property* properties;
+    f32 metallic;
+    basset_material_texture metallic_map;
+    basset_material_texture_map_channel metallic_map_source_channel;
+
+    f32 roughness;
+    basset_material_texture roughness_map;
+    basset_material_texture_map_channel roughness_map_source_channel;
+
+    f32 ambient_occlusion;
+    basset_material_texture ambient_occlusion_map;
+    basset_material_texture_map_channel ambient_occlusion_map_source_channel;
+
+    // Combined metallic/roughness/ao value
+    vec3 mra;
+    basset_material_texture mra_map;
+    // Indicates if the mra combined value/map should be used instead of the separate ones
+    b8 use_mra;
+
+    vec4 emissive;
+    basset_material_texture emissive_map;
+
+    u32 custom_sampler_count;
+    basset_material_sampler* custom_samplers;
 } basset_material;
 
 #define BASSET_TYPE_NAME_TEXT "Text"

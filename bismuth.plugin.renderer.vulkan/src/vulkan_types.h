@@ -1,7 +1,8 @@
 #pragma once
 
-#include "defines.h"
+#include "core_render_types.h"
 #include "debug/bassert.h"
+#include "defines.h"
 #include "renderer/renderer_types.h"
 #include "vulkan/vulkan_core.h"
 
@@ -266,7 +267,7 @@ typedef struct vulkan_descriptor_state
 
 typedef struct vulkan_uniform_sampler_state
 {
-    struct shader_uniform* uniform;
+    shader_uniform uniform;
 
     bresource_texture_map** uniform_bresource_texture_maps;
 
