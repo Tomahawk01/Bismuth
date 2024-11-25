@@ -1,7 +1,7 @@
 #include "identifiers/bhandle.h"
 
-#include "identifiers/identifier.h"
 #include "defines.h"
+#include "identifiers/identifier.h"
 
 bhandle bhandle_create(u32 handle_index)
 {
@@ -16,6 +16,14 @@ bhandle bhandle_create_with_identifier(u32 handle_index, identifier id)
     bhandle out_handle = {0};
     out_handle.handle_index = handle_index;
     out_handle.unique_id = id;
+    return out_handle;
+}
+
+bhandle bhandle_create_with_u64_identifier(u32 handle_index, u64 uniqueid)
+{
+    bhandle out_handle = {0};
+    out_handle.handle_index = handle_index;
+    out_handle.unique_id.uniqueid = uniqueid;
     return out_handle;
 }
 

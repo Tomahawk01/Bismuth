@@ -17,7 +17,6 @@ struct viewport;
 struct camera;
 struct material;
 struct bwindow_renderer_backend_state;
-struct texture_internal_data;
 struct texture_map;
 
 typedef struct renderbuffer_data
@@ -179,26 +178,6 @@ typedef enum renderer_winding
     RENDERER_WINDING_CLOCKWISE = 1
 } renderer_winding;
 
-/**
- * @brief Maps a uniform to a texture map/maps when acquiring frequency-level resources
- */
-typedef struct shader_frequency_uniform_texture_config
-{
-    u32 bresource_texture_map_count;
-    /** @brief An array of pointers to texture maps to be mapped to the uniform */
-    struct bresource_texture_map** bresource_texture_maps;
-} shader_frequency_uniform_texture_config;
-
-/**
- * @brief Represents the configuration of texture map resources and mappings to uniforms required for frequency-level shader data
- */
-typedef struct shader_texture_resource_config
-{
-    u32 uniform_config_count;
-    /** @brief An array of uniform configurations */
-    shader_frequency_uniform_texture_config* uniform_configs;
-} shader_texture_resource_config;
-
 typedef struct bwindow_renderer_state
 {
     // Pointer back to main window
@@ -219,9 +198,6 @@ typedef struct renderer_backend_interface
 {
     // A pointer to the frontend state in case the backend needs to communicate with it
     struct renderer_system_state* frontend_state;
-
-    // The size needed by the renderer backend to hold texture data
-    u64 texture_internal_data_size;
 
     u64 internal_context_size;
     void* internal_context;
@@ -259,7 +235,7 @@ typedef struct renderer_backend_interface
     void (*set_stencil_reference)(struct renderer_backend_interface* backend, u32 reference);
     void (*set_stencil_op)(struct renderer_backend_interface* backend, renderer_stencil_op fail_op, renderer_stencil_op pass_op, renderer_stencil_op depth_fail_op, renderer_compare_op compare_op);
 
-    void (*begin_rendering)(struct renderer_backend_interface* backend, struct frame_data* p_frame_data, rect_2d render_area, u32 color_target_count, struct texture_internal_data** color_targets, struct texture_internal_data* depth_stencil_target, u32 depth_stencil_layer);
+    void (*begin_rendering)(struct renderer_backend_interface* backend, struct frame_data* p_frame_data, rect_2d render_area, u32 color_target_count, bhandle* color_targets, bhandle depth_stencil_target, u32 depth_stencil_layer);
     void (*end_rendering)(struct renderer_backend_interface* backend, struct frame_data* p_frame_data);
 
     void (*set_stencil_compare_mask)(struct renderer_backend_interface* backend, u32 compare_mask);
@@ -268,42 +244,40 @@ typedef struct renderer_backend_interface
     void (*clear_color_set)(struct renderer_backend_interface* backend, vec4 clear_color);
     void (*clear_depth_set)(struct renderer_backend_interface* backend, f32 depth);
     void (*clear_stencil_set)(struct renderer_backend_interface* backend, u32 stencil);
-    void (*clear_color)(struct renderer_backend_interface* backend, struct texture_internal_data* tex_internal);
-    void (*clear_depth_stencil)(struct renderer_backend_interface* backend, struct texture_internal_data* tex_internal);
-    void (*color_texture_prepare_for_present)(struct renderer_backend_interface* backend, struct texture_internal_data* tex_internal);
-    void (*texture_prepare_for_sampling)(struct renderer_backend_interface* backend, struct texture_internal_data* tex_internal, texture_flag_bits flags);
+    void (*clear_color)(struct renderer_backend_interface* backend, bhandle renderer_texture_handle);
+    void (*clear_depth_stencil)(struct renderer_backend_interface* backend, bhandle renderer_texture_handle);
+    void (*color_texture_prepare_for_present)(struct renderer_backend_interface* backend, bhandle renderer_texture_handle);
+    void (*texture_prepare_for_sampling)(struct renderer_backend_interface* backend, bhandle renderer_texture_handle, texture_flag_bits flags);
 
-    b8 (*texture_resources_acquire)(struct renderer_backend_interface* backend, struct texture_internal_data* data, const char* name, bresource_texture_type type, u32 width, u32 height, u8 channel_count, u8 mip_levels, u16 array_size, bresource_texture_flag_bits flags);
+    b8 (*texture_resources_acquire)(struct renderer_backend_interface* backend, const char* name, bresource_texture_type type, u32 width, u32 height, u8 channel_count, u8 mip_levels, u16 array_size, bresource_texture_flag_bits flags, bhandle* out_renderer_texture_handle);
+    void (*texture_resources_release)(struct renderer_backend_interface* backend, bhandle* renderer_texture_handle);
 
-    void (*texture_resources_release)(struct renderer_backend_interface* backend, struct texture_internal_data* data);
+    b8 (*texture_resize)(struct renderer_backend_interface* backend, bhandle renderer_texture_handle, u32 new_width, u32 new_height);
+    b8 (*texture_write_data)(struct renderer_backend_interface* backend, bhandle renderer_texture_handle, u32 offset, u32 size, const u8* pixels, b8 include_in_frame_workload);
+    b8 (*texture_read_data)(struct renderer_backend_interface* backend, bhandle renderer_texture_handle, u32 offset, u32 size, u8** out_pixels);
+    b8 (*texture_read_pixel)(struct renderer_backend_interface* backend, bhandle renderer_texture_handle, u32 x, u32 y, u8** out_rgba);
 
-    b8 (*texture_resize)(struct renderer_backend_interface* backend, struct texture_internal_data* data, u32 new_width, u32 new_height);
-    b8 (*texture_write_data)(struct renderer_backend_interface* backend, struct texture_internal_data* data, u32 offset, u32 size, const u8* pixels, b8 include_in_frame_workload);
-    b8 (*texture_read_data)(struct renderer_backend_interface* backend, struct texture_internal_data* data, u32 offset, u32 size, u8** out_pixels);
-    b8 (*texture_read_pixel)(struct renderer_backend_interface* backend, struct texture_internal_data* data, u32 x, u32 y, u8** out_rgba);
+    b8 (*shader_create)(struct renderer_backend_interface* backend, bhandle shader, const shader_config* config);
+    void (*shader_destroy)(struct renderer_backend_interface* backend, bhandle shader);
 
-    b8 (*shader_create)(struct renderer_backend_interface* backend, struct shader* shader, const shader_config* config);
-    void (*shader_destroy)(struct renderer_backend_interface* backend, struct shader* shader);
+    b8 (*shader_initialize)(struct renderer_backend_interface* backend, bhandle shader);
+    b8 (*shader_reload)(struct renderer_backend_interface* backend, bhandle s);
 
-    b8 (*shader_initialize)(struct renderer_backend_interface* backend, struct shader* shader);
-    b8 (*shader_reload)(struct renderer_backend_interface* backend, struct shader* s);
+    b8 (*shader_use)(struct renderer_backend_interface* backend, bhandle shader);
 
-    b8 (*shader_use)(struct renderer_backend_interface* backend, struct shader* shader);
+    b8 (*shader_supports_wireframe)(const struct renderer_backend_interface* backend, bhandle s);
 
-    b8 (*shader_supports_wireframe)(const struct renderer_backend_interface* backend, const struct shader* s);
+    b8 (*shader_apply_per_frame)(struct renderer_backend_interface* backend, bhandle s, u64 renderer_frame_number);
+    b8 (*shader_apply_per_group)(struct renderer_backend_interface* backend, bhandle s, u64 renderer_frame_number);
+    b8 (*shader_apply_per_draw)(struct renderer_backend_interface* backend, bhandle s, u64 renderer_frame_number);
 
-    b8 (*shader_apply_per_frame)(struct renderer_backend_interface* backend, struct shader* s, u64 renderer_frame_number);
+    b8 (*shader_per_group_resources_acquire)(struct renderer_backend_interface* backend, bhandle s, u32* out_instance_id);
+    b8 (*shader_per_group_resources_release)(struct renderer_backend_interface* backend, bhandle s, u32 instance_id);
 
-    b8 (*shader_apply_per_group)(struct renderer_backend_interface* backend, struct shader* s, u64 renderer_frame_number);
-    b8 (*shader_apply_per_draw)(struct renderer_backend_interface* backend, struct shader* s, u64 renderer_frame_number);
+    b8 (*shader_per_draw_resources_acquire)(struct renderer_backend_interface* backend, bhandle s, u32* out_local_id);
+    b8 (*shader_per_draw_resources_release)(struct renderer_backend_interface* backend, bhandle s, u32 local_id);
 
-    b8 (*shader_per_group_resources_acquire)(struct renderer_backend_interface* backend, struct shader* s, const shader_texture_resource_config* config, u32* out_instance_id);
-    b8 (*shader_per_group_resources_release)(struct renderer_backend_interface* backend, struct shader* s, u32 instance_id);
-
-    b8 (*shader_per_draw_resources_acquire)(struct renderer_backend_interface* backend, struct shader* s, const shader_texture_resource_config* config, u32* out_local_id);
-    b8 (*shader_per_draw_resources_release)(struct renderer_backend_interface* backend, struct shader* s, u32 local_id);
-
-    b8 (*shader_uniform_set)(struct renderer_backend_interface* backend, struct shader* frontend_shader, struct shader_uniform* uniform, u32 array_index, const void* value);
+    b8 (*shader_uniform_set)(struct renderer_backend_interface* backend, bhandle frontend_shader, struct shader_uniform* uniform, u32 array_index, const void* value);
 
     bhandle (*sampler_acquire)(struct renderer_backend_interface* backend, texture_filter filter, texture_repeat repeat, f32 anisotropy, u32 mip_levels);
     void (*sampler_release)(struct renderer_backend_interface* backend, bhandle* sampler);

@@ -13,9 +13,6 @@
 #include <serializers/basset_material_serializer.h>
 #include <strings/bstring.h>
 
-#include "systems/asset_system.h"
-#include "systems/material_system.h"
-
 void asset_handler_material_create(struct asset_handler* self, struct vfs_state* vfs)
 {
     BASSERT_MSG(self && vfs, "Valid pointers are required for 'self' and 'vfs'");
@@ -48,16 +45,6 @@ void asset_handler_material_request_asset(struct asset_handler* self, struct bas
 void asset_handler_material_release_asset(struct asset_handler* self, struct basset* asset)
 {
     basset_material* typed_asset = (basset_material*)asset;
-    if (typed_asset->map_count && typed_asset->maps)
-    {
-        bfree(typed_asset->maps, sizeof(basset_material_map) * typed_asset->map_count, MEMORY_TAG_ARRAY);
-        typed_asset->maps = 0;
-        typed_asset->map_count = 0;
-    }
-    if (typed_asset->property_count && typed_asset->properties)
-    {
-        bfree(typed_asset->properties, sizeof(basset_material_property) * typed_asset->property_count, MEMORY_TAG_ARRAY);
-        typed_asset->properties = 0;
-        typed_asset->property_count = 0;
-    }
+    if (typed_asset->custom_sampler_count && typed_asset->custom_samplers)
+        BFREE_TYPE_CARRAY(typed_asset->custom_samplers, basset_material_sampler, typed_asset->custom_sampler_count);
 }

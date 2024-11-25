@@ -20,7 +20,6 @@
 #include "resources/resource_types.h"
 #include "strings/bname.h"
 #include "strings/bstring.h"
-#include "systems/shader_system.h"
 #include "systems/texture_system.h"
 #include "vulkan_command_buffer.h"
 #include "vulkan_device.h"
@@ -34,6 +33,7 @@
 #include <shaderc/status.h>
 
 #include <renderer/renderer_types.h>
+#include <utils/render_type_utils.h>
 #include <vulkan/vulkan_core.h>
 
 // NOTE: If wanting to trace allocations, uncomment this
@@ -55,7 +55,7 @@ static i32 find_memory_index(vulkan_context* context, u32 type_filter, u32 prope
 
 static void create_command_buffers(vulkan_context* context, bwindow* window);
 static b8 recreate_swapchain(renderer_backend_interface* backend, bwindow* window);
-static b8 create_shader_module(vulkan_context* context, shader* s, shader_stage stage, const char* source, const char* filename, vulkan_shader_stage* out_stage);
+static b8 create_shader_module(vulkan_context* context, bshader* s, shader_stage stage, const char* source, const char* filename, vulkan_shader_stage* out_stage);
 static b8 vulkan_buffer_copy_range_internal(vulkan_context* context, VkBuffer source, u64 source_offset, VkBuffer dest, u64 dest_offset, u64 size, b8 queue_wait);
 static vulkan_command_buffer* get_current_command_buffer(vulkan_context* context);
 static u32 get_current_image_index(vulkan_context* context);
@@ -65,8 +65,8 @@ static u32 get_image_count(vulkan_context* context);
 static b8 vulkan_graphics_pipeline_create(vulkan_context* context, const vulkan_pipeline_config* config, vulkan_pipeline* out_pipeline);
 static void vulkan_pipeline_destroy(vulkan_context* context, vulkan_pipeline* pipeline);
 static void vulkan_pipeline_bind(vulkan_command_buffer* command_buffer, VkPipelineBindPoint bind_point, vulkan_pipeline* pipeline);
-static b8 setup_frequency_state(vulkan_context* context, shader* s, shader_update_frequency frequency, const shader_texture_resource_config* config, u32* out_frequency_id);
-static b8 release_frequency_state(vulkan_context* context, shader* s, shader_update_frequency frequency, u32 frequency_id);
+static b8 setup_frequency_state(vulkan_context* context, bshader* s, shader_update_frequency frequency, u32* out_frequency_id);
+static b8 release_frequency_state(vulkan_context* context, bshader* s, shader_update_frequency frequency, u32 frequency_id);
 
 // FIXME: May want to have this as a configurable option instead
 // Forward declarations of custom vulkan allocator functions
@@ -88,9 +88,6 @@ b8 vulkan_renderer_backend_initialize(renderer_backend_interface* backend, const
     if (config->flags & RENDERER_CONFIG_FLAG_ENABLE_VALIDATION)
         context->validation_enabled = true;
     context->flags = config->flags;
-
-    // Note down the internal size requirements for various resources
-    backend->texture_internal_data_size = sizeof(texture_internal_data);
 
     // Function pointers
     context->find_memory_index = find_memory_index;
@@ -384,9 +381,11 @@ b8 vulkan_renderer_on_window_created(renderer_backend_interface* backend, bwindo
         u8 max_frames_in_flight = window_backend->swapchain.max_frames_in_flight;
 
         // Sync objects are owned by the window since they go hand-in-hand with the swapchain and window resources
-        window_backend->image_available_semaphores = ballocate(sizeof(VkSemaphore) * max_frames_in_flight, MEMORY_TAG_ARRAY);
-        window_backend->queue_complete_semaphores = ballocate(sizeof(VkSemaphore) * max_frames_in_flight, MEMORY_TAG_ARRAY);
-        window_backend->in_flight_fences = ballocate(sizeof(VkFence) * max_frames_in_flight, MEMORY_TAG_ARRAY);
+        window_backend->image_available_semaphores = BALLOC_TYPE_CARRAY(VkSemaphore, max_frames_in_flight);
+        window_backend->queue_complete_semaphores = BALLOC_TYPE_CARRAY(VkSemaphore, max_frames_in_flight);
+        window_backend->in_flight_fences = BALLOC_TYPE_CARRAY(VkFence, max_frames_in_flight);
+
+        window_backend->frame_texture_updated_list = BALLOC_TYPE_CARRAY(bhandle*, max_frames_in_flight);
 
         // The staging buffer also goes here since it is tied to the frame
         // TODO: Reduce this to a single buffer split by max_frames_in_flight
@@ -415,6 +414,9 @@ b8 vulkan_renderer_on_window_created(renderer_backend_interface* backend, bwindo
                 return false;
             }
             renderer_renderbuffer_bind(&window_backend->staging[i], 0);
+
+            // Create the per-frame list of updated texture handles
+            window_backend->frame_texture_updated_list[i] = darray_create(bhandle);
         }
     }
 
@@ -449,7 +451,7 @@ b8 vulkan_renderer_on_window_created(renderer_backend_interface* backend, bwindo
 
     // Get the texture_internal_data based on the existing or newly-created handle above
     // Use that to setup the internal images/views for the colorbuffer texture
-    texture_internal_data* texture_data = renderer_texture_resources_get(backend->frontend_state, window_internal->depthbuffer->renderer_texture_handle);
+    vulkan_texture_handle_data* texture_data = &context->textures[window_internal->depthbuffer->renderer_texture_handle.handle_index];
     if (!texture_data)
     {
         BFATAL("Unable to get internal data for depthbuffer image. Window creation failed");
@@ -567,7 +569,7 @@ void vulkan_renderer_on_window_destroyed(renderer_backend_interface* backend, bw
         window_backend->graphics_command_buffers = 0;
 
         // Destroy depthbuffer images/views
-        texture_internal_data* texture_data = renderer_texture_resources_get(backend->frontend_state, window_internal->depthbuffer->renderer_texture_handle);
+        vulkan_texture_handle_data* texture_data = &context->textures[window_internal->depthbuffer->renderer_texture_handle.handle_index];
         if (!texture_data)
         {
             BWARN("Unable to get internal data for depthbuffer image. Underlying resources may not be properly destroyed");
@@ -712,6 +714,14 @@ b8 vulkan_renderer_frame_prepare_window_surface(renderer_backend_interface* back
         BFATAL("In-flight fence wait failure! error: %s", vulkan_result_string(result, true));
         return false;
     }
+
+    // Increment textures in list of handles updated within frame workload
+    bhandle* updated_textures = context->current_window->renderer_state->backend_state->frame_texture_updated_list[window_backend->current_frame];
+    u32 updated_texture_count = 0;
+    for (u32 i = 0; i < updated_texture_count; ++i)
+        context->textures[updated_textures[i].handle_index].generation++;
+    // Clear the list
+    darray_clear(updated_textures);
 
     result = vkAcquireNextImageKHR(
         context->device.logical_device,
@@ -1048,7 +1058,7 @@ void vulkan_renderer_set_stencil_op(struct renderer_backend_interface* backend, 
     }
 }
 
-void vulkan_renderer_begin_rendering(struct renderer_backend_interface* backend, frame_data* p_frame_data, rect_2d render_area, u32 color_target_count, struct texture_internal_data** color_targets, struct texture_internal_data* depth_stencil_target, u32 depth_stencil_layer)
+void vulkan_renderer_begin_rendering(struct renderer_backend_interface* backend, frame_data* p_frame_data, rect_2d render_area, u32 color_target_count, bhandle* color_targets, bhandle depth_stencil_target, u32 depth_stencil_layer)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
     vulkan_command_buffer* primary = get_current_command_buffer(context);
@@ -1066,11 +1076,13 @@ void vulkan_renderer_begin_rendering(struct renderer_backend_interface* backend,
 
     // TODO: This may be a problem for layered images/cubemaps
     render_info.layerCount = 1;
+
     // Depth
     VkRenderingAttachmentInfoKHR depth_attachment_info = {VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
-    if (depth_stencil_target)
+    if (!bhandle_is_invalid(depth_stencil_target))
     {
-        vulkan_image* image = &depth_stencil_target->images[image_index];
+        vulkan_texture_handle_data* depth_stencil_data = &context->textures[depth_stencil_target.handle_index];
+        vulkan_image* image = &depth_stencil_data->images[image_index];
 
         depth_attachment_info.imageView = image->view;
         if (image->layer_count > 1)
@@ -1096,9 +1108,10 @@ void vulkan_renderer_begin_rendering(struct renderer_backend_interface* backend,
         VkRenderingAttachmentInfo* color_attachments = p_frame_data->allocator.allocate(sizeof(VkRenderingAttachmentInfo) * color_target_count);
         for (u32 i = 0; i < color_target_count; ++i)
         {
+            vulkan_texture_handle_data* color_target_data = &context->textures[color_targets[i].handle_index];
             VkRenderingAttachmentInfo* attachment_info = &color_attachments[i];
             attachment_info->sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-            attachment_info->imageView = color_targets[i]->images[image_index].view;
+            attachment_info->imageView = color_target_data->images[image_index].view;
             attachment_info->imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
             attachment_info->loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;    // Always load.
             attachment_info->storeOp = VK_ATTACHMENT_STORE_OP_STORE; // Always store
@@ -1191,11 +1204,12 @@ void vulkan_renderer_clear_stencil_set(renderer_backend_interface* backend, u32 
     context->depth_stencil_clear_value.stencil = stencil;
 }
 
-void vulkan_renderer_clear_color_texture(renderer_backend_interface* backend, texture_internal_data* tex_internal)
+void vulkan_renderer_clear_color_texture(renderer_backend_interface* backend, bhandle renderer_texture_handle)
 {
     // Cold-cast the context
     vulkan_context* context = (vulkan_context*)backend->internal_context;
     vulkan_command_buffer* command_buffer = get_current_command_buffer(context);
+    vulkan_texture_handle_data* tex_internal = &context->textures[renderer_texture_handle.handle_index];
 
     // If a per-frame texture, get the appropriate image index. Otherwise it's just the first one
     vulkan_image* image = tex_internal->image_count == 1 ? &tex_internal->images[0] : &tex_internal->images[get_current_image_index(context)];
@@ -1241,11 +1255,13 @@ void vulkan_renderer_clear_color_texture(renderer_backend_interface* backend, te
         image->layer_count == 1 ? &image->view_subresource_range : image->layer_view_subresource_ranges);
 }
 
-void vulkan_renderer_clear_depth_stencil(renderer_backend_interface* backend, texture_internal_data* tex_internal)
+void vulkan_renderer_clear_depth_stencil(renderer_backend_interface* backend, bhandle renderer_texture_handle)
 {
     // Cold-cast the context
     vulkan_context* context = (vulkan_context*)backend->internal_context;
     vulkan_command_buffer* command_buffer = get_current_command_buffer(context);
+
+    vulkan_texture_handle_data* tex_internal = &context->textures[renderer_texture_handle.handle_index];
 
     // If a per-frame texture, get the appropriate image index. Otherwise it's just the first one
     vulkan_image* image = tex_internal->image_count == 1 ? &tex_internal->images[0] : &tex_internal->images[get_current_image_index(context)];
@@ -1291,11 +1307,13 @@ void vulkan_renderer_clear_depth_stencil(renderer_backend_interface* backend, te
         image->layer_count == 1 ? &image->view_subresource_range : image->layer_view_subresource_ranges);
 }
 
-void vulkan_renderer_color_texture_prepare_for_present(renderer_backend_interface* backend, texture_internal_data* tex_internal)
+void vulkan_renderer_color_texture_prepare_for_present(renderer_backend_interface* backend, bhandle renderer_texture_handle)
 {
     // Cold-cast the context
     vulkan_context* context = (vulkan_context*)backend->internal_context;
     vulkan_command_buffer* command_buffer = get_current_command_buffer(context);
+
+    vulkan_texture_handle_data* tex_internal = &context->textures[renderer_texture_handle.handle_index];
 
     // If a per-frame texture, get the appropriate image index. Otherwise it's just the first one
     vulkan_image* image = tex_internal->image_count == 1 ? &tex_internal->images[0] : &tex_internal->images[get_current_image_index(context)];
@@ -1332,11 +1350,13 @@ void vulkan_renderer_color_texture_prepare_for_present(renderer_backend_interfac
         1, &barrier);
 }
 
-void vulkan_renderer_texture_prepare_for_sampling(renderer_backend_interface* backend, texture_internal_data* tex_internal, texture_flag_bits flags)
+void vulkan_renderer_texture_prepare_for_sampling(renderer_backend_interface* backend, bhandle renderer_texture_handle, texture_flag_bits flags)
 {
     // Cold-cast the context
     vulkan_context* context = (vulkan_context*)backend->internal_context;
     vulkan_command_buffer* command_buffer = get_current_command_buffer(context);
+
+    vulkan_texture_handle_data* tex_internal = &context->textures[renderer_texture_handle.handle_index];
 
     // If a per-frame texture, get the appropriate image index. Otherwise it's just the first one
     vulkan_image* image = tex_internal->image_count == 1 ? &tex_internal->images[0] : &tex_internal->images[get_current_image_index(context)];
@@ -1535,15 +1555,52 @@ static VkFormat channel_count_to_format(u8 channel_count, VkFormat default_forma
     }
 }
 
-b8 vulkan_renderer_texture_resources_acquire(renderer_backend_interface* backend, texture_internal_data* texture_data, const char* name, bresource_texture_type type, u32 width, u32 height, u8 channel_count, u8 mip_levels, u16 array_size, bresource_texture_flag_bits flags)
+b8 vulkan_renderer_texture_resources_acquire(renderer_backend_interface* backend, const char* name, bresource_texture_type type, u32 width, u32 height, u8 channel_count, u8 mip_levels, u16 array_size, bresource_texture_flag_bits flags, bhandle* out_renderer_texture_handle)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+
+    if (!context->textures) {
+        context->textures = darray_create(vulkan_texture_handle_data);
+    }
+
+    // Get an entry into the lookup table
+    vulkan_texture_handle_data* texture_data = 0;
+    u32 texture_count = darray_length(context->textures);
+    for (u32 i = 0; i < texture_count; ++i)
+    {
+        texture_data = &context->textures[i];
+        if (texture_data->uniqueid == INVALID_ID_U64)
+        {
+            // Found a free "slot", use it
+            bhandle new_handle = bhandle_create(i);
+            texture_data->uniqueid = new_handle.unique_id.uniqueid;
+            *out_renderer_texture_handle = new_handle;
+            break;
+        }
+    }
+
+    if (khandle_is_invalid(*out_renderer_texture_handle))
+    {
+        // No free "slots", add one
+        vulkan_texture_handle_data new_lookup = {0};
+        bhandle new_handle = bhandle_create(texture_count);
+        new_lookup.uniqueid = new_handle.unique_id.uniqueid;
+        darray_push(context->textures, new_lookup);
+        *out_renderer_texture_handle = new_handle;
+        texture_data = &context->textures[texture_count];
+    }
+
+    if (flags & BRESOURCE_TEXTURE_FLAG_IS_WRAPPED)
+    {
+        // If the texure is considered "wrapped" (i.e. internal resources are created somwhere else, such as swapchain images),
+        // then nothing further is required. Just return the handle
+        return true;
+    }
+
     // Internal data creation
     if (flags & TEXTURE_FLAG_RENDERER_BUFFERING)
     {
-        // Need to generate as many images as we have swapchain images
-        // FIXME: This is really only valid for the window it's attached to, unless this number is synced and used across all windows. This should be stored and accessed elsewhere
-        texture_data->image_count = context->current_window->renderer_state->backend_state->swapchain.image_count;
+        texture_data->image_count = get_image_count(context);
     }
     else
     {
@@ -1587,9 +1644,22 @@ b8 vulkan_renderer_texture_resources_acquire(renderer_backend_interface* backend
     return true;
 }
 
-void vulkan_renderer_texture_resources_release(renderer_backend_interface* backend, texture_internal_data* texture_data)
+void vulkan_renderer_texture_resources_release(renderer_backend_interface* backend, bhandle* renderer_texture_handle)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+
+    vulkan_texture_handle_data* texture_data = &context->textures[renderer_texture_handle->handle_index];
+    if (texture_data->uniqueid != renderer_texture_handle->unique_id.uniqueid)
+    {
+        BWARN("Stale handle passed while trying to release renderer texture resources");
+        return;
+    }
+
+    // Invalidate the handle first
+    texture_data->uniqueid = INVALID_ID_U64;
+    *renderer_texture_handle = bhandle_invalid();
+
+    // Release/destroy the internal data
     if (texture_data->images)
     {
         for (u32 i = 0; i < texture_data->image_count; ++i)
@@ -1600,95 +1670,147 @@ void vulkan_renderer_texture_resources_release(renderer_backend_interface* backe
     }
 }
 
-b8 vulkan_renderer_texture_resize(renderer_backend_interface* backend, struct texture_internal_data* texture_data, u32 new_width, u32 new_height)
+b8 vulkan_renderer_texture_resize(renderer_backend_interface* backend, bhandle renderer_texture_handle, u32 new_width, u32 new_height)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
-    if (texture_data)
-    {
-        for (u32 i = 0; i < texture_data->image_count; ++i)
-        {
-            // Resizing is really just destroying the old image and creating a new one.
-            // Data is not preserved because there's no reliable way to map the old data to the new since the amount of data differs
-            vulkan_image* image = &texture_data->images[i];
-            image->image_create_info.extent.width = new_width;
-            image->image_create_info.extent.height = new_height;
-
-            // Recalculate mip levels if anything other than 1
-            if (image->mip_levels > 1)
-                image->mip_levels = (u32)(bfloor(blog2(BMAX(new_width, new_height))) + 1);
     
-            vulkan_image_recreate(context, image);
-        }
-
-        return true;
+    // Ensure the handle isn't stale
+    vulkan_texture_handle_data* texture_data = &context->textures[renderer_texture_handle.handle_index];
+    if (texture_data->uniqueid != renderer_texture_handle.unique_id.uniqueid)
+    {
+        BERROR("Stale handle passed while trying to resize a texture");
+        return false;
     }
 
-    return false;
+    for (u32 i = 0; i < texture_data->image_count; ++i)
+    {
+        // Resizing is really just destroying the old image and creating a new one
+        // Data is not preserved because there's no reliable way to map the old data to the new since the amount of data differs
+        vulkan_image* image = &texture_data->images[i];
+        image->image_create_info.extent.width = new_width;
+        image->image_create_info.extent.height = new_height;
+        // Recalculate mip levels if anything other than 1
+        if (image->mip_levels > 1)
+        {
+            // Recalculate the number of levels
+            // The number of mip levels is calculated by first taking the largest dimension
+            // (either width or height), figuring out how many times that number can be divided
+            // by 2, taking the floor value (rounding down) and adding 1 to represent the
+            // base level. This always leaves a value of at least 1.
+            image->mip_levels = (u32)(bfloor(blog2(BMAX(new_width, new_height))) + 1);
+        }
+
+        vulkan_image_recreate(context, image);
+    }
+
+    return true;
 }
 
-b8 vulkan_renderer_texture_write_data(renderer_backend_interface* backend, struct texture_internal_data* texture_data, u32 offset, u32 size, const u8* pixels, b8 include_in_frame_workload)
+b8 vulkan_renderer_texture_write_data(renderer_backend_interface* backend, bhandle renderer_texture_handle, u32 offset, u32 size, const u8* pixels, b8 include_in_frame_workload)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+
+    // Ensure the handle isn't stale
+    vulkan_texture_handle_data* texture_data = &context->textures[renderer_texture_handle.handle_index];
+    if (texture_data->uniqueid != renderer_texture_handle.unique_id.uniqueid)
+    {
+        BERROR("Stale handle passed while trying to write data to a texture");
+        return false;
+    }
+
     // If no window, can't include in a frame workload
     if (!context->current_window)
         include_in_frame_workload = false;
 
-    if (texture_data)
+    // Temporary staging renderbuffer, if needed
+    renderbuffer temp;
+    // Temporary command buffer, if needed
+    vulkan_command_buffer temp_command_buffer;
+
+    // A pointer to the staging buffer to be used
+    renderbuffer* staging = 0;
+    // A pointer to the command buffer to be used
+    vulkan_command_buffer* command_buffer = 0;
+    if (include_in_frame_workload)
     {
-        renderbuffer temp;
-        renderbuffer* staging = 0;
-        if (include_in_frame_workload)
-        {
-            u32 current_frame = context->current_window->renderer_state->backend_state->current_frame;
-            staging = &context->current_window->renderer_state->backend_state->staging[current_frame];
-        }
-        else
-        {
-            renderer_renderbuffer_create("temp_staging", RENDERBUFFER_TYPE_STAGING, size * texture_data->image_count, RENDERBUFFER_TRACK_TYPE_NONE, &temp);
-            renderer_renderbuffer_bind(&temp, 0);
-            staging = &temp;
-        }
-        for (u32 i = 0; i < texture_data->image_count; ++i)
-        {
-            vulkan_image* image = &texture_data->images[i];
-
-            // Staging buffer
-            u64 staging_offset = 0;
-            if (include_in_frame_workload)
-                renderer_renderbuffer_allocate(staging, size, &staging_offset);
-            vulkan_buffer_load_range(backend, staging, staging_offset, size, pixels, include_in_frame_workload);
-
-            vulkan_command_buffer temp_command_buffer;
-            VkCommandPool pool = context->device.graphics_command_pool;
-            VkQueue queue = context->device.graphics_queue;
-            vulkan_command_buffer_allocate_and_begin_single_use(context, pool, &temp_command_buffer);
-
-            // Transition the layout from whatever it is currently to optimal for recieving data
-            vulkan_image_transition_layout(context, &temp_command_buffer, image, image->format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-
-            // Copy the data from the buffer.
-            vulkan_image_copy_from_buffer(context, image, ((vulkan_buffer*)staging->internal_data)->handle, staging_offset, &temp_command_buffer);
-
-            if (image->mip_levels <= 1 || !vulkan_image_mipmaps_generate(context, image, &temp_command_buffer))
-                vulkan_image_transition_layout(context, &temp_command_buffer, image, image->format, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-            vulkan_command_buffer_end_single_use(context, pool, &temp_command_buffer, queue);
-        }
-
-        if (!include_in_frame_workload)
-            renderer_renderbuffer_destroy(&temp);
-
-        // Counts as a texture update
-
-        return true;
+        // Including in the frame workload means the current window's current-frame staging buffer can be used
+        u32 current_frame = context->current_window->renderer_state->backend_state->current_frame;
+        staging = &context->current_window->renderer_state->backend_state->staging[current_frame];
+        command_buffer = get_current_command_buffer(context);
+    }
+    else
+    {
+        // Not including in the frame workload means a temporary staging buffer needs to be created and bound
+        // This buffer is the exact size required for the operation, so no allocation is needed later
+        renderer_renderbuffer_create("temp_staging", RENDERBUFFER_TYPE_STAGING, size * texture_data->image_count, RENDERBUFFER_TRACK_TYPE_NONE, &temp);
+        renderer_renderbuffer_bind(&temp, 0);
+        // Set the temp buffer as the staging buffer to be used
+        staging = &temp;
     }
 
-    return false;
+    for (u32 i = 0; i < texture_data->image_count; ++i)
+    {
+        vulkan_image* image = &texture_data->images[i];
+
+        // Staging buffer
+        u64 staging_offset = 0;
+        if (include_in_frame_workload)
+        {
+            // If including in frame workload, space needs to be allocated from the buffer
+            renderer_renderbuffer_allocate(staging, size, &staging_offset);
+        }
+
+        // Results in a wait if not included in frame workload
+        vulkan_buffer_load_range(backend, staging, staging_offset, size, pixels, include_in_frame_workload);
+
+        // Need a temp command buffer if not included in frame workload
+        if (!include_in_frame_workload)
+        {
+            vulkan_command_buffer_allocate_and_begin_single_use(context, context->device.graphics_command_pool, &temp_command_buffer);
+            command_buffer = &temp_command_buffer;
+        }
+
+        // Transition the layout from whatever it is currently to optimal for recieving data
+        vulkan_image_transition_layout(context, command_buffer, image, image->format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+        // Copy the data from the buffer
+        vulkan_image_copy_from_buffer(context, image, ((vulkan_buffer*)staging->internal_data)->handle, staging_offset, command_buffer);
+
+        if (image->mip_levels <= 1 || !vulkan_image_mipmaps_generate(context, image, command_buffer))
+        {
+            // If mip generation isn't needed or fails, fall back to ordinary transition
+            // Transition from optimal for data reciept to shader-read-only optimal layout
+            vulkan_image_transition_layout(context, command_buffer, image, image->format, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        }
+
+        // Need to submit temp command buffer
+        if (!include_in_frame_workload)
+        {
+            vulkan_command_buffer_end_single_use(context, context->device.graphics_command_pool, command_buffer, context->device.graphics_queue);
+            command_buffer = 0;
+        }
+    }
+    
+    if (!include_in_frame_workload)
+    {
+        renderer_renderbuffer_destroy(&temp);
+        // Counts as a texture update. The texture generation here can only really be updated if we don't include the upload in the frame workload, since that results in a wait
+        // If we include it in the frame workload, then we must also wait until that frame's queue is complete
+        texture_data->generation++;
+    }
+    else
+    {
+        // Add handle to post-frame-queue-completion list. These will be updated at the end of the frame
+        u32 current_frame = get_current_frame_index(context);
+        darray_push(context->current_window->renderer_state->backend_state->frame_texture_updated_list[current_frame], renderer_texture_handle);
+    }
+
+    return true;
 }
 
 static b8 texture_read_offset_range(
     renderer_backend_interface* backend,
-    struct texture_internal_data* texture_data,
+    vulkan_texture_handle_data* texture_data,
     u32 offset,
     u32 size,
     u32 x,
@@ -1755,17 +1877,35 @@ static b8 texture_read_offset_range(
     return false;
 }
 
-b8 vulkan_renderer_texture_read_data(renderer_backend_interface* backend, struct texture_internal_data* texture_data, u32 offset, u32 size, u8** out_pixels)
+b8 vulkan_renderer_texture_read_data(renderer_backend_interface* backend, bhandle renderer_texture_handle, u32 offset, u32 size, u8** out_pixels)
 {
+    vulkan_context* context = (vulkan_context*)backend->internal_context;
+
+    // Ensure the handle isn't stale
+    vulkan_texture_handle_data* texture_data = &context->textures[renderer_texture_handle.handle_index];
+    if (texture_data->uniqueid != renderer_texture_handle.unique_id.uniqueid)
+    {
+        BERROR("Stale handle passed while trying to reading data from a texture");
+        return false;
+    }
     return texture_read_offset_range(backend, texture_data, offset, size, 0, 0, 0, 0, out_pixels);
 }
 
-b8 vulkan_renderer_texture_read_pixel(renderer_backend_interface* backend, struct texture_internal_data* texture_data, u32 x, u32 y, u8** out_rgba)
+b8 vulkan_renderer_texture_read_pixel(renderer_backend_interface* backend, bhandle renderer_texture_handle, u32 x, u32 y, u8** out_rgba)
 {
+    vulkan_context* context = (vulkan_context*)backend->internal_context;
+
+    // Ensure the handle isn't stale
+    vulkan_texture_handle_data* texture_data = &context->textures[renderer_texture_handle.handle_index];
+    if (texture_data->uniqueid != renderer_texture_handle.unique_id.uniqueid)
+    {
+        BERROR("Stale handle passed while trying to reading pixel data from a texture");
+        return false;
+    }
     return texture_read_offset_range(backend, texture_data, 0, 0, x, y, 1, 1, out_rgba);
 }
 
-b8 vulkan_renderer_shader_create(renderer_backend_interface* backend, shader* s, const shader_config* config)
+b8 vulkan_renderer_shader_create(renderer_backend_interface* backend, bshader* s, const shader_config* config)
 {
     // Verify stage support
     for (u8 i = 0; i < config->stage_count; ++i)
@@ -1782,7 +1922,7 @@ b8 vulkan_renderer_shader_create(renderer_backend_interface* backend, shader* s,
                 BWARN("vulkan_renderer_shader_create: SHADER_STAGE_COMPUTE is set but not yet supported");
                 break;
             default:
-                BERROR("Unsupported stage type: %d", config->stage_configs[i].name);
+                BERROR("Unsupported stage type: %d", shader_stage_to_string(config->stage_configs[i].stage));
                 break;
         }
     }
@@ -1986,7 +2126,7 @@ b8 vulkan_renderer_shader_create(renderer_backend_interface* backend, shader* s,
     return true;
 }
 
-void vulkan_renderer_shader_destroy(renderer_backend_interface* backend, shader* s)
+void vulkan_renderer_shader_destroy(renderer_backend_interface* backend, bshader* s)
 {
     if (s && s->internal_data)
     {
@@ -2084,7 +2224,7 @@ void vulkan_renderer_shader_destroy(renderer_backend_interface* backend, shader*
     }
 }
 
-static b8 shader_create_modules_and_pipelines(renderer_backend_interface* backend, shader* s)
+static b8 shader_create_modules_and_pipelines(renderer_backend_interface* backend, bshader* s)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
     vulkan_shader* internal_shader = (vulkan_shader*)s->internal_data;
@@ -2270,7 +2410,7 @@ shader_module_pipeline_cleanup:
     return !has_error;
 }
 
-b8 vulkan_renderer_shader_initialize(renderer_backend_interface* backend, shader* s)
+b8 vulkan_renderer_shader_initialize(renderer_backend_interface* backend, bshader* s)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
     VkDevice logical_device = context->device.logical_device;
@@ -2510,15 +2650,15 @@ b8 vulkan_renderer_shader_initialize(renderer_backend_interface* backend, shader
         internal_shader->mapped_uniform_buffer_blocks[i] = vulkan_buffer_map_memory(backend, &internal_shader->uniform_buffers[i], 0, VK_WHOLE_SIZE);
     }
 
-    return setup_frequency_state(context, s, SHADER_UPDATE_FREQUENCY_PER_FRAME, 0, 0);
+    return setup_frequency_state(context, s, SHADER_UPDATE_FREQUENCY_PER_FRAME, 0);
 }
 
-b8 vulkan_renderer_shader_reload(renderer_backend_interface* backend, shader* s)
+b8 vulkan_renderer_shader_reload(renderer_backend_interface* backend, bshader* s)
 {
     return shader_create_modules_and_pipelines(backend, s);
 }
 
-b8 vulkan_renderer_shader_use(renderer_backend_interface* backend, shader* s)
+b8 vulkan_renderer_shader_use(renderer_backend_interface* backend, bshader* s)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
     vulkan_shader* internal = s->internal_data;
@@ -2539,7 +2679,7 @@ b8 vulkan_renderer_shader_use(renderer_backend_interface* backend, shader* s)
     return true;
 }
 
-b8 vulkan_renderer_shader_supports_wireframe(const renderer_backend_interface* backend, const shader* s)
+b8 vulkan_renderer_shader_supports_wireframe(const renderer_backend_interface* backend, const bshader* s)
 {
     const vulkan_shader* internal = s->internal_data;
 
@@ -2550,9 +2690,9 @@ b8 vulkan_renderer_shader_supports_wireframe(const renderer_backend_interface* b
     return false;
 }
 
-static b8 vulkan_descriptorset_update_and_bind(renderer_backend_interface* backend, u64 renderer_frame_number, shader* s, VkDescriptorSet descriptor_set,
+static b8 vulkan_descriptorset_update_and_bind(renderer_backend_interface* backend, u64 renderer_frame_number, bshader* s, VkDescriptorSet descriptor_set,
                                         u32 descriptor_set_index, vulkan_descriptor_state* descriptor_state, u64 ubo_offset, u64 ubo_stride,
-                                        u32 uniform_count, vulkan_uniform_sampler_state* samplers, u32 sampler_count)
+                                        u32 uniform_count, vulkan_uniform_sampler_state* samplers, u32 sampler_count, vulkan_uniform_texture_state* textures, u32 texture_count)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
     u32 image_index = get_current_image_index(context);
@@ -2615,7 +2755,6 @@ static b8 vulkan_descriptorset_update_and_bind(renderer_backend_interface* backe
                 vulkan_uniform_sampler_state* binding_sampler_state = &samplers[sb];
 
                 u32 binding_descriptor_count = set_config.bindings[binding_index].descriptorCount;
-
                 u32 update_sampler_count = 0;
                 
                 // Allocate enough space to build all image infos
@@ -2624,62 +2763,15 @@ static b8 vulkan_descriptorset_update_and_bind(renderer_backend_interface* backe
                 // Each sampler descriptor within the binding
                 for (u32 d = 0; d < binding_descriptor_count; ++d)
                 {
-                    // TODO: only update in the list if actually needing an update
-                    // Instead of a flat list of texture maps, the sampler state should have a list of uniform samplers, each with their own list of texture maps associated with them
-                    vulkan_image* image = 0;
-                    struct texture_internal_data* texture_internal = 0;
-                    u32 map_internal_id = INVALID_ID;
-                    if (binding_sampler_state->uniform_bresource_texture_maps)
-                    {
-                        bresource_texture_map* map = binding_sampler_state->uniform_bresource_texture_maps[d];
-                        const bresource_texture* t = map->texture;
+                    bhandle* sampler_handle = &binding_sampler_state->sampler_handles[d];
+                    vulkan_sampler_handle_data* sampler = &context->samplers[sampler_handle->handle_index];
 
-                        // TODO: The renderer should not rely on the texture system
-                        u32 t_generation;
-                        texture_internal = texture_system_resource_get_internal_or_default(t, &t_generation);
+                    // Not using image
+                    binding_image_infos[sb][d].imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+                    binding_image_infos[sb][d].imageView = 0;
 
-                        // Ensure the texture is valid
-                        if (t_generation == INVALID_ID)
-                        {
-                            // Using the default texture, so invalidate the map's generation so it's updated next run
-                            map->generation = INVALID_ID;
-                        }
-                        else
-                        {
-                            // If valid, ensure the texture map's generation matches the texture's
-                            // If not, the texture map resources should be regenerated
-                            if (t_generation != map->generation)
-                            {
-                                b8 refresh_required = t->mip_levels != map->mip_levels;
-                                // BTRACE("A sampler refresh is%s required (new). Tex/map mips: %u/%u", refresh_required ? "" : " not", t->mip_levels, map->mip_levels);
-                                if (refresh_required && !vulkan_renderer_bresource_texture_map_resources_refresh(backend, map))
-                                {
-                                    BWARN("Failed to refresh texture map resources. This means the sampler settings could be out of date");
-                                }
-                                else
-                                {
-                                    // Sync the generations
-                                    map->generation = t->base.generation;
-                                }
-                            }
-                        }
-                        map_internal_id = map->internal_id;
-                    }
-
-                    u32 image_index = texture_internal->image_count > 1 ? get_current_image_index(context) : 0;
-                    image = &texture_internal->images[image_index];
-
-                    binding_image_infos[sb][d].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-                    binding_image_infos[sb][d].imageView = image->view;
-                    binding_image_infos[sb][d].sampler = context->samplers[map_internal_id].sampler;
-
-                    // TODO: change up descriptor state to handle this properly
-                    // Sync frame generation if not using a default texture
-                    // if (t->generation != INVALID_ID)
-                    // {
-                    //     *descriptor_generation = t->generation;
-                    //     *descriptor_id = t->id;
-                    // }
+                    // NOTE: Only the sampler is set here
+                    binding_image_infos[sb][d].sampler = sampler->sampler;
 
                     update_sampler_count++;
                 }
@@ -2687,9 +2779,68 @@ static b8 vulkan_descriptorset_update_and_bind(renderer_backend_interface* backe
                 VkWriteDescriptorSet sampler_descriptor = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
                 sampler_descriptor.dstSet = descriptor_set;
                 sampler_descriptor.dstBinding = binding_index;
-                sampler_descriptor.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                sampler_descriptor.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
                 sampler_descriptor.descriptorCount = update_sampler_count;
                 sampler_descriptor.pImageInfo = binding_image_infos[sb];
+
+                descriptor_writes[descriptor_write_count] = sampler_descriptor;
+                descriptor_write_count++;
+
+                binding_index++;
+            }
+        }
+
+        // Iterate textures
+        if (texture_count > 0)
+        {
+            vulkan_descriptor_set_config set_config = internal->descriptor_sets[descriptor_set_index];
+
+            // Allocate enough space to hold all the descriptor image infos needed for this scope (one array per binding)
+            // NOTE: Using the frame allocator, so this does not have to be freed as it's handled automatically at the end of the frame on allocator reset
+            VkDescriptorImageInfo** binding_image_infos = p_frame_data->allocator.allocate(sizeof(VkDescriptorImageInfo*) * texture_count);
+
+            // Iterate each texture binding
+            for (u32 tb = 0; tb < texture_count; ++tb)
+            {
+                vulkan_uniform_texture_state* binding_texture_state = &textures[tb];
+
+                u32 binding_descriptor_count = set_config.bindings[binding_index].descriptorCount;
+
+                u32 update_texture_count = 0;
+
+                // Allocate enough space to build all image infos
+                binding_image_infos[tb] = p_frame_data->allocator.allocate(sizeof(VkDescriptorImageInfo) * binding_descriptor_count);
+
+                // Each texture descriptor within the binding
+                for (u32 d = 0; d < binding_descriptor_count; ++d)
+                {
+                    // TODO: only update in the list if actually needing an update
+                    bhandle t = binding_texture_state->texture_handles[d];
+                    vulkan_texture_handle_data* texture_data = &context->textures[t.handle_index];
+
+                    if (bhandle_is_invalid(t))
+                    {
+                        BERROR("Invalid handle found while trying to update/bind descriptor set");
+                        return false;
+                    }
+
+                    u32 image_index = texture_data->image_count > 1 ? get_current_image_index(context) : 0;
+                    vulkan_image* image = &texture_data->images[image_index];
+
+                    binding_image_infos[tb][d].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                    binding_image_infos[tb][d].imageView = image->view;
+                    // NOTE: Not using sampler in this descriptor
+                    binding_image_infos[tb][d].sampler = 0;
+
+                    update_texture_count++;
+                }
+
+                VkWriteDescriptorSet sampler_descriptor = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+                sampler_descriptor.dstSet = descriptor_set;
+                sampler_descriptor.dstBinding = binding_index;
+                sampler_descriptor.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+                sampler_descriptor.descriptorCount = update_texture_count;
+                sampler_descriptor.pImageInfo = binding_image_infos[tb];
 
                 descriptor_writes[descriptor_write_count] = sampler_descriptor;
                 descriptor_write_count++;
@@ -2719,7 +2870,7 @@ static b8 vulkan_descriptorset_update_and_bind(renderer_backend_interface* backe
     return true;
 }
 
-b8 vulkan_renderer_shader_apply_per_frame(renderer_backend_interface* backend, shader* s, u64 renderer_frame_number)
+b8 vulkan_renderer_shader_apply_per_frame(renderer_backend_interface* backend, bshader* s, u64 renderer_frame_number)
 {
     // Don't do anything if there are no updatable per-frame uniforms
     b8 has_per_frame = s->per_frame.uniform_count > 0 || s->per_frame.uniform_sampler_count > 0;
@@ -2735,7 +2886,6 @@ b8 vulkan_renderer_shader_apply_per_frame(renderer_backend_interface* backend, s
     // Global is always first, if it exists
     u32 descriptor_set_index = 0;
 
-    // TODO: global descriptor state is in internal instead of base shader like instance is
     if (!vulkan_descriptorset_update_and_bind(
             backend,
             renderer_frame_number,
@@ -2747,7 +2897,9 @@ b8 vulkan_renderer_shader_apply_per_frame(renderer_backend_interface* backend, s
             s->per_frame.ubo_stride,
             s->per_frame.uniform_count,
             per_frame_state->sampler_states,
-            s->per_frame.uniform_sampler_count))
+            s->per_frame.uniform_sampler_count,
+            per_frame_state->texture_states,
+            s->per_frame.uniform_texture_count))
     {
         BERROR("Failed to update/bind per-frame descriptor set");
         return false;
@@ -2756,7 +2908,7 @@ b8 vulkan_renderer_shader_apply_per_frame(renderer_backend_interface* backend, s
     return true;
 }
 
-b8 vulkan_renderer_shader_apply_per_group(renderer_backend_interface* backend, shader* s, u64 renderer_frame_number)
+b8 vulkan_renderer_shader_apply_per_group(renderer_backend_interface* backend, bshader* s, u64 renderer_frame_number)
 {
     // Bleat if there are no groups for this shader
     if (s->per_group.uniform_count < 1 && s->per_group.uniform_sampler_count < 1)
@@ -2786,7 +2938,9 @@ b8 vulkan_renderer_shader_apply_per_group(renderer_backend_interface* backend, s
             s->per_group.ubo_stride,
             s->per_group.uniform_count,
             group_state->sampler_states,
-            s->per_group.uniform_sampler_count))
+            s->per_group.uniform_sampler_count,
+            group_state->texture_states,
+            s->per_group.uniform_texture_count))
     {
         BERROR("Failed to update/bind per-frame uniforms descriptor set");
         return false;
@@ -2795,7 +2949,7 @@ b8 vulkan_renderer_shader_apply_per_group(renderer_backend_interface* backend, s
     return true;
 }
 
-b8 vulkan_renderer_shader_apply_per_draw(renderer_backend_interface* backend, shader* s, u64 renderer_frame_number)
+b8 vulkan_renderer_shader_apply_per_draw(renderer_backend_interface* backend, bshader* s, u64 renderer_frame_number)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
     vulkan_shader* internal = s->internal_data;
@@ -2817,27 +2971,29 @@ b8 vulkan_renderer_shader_apply_per_draw(renderer_backend_interface* backend, sh
         u32 image_index = get_current_image_index(context);
 
         // Obtain local data
-        vulkan_shader_frequency_state* local_state = &internal->per_draw_states[s->per_draw.bound_id];
+        vulkan_shader_frequency_state* per_draw_state = &internal->per_draw_states[s->per_draw.bound_id];
 
         // Determine the descriptor set index which will be first. If there are no per-frame uniforms and no per-group uniforms, for example this will be 0
         // If there are per-frame uniforms but not per-group, this will be 1, if there are both this will be 2
-        b8 has_global = s->per_frame.uniform_count > 0 || s->per_frame.uniform_sampler_count > 0;
-        b8 has_instance = s->per_group.uniform_count > 0 || s->per_group.uniform_sampler_count > 0;
+        b8 has_per_frame = s->per_frame.uniform_count > 0 || s->per_frame.uniform_sampler_count > 0;
+        b8 has_group = s->per_group.uniform_count > 0 || s->per_group.uniform_sampler_count > 0;
         u32 descriptor_set_index = 0;
-        descriptor_set_index += has_global ? 1 : 0;
-        descriptor_set_index += has_instance ? 1 : 0;
+        descriptor_set_index += has_per_frame ? 1 : 0;
+        descriptor_set_index += has_group ? 1 : 0;
         if (!vulkan_descriptorset_update_and_bind(
                 backend,
                 renderer_frame_number,
                 s,
-                local_state->descriptor_sets[image_index],
+                per_draw_state->descriptor_sets[image_index],
                 descriptor_set_index,
-                &local_state->ubo_descriptor_state,
+                &per_draw_state->ubo_descriptor_state,
                 0,  // No UBO
                 0,  // No UBO
                 0,  // No UBO
-                local_state->sampler_states,
-                s->per_draw.uniform_sampler_count))
+                per_draw_state->sampler_states,
+                s->per_draw.uniform_sampler_count,
+                per_draw_state->texture_states,
+                s->per_draw.uniform_texture_count))
         {
             BERROR("Failed to update/bind per_draw sampler descriptor set");
             return false;
@@ -2847,7 +3003,7 @@ b8 vulkan_renderer_shader_apply_per_draw(renderer_backend_interface* backend, sh
     return true;
 }
 
-static b8 sampler_create_internal(vulkan_context* context, texture_filter filter, texture_repeat repeat, f32 anisotropy, u32 mip_levels, vulkan_sampler_handle_data* out_sampler_handle_data)
+static b8 sampler_create_internal(vulkan_context* context, texture_filter filter, texture_repeat repeat, f32 anisotropy, vulkan_sampler_handle_data* out_sampler_handle_data)
 {
     // Create a sampler for the texture
     VkSamplerCreateInfo sampler_info = {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
@@ -2900,7 +3056,7 @@ static b8 sampler_create_internal(vulkan_context* context, texture_filter filter
     sampler_info.minLod = 0.0f;
     // NOTE: Uncomment the following line to test the lowest mip level
     /* sampler_info.minLod = map->texture->mip_levels > 1 ? map->texture->mip_levels : 0.0f; */
-    sampler_info.maxLod = 0.0f; // mip_levels; FIXME: acquire from image mips or global value?
+    sampler_info.maxLod = VK_LOD_CLAMP_NONE; // Don't clamp
 
     VkResult result = vkCreateSampler(context->device.logical_device, &sampler_info, context->allocator, &out_sampler_handle_data->sampler);
     if (!vulkan_result_is_success(VK_SUCCESS))
@@ -2912,7 +3068,7 @@ static b8 sampler_create_internal(vulkan_context* context, texture_filter filter
     return true;
 }
 
-bhandle vulkan_renderer_sampler_acquire(renderer_backend_interface* backend, texture_filter filter, texture_repeat repeat, f32 anisotropy, u32 mip_levels)
+bhandle vulkan_renderer_sampler_acquire(renderer_backend_interface* backend, texture_filter filter, texture_repeat repeat, f32 anisotropy)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
     
@@ -2935,7 +3091,7 @@ bhandle vulkan_renderer_sampler_acquire(renderer_backend_interface* backend, tex
         selected_id = length;
     }
 
-    if (!sampler_create_internal(context, filter, repeat, anisotropy, mip_levels, &context->samplers[selected_id]))
+    if (!sampler_create_internal(context, filter, repeat, anisotropy, &context->samplers[selected_id]))
         return bhandle_invalid();
 
     bhandle h = bhandle_create(selected_id);
@@ -2983,7 +3139,7 @@ b8 vulkan_renderer_sampler_refresh(renderer_backend_interface* backend, bhandle*
         vkDeviceWaitIdle(context->device.logical_device);
 
         // Create/assign the new
-        if (!sampler_create_internal(context, filter, repeat, anisotropy, mip_levels, s))
+        if (!sampler_create_internal(context, filter, repeat, anisotropy, s))
         {
             BERROR("Sampler refresh failed to create new internal sampler");
             return false;
@@ -3000,53 +3156,49 @@ b8 vulkan_renderer_sampler_refresh(renderer_backend_interface* backend, bhandle*
     return true;
 }
 
-b8 vulkan_renderer_shader_per_group_resources_acquire(renderer_backend_interface* backend, struct shader* s, const shader_texture_resource_config* config, u32* out_group_id)
+b8 vulkan_renderer_shader_per_group_resources_acquire(renderer_backend_interface* backend, struct shader* s, u32* out_group_id)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
-    return setup_frequency_state(context, s, SHADER_UPDATE_FREQUENCY_PER_GROUP, config, out_group_id);
+    return setup_frequency_state(context, s, SHADER_UPDATE_FREQUENCY_PER_GROUP, out_group_id);
 }
 
-b8 vulkan_renderer_shader_per_draw_resources_acquire(renderer_backend_interface* backend, struct shader* s, const shader_texture_resource_config* config, u32* out_per_draw_id)
+b8 vulkan_renderer_shader_per_draw_resources_acquire(renderer_backend_interface* backend, struct shader* s, u32* out_per_draw_id)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
-    return setup_frequency_state(context, s, SHADER_UPDATE_FREQUENCY_PER_DRAW, config, out_per_draw_id);
+    return setup_frequency_state(context, s, SHADER_UPDATE_FREQUENCY_PER_DRAW, out_per_draw_id);
 }
 
-b8 vulkan_renderer_shader_per_group_resources_release(renderer_backend_interface* backend, shader* s, u32 per_group_id)
+b8 vulkan_renderer_shader_per_group_resources_release(renderer_backend_interface* backend, bshader* s, u32 per_group_id)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
     return release_frequency_state(context, s, SHADER_UPDATE_FREQUENCY_PER_GROUP, per_group_id);
 }
 
-b8 vulkan_renderer_shader_per_draw_resources_release(renderer_backend_interface* backend, shader* s, u32 per_draw_id)
+b8 vulkan_renderer_shader_per_draw_resources_release(renderer_backend_interface* backend, bshader* s, u32 per_draw_id)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
     return release_frequency_state(context, s, SHADER_UPDATE_FREQUENCY_PER_DRAW, per_draw_id);
 }
 
-static b8 sampler_state_try_set(vulkan_uniform_sampler_state* sampler_uniforms, u32 sampler_count, u16 uniform_location, u32 array_index, const void* value)
+static b8 texture_state_try_set(vulkan_uniform_texture_state* texture_uniforms, u32 texture_count, u16 uniform_location, u32 array_index, bhandle value)
 {
-    // Find the sampler uniform state to update
-    for (u32 i = 0; i < sampler_count; ++i)
+    // Find the texture uniform state to update
+    for (u32 i = 0; i < texture_count; ++i)
     {
-        vulkan_uniform_sampler_state* su = &sampler_uniforms[i];
-        if (su->uniform.location == uniform_location)
+        vulkan_uniform_texture_state* texture_state = &texture_uniforms[i];
+        if (texture_state->uniform.location == uniform_location)
         {
-            if (su->uniform.array_length > 1)
+            u32 index = (texture_state->uniform.array_length > 1) ? array_index : 0;
+            if (index >= texture_state->uniform.array_length)
             {
-                if (array_index >= su->uniform.array_length)
-                {
-                    BERROR("vulkan_renderer_uniform_set error: array_index (%u) is out of range (0-%u)", array_index, su->uniform.array_length);
-                    return false;
-                }
-                if (su->uniform_bresource_texture_maps)
-                    su->uniform_bresource_texture_maps[array_index] = (bresource_texture_map*)value;
+                BERROR("vulkan_renderer_uniform_set error: index (%u) is out of range (0-%u)", index, texture_state->uniform.array_length);
+                return false;
             }
-            else
+            if (!texture_state->texture_handles)
             {
-                if (su->uniform_bresource_texture_maps)
-                    su->uniform_bresource_texture_maps[0] = (bresource_texture_map*)value;
+                BFATAL("Textures array not setup. Check implementation");
             }
+            texture_state->texture_handles[array_index] = value;
             return true;
         }
     }
@@ -3054,15 +3206,17 @@ static b8 sampler_state_try_set(vulkan_uniform_sampler_state* sampler_uniforms, 
     return false;
 }
 
-b8 vulkan_renderer_uniform_set(renderer_backend_interface* backend, shader* s, shader_uniform* uniform, u32 array_index, const void* value)
+b8 vulkan_renderer_uniform_set(renderer_backend_interface* backend, bshader* s, shader_uniform* uniform, u32 array_index, const void* value)
 {
     vulkan_shader* internal = s->internal_data;
-    if (uniform_type_is_sampler(uniform->type))
+    if (uniform_type_is_texture(uniform->type))
     {
+        vulkan_shader_frequency_state* frequency_state = 0;
+        u32 uniform_texture_count = 0;
         switch (uniform->frequency) {
         case SHADER_UPDATE_FREQUENCY_PER_FRAME: {
-            vulkan_shader_frequency_state* per_frame_state = &internal->per_frame_state;
-            return sampler_state_try_set(per_frame_state->sampler_states, s->per_frame.uniform_sampler_count, uniform->location, array_index, value);
+            frequency_state = &internal->per_frame_state;
+            uniform_texture_count = s->per_frame.uniform_texture_count;
         }
         case SHADER_UPDATE_FREQUENCY_PER_GROUP: {
             if (s->per_group.bound_id == INVALID_ID)
@@ -3070,8 +3224,8 @@ b8 vulkan_renderer_uniform_set(renderer_backend_interface* backend, shader* s, s
                 BERROR("Trying to set an per_group-level uniform without having bound an per-group first");
                 return false;
             }
-            vulkan_shader_frequency_state* group_state = &internal->group_states[s->per_group.bound_id];
-            return sampler_state_try_set(group_state->sampler_states, s->per_group.uniform_sampler_count, uniform->location, array_index, value);
+            frequency_state = &internal->group_states[s->per_group.bound_id];
+            uniform_texture_count = s->per_group.uniform_texture_count;
         }
         case SHADER_UPDATE_FREQUENCY_PER_DRAW: {
             if (s->per_group.bound_id == INVALID_ID)
@@ -3079,10 +3233,18 @@ b8 vulkan_renderer_uniform_set(renderer_backend_interface* backend, shader* s, s
                 BERROR("Trying to set a per_draw-level uniform without having bound an per-draw id first");
                 return false;
             }
-            vulkan_shader_frequency_state* per_draw_state = &internal->per_draw_states[s->per_group.bound_id];
-            return sampler_state_try_set(per_draw_state->sampler_states, s->per_draw.uniform_sampler_count, uniform->location, array_index, value);
+            frequency_state = &internal->per_draw_states[s->per_draw.bound_id];
+            uniform_texture_count = s->per_draw.uniform_texture_count;
         }
         }
+
+        bresource_texture* tex_value = (bresource_texture*)value;
+        return texture_state_try_set(frequency_state->texture_states, uniform_texture_count, uniform->location, array_index, tex_value->renderer_texture_handle);
+    }
+    else if (uniform_type_is_sampler(uniform->type))
+    {
+        BERROR("vulkan_renderer_uniform_set - cannot set sampler uniform directly");
+        return false;
     }
     else
     {
@@ -3121,29 +3283,7 @@ b8 vulkan_renderer_uniform_set(renderer_backend_interface* backend, shader* s, s
     return true;
 }
 
-static const char* shader_stage_to_string(shader_stage stage)
-{
-    switch (stage)
-    {
-    case SHADER_STAGE_VERTEX:
-        return "vertex";
-        break;
-    case SHADER_STAGE_FRAGMENT:
-        return "fragment";
-        break;
-    case SHADER_STAGE_COMPUTE:
-        return "compute";
-        break;
-    case SHADER_STAGE_GEOMETRY:
-        return "geometry";
-        break;
-    default:
-        return "";
-        break;
-    }
-}
-
-static b8 create_shader_module(vulkan_context* context, shader* s, shader_stage stage, const char* source, const char* filename, vulkan_shader_stage* out_stage)
+static b8 create_shader_module(vulkan_context* context, bshader* s, shader_stage stage, const char* source, const char* filename, vulkan_shader_stage* out_stage)
 {
     shaderc_shader_kind shader_kind;
     VkShaderStageFlagBits vulkan_stage;
@@ -3230,7 +3370,7 @@ static b8 create_shader_module(vulkan_context* context, shader* s, shader_stage 
     // Shader stage info
     bzero_memory(&out_stage->shader_stage_create_info, sizeof(VkPipelineShaderStageCreateInfo));
     out_stage->shader_stage_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    out_stage->shader_stage_create_info.stage = stage;
+    out_stage->shader_stage_create_info.stage = vulkan_stage;
     out_stage->shader_stage_create_info.module = out_stage->handle;
     out_stage->shader_stage_create_info.pName = "main";
 
@@ -4084,7 +4224,7 @@ static void vulkan_pipeline_bind(vulkan_command_buffer* command_buffer, VkPipeli
     vkCmdBindPipeline(command_buffer->handle, bind_point, pipeline->handle);
 }
 
-static b8 setup_frequency_state(vulkan_context* context, shader* s, shader_update_frequency frequency, const shader_texture_resource_config* config, u32* out_frequency_id)
+static b8 setup_frequency_state(vulkan_context* context, bshader* s, shader_update_frequency frequency, u32* out_frequency_id)
 {
     vulkan_shader* internal = s->internal_data;
 
@@ -4095,6 +4235,7 @@ static b8 setup_frequency_state(vulkan_context* context, shader* s, shader_updat
     u32 uniform_texture_count = 0;
     u32 uniform_sampler_count = 0;
     u32* sampler_indices = 0;
+    u32* texture_indices = 0;
     const char* frequency_text = 0;
     b8 do_ubo_setup = false;
     u8 descriptor_set_index = 0;
@@ -4108,12 +4249,13 @@ static b8 setup_frequency_state(vulkan_context* context, shader* s, shader_updat
     {
     case SHADER_UPDATE_FREQUENCY_PER_FRAME:
         // NOTE: treat single entry as an "array" so the same logic below can be used for it as well
-        frequency_states = &internal->per_frame_state;
+        frequency_states = 0;
         max_frequency_count = 1;
         frequency_text = "per-frame";
         uniform_texture_count = s->per_draw.uniform_texture_count;
         uniform_sampler_count = s->per_frame.uniform_sampler_count;
         sampler_indices = s->per_frame.sampler_indices;
+        texture_indices = s->per_frame.texture_indices;
         do_ubo_setup = true;
         descriptor_set_index = 0;
         ubo_stride = s->per_frame.ubo_stride;
@@ -4125,6 +4267,7 @@ static b8 setup_frequency_state(vulkan_context* context, shader* s, shader_updat
         uniform_texture_count = s->per_group.uniform_texture_count;
         uniform_sampler_count = s->per_group.uniform_sampler_count;
         sampler_indices = s->per_group.sampler_indices;
+        texture_indices = s->per_group.texture_indices;
         do_ubo_setup = true;
         descriptor_set_index = has_per_frame ? 1 : 0;
         ubo_stride = s->per_group.ubo_stride;
@@ -4137,6 +4280,7 @@ static b8 setup_frequency_state(vulkan_context* context, shader* s, shader_updat
         uniform_texture_count = s->per_draw.uniform_texture_count;
         uniform_sampler_count = s->per_draw.uniform_sampler_count;
         sampler_indices = s->per_draw.sampler_indices;
+        texture_indices = s->per_draw.texture_indices;
         do_ubo_setup = false;
         descriptor_set_index += has_per_frame ? 1 : 0;
         descriptor_set_index += has_group ? 1 : 0;
@@ -4146,8 +4290,7 @@ static b8 setup_frequency_state(vulkan_context* context, shader* s, shader_updat
 
     if (frequency != SHADER_UPDATE_FREQUENCY_PER_FRAME)
     {
-        // TODO: get global state
-        frequency_state = 0;
+        frequency_state = &internal->per_frame_state;
     }
     else
     {
@@ -4172,9 +4315,8 @@ static b8 setup_frequency_state(vulkan_context* context, shader* s, shader_updat
 
     const bresource_texture* default_bresource_texture = texture_system_get_default_bresource_texture(engine_systems_get()->texture_system);
 
-    // Map texture maps in the config to the correct uniforms
-    // Only setup if the shader actually requires it
-    if (config && uniform_texture_count > 0)
+    // Setup sampler uniform states. Only setup if the shader actually requires it
+    if (uniform_sampler_count > 0)
     {
         frequency_state->sampler_states = BALLOC_TYPE_CARRAY(vulkan_uniform_sampler_state, uniform_sampler_count);
 
@@ -4184,22 +4326,16 @@ static b8 setup_frequency_state(vulkan_context* context, shader* s, shader_updat
             vulkan_uniform_sampler_state* sampler_state = &frequency_state->sampler_states[ii];
             sampler_state->uniform = s->uniforms[sampler_indices[ii]];
 
-            // Grab the uniform texture config as well
-            shader_frequency_uniform_texture_config* tc = &config->uniform_configs[ii];
-
             u32 array_length = BMAX(sampler_state->uniform.array_length, 1);
-            // Setup the array for the sampler texture maps
-            sampler_state->uniform_bresource_texture_maps = BALLOC_TYPE_CARRAY(bresource_texture_map*, array_length);
+            // Setup the array for the samplers
+            sampler_state->sampler_handles = BALLOC_TYPE_CARRAY(bhandle, array_length);
             // Setup descriptor states
             sampler_state->descriptor_states = BALLOC_TYPE_CARRAY(vulkan_descriptor_state, array_length);
             // Per descriptor
             for (u32 d = 0; d < array_length; ++d)
             {
-                sampler_state->uniform_bresource_texture_maps[d] = tc->bresource_texture_maps[d];
-                // Make sure it has a texture map assigned. Use default if not
-                // FIXME: This check should be done by the texture system, not here
-                if (!sampler_state->uniform_bresource_texture_maps[d]->texture)
-                    sampler_state->uniform_bresource_texture_maps[d]->texture = default_bresource_texture;
+                // TODO: use a default sampler
+                sampler_state->sampler_handles[d] = tc->bresource_texture_maps[d];
 
                 sampler_state->descriptor_states[d].generations = BALLOC_TYPE_CARRAY(u8, image_count);
                 sampler_state->descriptor_states[d].ids = BALLOC_TYPE_CARRAY(u32, image_count);
@@ -4210,6 +4346,42 @@ static b8 setup_frequency_state(vulkan_context* context, shader* s, shader_updat
                     sampler_state->descriptor_states[d].generations[j] = INVALID_ID_U8;
                     sampler_state->descriptor_states[d].ids[j] = INVALID_ID;
                     sampler_state->descriptor_states[d].frame_numbers[j] = INVALID_ID_U64;
+                }
+            }
+        }
+    }
+
+    // Setup texture uniform states. Only setup if the shader actually requires it
+    if (uniform_texture_count > 0)
+    {
+        frequency_state->texture_states = BALLOC_TYPE_CARRAY(vulkan_uniform_texture_state, uniform_texture_count);
+
+        // Assign uniforms to each of the texture states
+        for (u32 ii = 0; ii < uniform_texture_count; ++ii)
+        {
+            vulkan_uniform_texture_state* texture_state = &frequency_state->texture_states[ii];
+            texture_state->uniform = s->uniforms[texture_indices[ii]];
+
+            u32 array_length = BMAX(texture_state->uniform.array_length, 1);
+            // Setup the array for the textures
+            texture_state->texture_handles = BALLOC_TYPE_CARRAY(bhandle, array_length);
+            // Setup descriptor states
+            texture_state->descriptor_states = BALLOC_TYPE_CARRAY(vulkan_descriptor_state, array_length);
+            // Per descriptor
+            for (u32 d = 0; d < array_length; ++d)
+            {
+                // TODO: get default textures
+                texture_state->texture_handles[d] = tc->kresource_texture_maps[d];
+
+                texture_state->descriptor_states[d].generations = BALLOC_TYPE_CARRAY(u8, image_count);
+                texture_state->descriptor_states[d].ids = BALLOC_TYPE_CARRAY(u32, image_count);
+                texture_state->descriptor_states[d].frame_numbers = BALLOC_TYPE_CARRAY(u64, image_count);
+                // Per swapchain image
+                for (u32 j = 0; j < image_count; ++j)
+                {
+                    texture_state->descriptor_states[d].generations[j] = INVALID_ID_U8;
+                    texture_state->descriptor_states[d].ids[j] = INVALID_ID;
+                    texture_state->descriptor_states[d].frame_numbers[j] = INVALID_ID_U64;
                 }
             }
         }
@@ -4292,7 +4464,7 @@ static b8 setup_frequency_state(vulkan_context* context, shader* s, shader_updat
     return final_result;
 }
 
-static b8 release_frequency_state(vulkan_context* context, shader* s, shader_update_frequency frequency, u32 frequency_id)
+static b8 release_frequency_state(vulkan_context* context, bshader* s, shader_update_frequency frequency, u32 frequency_id)
 {
     vulkan_shader* internal = s->internal_data;
 
@@ -4300,20 +4472,25 @@ static b8 release_frequency_state(vulkan_context* context, shader* s, shader_upd
     const char* frequency_text = 0;
     b8 do_ubo_destroy = false;
     u8 uniform_sampler_count = 0;
+    u8 uniform_texture_count = 0;
     u64 ubo_stride = 0;
 
     switch (frequency)
     {
     case SHADER_UPDATE_FREQUENCY_PER_FRAME:
-        // TODO: Convert global operations to also use this
         frequency_text = "per-frame";
-        BERROR("release_frequency_state Does not support per-frame frequency at this time");
+        frequency_state = &internal->per_frame_state;
+        do_ubo_destroy = true;
+        uniform_sampler_count = s->per_frame.uniform_sampler_count;
+        uniform_texture_count = s->per_frame.uniform_texture_count;
+        ubo_stride = s->per_frame.ubo_stride;
         return false;
     case SHADER_UPDATE_FREQUENCY_PER_GROUP:
         frequency_text = "per-group";
         frequency_state = &internal->group_states[frequency_id];
         do_ubo_destroy = true;
         uniform_sampler_count = s->per_group.uniform_sampler_count;
+        uniform_texture_count = s->per_group.uniform_texture_count;
         ubo_stride = s->per_group.ubo_stride;
         break;
     case SHADER_UPDATE_FREQUENCY_PER_DRAW:
@@ -4321,6 +4498,7 @@ static b8 release_frequency_state(vulkan_context* context, shader* s, shader_upd
         frequency_state = &internal->per_draw_states[frequency_id];
         do_ubo_destroy = false;
         uniform_sampler_count = s->per_draw.uniform_sampler_count;
+        uniform_texture_count = s->per_draw.uniform_texture_count;
         ubo_stride = s->per_draw.ubo_stride;
         break;
     }
@@ -4335,6 +4513,7 @@ static b8 release_frequency_state(vulkan_context* context, shader* s, shader_upd
     if (result != VK_SUCCESS)
         BERROR("Error freeing %s shader descriptor sets!", frequency_text);
 
+    // Destroy bindings and their descriptor states/uniforms. UBO, if one exists
     if (do_ubo_destroy)
     {
         // Destroy UBO descriptor state
@@ -4358,7 +4537,7 @@ static b8 release_frequency_state(vulkan_context* context, shader* s, shader_upd
         }
     }
 
-    // Destroy bindings and their descriptor states/uniforms
+    // Samplers
     if (frequency_state->sampler_states)
     {
         for (u32 a = 0; a < uniform_sampler_count; ++a)
@@ -4367,15 +4546,35 @@ static b8 release_frequency_state(vulkan_context* context, shader* s, shader_upd
             u32 array_length = BMAX(sampler_state->uniform.array_length, 1);
             BFREE_TYPE_CARRAY(sampler_state->descriptor_states, vulkan_descriptor_state, array_length);
             sampler_state->descriptor_states = 0;
-            if (sampler_state->uniform_bresource_texture_maps)
+            if (sampler_state->sampler_handles)
             {
-                BFREE_TYPE_CARRAY(sampler_state->uniform_bresource_texture_maps, bresource_texture_map*, array_length);
-                sampler_state->uniform_bresource_texture_maps = 0;
+                BFREE_TYPE_CARRAY(sampler_state->sampler_handles, bhandle, array_length);
+                sampler_state->sampler_handles = 0;
+            }
+        }
+
+        BFREE_TYPE_CARRAY(frequency_state->sampler_states, vulkan_uniform_texture_state, image_count);
+        frequency_state->texture_states = 0;
+    }
+
+    // Textures
+    if (frequency_state->texture_states)
+    {
+        for (u32 a = 0; a < uniform_texture_count; ++a)
+        {
+            vulkan_uniform_texture_state* texture_state = &frequency_state->texture_states[a];
+            u32 array_length = BMAX(texture_state->uniform.array_length, 1);
+            BFREE_TYPE_CARRAY(texture_state->descriptor_states, vulkan_descriptor_state, array_length);
+            texture_state->descriptor_states = 0;
+            if (texture_state->texture_handles)
+            {
+                BFREE_TYPE_CARRAY(texture_state->texture_handles, bhandle, array_length);
+                texture_state->texture_handles = 0;
             }
         }
         
-        BFREE_TYPE_CARRAY(frequency_state->sampler_states, vulkan_uniform_sampler_state, image_count);
-        frequency_state->sampler_states = 0;
+        BFREE_TYPE_CARRAY(frequency_state->texture_states, vulkan_uniform_texture_state, image_count);
+        frequency_state->texture_states = 0;
     }
 
     frequency_state->offset = INVALID_ID;

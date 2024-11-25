@@ -2,7 +2,6 @@
 
 #include "identifiers/bhandle.h"
 #include "bresources/bresource_types.h"
-#include "resources/resource_types.h"
 
 #include <defines.h>
 #include <strings/bname.h>
@@ -42,9 +41,9 @@ typedef struct material_data
 {
     // A unique id used for handle validation
     u64 unique_id;
-    // Multiplied by albedo/diffuse texture. Default: 1,1,1,1 (white)
-    vec4 albedo_color;
-    bresource_texture* albedo_diffuse_texture;
+
+    vec4 base_colour;
+    bresource_texture* base_color_texture;
 
     bresource_texture* normal_texture;
 
@@ -56,15 +55,18 @@ typedef struct material_data
     bresource_texture* roughness_texture;
     texture_channel roughness_texture_channel;
 
+    f32 ao;
     bresource_texture* ao_texture;
     texture_channel ao_texture_channel;
 
+    vec4 emissive;
     bresource_texture* emissive_texture;
     f32 emissive_texture_intensity;
 
     bresource_texture* refraction_texture;
     f32 refraction_scale;
 
+    vec3 mra;
     /**
      * @brief This is a combined texture holding metallic/roughness/ambient occlusion all in one texture.
      * This is a more efficient replacement for using those textures individually. Metallic is sampled
@@ -75,12 +77,6 @@ typedef struct material_data
 
     // Base set of flags for the material. Copied to the material instance when created
     material_flags flags;
-
-    // Texture mode used for all textures on the material
-    material_texture_mode texture_mode;
-
-    // Texture filter used for all textures on the material
-    material_texture_filter texture_filter;
 
     // Added to UV coords of vertex data. Overridden by instance data
     vec3 uv_offset;

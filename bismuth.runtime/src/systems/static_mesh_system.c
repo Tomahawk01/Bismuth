@@ -86,7 +86,7 @@ void static_mesh_system_instance_release(struct static_mesh_system_state* state,
 
     // Release material instances
     for (u32 i = 0; i < instance->mesh_resource->submesh_count; ++i)
-        material_system_release_instance(material_system, &instance->material_instances[i]);
+        material_release_instance(material_system, &instance->material_instances[i]);
 
     // Cleanup the instance itself
     BFREE_TYPE_CARRAY(instance->material_instances, material_instance, instance->mesh_resource->submesh_count);

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "bresources/bresource_types.h"
-#include "renderer/renderer_types.h"
 
 struct texture_system_state;
 
@@ -45,4 +44,4 @@ BAPI const bresource_texture* texture_system_get_default_bresource_combined_text
 BAPI const bresource_texture* texture_system_get_default_bresource_cube_texture(struct texture_system_state* state);
 BAPI const bresource_texture* texture_system_get_default_bresource_terrain_texture(struct texture_system_state* state);
 
-BAPI struct texture_internal_data* texture_system_resource_get_internal_or_default(const bresource_texture* t, u32* out_generation);
+BAPI bhandle texture_system_resource_get_internal_or_default(const bresource_texture* t, u32* out_generation);

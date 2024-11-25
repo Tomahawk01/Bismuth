@@ -1,6 +1,5 @@
 #include "render_type_utils.h"
 
-#include "assets/basset_types.h"
 #include "core_render_types.h"
 #include "debug/bassert.h"
 #include "logger.h"
@@ -129,6 +128,8 @@ const char* shader_stage_to_string(shader_stage stage)
         return "fragment";
     case SHADER_STAGE_COMPUTE:
         return "compute";
+    default:
+        return "";
     }
 }
 
@@ -340,85 +341,5 @@ shader_update_frequency string_to_shader_scope(const char* str)
     {
         BERROR("Unknown shader scope '%s'. Defaulting to per-frame", str);
         return SHADER_UPDATE_FREQUENCY_PER_FRAME;
-    }
-}
-
-const char* bmaterial_type_to_string(bmaterial_type type)
-{
-    switch (type)
-    {
-    case BMATERIAL_TYPE_PBR:
-        return "pbr";
-    case BMATERIAL_TYPE_PBR_WATER:
-        return "pbr_water";
-    case BMATERIAL_TYPE_UNLIT:
-        return "unlit";
-    case BMATERIAL_TYPE_CUSTOM:
-        return "custom";
-    default:
-        BASSERT_MSG(false, "Unrecognized material type");
-        return "unlit";
-    }
-}
-
-bmaterial_type string_to_bmaterial_type(const char* str)
-{
-    if (strings_equali(str, "pbr")) {
-        return BMATERIAL_TYPE_PBR;
-    }
-    else if (strings_equali(str, "pbr_water")) {
-        return BMATERIAL_TYPE_PBR_WATER;
-    }
-    else if (strings_equali(str, "unlit")) {
-        return BMATERIAL_TYPE_UNLIT;
-    }
-    else if (strings_equali(str, "custom")) {
-        return BMATERIAL_TYPE_CUSTOM;
-    }
-    else
-    {
-        BASSERT_MSG(false, "Unrecognized material type");
-        return BMATERIAL_TYPE_UNLIT;
-    }
-}
-
-const char* material_map_channel_to_string(basset_material_texture_map_channel channel)
-{
-    switch (channel)
-    {
-    case BASSET_MATERIAL_TEXTURE_MAP_CHANNEL_R:
-        return "r";
-    case BASSET_MATERIAL_TEXTURE_MAP_CHANNEL_G:
-        return "g";
-    case BASSET_MATERIAL_TEXTURE_MAP_CHANNEL_B:
-        return "b";
-    case BASSET_MATERIAL_TEXTURE_MAP_CHANNEL_A:
-        return "a";
-    default:
-    }
-}
-
-basset_material_texture_map_channel string_to_material_map_channel(const char* str)
-{
-    if (strings_equali(str, "r"))
-    {
-        return BASSET_MATERIAL_TEXTURE_MAP_CHANNEL_R;
-    }
-    else if (strings_equali(str, "g"))
-    {
-        return BASSET_MATERIAL_TEXTURE_MAP_CHANNEL_G;
-    }
-    else if (strings_equali(str, "b"))
-    {
-        return BASSET_MATERIAL_TEXTURE_MAP_CHANNEL_B;
-    }
-    else if (strings_equali(str, "a"))
-    {
-        return BASSET_MATERIAL_TEXTURE_MAP_CHANNEL_A;
-    }
-    else
-    {
-        BASSERT_MSG(false, "Texture map channel not supported");
-        return BASSET_MATERIAL_TEXTURE_MAP_CHANNEL_R;
     }
 }

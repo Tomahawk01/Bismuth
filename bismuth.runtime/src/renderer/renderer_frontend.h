@@ -73,7 +73,6 @@ BAPI void renderer_set_stencil_write_mask(u32 write_mask);
 
 BAPI b8 renderer_bresource_texture_resources_acquire(struct renderer_system_state* state, bname name, bresource_texture_type type, u32 width, u32 height, u8 channel_count, u8 mip_levels, u16 array_size, bresource_texture_flag_bits flags, bhandle* out_renderer_texture_handle);
 BAPI void renderer_texture_resources_release(struct renderer_system_state* state, bhandle* handle);
-BAPI struct texture_internal_data* renderer_texture_resources_get(struct renderer_system_state* state, bhandle renderer_texture_handle);
 
 BAPI b8 renderer_texture_resize(struct renderer_system_state* state, bhandle renderer_texture_handle, u32 new_width, u32 new_height);
 BAPI b8 renderer_texture_write_data(struct renderer_system_state* state, bhandle renderer_texture_handle, u32 offset, u32 size, const u8* pixels);
@@ -106,28 +105,27 @@ BAPI b8 renderer_clear_depth_stencil(struct renderer_system_state* state, bhandl
 BAPI void renderer_color_texture_prepare_for_present(struct renderer_system_state* state, bhandle texture_handle);
 BAPI void renderer_texture_prepare_for_sampling(struct renderer_system_state* state, bhandle texture_handle, texture_flag_bits flags);
 
-BAPI b8 renderer_shader_create(struct renderer_system_state* state, struct shader* s, const shader_config* config);
-BAPI void renderer_shader_destroy(struct renderer_system_state* state, struct shader* s);
+BAPI b8 renderer_shader_create(struct renderer_system_state* state, bhandle shader, const shader_config* config);
+BAPI void renderer_shader_destroy(struct renderer_system_state* state, bhandle shader);
 
-BAPI b8 renderer_shader_initialize(struct renderer_system_state* state, struct shader* s);
-BAPI b8 renderer_shader_reload(struct renderer_system_state* state, struct shader* s);
+BAPI b8 renderer_shader_initialize(struct renderer_system_state* state, bhandle shader);
+BAPI b8 renderer_shader_reload(struct renderer_system_state* state, bhandle shader);
 
-BAPI b8 renderer_shader_use(struct renderer_system_state* state, struct shader* s);
+BAPI b8 renderer_shader_use(struct renderer_system_state* state, struct bhandle shader);
 
-BAPI b8 renderer_shader_set_wireframe(struct renderer_system_state* state, struct shader* s, b8 wireframe_enabled);
+BAPI b8 renderer_shader_set_wireframe(struct renderer_system_state* state, bhandle shader, b8 wireframe_enabled);
 
-BAPI b8 renderer_shader_apply_per_frame(struct renderer_system_state* state, struct shader* s);
+BAPI b8 renderer_shader_apply_per_frame(struct renderer_system_state* state, bhandle shader);
+BAPI b8 renderer_shader_apply_per_group(struct renderer_system_state* state, bhandle shader);
+BAPI b8 renderer_shader_apply_per_draw(struct renderer_system_state* state, bhandle shader);
 
-BAPI b8 renderer_shader_apply_per_group(struct renderer_system_state* state, struct shader* s);
-BAPI b8 renderer_shader_apply_per_draw(struct renderer_system_state* state, struct shader* s);
+BAPI b8 renderer_shader_per_group_resources_acquire(struct renderer_system_state* state, bhandle shader, u32* out_group_id);
+BAPI b8 renderer_shader_per_group_resources_release(struct renderer_system_state* state, bhandle shader, u32 group_id);
 
-BAPI b8 renderer_shader_per_group_resources_acquire(struct renderer_system_state* state, struct shader* s, const shader_texture_resource_config* config, u32* out_group_id);
-BAPI b8 renderer_shader_per_group_resources_release(struct renderer_system_state* state, struct shader* s, u32 group_id);
+BAPI b8 renderer_shader_per_draw_resources_acquire(struct renderer_system_state* state, bhandle shader, u32* out_draw_id);
+BAPI b8 renderer_shader_per_draw_resources_release(struct renderer_system_state* state, bhandle shader, u32 draw_id);
 
-BAPI b8 renderer_shader_per_draw_resources_acquire(struct renderer_system_state* state, struct shader* s, const shader_texture_resource_config* config, u32* out_draw_id);
-BAPI b8 renderer_shader_per_draw_resources_release(struct renderer_system_state* state, struct shader* s, u32 draw_id);
-
-BAPI b8 renderer_shader_uniform_set(struct renderer_system_state* state, struct shader* s, struct shader_uniform* uniform, u32 array_index, const void* value);
+BAPI b8 renderer_shader_uniform_set(struct renderer_system_state* state, bhandle shader, struct shader_uniform* uniform, u32 array_index, const void* value);
 
 BAPI bhandle renderer_generic_sampler_get(struct renderer_system_state* state, shader_generic_sampler sampler);
 

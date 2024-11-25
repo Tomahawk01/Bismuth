@@ -182,19 +182,20 @@ typedef u32 shader_flag_bits;
 /** @brief Represents data required for a particular update frequency within a shader */
 typedef struct shader_frequency_data
 {
-    /** @brief The number of texture uniforms for this frequency */
-    u8 uniform_texture_count;
     /** @brief The number of non-sampler and non-texture uniforms for this frequency */
     u8 uniform_count;
     /** @brief The number of sampler uniforms for this frequency */
     u8 uniform_sampler_count;
     /** @brief darray. Keeps the uniform indices of samplers for fast lookups */
     u32* sampler_indices;
+    /** @brief The number of texture uniforms for this frequency */
+    u8 uniform_texture_count;
+    /** @brief darray. Keeps the uniform indices of textures for fast lookups */
+    u32* texture_indices;
     /** @brief The actual size of the uniform buffer object for this frequency */
     u64 ubo_size;
     /** @brief The stride of the uniform buffer object for this frequency */
     u64 ubo_stride;
-
     /** @brief The offset in bytes for the UBO from the beginning of the uniform buffer for this frequency */
     u64 ubo_offset;
 
@@ -291,12 +292,12 @@ typedef struct shader_config
 } shader_config;
 
 /** @brief Represents a shader on the frontend */
-typedef struct shader
+typedef struct bshader
 {
-    /** @brief The shader identifier */
-    u32 id;
+    /** @brief Unique identifier that is compared against a handle */
+    u64 uniqueid;
 
-    char* name;
+    bname name;
 
     shader_flag_bits flags;
 
@@ -339,4 +340,42 @@ typedef struct shader
 #ifdef _DEBUG
     u32* module_watch_ids;
 #endif
-} shader;
+} bshader;
+
+typedef enum bmaterial_type
+{
+    BMATERIAL_TYPE_UNKNOWN = 0,
+    BMATERIAL_TYPE_STANDARD,
+    BMATERIAL_TYPE_WATER,
+    BMATERIAL_TYPE_BLENDED,
+    BMATERIAL_TYPE_COUNT,
+    BMATERIAL_TYPE_CUSTOM = 99
+} bmaterial_type;
+
+typedef enum bmaterial_model
+{
+    BMATERIAL_MODEL_UNLIT = 0,
+    BMATERIAL_MODEL_PBR,
+    BMATERIAL_MODEL_PHONG,
+    BMATERIAL_MODEL_COUNT,
+    BMATERIAL_MODEL_CUSTOM = 99
+} bmaterial_model;
+
+typedef enum bmaterial_texture_map
+{
+    BMATERIAL_TEXTURE_MAP_BASE_COLOR,
+    BMATERIAL_TEXTURE_MAP_NORMAL,
+    BMATERIAL_TEXTURE_MAP_METALLIC,
+    BMATERIAL_TEXTURE_MAP_ROUGHNESS,
+    BMATERIAL_TEXTURE_MAP_AO,
+    BMATERIAL_TEXTURE_MAP_MRA,
+    BMATERIAL_TEXTURE_MAP_EMISSIVE,
+} bmaterial_texture_map;
+
+typedef enum bmaterial_texture_map_channel
+{
+    BMATERIAL_TEXTURE_MAP_CHANNEL_R = 0,
+    BMATERIAL_TEXTURE_MAP_CHANNEL_G = 1,
+    BMATERIAL_TEXTURE_MAP_CHANNEL_B = 2,
+    BMATERIAL_TEXTURE_MAP_CHANNEL_A = 3
+} bmaterial_texture_map_channel;

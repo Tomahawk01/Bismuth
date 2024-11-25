@@ -5,6 +5,7 @@
 #include <strings/bname.h>
 
 #include "assets/basset_types.h"
+#include "core_render_types.h"
 #include "identifiers/bhandle.h"
 #include "math/geometry.h"
 
@@ -204,32 +205,6 @@ typedef struct bresource_texture_request_info
     b8 flip_y;
 } bresource_texture_request_info;
 
-typedef struct bresource_texture_map
-{
-    /**
-     * @brief Cached generation of the assigned texture.
-     * Used to determine when to regenerate this texture map's resources when a texture's generation changes
-     */
-    u32 generation;
-    /** @brief Cached mip map levels. Should match assigned texture. Must always be at least 1 */
-    u32 mip_levels;
-    /** @brief A constant pointer to a texture resource */
-    const bresource_texture* texture;
-    /** @brief Texture filtering mode for minification */
-    texture_filter filter_minify;
-    /** @brief Texture filtering mode for magnification */
-    texture_filter filter_magnify;
-    /** @brief The repeat mode on the U axis (or X, or S) */
-    texture_repeat repeat_u;
-    /** @brief The repeat mode on the V axis (or Y, or T) */
-    texture_repeat repeat_v;
-    /** @brief The repeat mode on the W axis (or Z, or U) */
-    texture_repeat repeat_w;
-    /** @brief An identifier used for internal resource lookups/management */
-    // TODO: handle?
-    u32 internal_id;
-} bresource_texture_map;
-
 typedef enum texture_channel
 {
     TEXTURE_CHANNEL_R,
@@ -267,13 +242,60 @@ typedef enum material_flag_bits
     MATERIAL_FLAG_AO_ENABLED_BIT = 0x0020,
     // Material emissive map is enabled. Emissive map is ignored if not set
     MATERIAL_FLAG_EMISSIVE_ENABLED_BIT = 0x0040,
+    // Material combined MRA (metallic/roughness/ao) map is enabled. MRA map is ignored if not set
+    MATERIAL_FLAG_MRA_ENABLED_BIT = 0x0080,
     // Material refraction map is enabled. Refraction map is ignored if not set
-    MATERIAL_FLAG_REFRACTION_ENABLED_BIT = 0x0080,
-    // Material uses vertex color data as the albedo color
-    MATERIAL_FLAG_USE_VERTEX_COLOR_AS_ALBEDO = 0x0100
+    MATERIAL_FLAG_REFRACTION_ENABLED_BIT = 0x0100,
+    // Material uses vertex color data as the base color
+    MATERIAL_FLAG_USE_VERTEX_COLOR_AS_BASE_COLOR = 0x0200
 } material_flag_bits;
 
 typedef u32 material_flags;
+
+typedef enum bresource_material_type
+{
+    BRESOURCE_MATERIAL_TYPE_UNKNOWN = 0,
+    BRESOURCE_MATERIAL_TYPE_STANDARD,
+    BRESOURCE_MATERIAL_TYPE_WATER,
+    BRESOURCE_MATERIAL_TYPE_BLENDED,
+    BRESOURCE_MATERIAL_TYPE_COUNT,
+    BRESOURCE_MATERIAL_TYPE_CUSTOM = 99
+} bresource_material_type;
+
+typedef enum bresource_material_model
+{
+    BRESOURCE_MATERIAL_MODEL_UNLIT = 0,
+    BRESOURCE_MATERIAL_MODEL_PBR,
+    BRESOURCE_MATERIAL_MODEL_PHONG,
+    BRESOURCE_MATERIAL_MODEL_COUNT,
+    BRESOURCE_MATERIAL_MODEL_CUSTOM = 99
+} bresource_material_model;
+
+typedef enum bresource_material_texture_map_channel
+{
+    BRESOURCE_MATERIAL_TEXTURE_MAP_CHANNEL_R = 0,
+    BRESOURCE_MATERIAL_TEXTURE_MAP_CHANNEL_G = 1,
+    BRESOURCE_MATERIAL_TEXTURE_MAP_CHANNEL_B = 2,
+    BRESOURCE_MATERIAL_TEXTURE_MAP_CHANNEL_A = 3
+} bresource_material_texture_map_channel;
+
+typedef struct bresource_material_texture
+{
+    bname resource_name;
+    bname package_name;
+    bname sampler_name;
+    bresource_material_texture_map_channel channel;
+} bresource_material_texture;
+
+typedef struct bresource_material_sampler
+{
+    bname name;
+    texture_filter filter_min;
+    texture_filter filter_mag;
+    texture_repeat repeat_u;
+    texture_repeat repeat_v;
+    texture_repeat repeat_w;
+} bresource_material_sampler;
 
 /**
  * @brief A bresource_material is a configuration of a material to hand off to the material system.
@@ -283,36 +305,51 @@ typedef struct bresource_material
 {
     bresource base;
     
-    // Albedo color. Default: 1,1,1,1 (white)
-    vec4 albedo_color;
-    // Name of the albedo/diffuse texture
-    bname albedo_diffuse_name;
-    // Name of the normal texture
-    bname normal_name;
-    f32 metallic;
-    // Name of the metallic texture
-    bname metallic_name;
-    texture_channel metallic_texture_channel;
-    f32 roughness;
-    // Name of the roughness texture
-    bname roughness_name;
-    texture_channel roughness_texture_channel;
-    // Name of the ambient occlusion texture
-    bname ao_name;
-    texture_channel ao_texture_channel;
-    // Name of the emissive texture
-    bname emissive_name;
-    f32 emissive_intensity;
-    // Name of the refraction texture
-    bname refraction_name;
-    f32 refraction_scale;
-    // Name of the "combined" metallic/roughness/ao texture
-    bname mra_name;
-    
-    material_flags flags;
+    bresource_material_type type;
+    // Shading model
+    bresource_material_model model;
 
-    material_texture_mode texture_mode;
-    material_texture_filter texture_filter;
+    b8 has_transparency;
+    b8 double_sided;
+    b8 recieves_shadow;
+    b8 casts_shadow;
+    b8 use_vertex_color_as_base_color;
+
+    // The asset name for a custom shader. Optional
+    bname custom_shader_name;
+
+    vec4 base_color;
+    bresource_material_texture base_color_map;
+
+    b8 normal_enabled;
+    vec3 normal;
+    bresource_material_texture normal_map;
+
+    f32 metallic;
+    bresource_material_texture metallic_map;
+    bresource_material_texture_map_channel metallic_map_source_channel;
+
+    f32 roughness;
+    bresource_material_texture roughness_map;
+    bresource_material_texture_map_channel roughness_map_source_channel;
+
+    b8 ambient_occlusion_enabled;
+    f32 ambient_occlusion;
+    bresource_material_texture ambient_occlusion_map;
+    bresource_material_texture_map_channel ambient_occlusion_map_source_channel;
+
+    // Combined metallic/roughness/ao value
+    vec3 mra;
+    bresource_material_texture mra_map;
+    // Indicates if the mra combined value/map should be used instead of the separate ones
+    b8 use_mra;
+
+    b8 emissive_enabled;
+    vec4 emissive;
+    bresource_material_texture emissive_map;
+    
+    u32 custom_sampler_count;
+    bresource_material_sampler* custom_samplers;
 } bresource_material;
 
 typedef struct bresource_material_request_info

@@ -1,10 +1,8 @@
 #pragma once
 
-#include "containers/hashtable.h"
 #include "core_render_types.h"
 #include "defines.h"
-#include "renderer/renderer_types.h"
-#include "resources/resource_types.h"
+#include "bresources/bresource_types.h"
 
 typedef struct shader_system_config
 {
@@ -42,125 +40,124 @@ void shader_system_shutdown(void* state);
  * 
  * @param pass Pointer to the renderpass to be used with this shader.
  * @param config The configuration to be used when creating the shader.
- * @return True on success; otherwise false.
+ * @return A handle to the created shader, or invalid handle on failure
  */
-BAPI b8 shader_system_create(const shader_config* config);
+BAPI bhandle shader_system_create(const shader_config* config);
 
 /**
  * @brief Reloads the given shader
  *
- * @param shader_id The id of the shader to reload
+ * @param shader A handle to the shader to reload
  * @return True on success; otherwise false
  */
-BAPI b8 shader_system_reload(u32 shader_id);
+BAPI b8 shader_system_reload(bhandle shader);
 
 /**
- * @brief Gets the identifier of a shader by name.
+ * @brief Returns a handle to a shader with the given name.
+ * Attempts to load the shader if not already loaded
  * 
- * @param shader_name The name of the shader.
- * @return The shader id, if found; otherwise INVALID_ID.
+ * @param shader_name The bname to search for
+ * @return A handle to a shader, if found/loaded; otherwise 0.
  */
-BAPI u32 shader_system_get_id(const char* shader_name);
+BAPI bshader shader_system_get(bname name);
 
 /**
- * @brief Returns a pointer to a shader with the given identifier.
+ * @brief Attempts to destroy the shader with the given handle
  * 
- * @param shader_id The shader identifier.
- * @return A pointer to a shader, if found; otherwise 0.
+ * @param shader_name A handle to the shader to destroy
  */
-BAPI shader* shader_system_get_by_id(u32 shader_id);
+BAPI void shader_system_destroy(bhandle shader);
 
 /**
- * @brief Returns a pointer to a shader with the given name.
- * Attempts to load the shader if not already loaded.
+ * @brief Attempts to set wireframe mode on the given shader. If the renderer backend, or the shader
+ * does not support this , it will fail when attempting to enable. Disabling will always succeed.
  * 
- * @param shader_id The id of the shader to set wireframe mode for
- * @return A pointer to a shader, if found/loaded; otherwise 0.
+ * @param shader A handle to the shader to set wireframe mode for
+ * @param wireframe_enabled Indicates if wireframe mode should be enabled
+ * @return True on success; otherwise false
  */
-BAPI shader* shader_system_get(const char* shader_name);
-
-BAPI b8 shader_system_set_wireframe(u32 shader_id, b8 wireframe_enabled);
+BAPI b8 shader_system_set_wireframe(bhandle shader, b8 wireframe_enabled);
 
 /**
- * @brief Uses the shader with the given identifier.
+ * @brief Uses the shader with the given handle
  * 
- * @param shader_id The identifier of the shader to be used.
- * @return True on success; otherwise false.
+ * @param shader A handle to the shader to be used
+ * @return True on success; otherwise false
  */
-BAPI b8 shader_system_use_by_id(u32 shader_id);
+BAPI b8 shader_system_use(bhandle shader);
 
 /**
  * @brief Returns the uniform location for a uniform with the given name, if found.
  * 
- * @param shader_id The id of the shader to obtain the location from
+ * @param shader A handle to the shader to obtain the location from
  * @param uniform_name The name of the uniform to search for.
  * @return The uniform location, if found; otherwise INVALID_ID_U16.
  */
-BAPI u16 shader_system_uniform_location(u32 shader_id, const char* uniform_name);
+BAPI u16 shader_system_uniform_location(bhandle shader, bname uniform_name);
 
 /**
  * @brief Sets the value of a uniform with the given name to the supplied value.
  * 
- * @param shader_id The identifier of the shader to update.
+ * @param shader A handle to the shader to update.
  * @param uniform_name The name of the uniform to be set.
  * @param value The value to be set.
  * @return True on success; otherwise false.
  */
-BAPI b8 shader_system_uniform_set(u32 shader_id, const char* uniform_name, const void* value);
+BAPI b8 shader_system_uniform_set(bhandle shader, bname uniform_name, const void* value);
 
 /**
  * @brief Sets the value of an arrayed uniform with the given name to the supplied value.
  *
- * @param shader_id The identifier of the shader to update.
+ * @param shader A handle to the shader to update.
  * @param uniform_name The name of the uniform to be set.
  * @param array_index The index into the uniform array, if the uniform is in fact an array. Otherwise ignored.
  * @param value The value to be set.
  * @return True on success; otherwise false.
  */
-BAPI b8 shader_system_uniform_set_arrayed(u32 shader_id, const char* uniform_name, u32 array_index, const void* value);
+BAPI b8 shader_system_uniform_set_arrayed(bhandle shader, bname uniform_name, u32 array_index, const void* value);
 
 /**
- * @brief Sets the texture of a sampler with the given name to the supplied texture.
+ * @brief Sets the texture uniform with the given name to the supplied texture.
  * 
- * @param shader_id The identifier of the shader to update.
+ * @param shader A handle to the shader to update.
  * @param uniform_name The name of the uniform to be set.
  * @param t A pointer to the texture to be set.
  * @return True on success; otherwise false.
  */
-BAPI b8 shader_system_sampler_set(u32 shader_id, const char* sampler_name, const bresource_texture* t);
+BAPI b8 shader_system_texture_set(bhandle shader, bname sampler_name, const bresource_texture* t);
 
 /**
- * @brief Sets the texture of an arrayed sampler with the given name to the supplied texture.
+ * @brief Sets the arrayed texture uniform with the given name to the supplied texture at the given index
  *
- * @param shader_id The identifier of the shader to update.
+ * @param shader A handle to the shader to update.
  * @param uniform_name The name of the uniform to be set.
  * @param array_index The index into the uniform array, if the uniform is in fact an array. Otherwise ignored.
  * @param t A pointer to the texture to be set.
  * @return True on success; otherwise false.
  */
-BAPI b8 shader_system_sampler_set_arrayed(u32 shader_id, const char* sampler_name, u32 array_index, const bresource_texture* t);
+BAPI b8 shader_system_texture_set_arrayed(bhandle shader, bname sampler_name, u32 array_index, const bresource_texture* t);
 
 /**
- * @brief Sets a uniform value by location.
+ * @brief Sets a uniform value by location
  *
- * @param shader_id The identifier of the shader to update.
- * @param index The location of the uniform.
- * @param value The value of the uniform.
- * @return True on success; otherwise false.
+ * @param shader A handle to the shader to update
+ * @param index The location of the uniform
+ * @param value The value of the uniform
+ * @return True on success; otherwise false
  */
-BAPI b8 shader_system_uniform_set_by_location(u32 shader_id, u16 location, const void* value);
-BAPI b8 shader_system_uniform_set_by_location_arrayed(u32 shader_id, u16 location, u32 array_index, const void* value);
+BAPI b8 shader_system_uniform_set_by_location(bhandle shader, u16 location, const void* value);
+BAPI b8 shader_system_uniform_set_by_location_arrayed(bhandle shader, u16 location, u32 array_index, const void* value);
 
-BAPI b8 shader_system_sampler_set_by_location(u32 shader_id, u16 location, const struct bresource_texture* t);
-BAPI b8 shader_system_sampler_set_by_location_arrayed(u32 shader_id, u16 location, u32 array_index, const struct bresource_texture* t);
+BAPI b8 shader_system_sampler_set_by_location(bhandle shader, u16 location, const struct bresource_texture* t);
+BAPI b8 shader_system_sampler_set_by_location_arrayed(bhandle shader, u16 location, u32 array_index, const struct bresource_texture* t);
 
-BAPI b8 shader_system_bind_group(u32 shader_id, u32 instance_id);
-BAPI b8 shader_system_bind_draw_id(u32 shader_id, u32 local_id);
-BAPI b8 shader_system_apply_per_frame(u32 shader_id);
-BAPI b8 shader_system_apply_per_group(u32 shader_id);
-BAPI b8 shader_system_apply_per_draw(u32 shader_id);
+BAPI b8 shader_system_bind_group(bhandle shader, u32 instance_id);
+BAPI b8 shader_system_bind_draw_id(bhandle shader, u32 local_id);
+BAPI b8 shader_system_apply_per_frame(bhandle shader);
+BAPI b8 shader_system_apply_per_group(bhandle shader);
+BAPI b8 shader_system_apply_per_draw(bhandle shader);
 
-BAPI b8 shader_system_shader_group_acquire(u32 shader_id, u32 map_count, bresource_texture_map** maps, u32* out_group_id);
-BAPI b8 shader_system_shader_group_release(u32 shader_id, u32 instance_id, u32 map_count, bresource_texture_map* maps);
-BAPI b8 shader_system_shader_per_draw_acquire(u32 shader_id, u32 map_count, bresource_texture_map** maps, u32* out_per_draw_id);
-BAPI b8 shader_system_shader_per_draw_release(u32 shader_id, u32 per_draw_id, u32 map_count, bresource_texture_map* maps);
+BAPI b8 shader_system_shader_group_acquire(bhandle shader, u32* out_group_id);
+BAPI b8 shader_system_shader_group_release(bhandle shader, u32 instance_id);
+BAPI b8 shader_system_shader_per_draw_acquire(bhandle shader, u32* out_per_draw_id);
+BAPI b8 shader_system_shader_per_draw_release(bhandle shader, u32 per_draw_id);
