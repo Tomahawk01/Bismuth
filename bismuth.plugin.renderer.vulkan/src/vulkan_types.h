@@ -248,7 +248,6 @@ typedef struct vulkan_descriptor_set_config
 {
     u8 binding_count;
     VkDescriptorSetLayoutBinding* bindings;
-    u8 sampler_binding_index_start;
 } vulkan_descriptor_set_config;
 
 typedef struct vulkan_descriptor_state
@@ -295,8 +294,35 @@ typedef struct vulkan_shader_frequency_state
     vulkan_uniform_texture_state* texture_states;
 } vulkan_shader_frequency_state;
 
+/** @brief Contains vulkan shader frequency specific info for UBOs */
+typedef struct vulkan_shader_frequency_info
+{
+    /** @brief The actual size of the uniform buffer object for this frequency */
+    u64 ubo_size;
+    /** @brief The stride of the uniform buffer object for this frequency */
+    u64 ubo_stride;
+    /** @brief The offset in bytes for the UBO from the beginning of the uniform buffer for this frequency */
+    u64 ubo_offset;
+
+    /** @brief The number of non-sampler and non-texture uniforms for this frequency */
+    u8 uniform_count;
+    /** @brief The number of sampler uniforms for this frequency */
+    u8 uniform_sampler_count;
+    /** @brief Darray. Keeps the uniform indices of samplers for fast lookups */
+    u32* sampler_indices;
+    /** @brief The number of texture uniforms for this frequency */
+    u8 uniform_texture_count;
+    /** @brief Darray. Keeps the uniform indices of textures for fast lookups */
+    u32* texture_indices;
+
+    /** @brief The currently-bound id for this frequency */
+    u32 bound_id;
+} vulkan_shader_frequency_info;
+
 typedef struct vulkan_shader
 {
+    // The name of the shader (mostly kept for debugging purposes)
+    bname name;
     /** @brief The block of memory mapped to the each per-swapchain-image uniform buffer */
     void** mapped_uniform_buffer_blocks;
     /** @brief The block of memory used for push constants, 128B */
@@ -309,10 +335,24 @@ typedef struct vulkan_shader
     u8 descriptor_set_count;
     /** @brief Descriptor sets, max of 3. Index 0=per_frame, 1=per_group, 2=per_draw */
     vulkan_descriptor_set_config descriptor_sets[3];
-
+    
+    /** @brief The number of vertex attributes in the shader */
+    u8 attribute_count;
     VkVertexInputAttributeDescription attributes[VULKAN_SHADER_MAX_ATTRIBUTES];
 
+    /** @brief The number of uniforms in the shader */
+    u32 uniform_count;
+
+    /** @brief An array of uniforms in the shader */
+    shader_uniform* uniforms;
+
+    /** @brief The size of all attributes combined, a.k.a. the size of a vertex */
+    u32 attribute_stride;
+
     face_cull_mode cull_mode;
+
+    /** @brief The topology types for the shader pipeline. See primitive_topology_type. Defaults to "triangle list" if unspecified */
+    u32 topology_types;
 
     u32 max_groups;
 
@@ -329,15 +369,6 @@ typedef struct vulkan_shader
     VkDescriptorPool descriptor_pool;
 
     VkDescriptorSetLayout descriptor_set_layouts[3];
-
-    // Per-frame descriptor sets, one per swapchain image
-    //VkDescriptorSet* per_frame_descriptor_sets;
-
-    // Per-frame UBO descriptor
-    //vulkan_descriptor_state per_frame_ubo_descriptor_state;
-
-    // A mapping of sampler uniforms to descriptors and texture maps
-    //vulkan_uniform_sampler_state* per_frame_sampler_uniforms;
 
     /** @brief The uniform buffers used by this shader, one per swapchain image */
     renderbuffer* uniform_buffers;
@@ -356,6 +387,16 @@ typedef struct vulkan_shader
     vulkan_shader_frequency_state* group_states;
 
     vulkan_shader_frequency_state* per_draw_states;
+
+    /** @brief The amount of bytes that are required for UBO alignment */
+    u64 required_ubo_alignment;
+
+    vulkan_shader_frequency_info per_frame_info;
+    vulkan_shader_frequency_info per_group_info;
+    vulkan_shader_frequency_info per_draw_info;
+
+    // Shader flags
+    shader_flag_bits flags;
 } vulkan_shader;
 
 // Forward declare shaderc compiler
@@ -470,6 +511,9 @@ typedef struct vulkan_context
     // Collection of textures. darray
     vulkan_texture_handle_data* textures;
 
+    /** @brief Collection of vulkan shaders (internal shader data). Matches size of shader array in shader system */
+    vulkan_shader* shaders;
+
     i32 (*find_memory_index)(struct vulkan_context* context, u32 type_filter, u32 property_flags);
 
     PFN_vkCmdSetPrimitiveTopologyEXT vkCmdSetPrimitiveTopologyEXT;
@@ -482,8 +526,8 @@ typedef struct vulkan_context
     PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR;
     PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR;
 
-    // Pointer to the currently bound shader
-    struct shader* bound_shader;
+    // Pointer to the currently bound vulkan shader
+    vulkan_shader* bound_shader;
 
     // Used for dynamic compilation of vulkan shaders (using the shaderc lib)
     struct shaderc_compiler* shader_compiler;

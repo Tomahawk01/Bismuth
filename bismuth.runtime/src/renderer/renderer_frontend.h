@@ -6,10 +6,10 @@
 #include <strings/bname.h>
 
 #include "core/frame_data.h"
+#include "core_render_types.h"
 #include "renderer_types.h"
 #include "resources/resource_types.h"
 
-struct shader;
 struct shader_uniform;
 struct frame_data;
 struct viewport;
@@ -79,7 +79,9 @@ BAPI b8 renderer_texture_write_data(struct renderer_system_state* state, bhandle
 
 BAPI b8 renderer_texture_read_data(struct renderer_system_state* state, bhandle renderer_texture_handle, u32 offset, u32 size, u8** out_pixels);
 BAPI b8 renderer_texture_read_pixel(struct renderer_system_state* state, bhandle renderer_texture_handle, u32 x, u32 y, u8** out_rgba);
-BAPI struct texture_internal_data* renderer_texture_internal_get(struct renderer_system_state* state, bhandle renderer_texture_handle);
+
+BAPI void renderer_default_texture_register(struct renderer_system_state* state, renderer_default_texture default_texture, bhandle renderer_texture_handle);
+BAPI bhandle renderer_default_texture_get(struct renderer_system_state* state, renderer_default_texture default_texture);
 
 BAPI renderbuffer* renderer_renderbuffer_get(renderbuffer_type type);
 
@@ -107,13 +109,18 @@ BAPI void renderer_texture_prepare_for_sampling(struct renderer_system_state* st
 
 BAPI b8 renderer_shader_create(struct renderer_system_state* state, bhandle shader, const shader_config* config);
 BAPI void renderer_shader_destroy(struct renderer_system_state* state, bhandle shader);
-
-BAPI b8 renderer_shader_initialize(struct renderer_system_state* state, bhandle shader);
-BAPI b8 renderer_shader_reload(struct renderer_system_state* state, bhandle shader);
+BAPI b8 renderer_shader_reload(struct renderer_system_state* state, bhandle shader, u32 shader_stage_count, shader_stage_config* shader_stages);
 
 BAPI b8 renderer_shader_use(struct renderer_system_state* state, struct bhandle shader);
 
-BAPI b8 renderer_shader_set_wireframe(struct renderer_system_state* state, bhandle shader, b8 wireframe_enabled);
+BAPI b8 renderer_shader_supports_wireframe(struct renderer_system_state* state, bhandle shader);
+
+BAPI b8 renderer_shader_flag_get(struct renderer_system_state* state, bhandle shader, shader_flags flag);
+BAPI void renderer_shader_flag_set(struct renderer_system_state* state, bhandle shader, shader_flags flag, b8 enabled);
+
+BAPI b8 renderer_shader_bind_per_frame(struct renderer_system_state* state, bhandle shader);
+BAPI b8 renderer_shader_bind_per_group(struct renderer_system_state* state, bhandle shader, u32 group_id);
+BAPI b8 renderer_shader_bind_per_draw(struct renderer_system_state* state, bhandle shader, u32 draw_id);
 
 BAPI b8 renderer_shader_apply_per_frame(struct renderer_system_state* state, bhandle shader);
 BAPI b8 renderer_shader_apply_per_group(struct renderer_system_state* state, bhandle shader);
@@ -168,3 +175,6 @@ BAPI void renderer_active_viewport_set(struct viewport* v);
 BAPI void renderer_wait_for_idle(void);
 
 BAPI b8 renderer_pcf_enabled(struct renderer_system_state* state);
+
+BAPI u16 renderer_max_bound_texture_count_get(struct renderer_system_state* state);
+BAPI u16 renderer_max_bound_sampler_count_get(struct renderer_system_state* state);

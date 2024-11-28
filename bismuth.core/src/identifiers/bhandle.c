@@ -40,6 +40,11 @@ b8 bhandle_is_invalid(bhandle handle)
     return handle.handle_index == INVALID_ID || handle.unique_id.uniqueid == INVALID_ID_U64;
 }
 
+b8 bhandle_is_valid(bhandle handle)
+{
+    return handle.handle_index != INVALID_ID && handle.unique_id.uniqueid != INVALID_ID_U64;
+}
+
 void bhandle_invalidate(bhandle* handle)
 {
     if (handle)
@@ -47,4 +52,14 @@ void bhandle_invalidate(bhandle* handle)
         handle->handle_index = INVALID_ID;
         handle->unique_id.uniqueid = INVALID_ID_U64;
     }
+}
+
+b8 bhandle_is_pristine(bhandle handle, u64 uniqueid)
+{
+    return handle.unique_id.uniqueid == uniqueid;
+}
+
+b8 bhandle_is_stale(bhandle handle, u64 uniqueid)
+{
+    return handle.unique_id.uniqueid != uniqueid;
 }

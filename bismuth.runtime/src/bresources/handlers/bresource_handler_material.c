@@ -108,7 +108,7 @@ static void material_basset_on_result(asset_request_result result, const struct 
     }
 
     // Destroy the request
-    array_kresource_asset_info_destroy(&listener->request_info->base.assets);
+    array_bresource_asset_info_destroy(&listener->request_info->base.assets);
     bfree(listener->request_info, sizeof(bresource_material_request_info), MEMORY_TAG_RESOURCE);
     // Free the listener itself
     bfree(listener, sizeof(material_resource_handler_info), MEMORY_TAG_RESOURCE);

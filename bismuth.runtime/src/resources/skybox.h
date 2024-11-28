@@ -22,10 +22,10 @@ typedef struct skybox
     skybox_state state;
 
     bname cubemap_name;
-    bresource_texture_map cubemap;
+    bresource_texture* cubemap;
 
     bgeometry geometry;
-    u32 instance_id;
+    u32 group_id;
     u64 render_frame_number;
     u8 draw_index;
 } skybox;

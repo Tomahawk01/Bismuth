@@ -8,12 +8,8 @@ typedef struct shader_system_config
 {
     // The maximum number of shaders held in the system. NOTE: Should be at least 512
     u16 max_shader_count;
-    // @brief The maximum number of uniforms allowed in a single shader
+    // The maximum number of uniforms allowed in a single shader
     u8 max_uniform_count;
-    // The maximum number of per-frame textures allowed in a single shader
-    u8 max_per_frame_textures;
-    // The maximum number of per-group textures allowed in a single shader
-    u8 max_per_group_textures;
 } shader_system_config;
 
 /**
@@ -57,16 +53,16 @@ BAPI b8 shader_system_reload(bhandle shader);
  * Attempts to load the shader if not already loaded
  * 
  * @param shader_name The bname to search for
- * @return A handle to a shader, if found/loaded; otherwise 0.
+ * @return A handle to a shader, if found/loaded; otherwise an invalid handle
  */
 BAPI bshader shader_system_get(bname name);
 
 /**
- * @brief Attempts to destroy the shader with the given handle
+ * @brief Attempts to destroy the shader with the given handle. Handle will be invalidated
  * 
- * @param shader_name A handle to the shader to destroy
+ * @param shader_name A pointer to a handle to the shader to destroy. Handle will be invalidated
  */
-BAPI void shader_system_destroy(bhandle shader);
+BAPI void shader_system_destroy(bhandle* shader);
 
 /**
  * @brief Attempts to set wireframe mode on the given shader. If the renderer backend, or the shader
@@ -148,11 +144,13 @@ BAPI b8 shader_system_texture_set_arrayed(bhandle shader, bname sampler_name, u3
 BAPI b8 shader_system_uniform_set_by_location(bhandle shader, u16 location, const void* value);
 BAPI b8 shader_system_uniform_set_by_location_arrayed(bhandle shader, u16 location, u32 array_index, const void* value);
 
-BAPI b8 shader_system_sampler_set_by_location(bhandle shader, u16 location, const struct bresource_texture* t);
+BAPI b8 shader_system_texture_set_by_location(bhandle shader, u16 location, const struct bresource_texture* t);
 BAPI b8 shader_system_sampler_set_by_location_arrayed(bhandle shader, u16 location, u32 array_index, const struct bresource_texture* t);
 
+BAPI b8 shader_system_bind_frame(bhandle shader);
 BAPI b8 shader_system_bind_group(bhandle shader, u32 instance_id);
 BAPI b8 shader_system_bind_draw_id(bhandle shader, u32 local_id);
+
 BAPI b8 shader_system_apply_per_frame(bhandle shader);
 BAPI b8 shader_system_apply_per_group(bhandle shader);
 BAPI b8 shader_system_apply_per_draw(bhandle shader);

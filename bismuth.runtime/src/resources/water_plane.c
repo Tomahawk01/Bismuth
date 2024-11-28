@@ -30,9 +30,6 @@ void water_plane_destroy(water_plane* plane)
 {
     if (plane)
     {
-        if (plane->maps)
-            bfree(plane->maps, sizeof(bresource_texture_map) * plane->map_count, MEMORY_TAG_ARRAY);
-
         bzero_memory(plane, sizeof(water_plane));
     }
 }
@@ -60,19 +57,6 @@ b8 water_plane_initialize(water_plane* plane)
         plane->indices[4] = 3;
         plane->indices[5] = 0;
 
-        // Maps array
-        plane->map_count = WATER_PLANE_MAP_COUNT;
-        plane->maps = ballocate(sizeof(bresource_texture_map) * plane->map_count, MEMORY_TAG_ARRAY);
-        for (u32 i = 0; i < plane->map_count; ++i)
-        {
-            bresource_texture_map* map = &plane->maps[i];
-            map->filter_magnify = map->filter_minify = TEXTURE_FILTER_MODE_LINEAR;
-            map->generation = INVALID_ID_U8;
-            map->internal_id = INVALID_ID;
-            map->repeat_u = map->repeat_v = map->repeat_w = TEXTURE_REPEAT_REPEAT;
-            map->mip_levels = 1;
-            map->texture = 0;
-        }
         return true;
     }
     return false;
@@ -140,18 +124,9 @@ b8 water_plane_load(water_plane* plane)
         if (!plane->normal_texture)
             BERROR("Failed to load default Normal texture for water plane. Water planes won't render correctly");
 
-        // Fill out texture maps
-        plane->maps[WATER_PLANE_MAP_REFLECTION].texture = plane->reflection_color;
-        plane->maps[WATER_PLANE_MAP_REFRACTION].texture = plane->refraction_color;
-        plane->maps[WATER_PLANE_MAP_DUDV].texture = plane->dudv_texture;
-        plane->maps[WATER_PLANE_MAP_NORMAL].texture = plane->normal_texture;
-        plane->maps[WATER_PLANE_MAP_SHADOW].texture = 0;
-        plane->maps[WATER_PLANE_MAP_IBL_CUBE].texture = 0;
-        plane->maps[WATER_PLANE_MAP_REFRACT_DEPTH].texture = plane->refraction_depth;
-
-        // Acquire instance resources for this plane
-        u32 shader_id = shader_system_get_id("Runtime.Shader.Water");
-        if (!shader_system_shader_group_acquire(shader_id, plane->map_count, plane->maps, &plane->instance_id))
+        // Acquire group resources for this plane
+        bhandle shader = shader_system_get(bname_create("Runtime.Shader.Water"));
+        if (!shader_system_shader_group_acquire(shader, &plane->group_id))
         {
             BERROR("Failed to acquire instance resources for water plane");
             return false;
@@ -204,8 +179,8 @@ b8 water_plane_unload(water_plane* plane)
         plane->refraction_depth = 0;
 
         // Release instance resources for this plane
-        u32 shader_id = shader_system_get_id("Runtime.Shader.Water");
-        if (!shader_system_shader_group_release(shader_id, plane->instance_id, plane->map_count, plane->maps))
+        bhandle shader = shader_system_get(bname_create("Runtime.Shader.Water"));
+        if (!shader_system_shader_group_release(shader, plane->group_id))
         {
             BERROR("Failed to release instance resources for water plane");
             return false;

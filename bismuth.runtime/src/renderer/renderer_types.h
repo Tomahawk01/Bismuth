@@ -8,8 +8,8 @@
 #include <strings/bname.h>
 
 #include "resources/resource_types.h"
+#include "systems/material_system.h"
 
-struct shader;
 struct shader_uniform;
 struct frame_data;
 struct terrain;
@@ -35,7 +35,7 @@ BDEPRECATED("geometry_render_data should be phased out")
 typedef struct geometry_render_data
 {
     mat4 model;
-    struct bresource_material* material;
+    material_instance material;
     u64 unique_id;
     b8 winding_inverted;
     vec4 diffuse_color;
@@ -259,23 +259,28 @@ typedef struct renderer_backend_interface
 
     b8 (*shader_create)(struct renderer_backend_interface* backend, bhandle shader, const shader_config* config);
     void (*shader_destroy)(struct renderer_backend_interface* backend, bhandle shader);
-
-    b8 (*shader_initialize)(struct renderer_backend_interface* backend, bhandle shader);
-    b8 (*shader_reload)(struct renderer_backend_interface* backend, bhandle s);
+    b8 (*shader_reload)(struct renderer_backend_interface* backend, bhandle s, u32 shader_stage_count, shader_stage_config* shader_stages);
 
     b8 (*shader_use)(struct renderer_backend_interface* backend, bhandle shader);
 
-    b8 (*shader_supports_wireframe)(const struct renderer_backend_interface* backend, bhandle s);
+    b8 (*shader_supports_wireframe)(const struct renderer_backend_interface* backend, bhandle shader);
 
-    b8 (*shader_apply_per_frame)(struct renderer_backend_interface* backend, bhandle s, u64 renderer_frame_number);
-    b8 (*shader_apply_per_group)(struct renderer_backend_interface* backend, bhandle s, u64 renderer_frame_number);
-    b8 (*shader_apply_per_draw)(struct renderer_backend_interface* backend, bhandle s, u64 renderer_frame_number);
+    b8 (*shader_flag_get)(const struct renderer_backend_interface* backend, bhandle shader, shader_flags flag);
+    void (*shader_flag_set)(struct renderer_backend_interface* backend, bhandle shader, shader_flags flag, b8 enabled);
 
-    b8 (*shader_per_group_resources_acquire)(struct renderer_backend_interface* backend, bhandle s, u32* out_instance_id);
-    b8 (*shader_per_group_resources_release)(struct renderer_backend_interface* backend, bhandle s, u32 instance_id);
+    b8 (*shader_bind_per_frame)(struct renderer_backend_interface* backend, bhandle shader);
+    b8 (*shader_bind_per_group)(struct renderer_backend_interface* backend, bhandle shader, u32 group_id);
+    b8 (*shader_bind_per_draw)(struct renderer_backend_interface* backend, bhandle shader, u32 draw_id);
 
-    b8 (*shader_per_draw_resources_acquire)(struct renderer_backend_interface* backend, bhandle s, u32* out_local_id);
-    b8 (*shader_per_draw_resources_release)(struct renderer_backend_interface* backend, bhandle s, u32 local_id);
+    b8 (*shader_apply_per_frame)(struct renderer_backend_interface* backend, bhandle shader, u64 renderer_frame_number);
+    b8 (*shader_apply_per_group)(struct renderer_backend_interface* backend, bhandle shader, u64 renderer_frame_number);
+    b8 (*shader_apply_per_draw)(struct renderer_backend_interface* backend, bhandle shader, u64 renderer_frame_number);
+
+    b8 (*shader_per_group_resources_acquire)(struct renderer_backend_interface* backend, bhandle shader, u32* out_instance_id);
+    b8 (*shader_per_group_resources_release)(struct renderer_backend_interface* backend, bhandle shader, u32 instance_id);
+
+    b8 (*shader_per_draw_resources_acquire)(struct renderer_backend_interface* backend, bhandle shader, u32* out_local_id);
+    b8 (*shader_per_draw_resources_release)(struct renderer_backend_interface* backend, bhandle shader, u32 local_id);
 
     b8 (*shader_uniform_set)(struct renderer_backend_interface* backend, bhandle frontend_shader, struct shader_uniform* uniform, u32 array_index, const void* value);
 

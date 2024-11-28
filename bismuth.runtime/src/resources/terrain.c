@@ -1,7 +1,9 @@
 #include "terrain.h"
 
+#include "core/engine.h"
 #include "defines.h"
 #include "identifiers/identifier.h"
+#include "identifiers/bhandle.h"
 #include "logger.h"
 #include "math/bmath.h"
 #include "memory/bmemory.h"
@@ -283,14 +285,12 @@ b8 terrain_chunk_load(terrain* t, terrain_chunk* chunk)
     }
 
     // Create terrain material by copying properties of these materials to a new terrain material
-    char terrain_material_name[MATERIAL_NAME_MAX_LENGTH] = {0};
-    string_format_unsafe(terrain_material_name, "terrain_mat_%s", t->name);
-    // NOTE: While terrain could technically hold the material, doing this here lends the ability for each chunk to have a separate material
-    chunk->material = material_system_acquire_terrain_material(terrain_material_name, t->material_count, (const char**)t->material_names, true);
-    if (!chunk->material)
+    // FIXME: Need layered materials for this
+    material_system_acquire(engine_systems_get()->material_system, t->material_name, &chunk->material);
+    if (bhandle_is_invalid(chunk->material.material) || bhandle_is_invalid(chunk->material.instance))
     {
         BWARN("Failed to acquire terrain material. Using defualt instead");
-        chunk->material = material_system_get_default_terrain();
+        chunk->material = material_system_get_default_blended(engine_systems_get()->material_system);
     }
 
     // Update generation, making this valid to render
@@ -340,8 +340,7 @@ b8 terrain_chunk_unload(terrain* t, terrain_chunk* chunk)
     chunk->generation = INVALID_ID_U16;
 
     // Release material reference
-    material_system_release(bname_string_get(chunk->material->name));
-    chunk->material = 0;
+    material_system_release(engine_systems_get()->material_system, &chunk->material);
 
     if (chunk->vertices)
     {

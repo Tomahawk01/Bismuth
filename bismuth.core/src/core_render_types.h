@@ -186,18 +186,14 @@ typedef struct shader_frequency_data
     u8 uniform_count;
     /** @brief The number of sampler uniforms for this frequency */
     u8 uniform_sampler_count;
-    /** @brief darray. Keeps the uniform indices of samplers for fast lookups */
+    /** @brief Keeps the uniform indices of samplers for fast lookups */
     u32* sampler_indices;
     /** @brief The number of texture uniforms for this frequency */
     u8 uniform_texture_count;
-    /** @brief darray. Keeps the uniform indices of textures for fast lookups */
+    /** @brief Keeps the uniform indices of textures for fast lookups */
     u32* texture_indices;
     /** @brief The actual size of the uniform buffer object for this frequency */
     u64 ubo_size;
-    /** @brief The stride of the uniform buffer object for this frequency */
-    u64 ubo_stride;
-    /** @brief The offset in bytes for the UBO from the beginning of the uniform buffer for this frequency */
-    u64 ubo_offset;
 
     /** @brief The identifier of the currently bound group/per_draw. Ignored for per_frame */
     u32 bound_id;
@@ -290,57 +286,6 @@ typedef struct shader_config
     /** @brief The flags set for this shader */
     u32 flags;
 } shader_config;
-
-/** @brief Represents a shader on the frontend */
-typedef struct bshader
-{
-    /** @brief Unique identifier that is compared against a handle */
-    u64 uniqueid;
-
-    bname name;
-
-    shader_flag_bits flags;
-
-    /** @brief The types of topologies used by the shader and its pipeline. See primitive_topology_type */
-    u32 topology_types;
-
-    /** @brief The amount of bytes that are required for UBO alignment */
-    u64 required_ubo_alignment;
-
-    /** @brief An array of uniforms in this shader. Darray */
-    shader_uniform* uniforms;
-
-    /** @brief An array of attributes. Darray */
-    shader_attribute* attributes;
-
-    /** @brief The size of all attributes combined, a.k.a. the size of a vertex */
-    u16 attribute_stride;
-
-    u8 shader_stage_count;
-    shader_stage_config* stage_configs;
-
-    /** @brief Per-frame frequency data */
-    shader_frequency_data per_frame;
-
-    /** @brief Per-group frequency data */
-    shader_frequency_data per_group;
-
-    /** @brief Per-draw frequency data */
-    shader_frequency_data per_draw;
-
-    /** @brief The internal state of the shader */
-    shader_state state;
-
-    /** @brief Indicates if the shader is currently flagged to use wireframe */
-    b8 is_wireframe;
-    
-    /** @brief An opaque pointer to hold renderer API specific data. Renderer is responsible for creation and destruction of this */
-    void* internal_data;
-
-#ifdef _DEBUG
-    u32* module_watch_ids;
-#endif
-} bshader;
 
 typedef enum bmaterial_type
 {

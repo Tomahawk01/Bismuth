@@ -133,19 +133,6 @@ const char* shader_stage_to_string(shader_stage stage)
     }
 }
 
-const char* shader_scope_to_string(shader_update_frequency frequency)
-{
-    switch (frequency)
-    {
-    case SHADER_UPDATE_FREQUENCY_PER_FRAME:
-        return "frame";
-    case SHADER_UPDATE_FREQUENCY_PER_GROUP:
-        return "group";
-    case SHADER_UPDATE_FREQUENCY_PER_DRAW:
-        return "draw";
-    }
-}
-
 texture_repeat string_to_texture_repeat(const char* str)
 {
     if (strings_equali("repeat", str))
@@ -323,7 +310,20 @@ shader_stage string_to_shader_stage(const char* str)
     }
 }
 
-shader_update_frequency string_to_shader_scope(const char* str)
+const char* shader_update_frequency_to_string(shader_update_frequency frequency)
+{
+    switch (frequency)
+    {
+    case SHADER_UPDATE_FREQUENCY_PER_FRAME:
+        return "frame";
+    case SHADER_UPDATE_FREQUENCY_PER_GROUP:
+        return "group";
+    case SHADER_UPDATE_FREQUENCY_PER_DRAW:
+        return "draw";
+    }
+}
+
+shader_update_frequency string_to_shader_update_frequency(const char* str)
 {
     if (strings_equali("frame", str))
     {

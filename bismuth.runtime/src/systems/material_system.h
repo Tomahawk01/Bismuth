@@ -6,6 +6,10 @@
 #include <defines.h>
 #include <strings/bname.h>
 
+#define MATERIAL_DEFAULT_NAME_STANDARD "Material.DefaultStandard"
+#define MATERIAL_DEFAULT_NAME_WATER "Material.DefaultWater"
+#define MATERIAL_DEFAULT_NAME_BLENDED "Material.DefaultBlended"
+
 struct material_system_state;
 
 typedef struct material_system_config
@@ -37,90 +41,19 @@ typedef enum material_texture_param
     MATERIAL_TEXTURE_COUNT
 } material_texture_param;
 
-typedef struct material_data
+/**
+ * @brief A material instance, which contains handles to both
+ * the base material as well as the instance itself. Every time
+ * an instance is "acquired", one of these is created, and the instance
+ * should be referenced using this going from that point
+ */
+typedef struct material_instance
 {
-    // A unique id used for handle validation
-    u64 unique_id;
-
-    vec4 base_colour;
-    bresource_texture* base_color_texture;
-
-    bresource_texture* normal_texture;
-
-    f32 metallic;
-    bresource_texture* metallic_texture;
-    texture_channel metallic_texture_channel;
-
-    f32 roughness;
-    bresource_texture* roughness_texture;
-    texture_channel roughness_texture_channel;
-
-    f32 ao;
-    bresource_texture* ao_texture;
-    texture_channel ao_texture_channel;
-
-    vec4 emissive;
-    bresource_texture* emissive_texture;
-    f32 emissive_texture_intensity;
-
-    bresource_texture* refraction_texture;
-    f32 refraction_scale;
-
-    vec3 mra;
-    /**
-     * @brief This is a combined texture holding metallic/roughness/ambient occlusion all in one texture.
-     * This is a more efficient replacement for using those textures individually. Metallic is sampled
-     * from the Red channel, roughness from the Green channel, and ambient occlusion from the Blue channel.
-     * Alpha is ignored
-     */
-    bresource_texture* mra_texture;
-
-    // Base set of flags for the material. Copied to the material instance when created
-    material_flags flags;
-
-    // Added to UV coords of vertex data. Overridden by instance data
-    vec3 uv_offset;
-
-    // Multiplied against uv coords of vertex data. Overridden by instance data
-    vec3 uv_scale;
-
-    // Shader group id for per-group uniforms
-    u32 group_id;
-} material_data;
-
-typedef struct material_instance_data
-{
-    // A handle to the material to which this instance references
+    // Handle to the base material
     bhandle material;
-    // A unique id used for handle validation
-    u64 unique_id;
-    // Shader draw id for per-draw uniforms
-    u32 per_draw_id;
-
-    // Multiplied by albedo/diffuse texture. Overrides the value set in the base material
-    vec4 albedo_color;
-
-    // Overrides the flags set in the base material
-    material_flags flags;
-
-    // Added to UV coords of vertex data
-    vec3 uv_offset;
-    // Multiplied against uv coords of vertex data
-    vec3 uv_scale;
-} material_instance_data;
-
-typedef struct multimaterial_data
-{
-    u8 submaterial_count;
-    u16* material_ids;
-} multimaterial_data;
-
-typedef struct mulitmaterial_instance_data
-{
+    // Handle to the instance
     bhandle instance;
-    u8 submaterial_count;
-    material_instance_data* instance_datas;
-} multimaterial_instance_data;
+} material_instance;
 
 b8 material_system_initialize(u64* memory_requirement, struct material_system_state* state, const material_system_config* config);
 void material_system_shutdown(struct material_system_state* state);
@@ -186,22 +119,24 @@ BAPI b8 material_flag_get(struct material_system_state* state, bhandle material,
 // ------------- MATERIAL INSTANCE -----------------
 // -------------------------------------------------
 
-BAPI bhandle material_acquire_instance(struct material_system_state* state, bhandle material);
-BAPI void material_release_instance(struct material_system_state* state, bhandle material, bhandle instance);
+BAPI b8 material_system_acquire(struct material_system_state* state, bname name, material_instance* out_instance);
+BAPI void material_system_release(struct material_system_state* state, material_instance* instance);
 
-BAPI b8 material_instance_flag_set(struct material_system_state* state, bhandle material, bhandle instance, material_flag_bits flag, b8 value);
-b8 material_instance_flag_get(struct material_system_state* state, bhandle material, bhandle instance, material_flag_bits flag);
+BAPI b8 material_instance_flag_set(struct material_system_state* state, material_instance instance, material_flag_bits flag, b8 value);
+BAPI b8 material_instance_flag_get(struct material_system_state* state, material_instance instance, material_flag_bits flag);
 
-BAPI vec4 material_instance_albedo_color_get(struct material_system_state* state, bhandle material, bhandle instance);
-BAPI void material_instance_albedo_color_set(struct material_system_state* state, bhandle material, bhandle instance, vec4 value);
+BAPI b8 material_instance_base_color_get(struct material_system_state* state, material_instance instance, vec4* out_value);
+BAPI b8 material_instance_base_color_set(struct material_system_state* state, material_instance instance, vec4 value);
 
-BAPI vec3 material_instance_uv_offset_get(struct material_system_state* state, bhandle material, bhandle instance);
-BAPI void material_instance_uv_offset_set(struct material_system_state* state, bhandle material, bhandle instance, vec3 value);
+BAPI b8 material_instance_uv_offset_get(struct material_system_state* state, material_instance instance, vec3* out_value);
+BAPI b8 material_instance_uv_offset_set(struct material_system_state* state, material_instance instance, vec3 value);
 
-BAPI vec3 material_instance_uv_scale_get(struct material_system_state* state, bhandle material, bhandle instance);
-BAPI void material_instance_uv_scale_set(struct material_system_state* state, bhandle material, bhandle instance, vec3 value);
+BAPI b8 material_instance_uv_scale_get(struct material_system_state* state, material_instance instance, vec3* out_value);
+BAPI b8 material_instance_uv_scale_set(struct material_system_state* state, material_instance instance, vec3 value);
 
-BAPI bhandle material_get_default(struct material_system_state* state);
+BAPI material_instance material_system_get_default_standard(struct material_system_state* state);
+BAPI material_instance material_system_get_default_water(struct material_system_state* state);
+BAPI material_instance material_system_get_default_blended(struct material_system_state* state);
 
 // Dumps all of the registered materials and their reference counts/handles
 BAPI void material_system_dump(struct material_system_state* state);

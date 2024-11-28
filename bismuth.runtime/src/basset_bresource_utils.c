@@ -78,48 +78,6 @@ basset_material_model bresource_material_model_to_basset(bresource_material_mode
     }
 }
 
-bresource_material_texture_map basset_material_tex_map_to_bresource(basset_material_texture_map map)
-{
-    switch (map)
-    {
-    case BASSET_MATERIAL_TEXTURE_MAP_BASE_COLOR:
-        return BRESOURCE_MATERIAL_TEXTURE_MAP_BASE_COLOR;
-    case BASSET_MATERIAL_TEXTURE_MAP_NORMAL:
-        return BRESOURCE_MATERIAL_TEXTURE_MAP_NORMAL;
-    case BASSET_MATERIAL_TEXTURE_MAP_METALLIC:
-        return BRESOURCE_MATERIAL_TEXTURE_MAP_METALLIC;
-    case BASSET_MATERIAL_TEXTURE_MAP_ROUGHNESS:
-        return BRESOURCE_MATERIAL_TEXTURE_MAP_ROUGHNESS;
-    case BASSET_MATERIAL_TEXTURE_MAP_AO:
-        return BRESOURCE_MATERIAL_TEXTURE_MAP_AO;
-    case BASSET_MATERIAL_TEXTURE_MAP_MRA:
-        return BRESOURCE_MATERIAL_TEXTURE_MAP_MRA;
-    case BASSET_MATERIAL_TEXTURE_MAP_EMISSIVE:
-        return BRESOURCE_MATERIAL_TEXTURE_MAP_EMISSIVE;
-    }
-}
-
-basset_material_texture_map bresource_material_tex_map_to_basset(bresource_material_texture_map map)
-{
-    switch (map)
-    {
-    case BRESOURCE_MATERIAL_TEXTURE_MAP_BASE_COLOR:
-        return BASSET_MATERIAL_TEXTURE_MAP_BASE_COLOR;
-    case BRESOURCE_MATERIAL_TEXTURE_MAP_NORMAL:
-        return BASSET_MATERIAL_TEXTURE_MAP_NORMAL;
-    case BRESOURCE_MATERIAL_TEXTURE_MAP_METALLIC:
-        return BASSET_MATERIAL_TEXTURE_MAP_METALLIC;
-    case BRESOURCE_MATERIAL_TEXTURE_MAP_ROUGHNESS:
-        return BASSET_MATERIAL_TEXTURE_MAP_ROUGHNESS;
-    case BRESOURCE_MATERIAL_TEXTURE_MAP_AO:
-        return BASSET_MATERIAL_TEXTURE_MAP_AO;
-    case BRESOURCE_MATERIAL_TEXTURE_MAP_MRA:
-        return BASSET_MATERIAL_TEXTURE_MAP_MRA;
-    case BRESOURCE_MATERIAL_TEXTURE_MAP_EMISSIVE:
-        return BASSET_MATERIAL_TEXTURE_MAP_EMISSIVE;
-    }
-}
-
 bresource_material_texture_map_channel basset_material_tex_map_channel_to_bresource(basset_material_texture_map_channel channel)
 {
     switch (channel)

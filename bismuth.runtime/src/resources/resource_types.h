@@ -119,12 +119,22 @@ typedef struct mesh
 
 typedef enum material_type
 {
-    // Invalid
     MATERIAL_TYPE_UNKNOWN = 0,
-    MATERIAL_TYPE_PBR = 1,
-    MATERIAL_TYPE_TERRAIN = 2,
+    MATERIAL_TYPE_STANDARD,
+    MATERIAL_TYPE_WATER,
+    MATERIAL_TYPE_BLENDED,
+    MATERIAL_TYPE_COUNT,
     MATERIAL_TYPE_CUSTOM = 99
 } material_type;
+
+typedef enum material_model
+{
+    MATERIAL_MODEL_UNLIT = 0,
+    MATERIAL_MODEL_PBR,
+    MATERIAL_MODEL_PHONG,
+    MATERIAL_MODEL_COUNT,
+    MATERIAL_MODEL_CUSTOM = 99
+} material_model;
 
 typedef struct material_config_prop
 {
@@ -161,6 +171,7 @@ typedef struct material_config
     u8 version;
     char* name;
     material_type type;
+    material_model model;
     char* shader_name;
     // darray
     material_config_prop* properties;
@@ -170,25 +181,9 @@ typedef struct material_config
     b8 auto_release;
 } material_config;
 
-typedef struct material_phong_properties
-{
-    vec4 diffuse_color;
-    vec3 padding;
-    f32 shininess;
-} material_phong_properties;
-
-typedef struct material_terrain_properties
-{
-    material_phong_properties materials[4];
-    vec3 padding;
-    i32 num_materials;
-    vec4 padding2;
-} material_terrain_properties;
-
 typedef struct material
 {
     u32 id;
-    material_type type;
     u32 generation;
     u32 internal_id;
     bname name;
