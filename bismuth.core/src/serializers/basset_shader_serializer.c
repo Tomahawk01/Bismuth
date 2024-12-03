@@ -12,6 +12,8 @@
 
 #define SHADER_ASSET_VERSION 1
 
+static b8 extract_frequency_uniforms(shader_update_frequency frequency, u32 frequency_uniform_count, bson_array* frequency_array, basset_shader* typed_asset, u32* uniform_index);
+
 const char* basset_shader_serialize(const basset* asset)
 {
     if (!asset)
@@ -42,8 +44,8 @@ const char* basset_shader_serialize(const basset* asset)
         goto cleanup_bson;
     }
 
-    // max_instances
-    bson_object_value_add_int(&tree.root, "max_instances", typed_asset->max_instances);
+    // max_groups
+    bson_object_value_add_int(&tree.root, "max_groups", typed_asset->max_groups);
 
     // Depth test
     bson_object_value_add_boolean(&tree.root, "depth_test", typed_asset->depth_test);
@@ -110,6 +112,14 @@ const char* basset_shader_serialize(const basset* asset)
             bson_object_value_add_string(&uniform_obj, "type", shader_uniform_type_to_string(uniform->type));
             bson_object_value_add_string(&uniform_obj, "name", uniform->name);
 
+            // Add size if uniform is a struct
+            if (uniform->type == SHADER_UNIFORM_TYPE_STRUCT)
+                bson_object_value_add_int(&uniform_obj, "size", (i64)uniform->size);
+
+            // Add array size if relevant (i.e. more than one)
+            if (uniform->array_size > 1)
+                bson_object_value_add_int(&uniform_obj, "array_size", (i64)uniform->size);
+
             switch (uniform->frequency)
             {
             default:
@@ -129,11 +139,11 @@ const char* basset_shader_serialize(const basset* asset)
         }
 
         if (per_frame_count)
-            bson_object_value_add_array(&uniforms_obj, "global", per_frame_array);
+            bson_object_value_add_array(&uniforms_obj, "per_frame", per_frame_array);
         if (per_group_count)
-            bson_object_value_add_array(&uniforms_obj, "instance", per_group_array);
+            bson_object_value_add_array(&uniforms_obj, "per_group", per_group_array);
         if (per_draw_count)
-            bson_object_value_add_array(&uniforms_obj, "local", per_draw_array);
+            bson_object_value_add_array(&uniforms_obj, "per_draw", per_draw_array);
 
         bson_object_value_add_object(&tree.root, "uniforms", uniforms_obj);
     }
@@ -171,10 +181,10 @@ b8 basset_shader_deserialize(const char* file_text, basset* out_asset)
             goto cleanup_bson;
         }
 
-        // max_instances
-        i64 max_instances = 0;
-        bson_object_property_value_get_int(&tree.root, "max_instances", &max_instances);
-        typed_asset->max_instances = (u16)max_instances;
+        // max_groups
+        i64 max_groups = 0;
+        bson_object_property_value_get_int(&tree.root, "max_groups", &max_groups);
+        typed_asset->max_groups = (u16)max_groups;
 
         // Depth test
         typed_asset->depth_test = false;
@@ -255,73 +265,43 @@ b8 basset_shader_deserialize(const char* file_text, basset* out_asset)
         bson_object uniforms_obj = {0};
         if (bson_object_property_value_get_object(&tree.root, "uniforms", &uniforms_obj))
         {
-            bson_array global_array = {0};
-            bson_array instance_array = {0};
-            bson_array local_array = {0};
-            u32 global_count = 0;
-            u32 instance_count = 0;
-            u32 local_count = 0;
+            bson_array per_frame_array = {0};
+            bson_array per_group_array = {0};
+            bson_array per_draw_array = {0};
+            u32 per_frame_count = 0;
+            u32 per_group_count = 0;
+            u32 per_draw_count = 0;
 
-            if (bson_object_property_value_get_object(&uniforms_obj, "global", &global_array))
-                bson_array_element_count_get(&global_array, &global_count);
-            if (bson_object_property_value_get_object(&uniforms_obj, "instance", &instance_array))
-                bson_array_element_count_get(&instance_array, &instance_count);
-            if (bson_object_property_value_get_object(&uniforms_obj, "local", &local_array))
-                bson_array_element_count_get(&local_array, &local_count);
+            if (bson_object_property_value_get_object(&uniforms_obj, "per_frame", &per_frame_array))
+                bson_array_element_count_get(&per_frame_array, &per_frame_count);
+            if (bson_object_property_value_get_object(&uniforms_obj, "per_group", &per_group_array))
+                bson_array_element_count_get(&per_group_array, &per_group_count);
+            if (bson_object_property_value_get_object(&uniforms_obj, "per_draw", &per_draw_array))
+                bson_array_element_count_get(&per_draw_array, &per_draw_count);
 
-            typed_asset->uniform_count = global_count + instance_count + local_count;
+            typed_asset->uniform_count = per_frame_count + per_group_count + per_draw_count;
             typed_asset->uniforms = ballocate(sizeof(basset_shader_uniform) * typed_asset->uniform_count, MEMORY_TAG_ARRAY);
             u32 uniform_index = 0;
 
-            // Globals
-            for (u32 i = 0; i < global_count; ++i)
+            // Per-frame
+            if (!extract_frequency_uniforms(SHADER_UPDATE_FREQUENCY_PER_FRAME, per_frame_count, &per_frame_array, typed_asset, &uniform_index))
             {
-                bson_object uniform_obj = {0};
-                bson_array_element_value_get_object(&global_array, i, &uniforms_obj);
-                basset_shader_uniform* uniform = &typed_asset->uniforms[uniform_index];
-
-                const char* temp = 0;
-                bson_object_property_value_get_string(&uniform_obj, "type", &temp);
-                uniform->type = string_to_shader_uniform_type(temp);
-                string_free(temp);
-
-                bson_object_property_value_get_string(&uniform_obj, "name", &uniform->name);
-
-                uniform_index++;
+                BERROR("Failed to extract per-frame uniforms. See logs for details");
+                return false;
             }
 
-            // Instance
-            for (u32 i = 0; i < instance_count; ++i)
+            // Per-group
+            if (!extract_frequency_uniforms(SHADER_UPDATE_FREQUENCY_PER_GROUP, per_group_count, &per_group_array, typed_asset, &uniform_index))
             {
-                bson_object uniform_obj = {0};
-                bson_array_element_value_get_object(&instance_array, i, &uniforms_obj);
-                basset_shader_uniform* uniform = &typed_asset->uniforms[uniform_index];
-
-                const char* temp = 0;
-                bson_object_property_value_get_string(&uniform_obj, "type", &temp);
-                uniform->type = string_to_shader_uniform_type(temp);
-                string_free(temp);
-
-                bson_object_property_value_get_string(&uniform_obj, "name", &uniform->name);
-
-                uniform_index++;
+                BERROR("Failed to extract per-group uniforms. See logs for details");
+                return false;
             }
 
-            // Local
-            for (u32 i = 0; i < local_count; ++i)
+            // Per-draw
+            if (!extract_frequency_uniforms(SHADER_UPDATE_FREQUENCY_PER_DRAW, per_draw_count, &per_draw_array, typed_asset, &uniform_index))
             {
-                bson_object uniform_obj = {0};
-                bson_array_element_value_get_object(&local_array, i, &uniforms_obj);
-                basset_shader_uniform* uniform = &typed_asset->uniforms[uniform_index];
-
-                const char* temp = 0;
-                bson_object_property_value_get_string(&uniform_obj, "type", &temp);
-                uniform->type = string_to_shader_uniform_type(temp);
-                string_free(temp);
-
-                bson_object_property_value_get_string(&uniform_obj, "name", &uniform->name);
-
-                uniform_index++;
+                BERROR("Failed to extract per-draw uniforms. See logs for details");
+                return false;
             }
         }
 
@@ -333,4 +313,62 @@ b8 basset_shader_deserialize(const char* file_text, basset* out_asset)
 
     BERROR("basset_shader_deserialize serializer requires an asset to deserialize to!");
     return false;
+}
+
+static b8 extract_frequency_uniforms(shader_update_frequency frequency, u32 frequency_uniform_count, bson_array* frequency_array, basset_shader* typed_asset, u32* uniform_index)
+{
+    for (u32 i = 0; i < frequency_uniform_count; ++i)
+    {
+        bson_object uniform_obj = {0};
+        bson_array_element_value_get_object(frequency_array, i, &uniform_obj);
+        basset_shader_uniform* uniform = &typed_asset->uniforms[(*uniform_index)];
+
+        // Type is required
+        const char* temp = 0;
+        if (!bson_object_property_value_get_string(&uniform_obj, "type", &temp))
+        {
+            BERROR("Uniform type is required (uniform index=%u, freq=%s, freq index=%u)", *uniform_index, shader_update_frequency_to_string(frequency), i);
+            return false;
+        }
+        uniform->type = string_to_shader_uniform_type(temp);
+        string_free(temp);
+
+        // For struct types, the size is also required
+        if (uniform->type == SHADER_UNIFORM_TYPE_STRUCT)
+        {
+            i64 temp_size = 0;
+            if (!bson_object_property_value_get_int(&uniform_obj, "size", &temp_size))
+            {
+                BERROR("Size is required for struct uniform types (uniform index=%u, freq=%s, freq index=%u)", *uniform_index, shader_update_frequency_to_string(frequency), i);
+                return false;
+            }
+            if (temp_size < 0)
+            {
+                BERROR("Struct size must be positive. Struct uniform cannot be processed. (uniform index=%u, freq=%s, freq index=%u, size=%lli)", *uniform_index, shader_update_frequency_to_string(frequency), i, temp_size);
+                return false;
+            }
+            uniform->size = (u32)temp_size;
+        }
+
+        // Check for an optional array size
+        i64 temp_array_size = 0;
+
+        bson_object_property_value_get_int(&uniform_obj, "array_size", &temp_array_size);
+        if (temp_array_size < 0)
+        {
+            BERROR("array_size must be positive. Value will be ignored, and uniform will be treated as a non-array. (uniform index=%u, freq=%s, freq index=%u, array_size=%lli)", *uniform_index, shader_update_frequency_to_string(frequency), i, temp_array_size);
+            temp_array_size = 0;
+        }
+        uniform->array_size = (u32)temp_array_size;
+
+        // Uniform name
+        bson_object_property_value_get_string(&uniform_obj, "name", &uniform->name);
+
+        // Also set frequency itself
+        uniform->frequency = frequency;
+
+        (*uniform_index)++;
+    }
+    
+    return true;
 }

@@ -7,6 +7,29 @@
 #include "memory/bmemory.h"
 #include "strings/bname.h"
 #include "strings/bstring.h"
+#include "strings/bstring_id.h"
+
+const char* bson_property_type_to_string(bson_property_type type)
+{
+    switch (type)
+    {
+    default:
+    case BSON_PROPERTY_TYPE_UNKNOWN:
+        return "unknown";
+    case BSON_PROPERTY_TYPE_INT:
+        return "int";
+    case BSON_PROPERTY_TYPE_FLOAT:
+        return "float";
+    case BSON_PROPERTY_TYPE_STRING:
+        return "string";
+    case BSON_PROPERTY_TYPE_OBJECT:
+        return "object";
+    case BSON_PROPERTY_TYPE_ARRAY:
+        return "array";
+    case BSON_PROPERTY_TYPE_BOOLEAN:
+        return "boolean";
+    }
+}
 
 b8 bson_parser_create(bson_parser* out_parser)
 {
@@ -565,7 +588,7 @@ b8 bson_parser_parse(bson_parser* parser, bson_tree* out_tree)
                     bson_property unnamed_array_prop = {0};
                     unnamed_array_prop.type = BSON_PROPERTY_TYPE_OBJECT;
                     unnamed_array_prop.value.o = new_obj;
-                    unnamed_array_prop.name = 0;
+                    unnamed_array_prop.name = INVALID_BSTRING_ID;
                     // Add the array property to the current object
                     darray_push(current_object->properties, unnamed_array_prop);
                     // The current object is now new_obj
@@ -625,7 +648,7 @@ b8 bson_parser_parse(bson_parser* parser, bson_tree* out_tree)
                     bson_property unnamed_array_prop = {0};
                     unnamed_array_prop.type = BSON_PROPERTY_TYPE_ARRAY;
                     unnamed_array_prop.value.o = new_arr;
-                    unnamed_array_prop.name = 0;
+                    unnamed_array_prop.name = INVALID_BSTRING_ID;
                     // Add the property to the current object
                     darray_push(current_object->properties, unnamed_array_prop);
                     // The current object is now new_arr. This will always be the first entry in that array
@@ -682,7 +705,7 @@ b8 bson_parser_parse(bson_parser* parser, bson_tree* out_tree)
                 // Start a new property
                 bson_property prop = {0};
                 prop.type = BSON_PROPERTY_TYPE_UNKNOWN;
-                prop.name = string_duplicate(buf);
+                prop.name = bstring_id_create(buf);
 
                 // Push the new property and set the current property to it
                 if (!current_object->properties)
@@ -825,7 +848,7 @@ b8 bson_parser_parse(bson_parser* parser, bson_tree* out_tree)
                     bson_property p = {0};
                     p.type = BSON_PROPERTY_TYPE_STRING;
                     p.value.s = string_from_bson_token(parser->file_content, current_token);
-                    p.name = 0;
+                    p.name = INVALID_BSTRING_ID;
                     darray_push(current_object->properties, p);
                 }
                 else
@@ -856,7 +879,7 @@ b8 bson_parser_parse(bson_parser* parser, bson_tree* out_tree)
                     bson_property p = {0};
                     p.type = BSON_PROPERTY_TYPE_BOOLEAN;
                     p.value.b = bool_value;
-                    p.name = 0;
+                    p.name = INVALID_BSTRING_ID;
                     darray_push(current_object->properties, p);
                 }
                 else
@@ -872,7 +895,7 @@ b8 bson_parser_parse(bson_parser* parser, bson_tree* out_tree)
                 {
                     // Terminate the numeric and set the current property's value to it
                     bson_property p = {0};
-                    p.name = 0;
+                    p.name = INVALID_BSTRING_ID;
                     // Determine whether it is a float or a int
                     if (string_index_of(numeric_literal_str, '.') != -1)
                     {
@@ -1051,7 +1074,7 @@ static void bson_tree_object_to_string(const bson_object* obj, char* out_source,
             if (p->name)
             {
                 // Write the name, then a space, then =, then another space
-                write_string(out_source, position, p->name);
+                write_string(out_source, position, bname_string_get(p->name));
                 write_spaces(out_source, position, 1);
                 write_string(out_source, position, "=");
                 write_spaces(out_source, position, 1);
@@ -1212,7 +1235,7 @@ static b8 bson_object_property_add(bson_object* obj, bson_property_type type, co
 
     bson_property new_prop = {0};
     new_prop.type = type;
-    new_prop.name = string_duplicate(name);
+    new_prop.name = bstring_id_create(name);
     new_prop.value = value;
 
     darray_push(obj->properties, new_prop);
@@ -1242,7 +1265,7 @@ static b8 bson_array_value_add_unnamed_property(bson_array* array, bson_property
 
     bson_property new_prop = {0};
     new_prop.type = type;
-    new_prop.name = 0;
+    new_prop.name = INVALID_BSTRING_ID;
     new_prop.value = value;
 
     darray_push(array->properties, new_prop);
@@ -1727,9 +1750,10 @@ b8 bson_object_property_type_get(const bson_object* object, const char* name, bs
     }
 
     u32 count = darray_length(object->properties);
+    bstring_id search_name = bstring_id_create(name);
     for (u32 i = 0; i < count; ++i)
     {
-        if (strings_equal(object->properties[i].name, name))
+        if (object->properties[i].name == search_name)
         {
             *out_type = object->properties[i].type;
             return true;
@@ -1768,13 +1792,27 @@ static i32 bson_object_property_index_get(const bson_object* object, const char*
         return -1;
 
     u32 count = darray_length(object->properties);
+    bstring_id search_name = bstring_id_create(name);
     for (u32 i = 0; i < count; ++i)
     {
-        if (strings_equal(object->properties[i].name, name))
+        if (object->properties[i].name == search_name)
             return i;
     }
 
     return -1;
+}
+
+b8 bson_object_property_value_type_get(const bson_object* object, const char* name, bson_property_type* out_type)
+{
+    i32 index = bson_object_property_index_get(object, name);
+    if (index == -1)
+    {
+        *out_type = BSON_PROPERTY_TYPE_UNKNOWN;
+        return false;
+    }
+
+    *out_type = object->properties[index].type;
+    return true;
 }
 
 b8 bson_object_property_value_get_int(const bson_object* object, const char* name, i64* out_value)
@@ -1788,13 +1826,18 @@ b8 bson_object_property_value_get_int(const bson_object* object, const char* nam
 
     bson_property* p = &object->properties[index];
 
-    // NOTE: Try some type conversions
+    // NOTE: Try some automatic type conversions
     if (p->type == BSON_PROPERTY_TYPE_INT)
         *out_value = p->value.i;
     else if (p->type == BSON_PROPERTY_TYPE_BOOLEAN)
         *out_value = p->value.b ? 1 : 0;
-    else
+    else if (p->type == BSON_PROPERTY_TYPE_FLOAT)
         *out_value = (i64)p->value.f;
+    else
+    {
+        BERROR("Attempted to get property '%s' as type '%s' when it is of type '%s'", name, bson_property_type_to_string(BSON_PROPERTY_TYPE_INT), bson_property_type_to_string(p->type));
+        return false;
+    }
 
     return true;
 }
@@ -1810,12 +1853,17 @@ b8 bson_object_property_value_get_float(const bson_object* object, const char* n
     bson_property* p = &object->properties[index];
 
     // If the property is an int, cast to a float
-    if (p->type == BSON_PROPERTY_TYPE_INT)
+    if (p->type == BSON_PROPERTY_TYPE_FLOAT)
+        *out_value = p->value.f;
+    else if (p->type == BSON_PROPERTY_TYPE_INT)
         *out_value = (f32)p->value.i;
     else if (p->type == BSON_PROPERTY_TYPE_BOOLEAN)
         *out_value = (f32)p->value.b;
     else
-        *out_value = p->value.f;
+    {
+        BERROR("Attempted to get property '%s' as type '%s' when it is of type '%s'", name, bson_property_type_to_string(BSON_PROPERTY_TYPE_FLOAT), bson_property_type_to_string(p->type));
+        return false;
+    }
 
     return true;
 }
@@ -1832,12 +1880,17 @@ b8 bson_object_property_value_get_bool(const bson_object* object, const char* na
     bson_property* p = &object->properties[index];
 
     // NOTE: Try some type conversions
-    if (p->type == BSON_PROPERTY_TYPE_INT)
+    if (p->type == BSON_PROPERTY_TYPE_BOOLEAN)
+        *out_value = p->value.b;
+    else if (p->type == BSON_PROPERTY_TYPE_INT)
         *out_value = p->value.i == 0 ? false : true;
     else if (p->type == BSON_PROPERTY_TYPE_FLOAT)
         *out_value = p->value.f == 0 ? false : true;
     else
-        *out_value = p->value.b;
+    {
+        BERROR("Attempted to get property '%s' as type '%s' when it is of type '%s'", name, bson_property_type_to_string(BSON_PROPERTY_TYPE_BOOLEAN), bson_property_type_to_string(p->type));
+        return false;
+    }
 
     return true;
 }
@@ -1856,21 +1909,15 @@ b8 bson_object_property_value_get_string(const bson_object* object, const char* 
     // NOTE: Try some type conversions
     if (p->type == BSON_PROPERTY_TYPE_INT)
     {
-        char buf[50] = {0};
-        string_format_unsafe(buf, "%i", p->value.i);
-        *out_value = string_duplicate(buf);
+        *out_value = string_format("%i", p->value.i);
     }
     else if (p->type == BSON_PROPERTY_TYPE_FLOAT)
     {
-        char buf[50] = {0};
-        string_format_unsafe(buf, "%f", p->value.f);
-        *out_value = string_duplicate(buf);
+        *out_value = string_format("%f", p->value.f);
     }
     else if (p->type == BSON_PROPERTY_TYPE_BOOLEAN)
     {
-        char buf[6] = {0};
-        string_format_unsafe(buf, "%s", p->value.b ? "true" : "false");
-        *out_value = string_duplicate(buf);
+        *out_value = string_format("%s", p->value.b ? "true" : "false");
     }
     else if (p->type == BSON_PROPERTY_TYPE_OBJECT)
     {
@@ -1886,8 +1933,8 @@ b8 bson_object_property_value_get_string(const bson_object* object, const char* 
     }
     else
     {
-        *out_value = string_duplicate("undefined_type");
-        BERROR("Unrecognized value type")
+        BERROR("Attempted to get property '%s' as type '%s' when it is of type '%s'", name, bson_property_type_to_string(BSON_PROPERTY_TYPE_STRING), bson_property_type_to_string(p->type));
+        *out_value = 0;
         return false;
     }
 
@@ -1904,7 +1951,7 @@ static const char* bson_object_property_value_get_string_reference(const bson_ob
     bson_property* p = &object->properties[index];
     if (p->type != BSON_PROPERTY_TYPE_STRING)
     {
-        BERROR("Error parsing value as '%s' - property not stored as string", target_type);
+        BERROR("Error parsing value as '%s' - property not stored as string (type='%s')", bson_property_type_to_string(BSON_PROPERTY_TYPE_STRING), bson_property_type_to_string(p->type));
         return 0;
     }
     return p->value.s;
@@ -1952,6 +1999,9 @@ b8 bson_object_property_value_get_bname(const bson_object* object, const char* n
         return false;
 
     const char* str = bson_object_property_value_get_string_reference(object, name, "bname");
+    if (!str)
+        return false;
+
     *out_value = bname_create(str);
     return true;
 }
@@ -1962,7 +2012,14 @@ b8 bson_object_property_value_get_object(const bson_object* object, const char* 
     if (index == -1)
         return false;
 
-    *out_value = object->properties[index].value.o;
+    bson_property* p = &object->properties[index];
+    if (p->type != BSON_PROPERTY_TYPE_OBJECT)
+    {
+        BERROR("Error parsing value as '%s' - property not stored as string (type='%s')", bson_property_type_to_string(BSON_PROPERTY_TYPE_OBJECT), bson_property_type_to_string(p->type));
+        return false;
+    }
+
+    *out_value = p->value.o;
     return true;
 }
 
@@ -1970,9 +2027,9 @@ bson_property bson_object_property_create(const char* name)
 {
     bson_property obj = {0};
     obj.type = BSON_PROPERTY_TYPE_OBJECT;
-    obj.name = 0;
+    obj.name = INVALID_BSTRING_ID;
     if (name)
-        obj.name = string_duplicate(name);
+        obj.name = bstring_id_create(name);
     obj.value.o.type = BSON_OBJECT_TYPE_OBJECT;
     obj.value.o.properties = darray_create(bson_property);
 
@@ -1983,9 +2040,9 @@ bson_property bson_array_property_create(const char* name)
 {
     bson_property arr = {0};
     arr.type = BSON_PROPERTY_TYPE_ARRAY;
-    arr.name = 0;
+    arr.name = INVALID_BSTRING_ID;
     if (name)
-        arr.name = string_duplicate(name);
+        arr.name = bstring_id_create(name);
     arr.value.o.type = BSON_OBJECT_TYPE_ARRAY;
     arr.value.o.properties = darray_create(bson_property);
 

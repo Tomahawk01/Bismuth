@@ -1,6 +1,5 @@
 #include "assets/basset_types.h"
 #include "defines.h"
-#include "basset_bresource_utils.h"
 #include "bresources/bresource_types.h"
 #include "logger.h"
 #include "memory/bmemory.h"
@@ -86,7 +85,7 @@ void bresource_handler_material_release(bresource_handler* self, bresource* reso
         bresource_material* typed_resource = (bresource_material*)resource;
 
         if (typed_resource->custom_sampler_count && typed_resource->custom_samplers)
-            BFREE_TYPE_CARRAY(typed_resource->custom_samplers, basset_material_sampler, typed_resource->custom_sampler_count);
+            BFREE_TYPE_CARRAY(typed_resource->custom_samplers, bmaterial_sampler_config, typed_resource->custom_sampler_count);
     }
 
     BFREE_TYPE(typed_resource, bresource_material, MEMORY_TAG_RESOURCE);
@@ -117,8 +116,8 @@ static void material_basset_on_result(asset_request_result result, const struct 
 static void asset_to_resource(const basset_material* asset, bresource_material* out_material)
 {
     // Take a copy of all of the asset properties
-    out_material->type = basset_material_type_to_bresource(asset->type);
-    out_material->model = basset_material_model_to_bresource(asset->model);
+    out_material->type = asset->type;
+    out_material->model = asset->model;
                 
     out_material->has_transparency = asset->has_transparency;
     out_material->double_sided = asset->double_sided;
@@ -129,40 +128,36 @@ static void asset_to_resource(const basset_material* asset, bresource_material* 
     out_material->custom_shader_name = asset->custom_shader_name;
             
     out_material->base_color = asset->base_color;
-    out_material->base_color_map = basset_material_texture_to_bresource(asset->base_color_map);
+    out_material->base_color_map = asset->base_color_map;
 
     out_material->normal_enabled = asset->normal_enabled;
     out_material->normal = asset->normal;
-    out_material->normal_map = basset_material_texture_to_bresource(asset->normal_map);
+    out_material->normal_map = asset->normal_map;
 
     out_material->metallic = asset->metallic;
-    out_material->metallic_map = basset_material_texture_to_bresource(asset->metallic_map);
-    out_material->metallic_map_source_channel = basset_material_tex_map_channel_to_bresource(asset->metallic_map_source_channel);
+    out_material->metallic_map = asset->metallic_map;
+    out_material->metallic_map_source_channel = asset->metallic_map_source_channel;
 
     out_material->roughness = asset->roughness;
-    out_material->roughness_map = basset_material_texture_to_bresource(asset->roughness_map);
-    out_material->roughness_map_source_channel = basset_material_tex_map_channel_to_bresource(asset->roughness_map_source_channel);
+    out_material->roughness_map = asset->roughness_map;
+    out_material->roughness_map_source_channel = asset->roughness_map_source_channel;
 
     out_material->ambient_occlusion_enabled = asset->ambient_occlusion_enabled;
     out_material->ambient_occlusion = asset->ambient_occlusion;
-    out_material->ambient_occlusion_map = basset_material_texture_to_bresource(asset->ambient_occlusion_map);
-    out_material->ambient_occlusion_map_source_channel = basset_material_tex_map_channel_to_bresource(asset->ambient_occlusion_map_source_channel);
+    out_material->ambient_occlusion_map = asset->ambient_occlusion_map;
+    out_material->ambient_occlusion_map_source_channel = asset->ambient_occlusion_map_source_channel;
 
     out_material->mra = asset->mra;
-    out_material->mra_map = basset_material_texture_to_bresource(asset->mra_map);
+    out_material->mra_map = asset->mra_map;
     out_material->use_mra = asset->use_mra;
 
     out_material->emissive_enabled = asset->emissive_enabled;
     out_material->emissive = asset->emissive;
-    out_material->emissive_map = basset_material_texture_to_bresource(asset->emissive_map);
+    out_material->emissive_map = asset->emissive_map;
 
     out_material->custom_sampler_count = asset->custom_sampler_count;
-    BALLOC_TYPE_CARRAY(basset_material_sampler, out_material->custom_sampler_count);
-    BCOPY_TYPE_CARRAY(
-        out_material->custom_samplers,
-        asset->custom_samplers,
-        basset_material_sampler,
-        out_material->custom_sampler_count);
+    BALLOC_TYPE_CARRAY(bmaterial_sampler_config, out_material->custom_sampler_count);
+    BCOPY_TYPE_CARRAY(out_material->custom_samplers, asset->custom_samplers, bmaterial_sampler_config, out_material->custom_sampler_count);
 
     out_material->base.state = BRESOURCE_STATE_LOADED;
 }

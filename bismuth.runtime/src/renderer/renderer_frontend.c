@@ -829,19 +829,19 @@ b8 renderer_shader_bind_per_draw(struct renderer_system_state* state, bhandle sh
     return state->backend->shader_bind_per_draw(state->backend, shader, draw_id);
 }
 
-b8 renderer_shader_apply_per_frame(struct renderer_system_state* state, bhandle shader)
+b8 renderer_shader_apply_per_frame(struct renderer_system_state* state, bhandle shader, u16 generation)
 {
-    return state->backend->shader_apply_per_frame(state->backend, shader, state->frame_number);
+    return state->backend->shader_apply_per_frame(state->backend, shader, generation);
 }
 
-b8 renderer_shader_apply_per_group(struct renderer_system_state* state, bhandle shader)
+b8 renderer_shader_apply_per_group(struct renderer_system_state* state, bhandle shader, u16 generation)
 {
-    return state->backend->shader_apply_per_group(state->backend, shader, state->frame_number);
+    return state->backend->shader_apply_per_group(state->backend, shader, generation);
 }
 
-b8 renderer_shader_apply_per_draw(struct renderer_system_state* state, bhandle shader)
+b8 renderer_shader_apply_per_draw(struct renderer_system_state* state, bhandle shader, u16 generation)
 {
-    return state->backend->shader_apply_per_draw(state->backend, shader, state->frame_number);
+    return state->backend->shader_apply_per_draw(state->backend, shader, generation);
 }
 
 b8 renderer_shader_per_group_resources_acquire(struct renderer_system_state* state, bhandle shader, u32* out_group_id)
@@ -893,6 +893,11 @@ void renderer_sampler_release(struct renderer_system_state* state, bhandle* samp
 b8 renderer_sampler_refresh(struct renderer_system_state* state, bhandle* sampler, texture_filter filter, texture_repeat repeat, f32 anisotropy, u32 mip_levels)
 {
     return state->backend->sampler_refresh(state->backend, sampler, filter, repeat, anisotropy, mip_levels);
+}
+
+bname renderer_sampler_name_get(struct renderer_system_state* state, bhandle sampler)
+{
+    return state->backend->sampler_name_get(state->backend, sampler);
 }
 
 b8 renderer_is_multithreaded(void)

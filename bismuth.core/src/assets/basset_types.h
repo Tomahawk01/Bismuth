@@ -211,57 +211,12 @@ typedef struct basset_static_mesh
 
 #define BASSET_TYPE_NAME_MATERIAL "Material"
 
-typedef enum basset_material_type
-{
-    BASSET_MATERIAL_TYPE_UNKNOWN = 0,
-    BASSET_MATERIAL_TYPE_STANDARD,
-    BASSET_MATERIAL_TYPE_WATER,
-    BASSET_MATERIAL_TYPE_BLENDED,
-    BASSET_MATERIAL_TYPE_COUNT,
-    BASSET_MATERIAL_TYPE_CUSTOM = 99
-} basset_material_type;
-
-typedef enum basset_material_model
-{
-    BASSET_MATERIAL_MODEL_UNLIT = 0,
-    BASSET_MATERIAL_MODEL_PBR,
-    BASSET_MATERIAL_MODEL_PHONG,
-    BASSET_MATERIAL_MODEL_COUNT,
-    BASSET_MATERIAL_MODEL_CUSTOM = 99
-} basset_material_model;
-
-typedef enum basset_material_texture_map_channel
-{
-    BASSET_MATERIAL_TEXTURE_MAP_CHANNEL_R = 0,
-    BASSET_MATERIAL_TEXTURE_MAP_CHANNEL_G = 1,
-    BASSET_MATERIAL_TEXTURE_MAP_CHANNEL_B = 2,
-    BASSET_MATERIAL_TEXTURE_MAP_CHANNEL_A = 3
-} basset_material_texture_map_channel;
-
-typedef struct basset_material_texture
-{
-    bname resource_name;
-    bname package_name;
-    bname sampler_name;
-    basset_material_texture_map_channel channel;
-} basset_material_texture;
-
-typedef struct basset_material_sampler
-{
-    bname name;
-    texture_filter filter_min;
-    texture_filter filter_mag;
-    texture_repeat repeat_u;
-    texture_repeat repeat_v;
-    texture_repeat repeat_w;
-} basset_material_sampler;
-
 typedef struct basset_material
 {
     basset base;
-    basset_material_type type;
+    bmaterial_type type;
     // Shading model
-    basset_material_model model;
+    bmaterial_model model;
 
     b8 has_transparency;
     b8 double_sided;
@@ -273,37 +228,37 @@ typedef struct basset_material
     bname custom_shader_name;
 
     vec4 base_color;
-    basset_material_texture base_color_map;
+    bmaterial_texture_input base_color_map;
 
     b8 normal_enabled;
     vec3 normal;
-    basset_material_texture normal_map;
+    bmaterial_texture_input normal_map;
 
     f32 metallic;
-    basset_material_texture metallic_map;
-    basset_material_texture_map_channel metallic_map_source_channel;
+    bmaterial_texture_input metallic_map;
+    texture_channel metallic_map_source_channel;
 
     f32 roughness;
-    basset_material_texture roughness_map;
-    basset_material_texture_map_channel roughness_map_source_channel;
+    bmaterial_texture_input roughness_map;
+    texture_channel roughness_map_source_channel;
 
     b8 ambient_occlusion_enabled;
     f32 ambient_occlusion;
-    basset_material_texture ambient_occlusion_map;
-    basset_material_texture_map_channel ambient_occlusion_map_source_channel;
+    bmaterial_texture_input ambient_occlusion_map;
+    texture_channel ambient_occlusion_map_source_channel;
 
     // Combined metallic/roughness/ao value
     vec3 mra;
-    basset_material_texture mra_map;
+    bmaterial_texture_input mra_map;
     // Indicates if the mra combined value/map should be used instead of the separate ones
     b8 use_mra;
 
     b8 emissive_enabled;
     vec4 emissive;
-    basset_material_texture emissive_map;
+    bmaterial_texture_input emissive_map;
 
     u32 custom_sampler_count;
-    basset_material_sampler* custom_samplers;
+    bmaterial_sampler_config* custom_samplers;
 } basset_material;
 
 #define BASSET_TYPE_NAME_TEXT "Text"
@@ -443,10 +398,13 @@ typedef struct basset_shader_attribute
     shader_attribute_type type;
 } basset_shader_attribute;
 
+/** @brief Represents a shader uniform within a shader asset */
 typedef struct basset_shader_uniform
 {
     const char* name;
     shader_uniform_type type;
+    u32 size;
+    u32 array_size;
     shader_update_frequency frequency;
 } basset_shader_uniform;
 
@@ -459,7 +417,7 @@ typedef struct basset_shader
     b8 depth_write;
     b8 stencil_test;
     b8 stencil_write;
-    u16 max_instances;
+    u16 max_groups;
 
     u32 attribute_count;
     basset_shader_attribute* attributes;

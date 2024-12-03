@@ -1,7 +1,6 @@
 #include "basset_material_serializer.h"
 
 #include "assets/basset_types.h"
-#include "assets/basset_utils.h"
 #include "containers/darray.h"
 #include "core_render_types.h"
 #include "logger.h"
@@ -33,12 +32,12 @@
 
 #define SAMPLERS "samplers"
 
-static b8 extract_input_map_channel_or_float(const bson_object* inputs_obj, const char* input_name, b8* out_enabled, basset_material_texture* out_texture, basset_material_texture_map_channel* out_source_channel, f32* out_value, f32 default_value);
-static b8 extract_input_map_channel_or_vec4(const bson_object* inputs_obj, const char* input_name, b8* out_enabled, basset_material_texture* out_texture, vec4* out_value, vec4 default_value);
-static b8 extract_input_map_channel_or_vec3(const bson_object* inputs_obj, const char* input_name, b8* out_enabled, basset_material_texture* out_texture, vec3* out_value, vec3 default_value);
+static b8 extract_input_map_channel_or_float(const bson_object* inputs_obj, const char* input_name, b8* out_enabled, bmaterial_texture_input* out_texture, texture_channel* out_source_channel, f32* out_value, f32 default_value);
+static b8 extract_input_map_channel_or_vec4(const bson_object* inputs_obj, const char* input_name, b8* out_enabled, bmaterial_texture_input* out_texture, vec4* out_value, vec4 default_value);
+static b8 extract_input_map_channel_or_vec3(const bson_object* inputs_obj, const char* input_name, b8* out_enabled, bmaterial_texture_input* out_texture, vec3* out_value, vec3 default_value);
 
-static void add_map_obj(bson_object* base_obj, const char* source_channel, basset_material_texture* texture);
-static b8 extract_map(const bson_object* map_obj, basset_material_texture* out_texture, basset_material_texture_map_channel* out_source_channel);
+static void add_map_obj(bson_object* base_obj, const char* source_channel, bmaterial_texture_input* texture);
+static b8 extract_map(const bson_object* map_obj, bmaterial_texture_input* out_texture, texture_channel* out_source_channel);
 
 const char* basset_material_serialize(const basset* asset)
 {
@@ -58,10 +57,10 @@ const char* basset_material_serialize(const basset* asset)
     bson_object_value_add_int(&tree.root, "version", MATERIAL_FILE_VERSION);
 
     // Material type
-    bson_object_value_add_string(&tree.root, "type", basset_material_type_to_string(material->type));
+    bson_object_value_add_string(&tree.root, "type", bmaterial_type_to_string(material->type));
 
     // Material model
-    bson_object_value_add_string(&tree.root, "model", basset_material_model_to_string(material->model));
+    bson_object_value_add_string(&tree.root, "model", bmaterial_model_to_string(material->model));
 
     // Various flags
     bson_object_value_add_boolean(&tree.root, "has_transparency", material->has_transparency);
@@ -102,7 +101,7 @@ const char* basset_material_serialize(const basset* asset)
     bson_object metallic = bson_object_create();
     if (material->metallic_map.resource_name)
     {
-        const char* channel = basset_material_texture_map_channel_to_string(material->metallic_map_source_channel);
+        const char* channel = texture_channel_to_string(material->metallic_map_source_channel);
         add_map_obj(&base_color, channel, &material->metallic_map);
     }
     else
@@ -115,7 +114,7 @@ const char* basset_material_serialize(const basset* asset)
     bson_object roughness = bson_object_create();
     if (material->roughness_map.resource_name)
     {
-        const char* channel = basset_material_texture_map_channel_to_string(material->roughness_map_source_channel);
+        const char* channel = texture_channel_to_string(material->roughness_map_source_channel);
         add_map_obj(&base_color, channel, &material->roughness_map);
     }
     else
@@ -128,7 +127,7 @@ const char* basset_material_serialize(const basset* asset)
     bson_object ao = bson_object_create();
     if (material->ambient_occlusion_map.resource_name)
     {
-        const char* channel = basset_material_texture_map_channel_to_string(material->ambient_occlusion_map_source_channel);
+        const char* channel = texture_channel_to_string(material->ambient_occlusion_map_source_channel);
         add_map_obj(&base_color, channel, &material->ambient_occlusion_map);
     }
     else
@@ -172,7 +171,7 @@ const char* basset_material_serialize(const basset* asset)
         // Each sampler
         for (u32 i = 0; i < material->custom_sampler_count; ++i)
         {
-            basset_material_sampler* custom_sampler = &material->custom_samplers[i];
+            bmaterial_sampler_config* custom_sampler = &material->custom_samplers[i];
 
             bson_object sampler = {0};
             sampler.type = BSON_OBJECT_TYPE_OBJECT;
@@ -237,13 +236,14 @@ b8 basset_material_deserialize(const char* file_text, basset* out_asset)
         BERROR("failed to obtain type from material file, which is a required field");
         goto cleanup;
     }
-    out_material->type = string_to_basset_material_type(type_str);
+    out_material->type = string_to_bmaterial_type(type_str);
 
     // Material model. Optional, defaults to PBR
     const char* model_str = 0;
     if (!bson_object_property_value_get_string(&tree.root, "model", &model_str))
-        out_material->model = BASSET_MATERIAL_MODEL_PBR;
-    out_material->model = string_to_basset_material_model(model_str);
+        out_material->model = BMATERIAL_MODEL_PBR;
+    else
+        out_material->model = string_to_bmaterial_model(model_str);
 
     // Format version
     i64 file_format_version = 0;
@@ -257,13 +257,13 @@ b8 basset_material_deserialize(const char* file_text, basset* out_asset)
     {
         if (file_format_version < 3)
         {
-            BERROR("Material file format version %u no longer supported. File should be manually converted to at least version 3. Material will not be processed", file_format_version);
+            BERROR("Material file format version %u no longer supported. File should be manually converted to at least version %u. Material will not be processed", file_format_version, MATERIAL_FILE_VERSION);
             goto cleanup;
         }
 
         if (file_format_version > MATERIAL_FILE_VERSION)
         {
-            BERROR("Cannot process a file material version that is newer than the current version!");
+            BERROR("Cannot process a file material version that is newer (%u) than the current version (%u)!", file_format_version, MATERIAL_FILE_VERSION);
             goto cleanup;
         }
     }
@@ -274,9 +274,9 @@ b8 basset_material_deserialize(const char* file_text, basset* out_asset)
     if (!bson_object_property_value_get_bool(&tree.root, "double_sided", &out_material->double_sided))
         out_material->double_sided = false;
     if (!bson_object_property_value_get_bool(&tree.root, "recieves_shadow", &out_material->recieves_shadow))
-        out_material->recieves_shadow = out_material->model != BASSET_MATERIAL_MODEL_UNLIT;
+        out_material->recieves_shadow = out_material->model != BMATERIAL_MODEL_UNLIT;
     if (!bson_object_property_value_get_bool(&tree.root, "casts_shadow", &out_material->casts_shadow))
-        out_material->casts_shadow = out_material->model != BASSET_MATERIAL_MODEL_UNLIT;
+        out_material->casts_shadow = out_material->model != BMATERIAL_MODEL_UNLIT;
     if (!bson_object_property_value_get_bool(&tree.root, "use_vertex_color_as_base_color", &out_material->use_vertex_color_as_base_color))
         out_material->use_vertex_color_as_base_color = false;
 
@@ -351,14 +351,14 @@ b8 basset_material_deserialize(const char* file_text, basset* out_asset)
         {
             if (bson_array_element_count_get(&samplers_array, &out_material->custom_sampler_count))
             {
-                out_material->custom_samplers = darray_create(basset_material_sampler);
+                out_material->custom_samplers = darray_create(bmaterial_sampler_config);
                 for (u32 i = 0; i < out_material->custom_sampler_count; ++i)
                 {
                     bson_object sampler = {0};
                     if (bson_array_element_value_get_object(&samplers_array, i, &sampler))
                     {
                         // Extract sampler attributes
-                        basset_material_sampler custom_sampler = {0};
+                        bmaterial_sampler_config custom_sampler = {0};
 
                         // name
                         if (!bson_object_property_value_get_bname(&sampler, "name", &custom_sampler.name))
@@ -430,7 +430,7 @@ cleanup:
     return success;
 }
 
-static b8 extract_input_map_channel_or_float(const bson_object* inputs_obj, const char* input_name, b8* out_enabled, basset_material_texture* out_texture, basset_material_texture_map_channel* out_source_channel, f32* out_value, f32 default_value)
+static b8 extract_input_map_channel_or_float(const bson_object* inputs_obj, const char* input_name, b8* out_enabled, bmaterial_texture_input* out_texture, texture_channel* out_source_channel, f32* out_value, f32 default_value)
 {
     bson_object input = {0};
     b8 input_found = false;
@@ -477,7 +477,7 @@ static b8 extract_input_map_channel_or_float(const bson_object* inputs_obj, cons
     return input_found;
 }
 
-static b8 extract_input_map_channel_or_vec4(const bson_object* inputs_obj, const char* input_name, b8* out_enabled, basset_material_texture* out_texture, vec4* out_value, vec4 default_value)
+static b8 extract_input_map_channel_or_vec4(const bson_object* inputs_obj, const char* input_name, b8* out_enabled, bmaterial_texture_input* out_texture, vec4* out_value, vec4 default_value)
 {
     bson_object input = {0};
     b8 input_found = false;
@@ -524,7 +524,7 @@ static b8 extract_input_map_channel_or_vec4(const bson_object* inputs_obj, const
     return input_found;
 }
 
-static b8 extract_input_map_channel_or_vec3(const bson_object* inputs_obj, const char* input_name, b8* out_enabled, basset_material_texture* out_texture, vec3* out_value, vec3 default_value)
+static b8 extract_input_map_channel_or_vec3(const bson_object* inputs_obj, const char* input_name, b8* out_enabled, bmaterial_texture_input* out_texture, vec3* out_value, vec3 default_value)
 {
     bson_object input = {0};
     b8 input_found = false;
@@ -571,7 +571,7 @@ static b8 extract_input_map_channel_or_vec3(const bson_object* inputs_obj, const
     return input_found;
 }
 
-static void add_map_obj(bson_object* base_obj, const char* source_channel, basset_material_texture* texture)
+static void add_map_obj(bson_object* base_obj, const char* source_channel, bmaterial_texture_input* texture)
 {
     // Add map object
     bson_object map_obj = bson_object_create();
@@ -591,7 +591,7 @@ static void add_map_obj(bson_object* base_obj, const char* source_channel, basse
     bson_object_value_add_object(base_obj, INPUT_MAP, map_obj);
 }
 
-static b8 extract_map(const bson_object* map_obj, basset_material_texture* out_texture, basset_material_texture_map_channel* out_source_channel)
+static b8 extract_map(const bson_object* map_obj, bmaterial_texture_input* out_texture, texture_channel* out_source_channel)
 {
     // Extract the resource_name. Required
     if (!bson_object_property_value_get_bname(map_obj, INPUT_MAP_RESOURCE_NAME, &out_texture->resource_name))
@@ -615,12 +615,12 @@ static b8 extract_map(const bson_object* map_obj, basset_material_texture* out_t
         bson_object_property_value_get_string(map_obj, INPUT_MAP_SOURCE_CHANNEL, &channel);
         if (channel)
         {
-            *out_source_channel = string_to_basset_material_texture_map_channel(channel);
+            *out_source_channel = string_to_texture_channel(channel);
         }
         else
         {
             // Use default of r
-            *out_source_channel = BASSET_MATERIAL_TEXTURE_MAP_CHANNEL_R;
+            *out_source_channel = TEXTURE_CHANNEL_R;
         }
     }
 

@@ -94,3 +94,6 @@ BAPI void* bset_memory(void* dest, i32 value, u64 size);
 
 BAPI char* get_memory_usage_str(void);
 BAPI u64 get_memory_alloc_count(void);
+
+BAPI u32 pack_u8_into_u32(u8 x, u8 y, u8 z, u8 w);
+BAPI b8 unpack_u8_from_u32(u32 n, u8* x, u8* y, u8* z, u8* w);

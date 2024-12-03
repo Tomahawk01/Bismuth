@@ -4,8 +4,10 @@
 #include "math/math_types.h"
 
 BAPI u64 string_length(const char* str);
-
 BAPI u32 string_utf8_length(const char* str);
+
+BAPI u64 string_nlength(const char* str, u32 max_len);
+BAPI u32 string_utf8_nlength(const char* str, u32 max_len);
 
 BAPI b8 bytes_to_codepoint(const char* bytes, u32 offset, i32* out_codepoint, u8* out_advance);
 
@@ -23,11 +25,11 @@ BAPI b8 strings_equal(const char* str0, const char* str1);
 // Case-insensitive string comparison. Return true if same, otherwise false
 BAPI b8 strings_equali(const char* str0, const char* str1);
 
-// Case-sensitive string comparison for a number of characters
-BAPI b8 strings_nequal(const char* str0, const char* str1, u64 length);
+// Case-sensitive string comparison, where comparison stops at max_len
+BAPI b8 strings_nequal(const char* str0, const char* str1, u32 max_len);
 
-// Case-insensitive string comparison for a number of characters
-BAPI b8 strings_nequali(const char* str0, const char* str1, u64 length);
+// Case-insensitive string comparison, where comparison stops at max_len
+BAPI b8 strings_nequali(const char* str0, const char* str1, u32 max_len);
 
 // Performs string formatting against the given format string and parameters
 BAPI char* string_format(const char* format, ...);
@@ -61,7 +63,7 @@ BAPI char* string_empty(char* str);
 
 BAPI char* string_copy(char* dest, const char* source);
 
-BAPI char* string_ncopy(char* dest, const char* source, i64 length);
+BAPI char* string_ncopy(char* dest, const char* source, u32 max_len);
 
 BAPI char* string_trim(char* str);
 
@@ -436,6 +438,8 @@ BAPI b8 codepoint_is_upper(i32 codepoint);
 BAPI b8 codepoint_is_alpha(i32 codepoint);
 /** Indicates if provided codepoint is numeric. Regular ASCII and western European high-ascii characters only */
 BAPI b8 codepoint_is_numeric(i32 codepoint);
+/** Indicates if the given codepoint is considered to be a space. Includes ' ', \f \r \n \t and \v */
+BAPI b8 codepoint_is_space(i32 codepoint);
 
 /** Converts string in-place to uppercase. Regular ASCII and western European high-ascii characters only */
 BAPI void string_to_lower(char* str);
@@ -462,6 +466,8 @@ BAPI void bstring_destroy(bstring* string);
 
 BAPI u32 bstring_length(const bstring* string);
 BAPI u32 bstring_utf8_length(const bstring* string);
+BAPI u64 string_nlength(const char* str, u32 max_len);
+BAPI u32 string_utf8_nlength(const char* str, u32 max_len);
 
 BAPI void bstring_append_str(bstring* string, const char* s);
 BAPI void bstring_append_bstring(bstring* string, const bstring* other);

@@ -122,9 +122,9 @@ BAPI b8 renderer_shader_bind_per_frame(struct renderer_system_state* state, bhan
 BAPI b8 renderer_shader_bind_per_group(struct renderer_system_state* state, bhandle shader, u32 group_id);
 BAPI b8 renderer_shader_bind_per_draw(struct renderer_system_state* state, bhandle shader, u32 draw_id);
 
-BAPI b8 renderer_shader_apply_per_frame(struct renderer_system_state* state, bhandle shader);
-BAPI b8 renderer_shader_apply_per_group(struct renderer_system_state* state, bhandle shader);
-BAPI b8 renderer_shader_apply_per_draw(struct renderer_system_state* state, bhandle shader);
+BAPI b8 renderer_shader_apply_per_frame(struct renderer_system_state* state, bhandle shader, u16 generation);
+BAPI b8 renderer_shader_apply_per_group(struct renderer_system_state* state, bhandle shader, u16 generation);
+BAPI b8 renderer_shader_apply_per_draw(struct renderer_system_state* state, bhandle shader, u16 generation);
 
 BAPI b8 renderer_shader_per_group_resources_acquire(struct renderer_system_state* state, bhandle shader, u32* out_group_id);
 BAPI b8 renderer_shader_per_group_resources_release(struct renderer_system_state* state, bhandle shader, u32 group_id);
@@ -139,6 +139,8 @@ BAPI bhandle renderer_generic_sampler_get(struct renderer_system_state* state, s
 BAPI bhandle renderer_sampler_acquire(struct renderer_system_state* state, texture_filter filter, texture_repeat repeat, f32 anisotropy, u32 mip_levels);
 BAPI void renderer_sampler_release(struct renderer_system_state* state, bhandle* sampler);
 BAPI b8 renderer_sampler_refresh(struct renderer_system_state* state, bhandle* sampler, texture_filter filter, texture_repeat repeat, f32 anisotropy, u32 mip_levels);
+
+BAPI bname renderer_sampler_name_get(struct renderer_system_state* state, bhandle sampler);
 
 BAPI b8 renderer_is_multithreaded(void);
 

@@ -237,12 +237,16 @@ typedef struct vulkan_pipeline
 } vulkan_pipeline;
 
 #define VULKAN_SHADER_MAX_STAGES 8
-#define VULKAN_SHADER_MAX_TEXTURE_BINDINGS 31
+#define VULKAN_SHADER_MAX_TEXTURE_BINDINGS 16
+#define VULKAN_SHADER_MAX_SAMPLER_BINDINGS 16
 #define VULKAN_SHADER_MAX_ATTRIBUTES 16
 
 #define VULKAN_SHADER_MAX_UNIFORMS 128
 
 #define VULKAN_SHADER_MAX_PUSH_CONST_RANGES 32
+
+// Max number of descriptor sets based on frequency (0=per-frame, 1=per-group, 2=per-draw)
+#define VULKAN_SHADER_DESCRIPTOR_SET_LAYOUT_COUNT 3
 
 typedef struct vulkan_descriptor_set_config
 {
@@ -252,9 +256,8 @@ typedef struct vulkan_descriptor_set_config
 
 typedef struct vulkan_descriptor_state
 {
-    u8* generations;
-    u32* ids;
-    u64* frame_numbers;
+    /** @brief The descriptor generation, per swapchain image. INVALID_ID_U16 if never loaded */
+    u16* generations;
 } vulkan_descriptor_state;
 
 typedef struct vulkan_uniform_sampler_state
@@ -273,7 +276,7 @@ typedef struct vulkan_uniform_texture_state
     /** @brief An array of handles to texture resources */
     bhandle* texture_handles;
 
-    /** @brief A descriptor state per descriptor, which in turn handles frames. Count is managed in shader config */
+    /** @brief A descriptor state per sampler. Count matches uniform array_count */
     vulkan_descriptor_state* descriptor_states;
 } vulkan_uniform_texture_state;
 
@@ -285,7 +288,7 @@ typedef struct vulkan_shader_frequency_state
 
     VkDescriptorSet* descriptor_sets;
 
-    // UBO descriptor
+    // UBO descriptor state
     vulkan_descriptor_state ubo_descriptor_state;
 
     // A mapping of sampler uniforms to descriptors
@@ -334,7 +337,7 @@ typedef struct vulkan_shader
 
     u8 descriptor_set_count;
     /** @brief Descriptor sets, max of 3. Index 0=per_frame, 1=per_group, 2=per_draw */
-    vulkan_descriptor_set_config descriptor_sets[3];
+    vulkan_descriptor_set_config descriptor_sets[VULKAN_SHADER_DESCRIPTOR_SET_LAYOUT_COUNT];
     
     /** @brief The number of vertex attributes in the shader */
     u8 attribute_count;
@@ -368,7 +371,7 @@ typedef struct vulkan_shader
 
     VkDescriptorPool descriptor_pool;
 
-    VkDescriptorSetLayout descriptor_set_layouts[3];
+    VkDescriptorSetLayout descriptor_set_layouts[VULKAN_SHADER_DESCRIPTOR_SET_LAYOUT_COUNT];
 
     /** @brief The uniform buffers used by this shader, one per swapchain image */
     renderbuffer* uniform_buffers;
@@ -442,6 +445,11 @@ typedef struct vulkan_sampler_handle_data
 {
     // Used for handle validation
     u64 handle_uniqueid;
+    // The generation of the internal sampler. Incremented every time the sampler is changed
+    u16 generation;
+    // Sampler name for named lookups and serialization
+    bname name;
+    // The underlying sampler handle
     VkSampler sampler;
 } vulkan_sampler_handle_data;
 
@@ -452,7 +460,7 @@ typedef struct vulkan_texture_handle_data
     u64 uniqueid;
 
     // The generation of the internal texture. Incremented every time the texture is changed
-    u32 generation;
+    u16 generation;
 
     // Number of vulkan_images in the array. This is typically 1 unless the texture requires the frame_count to be taken into account
     u32 image_count;

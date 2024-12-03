@@ -55,7 +55,7 @@ BAPI b8 shader_system_reload(bhandle shader);
  * @param shader_name The bname to search for
  * @return A handle to a shader, if found/loaded; otherwise an invalid handle
  */
-BAPI bshader shader_system_get(bname name);
+BAPI bhandle shader_system_get(bname name);
 
 /**
  * @brief Attempts to destroy the shader with the given handle. Handle will be invalidated
@@ -151,9 +151,9 @@ BAPI b8 shader_system_bind_frame(bhandle shader);
 BAPI b8 shader_system_bind_group(bhandle shader, u32 instance_id);
 BAPI b8 shader_system_bind_draw_id(bhandle shader, u32 local_id);
 
-BAPI b8 shader_system_apply_per_frame(bhandle shader);
-BAPI b8 shader_system_apply_per_group(bhandle shader);
-BAPI b8 shader_system_apply_per_draw(bhandle shader);
+BAPI b8 shader_system_apply_per_frame(bhandle shader, u16 generation);
+BAPI b8 shader_system_apply_per_group(bhandle shader, u16 generation);
+BAPI b8 shader_system_apply_per_draw(bhandle shader, u16 generation);
 
 BAPI b8 shader_system_shader_group_acquire(bhandle shader, u32* out_group_id);
 BAPI b8 shader_system_shader_group_release(bhandle shader, u32 instance_id);

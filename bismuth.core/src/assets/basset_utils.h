@@ -33,19 +33,3 @@ const char* basset_type_to_string(basset_type type);
 BAPI void asset_handler_base_on_asset_loaded(struct vfs_state* vfs, vfs_asset_data asset_data);
 
 BAPI u8 channel_count_from_image_format(basset_image_format format);
-
-BAPI const char* basset_material_texture_map_channel_to_string(basset_material_texture_map_channel channel);
-
-BAPI basset_material_texture_map_channel string_to_basset_material_texture_map_channel(const char* str);
-
-/** @brief Returns the string representation of the given material type */
-BAPI const char* basset_material_type_to_string(basset_material_type type);
-
-/** @brief Converts the given string into a material type. Case-insensitive */
-BAPI basset_material_type string_to_basset_material_type(const char* str);
-
-/** @brief Returns the string representation of the given material model */
-BAPI const char* basset_material_model_to_string(basset_material_model model);
-
-/** @brief Converts the given string into a material model. Case-insensitive */
-BAPI basset_material_model string_to_basset_material_model(const char* str);

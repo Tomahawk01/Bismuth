@@ -17,7 +17,6 @@ struct viewport;
 struct camera;
 struct material;
 struct bwindow_renderer_backend_state;
-struct texture_map;
 
 typedef struct renderbuffer_data
 {
@@ -272,9 +271,9 @@ typedef struct renderer_backend_interface
     b8 (*shader_bind_per_group)(struct renderer_backend_interface* backend, bhandle shader, u32 group_id);
     b8 (*shader_bind_per_draw)(struct renderer_backend_interface* backend, bhandle shader, u32 draw_id);
 
-    b8 (*shader_apply_per_frame)(struct renderer_backend_interface* backend, bhandle shader, u64 renderer_frame_number);
-    b8 (*shader_apply_per_group)(struct renderer_backend_interface* backend, bhandle shader, u64 renderer_frame_number);
-    b8 (*shader_apply_per_draw)(struct renderer_backend_interface* backend, bhandle shader, u64 renderer_frame_number);
+    b8 (*shader_apply_per_frame)(struct renderer_backend_interface* backend, bhandle shader, u16 generation);
+    b8 (*shader_apply_per_group)(struct renderer_backend_interface* backend, bhandle shader, u16 generation);
+    b8 (*shader_apply_per_draw)(struct renderer_backend_interface* backend, bhandle shader, u16 generation);
 
     b8 (*shader_per_group_resources_acquire)(struct renderer_backend_interface* backend, bhandle shader, u32* out_instance_id);
     b8 (*shader_per_group_resources_release)(struct renderer_backend_interface* backend, bhandle shader, u32 instance_id);
@@ -287,6 +286,8 @@ typedef struct renderer_backend_interface
     bhandle (*sampler_acquire)(struct renderer_backend_interface* backend, texture_filter filter, texture_repeat repeat, f32 anisotropy, u32 mip_levels);
     void (*sampler_release)(struct renderer_backend_interface* backend, bhandle* sampler);
     b8 (*sampler_refresh)(struct renderer_backend_interface* backend, bhandle* sampler, texture_filter filter, texture_repeat repeat, f32 anisotropy, u32 mip_levels);
+
+    bname (*sampler_name_get)(struct renderer_backend_interface* backend, bhandle sampler);
 
     b8 (*is_multithreaded)(struct renderer_backend_interface* backend);
 

@@ -46,5 +46,5 @@ void asset_handler_material_release_asset(struct asset_handler* self, struct bas
 {
     basset_material* typed_asset = (basset_material*)asset;
     if (typed_asset->custom_sampler_count && typed_asset->custom_samplers)
-        BFREE_TYPE_CARRAY(typed_asset->custom_samplers, basset_material_sampler, typed_asset->custom_sampler_count);
+        BFREE_TYPE_CARRAY(typed_asset->custom_samplers, bmaterial_sampler_config, typed_asset->custom_sampler_count);
 }

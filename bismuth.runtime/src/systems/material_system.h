@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core_render_types.h"
 #include "identifiers/bhandle.h"
 #include "bresources/bresource_types.h"
 
@@ -11,6 +12,7 @@
 #define MATERIAL_DEFAULT_NAME_BLENDED "Material.DefaultBlended"
 
 struct material_system_state;
+struct frame_data;
 
 typedef struct material_system_config
 {
@@ -76,11 +78,11 @@ BAPI void material_roughness_texture_channel_set(struct material_system_state* s
 BAPI texture_channel material_ao_texture_channel_get(struct material_system_state* state, bhandle material);
 BAPI void material_ao_texture_channel_set(struct material_system_state* state, bhandle material, texture_channel value);
 
-BAPI material_texture_filter material_texture_filter_get(struct material_system_state* state, bhandle material);
-BAPI void material_texture_filter_set(struct material_system_state* state, bhandle material, material_texture_filter value);
+BAPI texture_filter material_texture_filter_get(struct material_system_state* state, bhandle material);
+BAPI void material_texture_filter_set(struct material_system_state* state, bhandle material, texture_filter value);
 
-BAPI material_texture_mode material_texture_mode_get(struct material_system_state* state, bhandle material);
-BAPI void material_texture_mode_set(struct material_system_state* state, bhandle material, material_texture_mode value);
+BAPI texture_repeat material_texture_mode_get(struct material_system_state* state, bhandle material);
+BAPI void material_texture_mode_set(struct material_system_state* state, bhandle material, texture_repeat value);
 
 BAPI b8 material_has_transparency_get(struct material_system_state* state, bhandle material);
 BAPI void material_has_transparency_set(struct material_system_state* state, bhandle material, b8 value);
@@ -112,8 +114,8 @@ BAPI void material_refraction_scale_set(struct material_system_state* state, bha
 BAPI b8 material_use_vertex_color_as_albedo_get(struct material_system_state* state, bhandle material);
 BAPI void material_use_vertex_color_as_albedo_set(struct material_system_state* state, bhandle material, b8 value);
 
-BAPI b8 material_flag_set(struct material_system_state* state, bhandle material, material_flag_bits flag, b8 value);
-BAPI b8 material_flag_get(struct material_system_state* state, bhandle material, material_flag_bits flag);
+BAPI b8 material_flag_set(struct material_system_state* state, bhandle material, bmaterial_flag_bits flag, b8 value);
+BAPI b8 material_flag_get(struct material_system_state* state, bhandle material, bmaterial_flag_bits flag);
 
 // -------------------------------------------------
 // ------------- MATERIAL INSTANCE -----------------
@@ -122,8 +124,12 @@ BAPI b8 material_flag_get(struct material_system_state* state, bhandle material,
 BAPI b8 material_system_acquire(struct material_system_state* state, bname name, material_instance* out_instance);
 BAPI void material_system_release(struct material_system_state* state, material_instance* instance);
 
-BAPI b8 material_instance_flag_set(struct material_system_state* state, material_instance instance, material_flag_bits flag, b8 value);
-BAPI b8 material_instance_flag_get(struct material_system_state* state, material_instance instance, material_flag_bits flag);
+BAPI b8 material_system_prepare_frame(struct material_system_state* state, struct frame_data* p_frame_data);
+BAPI b8 material_system_apply(struct material_system_state* state, bhandle material, struct frame_data* p_frame_data);
+BAPI b8 material_system_apply_instance(struct material_system_state* state, const material_instance* instance, struct frame_data* p_frame_data);
+
+BAPI b8 material_instance_flag_set(struct material_system_state* state, material_instance instance, bmaterial_flag_bits flag, b8 value);
+BAPI b8 material_instance_flag_get(struct material_system_state* state, material_instance instance, bmaterial_flag_bits flag);
 
 BAPI b8 material_instance_base_color_get(struct material_system_state* state, material_instance instance, vec4* out_value);
 BAPI b8 material_instance_base_color_set(struct material_system_state* state, material_instance instance, vec4 value);

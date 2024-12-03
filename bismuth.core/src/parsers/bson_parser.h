@@ -4,6 +4,7 @@
 #include "defines.h"
 #include "math/math_types.h"
 #include "strings/bname.h"
+#include "strings/bstring_id.h"
 
 typedef enum bson_token_type
 {
@@ -98,8 +99,8 @@ typedef struct bson_property
 {
     // The type of property
     bson_property_type type;
-    // The name of the property. If this belongs to an array, it should be null
-    char* name;
+    // The name of the property. If this belongs to an array, it should be INVALID_BSTRING_ID
+    bstring_id name;
     // The property value
     bson_property_value value;
 } bson_property;
@@ -110,6 +111,14 @@ typedef struct bson_tree
     // The root object, which always must exist
     bson_object root;
 } bson_tree;
+
+/**
+ * @brief Gets the given property type as a constant string. NOTE: Caller should *NOT* attempt to free this string
+ *
+ * @param type The BSON property type
+ * @returns A constant string representation of the property type. NOTE: Caller should *NOT* attempt to free this string
+ */
+BAPI const char* bson_property_type_to_string(bson_property_type type);
 
 /**
  * @brief Creates a bson parser.
@@ -564,6 +573,16 @@ BAPI b8 bson_object_property_type_get(const bson_object* object, const char* nam
 BAPI b8 bson_object_property_count_get(const bson_object* object, u32* out_count);
 
 /**
+ * @brief Attempts to retrieve the given object's property value type by name. Fails if not found
+ *
+ * @param object A constant pointer to the object to search. Required
+ * @param name The property name to search for. Required
+ * @param out_type A pointer to hold the object property's type
+ * @return True on success; otherwise false
+ */
+BAPI b8 bson_object_property_value_type_get(const bson_object* object, const char* name, bson_property_type* out_type);
+
+/**
  * @brief Attempts to retrieve the given object's property value by name as a signed integer. Fails if not found or on type mismatch
  *
  * @param object constant pointer to the object to search. Required.
@@ -655,12 +674,12 @@ BAPI b8 bson_object_property_value_get_vec2(const bson_object* object, const cha
 BAPI b8 bson_object_property_value_get_bname(const bson_object* object, const char* name, bname* out_value);
 
 /**
- * @brief Attempts to retrieve the given object's property value by name as an object. Fails if not found or on type mismatch
+ * @brief Attempts to retrieve a copy of given object's property value by name as an object. Fails if not found or on type mismatch
  *
- * @param object constant pointer to the object to search. Required.
- * @param name The property name to search for. Required.
- * @param out_value A pointer to hold the object property's value.
- * @return True on success; otherwise false.
+ * @param object constant pointer to the object to search. Required
+ * @param name The property name to search for. Required
+ * @param out_value A pointer to hold a copy of the object property's value
+ * @return True on success; otherwise false
  */
 BAPI b8 bson_object_property_value_get_object(const bson_object* object, const char* name, bson_object* out_value);
 
