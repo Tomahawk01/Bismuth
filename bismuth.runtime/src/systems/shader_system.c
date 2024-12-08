@@ -265,11 +265,41 @@ bhandle shader_system_get(bname name)
 
     if (bhandle_is_invalid(shader_handle))
     {
-        BERROR("Failed to create shader '%s'", name);
+        BERROR("Failed to create shader '%s'", bname_string_get(name));
         BERROR("There is no shader available called '%s', and one by that name could also not be loaded", bname_string_get(name));
         return shader_handle;
     }
 
+    return shader_handle;
+}
+
+bhandle shader_system_get_from_source(bname name, const char* shader_config_source)
+{
+    if (name == INVALID_BNAME)
+        return bhandle_invalid();
+
+    // Not found, attempt to load the shader resource
+    bresource_shader_request_info request_info = {0};
+    request_info.base.type = BRESOURCE_TYPE_SHADER;
+    request_info.base.synchronous = true;                                            // Shaders are needed immediately
+    request_info.shader_config_source_text = string_duplicate(shader_config_source); // load from string source
+
+    bresource_shader* shader_resource = (bresource_shader*)bresource_system_request(state_ptr->resource_state, name, (bresource_request_info*)&request_info);
+    if (!shader_resource)
+    {
+        BERROR("Failed to load shader resource for shader '%s'", name);
+        return bhandle_invalid();
+    }
+
+    // Create the shader
+    bhandle shader_handle = shader_create(shader_resource);
+
+    if (bhandle_is_invalid(shader_handle))
+    {
+        BERROR("Failed to create shader '%s' from config source", bname_string_get(name));
+        return shader_handle;
+    }
+    
     return shader_handle;
 }
 
