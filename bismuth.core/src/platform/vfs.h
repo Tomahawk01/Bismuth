@@ -1,5 +1,6 @@
 #pragma once
 
+#include "assets/basset_types.h"
 #include "defines.h"
 #include "strings/bname.h"
 
@@ -7,11 +8,7 @@ struct bpackage;
 struct basset;
 struct basset_metadata;
 
-typedef struct vfs_state
-{
-    // darray
-    struct bpackage* packages;
-} vfs_state;
+struct vfs_state;
 
 typedef struct vfs_config
 {
@@ -71,15 +68,61 @@ typedef struct vfs_asset_data
 
     u32 import_params_size;
     void* import_params;
+
+    b8 watch_for_hot_reload;
+
+    // The file watch id if used during a hot-reload. otherwise INVALID_ID
+    u32 file_watch_id;
 } vfs_asset_data;
 
 typedef void (*PFN_on_asset_loaded_callback)(struct vfs_state* vfs, vfs_asset_data asset_data);
 
+typedef void (*PFN_asset_hot_reloaded_callback)(struct vfs_state* vfs, const vfs_asset_data* asset_data);
+typedef void (*PFN_asset_deleted_callback)(struct vfs_state* vfs, u32 file_watch_id);
+
+typedef struct vfs_state
+{
+    // darray
+    struct bpackage* packages;
+    // darray
+    vfs_asset_data* watched_assets;
+    // A callback to be made when an asset is hot-reloaded from the VFS. Typically handled within the asset system
+    PFN_asset_hot_reloaded_callback hot_reloaded_callback;
+    // A callback to be made when an asset is deleted from the VFS. Typically handled within the asset system
+    PFN_asset_deleted_callback deleted_callback;
+} vfs_state;
+
+/** @brief The request options for getting an asset from the VFS */
+typedef struct vfs_request_info
+{
+    /** @brief The name of the package to load the asset from */
+    bname package_name;
+    /** @brief The name of the asset to request */
+    bname asset_name;
+    /** @brief Indicates if the asset is binary. If not, the asset is loaded as text */
+    b8 is_binary;
+    /** @brief Indicates if the VFS should try to retrieve the source asset instead of the primary one if it exists */
+    b8 get_source;
+    /** @brief Indicates if the asset's file on-disk should be watched for hot-reload */
+    b8 watch_for_hot_reload;
+    /** @brief The size of the context in bytes */
+    u32 context_size;
+    /** @param context A constant pointer to the context to be used for this call. This is passed through to the result callback. NOTE: A copy of this is taken immediately, so lifetime of this isn't important */
+    const void* context;
+    /** @brief The size of the import parameters in bytes, if used */
+    u32 import_params_size;
+    /** @param context A constant pointer to the import parameters to be used for this call. NOTE: A copy of this is taken immediately, so lifetime of this isn't important */
+    void* import_params;
+    PFN_on_asset_loaded_callback vfs_callback;
+} vfs_request_info;
+
 BAPI b8 vfs_initialize(u64* memory_requirement, vfs_state* out_state, const vfs_config* config);
 BAPI void vfs_shutdown(vfs_state* state);
 
-BAPI void vfs_request_asset(vfs_state* state, bname package_name, bname asset_name, b8 is_binary, b8 get_source, u32 context_size, const void* context, u32 import_params_size, void* import_params, PFN_on_asset_loaded_callback callback);
-BAPI void vfs_request_asset_sync(vfs_state* state, bname package_name, bname asset_name, b8 is_binary, b8 get_source, u32 context_size, const void* context, u32 import_params_size, void* import_params, vfs_asset_data* out_data);
+BAPI void vfs_hot_reload_callbacks_register(vfs_state* state, PFN_asset_hot_reloaded_callback hot_reloaded_callback, PFN_asset_deleted_callback deleted_callback);
+
+BAPI void vfs_request_asset(vfs_state* state, vfs_request_info info);
+BAPI vfs_asset_data vfs_request_asset_sync(vfs_state* state, vfs_request_info info);
 
 BAPI const char* vfs_path_for_asset(vfs_state* state, bname package_name, bname asset_name);
 BAPI const char* vfs_source_path_for_asset(vfs_state* state, bname package_name, bname asset_name);

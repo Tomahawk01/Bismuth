@@ -47,6 +47,10 @@ const char* basset_shader_serialize(const basset* asset)
     // max_groups
     bson_object_value_add_int(&tree.root, "max_groups", typed_asset->max_groups);
 
+    bson_object_value_add_int(&tree.root, "max_draw_ids", typed_asset->max_draw_ids);
+
+    bson_object_value_add_int(&tree.root, "supports_wireframe", typed_asset->supports_wireframe);
+
     // Depth test
     bson_object_value_add_boolean(&tree.root, "depth_test", typed_asset->depth_test);
 
@@ -59,6 +63,56 @@ const char* basset_shader_serialize(const basset* asset)
     // Stencil write
     bson_object_value_add_boolean(&tree.root, "stencil_write", typed_asset->stencil_write);
 
+    // Color read
+    bson_object_value_add_boolean(&tree.root, "color_read", typed_asset->color_read);
+
+    // Color write
+    bson_object_value_add_boolean(&tree.root, "color_write", typed_asset->color_write);
+
+    // Cull mode
+    bson_object_value_add_string(&tree.root, "cull_mode", face_cull_mode_to_string(typed_asset->cull_mode));
+
+    // Topology types
+    {
+        bson_array topology_types_array = bson_array_create();
+        if (typed_asset->topology_types == PRIMITIVE_TOPOLOGY_TYPE_NONE_BIT)
+        {
+            // If no types are included, default to triangle list. Bleat about it though
+            BWARN("Incoming shader asset has no topology_types set. Defaulting to triangle_list");
+            bson_array_value_add_string(&topology_types_array, topology_type_to_string(PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_LIST_BIT));
+        }
+        else
+        {
+            // NOTE: "none" and "max" aren't valid types, so they are never written
+            if (FLAG_GET(typed_asset->topology_types, PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_LIST_BIT))
+            {
+                bson_array_value_add_string(&topology_types_array, topology_type_to_string(PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_LIST_BIT));
+            }
+            if (FLAG_GET(typed_asset->topology_types, PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_STRIP_BIT))
+            {
+                bson_array_value_add_string(&topology_types_array, topology_type_to_string(PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_STRIP_BIT));
+            }
+            if (FLAG_GET(typed_asset->topology_types, PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_FAN_BIT))
+            {
+                bson_array_value_add_string(&topology_types_array, topology_type_to_string(PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_FAN_BIT));
+            }
+            if (FLAG_GET(typed_asset->topology_types, PRIMITIVE_TOPOLOGY_TYPE_LINE_LIST_BIT))
+            {
+                bson_array_value_add_string(&topology_types_array, topology_type_to_string(PRIMITIVE_TOPOLOGY_TYPE_LINE_LIST_BIT));
+            }
+            if (FLAG_GET(typed_asset->topology_types, PRIMITIVE_TOPOLOGY_TYPE_LINE_STRIP_BIT))
+            {
+                bson_array_value_add_string(&topology_types_array, topology_type_to_string(PRIMITIVE_TOPOLOGY_TYPE_LINE_STRIP_BIT));
+            }
+            if (FLAG_GET(typed_asset->topology_types, PRIMITIVE_TOPOLOGY_TYPE_POINT_LIST_BIT))
+            {
+                bson_array_value_add_string(&topology_types_array, topology_type_to_string(PRIMITIVE_TOPOLOGY_TYPE_POINT_LIST_BIT));
+            }
+        }
+
+        bson_object_value_add_array(&tree.root, "topology_types", topology_types_array);
+    }
+
     // Stages
     {
         bson_array stages_array = bson_array_create();
@@ -68,8 +122,10 @@ const char* basset_shader_serialize(const basset* asset)
             basset_shader_stage* stage = &typed_asset->stages[i];
 
             bson_object_value_add_string(&stage_obj, "type", shader_stage_to_string(stage->type));
-            bson_object_value_add_string(&stage_obj, "source_asset_name", stage->source_asset_name);
-            bson_object_value_add_string(&stage_obj, "package_name", stage->package_name);
+            if (stage->source_asset_name)
+                bson_object_value_add_string(&stage_obj, "source_asset_name", stage->source_asset_name);
+            if (stage->package_name)
+                bson_object_value_add_string(&stage_obj, "package_name", stage->package_name);
 
             bson_array_value_add_object(&stages_array, stage_obj);
         }
@@ -184,7 +240,11 @@ b8 basset_shader_deserialize(const char* file_text, basset* out_asset)
         // max_groups
         i64 max_groups = 0;
         bson_object_property_value_get_int(&tree.root, "max_groups", &max_groups);
-        typed_asset->max_groups = (u16)max_groups;
+       
+        // max_draw_ids
+        i64 max_draw_ids = 0;
+        bson_object_property_value_get_int(&tree.root, "max_draw_ids", &max_draw_ids);
+        typed_asset->max_draw_ids = (u16)max_draw_ids;
 
         // Depth test
         typed_asset->depth_test = false;
@@ -201,6 +261,67 @@ b8 basset_shader_deserialize(const char* file_text, basset* out_asset)
         // Stencil write
         typed_asset->stencil_write = false;
         bson_object_property_value_get_bool(&tree.root, "stencil_write", &typed_asset->stencil_write);
+
+        // Supports wireframe
+        typed_asset->supports_wireframe = false;
+        bson_object_property_value_get_bool(&tree.root, "supports_wireframe", &typed_asset->supports_wireframe);
+
+        // Color read
+        typed_asset->color_read = false;
+        bson_object_property_value_get_bool(&tree.root, "color_read", &typed_asset->color_read);
+
+        // Color write
+        typed_asset->color_write = true; // NOTE: color write is on by default if not specified
+        bson_object_property_value_get_bool(&tree.root, "color_write", &typed_asset->color_write);
+
+        // Cull mode
+        const char* cull_mode = 0;
+        if (bson_object_property_value_get_string(&tree.root, "cull_mode", &cull_mode) && cull_mode)
+        {
+            typed_asset->cull_mode = string_to_face_cull_mode(cull_mode);
+        }
+        else
+        {
+            // Defaults to backface culling when not provided
+            typed_asset->cull_mode = FACE_CULL_MODE_BACK;
+        }
+
+        // Topology type flags
+        bson_array topology_types_array;
+        if (bson_object_property_value_get_object(&tree.root, "topology_types", &topology_types_array))
+        {
+            u32 topology_type_count = 0;
+            if (!bson_array_element_count_get(&topology_types_array, &topology_type_count) || topology_type_count == 0)
+            {
+                // If nothing exists, default to triangle list
+                typed_asset->topology_types = PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_LIST_BIT;
+            }
+            else
+            {
+                for (u32 i = 0; i < topology_type_count; ++i)
+                {
+                    const char* topology_type_str = 0;
+                    if (!bson_array_element_value_get_string(&topology_types_array, i, &topology_type_str))
+                    {
+                        BERROR("Possible format error - unable to extract topology type at index %u. Skipping...", i);
+                        continue;
+                    }
+                    primitive_topology_type_bits topology_type = string_to_topology_type(topology_type_str);
+                    if (topology_type == PRIMITIVE_TOPOLOGY_TYPE_NONE_BIT || topology_type >= PRIMITIVE_TOPOLOGY_TYPE_MAX_BIT)
+                    {
+                        BERROR("Invalid topology type found. See logs for details. Skipping...");
+                        continue;
+                    }
+
+                    typed_asset->topology_types = FLAG_SET(typed_asset->topology_types, topology_type, true);
+                }
+            }
+        }
+        else
+        {
+            // If nothing exists, default to triangle list
+            typed_asset->topology_types = PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_LIST_BIT;
+        }
 
         // Stages
         bson_array stages_array;

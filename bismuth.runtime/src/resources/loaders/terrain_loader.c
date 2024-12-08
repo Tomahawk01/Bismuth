@@ -1,23 +1,23 @@
 #include "terrain_loader.h"
 
 #include "containers/darray.h"
-#include "memory/bmemory.h"
-#include "strings/bstring.h"
-#include "logger.h"
 #include "loader_utils.h"
+#include "logger.h"
 #include "math/bmath.h"
-#include "resources/resource_types.h"
-#include "systems/resource_system.h"
+#include "memory/bmemory.h"
 #include "platform/filesystem.h"
+#include "resources/resource_types.h"
 #include "resources/terrain.h"
+#include "strings/bstring.h"
+#include "systems/resource_system.h"
 
-static b8 terrain_loader_load(struct resource_loader *self, const char *name, void *params, resource *out_resource)
+static b8 terrain_loader_load(struct resource_loader* self, const char* name, void* params, resource* out_resource)
 {
     if (!self || !name || !out_resource)
         return false;
 
     // TODO: binary format
-    char *format_str = "%s/%s/%s%s";
+    char* format_str = "%s/%s/%s%s";
     char full_file_path[512];
     string_format_unsafe(full_file_path, format_str, resource_system_base_path(), self->type_path, name, ".bterrain");
 
@@ -30,7 +30,7 @@ static b8 terrain_loader_load(struct resource_loader *self, const char *name, vo
 
     out_resource->full_path = string_duplicate(full_file_path);
 
-    terrain_resource *resource_data = ballocate(sizeof(terrain_resource), MEMORY_TAG_RESOURCE);
+    terrain_resource* resource_data = ballocate(sizeof(terrain_resource), MEMORY_TAG_RESOURCE);
     // Set some defaults, create arrays
 
     // TODO: Materials
@@ -41,17 +41,17 @@ static b8 terrain_loader_load(struct resource_loader *self, const char *name, vo
 
     u32 version = 0;
 
-    char *heightmap_file = 0;
+    char* heightmap_file = 0;
 
     // Read each line of the file
     char line_buf[512] = "";
-    char *p = &line_buf[0];
+    char* p = &line_buf[0];
     u64 line_length = 0;
     u32 line_number = 1;
     while (filesystem_read_line(&f, 511, &p, &line_length))
     {
         // Trim the string
-        char *trimmed = string_trim(line_buf);
+        char* trimmed = string_trim(line_buf);
 
         // Get trimmed length
         line_length = string_length(trimmed);
@@ -76,13 +76,13 @@ static b8 terrain_loader_load(struct resource_loader *self, const char *name, vo
         char raw_var_name[64];
         bzero_memory(raw_var_name, sizeof(char) * 64);
         string_mid(raw_var_name, trimmed, 0, equal_index);
-        char *trimmed_var_name = string_trim(raw_var_name);
+        char* trimmed_var_name = string_trim(raw_var_name);
 
         // Assume a max of 511-65 (446) for the max length of the value to account for the variable name and the '='
         char raw_value[446];
         bzero_memory(raw_value, sizeof(char) * 446);
         string_mid(raw_value, trimmed, equal_index + 1, -1); // Read rest of the line
-        char *trimmed_value = string_trim(raw_value);
+        char* trimmed_value = string_trim(raw_value);
 
         // Process variable
         if (strings_equali(trimmed_var_name, "version"))
@@ -159,7 +159,7 @@ static b8 terrain_loader_load(struct resource_loader *self, const char *name, vo
             resource_data->vertex_datas = darray_reserve(terrain_vertex_data, resource_data->vertex_data_length);
         }
 
-        image_resource_data *image_data = (image_resource_data *)heightmap_image_resource.data;
+        image_resource_data* image_data = (image_resource_data*)heightmap_image_resource.data;
         resource_data->vertex_data_length = (image_data->width + 1) * (image_data->height + 1);
         resource_data->vertex_datas = darray_reserve(terrain_vertex_data, resource_data->vertex_data_length);
 
@@ -221,14 +221,14 @@ static b8 terrain_loader_load(struct resource_loader *self, const char *name, vo
         resource_data->vertex_datas = darray_reserve(terrain_vertex_data, resource_data->vertex_data_length);
     }
     out_resource->data = resource_data;
-    out_resource->data_size = sizeof(shader_config);
+    out_resource->data_size = sizeof(terrain_resource);
 
     return true;
 }
 
-static void terrain_loader_unload(struct resource_loader *self, resource *resource)
+static void terrain_loader_unload(struct resource_loader* self, resource* resource)
 {
-    terrain_resource *data = (terrain_resource*)resource->data;
+    terrain_resource* data = (terrain_resource*)resource->data;
 
     darray_destroy(data->vertex_datas);
     if (data->name)

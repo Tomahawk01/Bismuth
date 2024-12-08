@@ -14,6 +14,10 @@ typedef enum bresource_type
 {
     /** @brief Unassigned resource type */
     BRESOURCE_TYPE_UNKNOWN,
+    /** @brief Plain text resource type */
+    BRESOURCE_TYPE_TEXT,
+    /** @brief Plain binary resource type */
+    BRESOURCE_TYPE_BINARY,
     /** @brief Texture resource type */
     BRESOURCE_TYPE_TEXTURE,
     /** @brief Material resource type */
@@ -80,6 +84,9 @@ typedef struct bresource
 
     /** @brief An array of tags */
     bname* tags;
+
+    // darray of file watches, if relevant
+    u32* asset_file_watch_ids;
 } bresource;
 
 typedef struct bresource_asset_info
@@ -87,6 +94,7 @@ typedef struct bresource_asset_info
     bname asset_name;
     bname package_name;
     basset_type type;
+    b8 watch_for_hot_reload;
 } bresource_asset_info;
 
 ARRAY_TYPE(bresource_asset_info);
@@ -102,6 +110,9 @@ typedef struct bresource_request_info
     PFN_resource_loaded_user_callback user_callback;
     // Listener user data
     void* listener_inst;
+    // Force the request to be synchronous, returning a loaded and ready resource immediately
+    // NOTE: This should be used sparingly, as it is a blocking operation
+    b8 synchronous;
 } bresource_request_info;
 
 /** @brief Represents various types of textures */
@@ -205,6 +216,50 @@ typedef struct bresource_texture_request_info
     b8 flip_y;
 } bresource_texture_request_info;
 
+/** @brief A shader resource */
+typedef struct bresource_shader
+{
+    bresource base;
+
+    /** @brief The face cull mode to be used. Default is BACK if not supplied */
+    face_cull_mode cull_mode;
+
+    /** @brief The topology types for the shader pipeline. See primitive_topology_type. Defaults to "triangle list" if unspecified */
+    primitive_topology_types topology_types;
+
+    /** @brief The count of attributes */
+    u8 attribute_count;
+    /** @brief The collection of attributes */
+    shader_attribute_config* attributes;
+
+    /** @brief The count of uniforms */
+    u8 uniform_count;
+    /** @brief The collection of uniforms */
+    shader_uniform_config* uniforms;
+
+    /** @brief The number of stages present in the shader */
+    u8 stage_count;
+    /** @brief The collection of stage configs */
+    shader_stage_config* stage_configs;
+
+    /** @brief The maximum number of groups allowed */
+    u32 max_groups;
+
+    /** @brief The maximum number of per-draw instances allowed */
+    u32 max_per_draw_count;
+
+    /** @brief The flags set for this shader */
+    shader_flags flags;
+} bresource_shader;
+
+/** @brief Used to request a shader resource */
+typedef struct bresource_shader_request_info
+{
+    bresource_request_info base;
+    // Optionally include shader config source text to be used as if it resided in a .bsc file
+    const char* shader_config_source_text;
+} bresource_shader_request_info;
+
 /**
  * @brief A bresource_material is a configuration of a material to hand off to the material system.
  * Once a material is loaded, this can just be released
@@ -260,6 +315,7 @@ typedef struct bresource_material
     bmaterial_sampler_config* custom_samplers;
 } bresource_material;
 
+/** @brief Used to request a material resource */
 typedef struct bresource_material_request_info
 {
     bresource_request_info base;
@@ -297,3 +353,22 @@ typedef struct bresource_static_mesh_request_info
 {
     bresource_request_info base;
 } bresource_static_mesh_request_info;
+
+#define BRESOURCE_TYPE_NAME_TEXT "Text"
+
+typedef struct bresource_text
+{
+    bresource base;
+    
+    const char* text;
+} bresource_text;
+
+#define BRESOURCE_TYPE_NAME_BINARY "Binary"
+
+typedef struct bresource_binary
+{
+    bresource base;
+
+    u32 size;
+    const void* bytes;
+} bresource_binary;

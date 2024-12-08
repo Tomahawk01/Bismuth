@@ -107,7 +107,7 @@ BAPI b8 renderer_clear_depth_stencil(struct renderer_system_state* state, bhandl
 BAPI void renderer_color_texture_prepare_for_present(struct renderer_system_state* state, bhandle texture_handle);
 BAPI void renderer_texture_prepare_for_sampling(struct renderer_system_state* state, bhandle texture_handle, texture_flag_bits flags);
 
-BAPI b8 renderer_shader_create(struct renderer_system_state* state, bhandle shader, const shader_config* config);
+BAPI b8 renderer_shader_create(struct renderer_system_state* state, bhandle shader, const bresource_shader* shader_resource);
 BAPI void renderer_shader_destroy(struct renderer_system_state* state, bhandle shader);
 BAPI b8 renderer_shader_reload(struct renderer_system_state* state, bhandle shader, u32 shader_stage_count, shader_stage_config* shader_stages);
 

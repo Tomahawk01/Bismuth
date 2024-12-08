@@ -1,12 +1,12 @@
 #include "console.h"
 
-#include "debug/bassert.h"
 #include "containers/darray.h"
 #include "containers/stack.h"
-#include "strings/bstring.h"
-#include "logger.h"
+#include "debug/bassert.h"
 #include "defines.h"
+#include "logger.h"
 #include "memory/bmemory.h"
+#include "strings/bstring.h"
 
 typedef struct console_consumer
 {
@@ -1287,7 +1287,7 @@ b8 console_command_execute(const char* command)
     }
 
 console_command_execute_cleanup:
-    string_cleanup_split_array(parts);
+    string_cleanup_split_darray(parts);
     darray_destroy(parts);
 
     return !has_error;

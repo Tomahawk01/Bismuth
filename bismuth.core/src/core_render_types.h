@@ -2,6 +2,7 @@
 
 #include "defines.h"
 #include "strings/bname.h"
+#include "strings/bstring_id.h"
 
 /** @brief Determines face culling mode during rendering */
 typedef enum face_cull_mode
@@ -16,19 +17,23 @@ typedef enum face_cull_mode
     FACE_CULL_MODE_FRONT_AND_BACK = 0x3
 } face_cull_mode;
 
-typedef enum primitive_topology_type
+/** @brief Various topology type flag bit fields */
+typedef enum primitive_topology_type_bits
 {
     /** Topology type not defined. Not valid for shader creation */
-    PRIMITIVE_TOPOLOGY_TYPE_NONE = 0x00,
+    PRIMITIVE_TOPOLOGY_TYPE_NONE_BIT = 0x00,
     /** A list of triangles. The default if nothing is defined */
-    PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_LIST = 0x01,
-    PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_STRIP = 0x02,
-    PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_FAN = 0x04,
-    PRIMITIVE_TOPOLOGY_TYPE_LINE_LIST = 0x08,
-    PRIMITIVE_TOPOLOGY_TYPE_LINE_STRIP = 0x10,
-    PRIMITIVE_TOPOLOGY_TYPE_POINT_LIST = 0x20,
-    PRIMITIVE_TOPOLOGY_TYPE_MAX = PRIMITIVE_TOPOLOGY_TYPE_POINT_LIST << 1
-} primitive_topology_type;
+    PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_LIST_BIT = 0x01,
+    PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_STRIP_BIT = 0x02,
+    PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_FAN_BIT = 0x04,
+    PRIMITIVE_TOPOLOGY_TYPE_LINE_LIST_BIT = 0x08,
+    PRIMITIVE_TOPOLOGY_TYPE_LINE_STRIP_BIT = 0x10,
+    PRIMITIVE_TOPOLOGY_TYPE_POINT_LIST_BIT = 0x20,
+    PRIMITIVE_TOPOLOGY_TYPE_MAX_BIT = PRIMITIVE_TOPOLOGY_TYPE_POINT_LIST_BIT << 1
+} primitive_topology_type_bits;
+
+/** @brief A combination of topology bit flags */
+typedef u32 primitive_topology_types;
 
 /** @brief Represents supported texture filtering modes */
 typedef enum texture_filter
@@ -169,25 +174,27 @@ typedef struct shader_attribute
     u32 size;
 } shader_attribute;
 
-typedef enum shader_flags
+/** @brief Various shader flag bit fields */
+typedef enum shader_flags_bits
 {
-    SHADER_FLAG_NONE = 0x00,
+    SHADER_FLAG_NONE_BIT = 0x0000,
     // Reads from depth buffer
-    SHADER_FLAG_DEPTH_TEST = 0x01,
+    SHADER_FLAG_DEPTH_TEST_BIT = 0x0001,
     // Writes to depth buffer
-    SHADER_FLAG_DEPTH_WRITE = 0x02,
-    SHADER_FLAG_WIREFRAME = 0x04,
+    SHADER_FLAG_DEPTH_WRITE_BIT = 0x0002,
+    SHADER_FLAG_WIREFRAME_BIT = 0x0004,
     // Reads from depth buffer
-    SHADER_FLAG_STENCIL_TEST = 0x08,
+    SHADER_FLAG_STENCIL_TEST_BIT = 0x0008,
     // Writes to depth buffer
-    SHADER_FLAG_STENCIL_WRITE = 0x10,
+    SHADER_FLAG_STENCIL_WRITE_BIT = 0x0010,
     // Reads from color buffer
-    SHADER_FLAG_COLOR_READ = 0x20,
+    SHADER_FLAG_COLOR_READ_BIT = 0x0020,
     // Writes to color buffer
-    SHADER_FLAG_COLOR_WRITE = 0x40
-} shader_flags;
+    SHADER_FLAG_COLOR_WRITE_BIT = 0x0040
+} shader_flags_bits;
 
-typedef u32 shader_flag_bits;
+/** @brief A combination of topology bit flags */
+typedef u32 shader_flags;
 
 /** @brief Represents data required for a particular update frequency within a shader */
 typedef struct shader_frequency_data
@@ -223,17 +230,16 @@ typedef enum shader_state
 typedef struct shader_stage_config
 {
     shader_stage stage;
-    const char* filename;
+    bname resource_name;
+    bname package_name;
     char* source;
 } shader_stage_config;
 
 /** @brief Configuration for an attribute */
 typedef struct shader_attribute_config
 {
-    /** @brief The length of the name */
-    u8 name_length;
     /** @brief The name of the attribute */
-    char* name;
+    bname name;
     /** @brief The size of the attribute */
     u8 size;
     /** @brief The type of the attribute */
@@ -246,7 +252,7 @@ typedef struct shader_uniform_config
     /** @brief The length of the name */
     u8 name_length;
     /** @brief The name of the uniform */
-    char* name;
+    bname name;
     /** @brief The size of the uniform. If arrayed, this is the per-element size */
     u16 size;
     /** @brief The location of the uniform */
@@ -258,44 +264,6 @@ typedef struct shader_uniform_config
     /** @brief The update frequency of the uniform */
     shader_update_frequency frequency;
 } shader_uniform_config;
-
-/** @brief Configuration for a shader. Typically created and destroyed by the shader resource loader, and set to the properties found in a .shadercfg resource file */
-typedef struct shader_config
-{
-    /** @brief The name of the shader to be created */
-    char* name;
-
-    /** @brief The face cull mode to be used. Default is BACK if not supplied */
-    face_cull_mode cull_mode;
-
-    /** @brief The topology types for the shader pipeline. See primitive_topology_type. Defaults to "triangle list" if unspecified */
-    u32 topology_types;
-
-    /** @brief The count of attributes */
-    u8 attribute_count;
-    /** @brief The collection of attributes. Darray */
-    shader_attribute_config* attributes;
-
-    /** @brief The count of uniforms. */
-    u8 uniform_count;
-    /** @brief The collection of uniforms. Darray */
-    shader_uniform_config* uniforms;
-
-    /** @brief The number of stages present in the shader */
-    u8 stage_count;
-
-    /** @brief The collection of stage configs */
-    shader_stage_config* stage_configs;
-
-    /** @brief The maximum number of groups allowed */
-    u32 max_groups;
-
-    /** @brief The maximum number of per-draw instances allowed */
-    u32 max_per_draw_count;
-
-    /** @brief The flags set for this shader */
-    u32 flags;
-} shader_config;
 
 typedef enum bmaterial_type
 {

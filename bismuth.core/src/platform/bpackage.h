@@ -1,6 +1,7 @@
 #pragma once
 
 #include "defines.h"
+#include "platform/vfs.h"
 #include "strings/bname.h"
 
 typedef struct asset_manifest_asset
@@ -39,6 +40,8 @@ typedef struct bpackage
     bname name;
     b8 is_binary;
     struct bpackage_internal* internal_data;
+    // darray of file ids that are being watched
+    u32* watch_ids;
 } bpackage;
 
 typedef enum bpackage_result
@@ -55,9 +58,11 @@ BAPI void bpackage_destroy(bpackage* package);
 
 BAPI bpackage_result bpackage_asset_bytes_get(const bpackage* package, bname name, b8 get_source, u64* out_size, const void** out_data);
 BAPI bpackage_result bpackage_asset_text_get(const bpackage* package, bname name, b8 get_source, u64* out_size, const char** out_text);
+BAPI b8 bpackage_asset_watch(bpackage* package, const char* asset_path, u32* out_watch_id);
+BAPI void bpackage_asset_unwatch(bpackage* package, u32 watch_id);
 
 BAPI const char* bpackage_path_for_asset(const bpackage* package, bname name);
-BAPI const char* bpackage_source_string_for_asset(const bpackage* package, bname name);
+BAPI const char* bpackage_source_path_for_asset(const bpackage* package, bname name);
 
 BAPI b8 bpackage_asset_bytes_write(bpackage* package, bname name, u64 size, const void* bytes);
 BAPI b8 bpackage_asset_text_write(bpackage* package, bname name, u64 size, const char* text);

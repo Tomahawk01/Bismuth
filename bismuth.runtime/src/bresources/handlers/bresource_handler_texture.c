@@ -3,12 +3,12 @@
 #include "assets/basset_types.h"
 #include "containers/array.h"
 #include "core/engine.h"
+#include "debug/bassert.h"
 #include "bresources/bresource_types.h"
 #include "bresources/bresource_utils.h"
 #include "logger.h"
 #include "memory/bmemory.h"
 #include "renderer/renderer_frontend.h"
-#include "renderer/renderer_types.h"
 #include "strings/bname.h"
 #include "systems/asset_system.h"
 #include "systems/bresource_system.h"
@@ -26,6 +26,7 @@ typedef struct texture_resource_handler_info
 } texture_resource_handler_info;
 
 static void texture_basset_on_result(asset_request_result result, const struct basset* asset, void* listener_inst);
+static void texture_basset_on_hot_reload(asset_request_result result, const struct basset* asset, void* listener_inst);
 
 bresource* bresource_handler_texture_allocate(void)
 {
@@ -94,16 +95,21 @@ b8 bresource_handler_texture_request(struct bresource_handler* self, bresource* 
             bresource_asset_info* asset_info = it.value(&it);
             if (asset_info->type == BASSET_TYPE_IMAGE)
             {
-                asset_system_request(
-                    self->asset_system,
-                    asset_info->type,
-                    asset_info->package_name,
-                    asset_info->asset_name,
-                    true,
-                    listener_inst,
-                    texture_basset_on_result,
-                    sizeof(basset_image_import_options),
-                    &import_params);
+                asset_request_info request_info = {0};
+                request_info.type = asset_info->type;
+                request_info.asset_name = asset_info->asset_name;
+                request_info.package_name = asset_info->package_name;
+                request_info.auto_release = true;
+                request_info.listener_inst = listener_inst;
+                request_info.callback = texture_basset_on_result;
+                request_info.synchronous = false;
+                request_info.hot_reload_callback = texture_basset_on_hot_reload;
+                // TODO: Context needs to include pointer to the resource and a copy of the import params.
+                request_info.hot_reload_context = 0;
+                request_info.import_params_size = sizeof(basset_image_import_options);
+                request_info.import_params = &import_params;
+
+                asset_system_request(self->asset_system, request_info);
             }
             else if (asset_info->type == BASSET_TYPE_UNKNOWN)
             {
@@ -386,4 +392,9 @@ destroy_request:
     bfree(listener->request_info, sizeof(bresource_texture_request_info), MEMORY_TAG_RESOURCE);
     // Free the listener itself
     bfree(listener, sizeof(texture_resource_handler_info), MEMORY_TAG_RESOURCE);
+}
+
+static void texture_basset_on_hot_reload(asset_request_result result, const struct basset* asset, void* listener_inst)
+{
+    BASSERT_MSG(false, "Not yet implemented");
 }

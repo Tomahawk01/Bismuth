@@ -1,10 +1,14 @@
-#include "assets/basset_types.h"
-#include "defines.h"
+#include "bresource_handler_material.h"
+
+#include <assets/basset_types.h>
+#include <defines.h>
+#include <logger.h>
+#include <memory/bmemory.h>
+#include <serializers/basset_material_serializer.h>
+#include <strings/bname.h>
+
+#include "debug/bassert.h"
 #include "bresources/bresource_types.h"
-#include "logger.h"
-#include "memory/bmemory.h"
-#include "serializers/basset_material_serializer.h"
-#include "strings/bname.h"
 #include "systems/asset_system.h"
 #include "systems/bresource_system.h"
 
@@ -18,6 +22,7 @@ typedef struct material_resource_handler_info
 
 static void material_basset_on_result(asset_request_result result, const struct basset* asset, void* listener_inst);
 static void asset_to_resource(const basset_material* asset, bresource_material* out_material);
+static void material_basset_on_hot_reload(asset_request_result result, const struct basset* asset, void* listener_inst);
 
 bresource* bresource_handler_material_allocate(void)
 {
@@ -65,16 +70,21 @@ b8 bresource_handler_material_request(bresource_handler* self, bresource* resour
     typed_resource->base.state = BRESOURCE_STATE_INITIALIZED;
     typed_resource->base.state = BRESOURCE_STATE_LOADING;
     bresource_asset_info* asset_info = &info->assets.data[0];
-    asset_system_request(
-        self->asset_system,
-        asset_info->type,
-        asset_info->package_name,
-        asset_info->asset_name,
-        true,
-        listener_inst,
-        material_basset_on_result,
-        0,
-        0);
+    
+    asset_request_info request_info = {0};
+    request_info.type = asset_info->type;
+    request_info.asset_name = asset_info->asset_name;
+    request_info.package_name = asset_info->package_name;
+    request_info.auto_release = true;
+    request_info.listener_inst = listener_inst;
+    request_info.callback = material_basset_on_result;
+    request_info.synchronous = false;
+    request_info.hot_reload_callback = material_basset_on_hot_reload;
+    request_info.hot_reload_context = typed_resource;
+    request_info.import_params_size = 0;
+    request_info.import_params = 0;
+    asset_system_request(self->asset_system, request_info);
+
     return true;
 }
 
@@ -111,6 +121,21 @@ static void material_basset_on_result(asset_request_result result, const struct 
     bfree(listener->request_info, sizeof(bresource_material_request_info), MEMORY_TAG_RESOURCE);
     // Free the listener itself
     bfree(listener, sizeof(material_resource_handler_info), MEMORY_TAG_RESOURCE);
+}
+
+static void material_basset_on_hot_reload(asset_request_result result, const struct basset* asset, void* listener_inst)
+{
+    bresource_material* listener = (bresource_material*)listener_inst;
+    if (result == ASSET_REQUEST_RESULT_SUCCESS)
+    {
+        asset_to_resource((basset_material*)asset, listener);
+        // TODO: Notify the material system of the resource update
+        BASSERT_MSG(false, "Not yet implemented");
+    }
+    else
+    {
+        BWARN("Hot reload was triggered for material resource '%s', but was unsuccessful. See logs for details", bname_string_get(listener->base.name));
+    }
 }
 
 static void asset_to_resource(const basset_material* asset, bresource_material* out_material)

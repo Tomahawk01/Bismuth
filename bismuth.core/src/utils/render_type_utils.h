@@ -48,6 +48,24 @@ BAPI const char* shader_update_frequency_to_string(shader_update_frequency frequ
 /** @brief Converts the given string into a shader update frequency. Case-insensitive */
 BAPI shader_update_frequency string_to_shader_update_frequency(const char* str);
 
+/** @brief Returns the string representation of the given cull mode */
+BAPI const char* face_cull_mode_to_string(face_cull_mode mode);
+
+/** @brief Converts the given string to a face cull mode */
+BAPI face_cull_mode string_to_face_cull_mode(const char* str);
+
+/** @brief Returns the string representation of the given primitive topology type */
+BAPI const char* topology_type_to_string(primitive_topology_type_bits type);
+
+/** @brief Converts the given string to a primitive topology type */
+BAPI primitive_topology_type_bits string_to_topology_type(const char* str);
+
+/** @brief Returns the size in bytes of the attribute type */
+BAPI u16 size_from_shader_attribute_type(shader_attribute_type type);
+
+/** @brief Returns the size in bytes of the uniform type */
+BAPI u16 size_from_shader_uniform_type(shader_uniform_type type);
+
 /** @brief Returns the string representation of the given material type */
 BAPI const char* bmaterial_type_to_string(bmaterial_type type);
 

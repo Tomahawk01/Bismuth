@@ -376,15 +376,15 @@ BAPI const char* bool_to_string(b8 b);
 
 /**
  * @brief Splits the given string by the delimiter provided and stores in the
- * provided darray. Optionally trims each entry. NOTE: A string allocation
- * occurs for each entry, and must be freed by the caller.
+ * provided darray. Optionally trims each entry.
+ * NOTE: A string allocation occurs for each entry, and MUST be freed by the caller
  *
- * @param str The string to be split.
- * @param delimiter The character to split by.
- * @param str_darray A pointer to a darray of char arrays to hold the entries. NOTE: must be a darray.
- * @param trim_entries Trims each entry if true.
- * @param include_empty Indicates if empty entries should be included.
- * @return The number of entries yielded by the split operation.
+ * @param str The string to be split
+ * @param delimiter The character to split by
+ * @param str_darray A pointer to a darray of char arrays to hold the entries. NOTE: must be a darray
+ * @param trim_entries Trims each entry if true
+ * @param include_empty Indicates if empty entries should be included
+ * @return The number of entries yielded by the split operation
  */
 BAPI u32 string_split(const char* str, char delimiter, char*** str_darray, b8 trim_entries, b8 include_empty);
 
@@ -393,7 +393,11 @@ BAPI u32 string_split(const char* str, char delimiter, char*** str_darray, b8 tr
  *
  * @param str_darray The darray to be cleaned up.
  */
-BAPI void string_cleanup_split_array(char** str_darray);
+BAPI void string_cleanup_split_darray(char** str_darray);
+
+BAPI u32 string_nsplit(const char* str, char delimiter, u32 max_count, char** str_array, b8 trim_entries, b8 include_empty);
+
+BAPI void string_cleanup_split_array(char** str_array, u32 max_count);
 
 BAPI void string_append_string(char* dest, const char* source, const char* append);
 

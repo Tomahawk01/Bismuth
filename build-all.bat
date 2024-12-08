@@ -50,6 +50,10 @@ REM Engine core lib
 make -j -f "Makefile.library.mak" %ACTION% TARGET=%TARGET% ASSEMBLY=bismuth.core VER_MAJOR=0 VER_MINOR=7 DO_VERSION=%DO_VERSION% ADDL_LINK_FLAGS="-lgdi32 %ENGINE_LINK%"
 IF %ERRORLEVEL% NEQ 0 (echo Error:%ERRORLEVEL% && exit)
 
+REM Tools NOTE: Building tools here since it's required below
+make -j -f "Makefile.executable.mak" %ACTION% TARGET=%TARGET% ASSEMBLY=bismuth.tools ADDL_INC_FLAGS="%INC_CORE_RT%" ADDL_LINK_FLAGS="-lbismuth.core"
+IF %ERRORLEVEL% NEQ 0 (echo Error:%ERRORLEVEL% && exit)
+
 REM Engine runtime lib
 make -j -f "Makefile.library.mak" %ACTION% TARGET=%TARGET% ASSEMBLY=bismuth.runtime VER_MAJOR=0 VER_MINOR=1 DO_VERSION=%DO_VERSION% ADDL_INC_FLAGS="%INC_CORE_RT%" ADDL_LINK_FLAGS="-lbismuth.core %ENGINE_LINK%"
 IF %ERRORLEVEL% NEQ 0 (echo Error:%ERRORLEVEL% && exit)
@@ -84,10 +88,6 @@ IF %ERRORLEVEL% NEQ 0 (echo Error:%ERRORLEVEL% && exit)
 
 REM Tests
 make -j -f "Makefile.executable.mak" %ACTION% TARGET=%TARGET% ASSEMBLY=bismuth.core.tests ADDL_INC_FLAGS="%INC_CORE_RT%" ADDL_LINK_FLAGS="%LNK_CORE_RT%"
-IF %ERRORLEVEL% NEQ 0 (echo Error:%ERRORLEVEL% && exit)
-
-REM Tools
-make -j -f "Makefile.executable.mak" %ACTION% TARGET=%TARGET% ASSEMBLY=bismuth.tools ADDL_INC_FLAGS="%INC_CORE_RT%" ADDL_LINK_FLAGS="%LNK_CORE_RT%"
 IF %ERRORLEVEL% NEQ 0 (echo Error:%ERRORLEVEL% && exit)
 
 ECHO All assemblies %ACTION_STR_PAST% successfully on %PLATFORM% (%TARGET%)

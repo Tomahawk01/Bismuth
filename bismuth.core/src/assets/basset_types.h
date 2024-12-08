@@ -87,6 +87,7 @@ typedef enum asset_request_result
 } asset_request_result;
 
 typedef void (*PFN_basset_on_result)(asset_request_result result, const struct basset* asset, void* listener_inst);
+typedef void (*PFN_basset_on_hot_reload)(asset_request_result result, const struct basset* asset, void* listener_inst);
 typedef b8 (*PFN_basset_importer_import)(const struct basset_importer* self, u64 data_size, const void* data, void* params, struct basset* out_asset);
 
 /** @brief Represents the interface point for an importer */
@@ -140,6 +141,8 @@ typedef struct basset
     basset_type type;
     /** @brief Metadata for the asset */
     basset_metadata meta;
+    /** @brief The file watch id, if the asset is being watched. Otherwise INVALID_ID */
+    u32 file_watch_id;
 } basset;
 
 #define BASSET_TYPE_NAME_HEIGHTMAP_TERRAIN "HeightmapTerrain"
@@ -408,16 +411,26 @@ typedef struct basset_shader_uniform
     shader_update_frequency frequency;
 } basset_shader_uniform;
 
+/** @brief Represents a shader asset, typically loaded from disk */
 typedef struct basset_shader
 {
     basset base;
-    u32 stage_count;
-    basset_shader_stage* stages;
     b8 depth_test;
     b8 depth_write;
     b8 stencil_test;
     b8 stencil_write;
+    b8 color_read;
+    b8 color_write;
+    b8 supports_wireframe;
+    primitive_topology_types topology_types;
+
+    face_cull_mode cull_mode;
+
     u16 max_groups;
+    u16 max_draw_ids;
+
+    u32 stage_count;
+    basset_shader_stage* stages;
 
     u32 attribute_count;
     basset_shader_attribute* attributes;

@@ -6,14 +6,13 @@
 #include "core_render_types.h"
 #include "defines.h"
 #include "identifiers/bhandle.h"
+#include "bresources/bresource_types.h"
 #include "logger.h"
 #include "memory/bmemory.h"
-#include "platform/platform.h"
 #include "renderer/renderer_frontend.h"
-#include "resources/resource_types.h"
 #include "strings/bname.h"
 #include "strings/bstring.h"
-#include "systems/resource_system.h"
+#include "systems/bresource_system.h"
 #include "systems/texture_system.h"
 #include "utils/render_type_utils.h"
 
@@ -52,9 +51,13 @@ typedef struct bshader
     /** @brief The internal state of the shader */
     shader_state state;
 
-#ifdef _DEBUG
-    u32* module_watch_ids;
-#endif
+    // A constant pointer to the shader config resource
+    const bresource_shader* shader_resource;
+
+    // Array of pointers to text resources, one per stage
+    bresource_text** stage_source_text_resources;
+    // Array of generations of stage source text resources. Matches size of stage_source_text_resources
+    u32* stage_source_text_generations;
 } bshader;
 
 // Internal shader system state
@@ -73,6 +76,9 @@ typedef struct shader_system_state
     shader_system_config config;
     // A collection of created shaders
     bshader* shaders;
+
+    // Convenience pointer to resource system state
+    struct bresource_system_state* resource_state;
 } shader_system_state;
 
 // Pointer to hold the internal system state
@@ -83,6 +89,7 @@ static b8 internal_texture_add(bshader* shader, shader_uniform_config* config);
 static b8 internal_sampler_add(bshader* shader, shader_uniform_config* config);
 static bhandle generate_new_shader_handle(void);
 static b8 internal_uniform_add(bshader* shader, const shader_uniform_config* config, u32 location);
+static bhandle shader_create(const bresource_shader* shader_resource);
 
 // Verify the name is valid and unique
 static b8 uniform_name_valid(bshader* shader, bname uniform_name);
@@ -93,22 +100,25 @@ static void internal_shader_destroy(bhandle* shader);
 static b8 file_watch_event(u16 code, void* sender, void* listener_inst, event_context context)
 {
     shader_system_state* typed_state = (shader_system_state*)listener_inst;
-    if (code == EVENT_CODE_WATCHED_FILE_WRITTEN)
+    if (code == EVENT_CODE_RESOURCE_HOT_RELOADED)
     {
-        u32 file_watch_id = context.data.u32[0];
+        // NOTE: file watch id available here if needed
+        // u32 file_watch_id = context.data.u32[0];
 
-        // Search shaders for the one with the changed file watch id
+        // Search shaders for the one whose generations are out of sync
         for (u32 i = 0; i < typed_state->config.max_shader_count; ++i)
         {
-            bshader* s = &typed_state->shaders[i];
-            for (u32 w = 0; w < s->shader_stage_count; ++w)
+            bshader* shader = &typed_state->shaders[i];
+
+            for (u32 w = 0; w < shader->shader_stage_count; ++w)
             {
-                if (s->module_watch_ids[w] == file_watch_id)
+                // If the generation is out of sync, reload the shader
+                if (shader->stage_source_text_generations[w] != shader->stage_source_text_resources[w]->base.generation)
                 {
-                    bhandle handle = bhandle_create_with_u64_identifier(i, s->uniqueid);
+                    bhandle handle = bhandle_create_with_u64_identifier(i, shader->uniqueid);
                     if (!shader_system_reload(handle))
                     {
-                        BWARN("Shader hot-reload failed for shader '%s'. See logs for details", s->name);
+                        BWARN("Shader hot-reload failed for shader '%s'. See logs for details", shader->name);
                         // Allow other systems to pick this up
                         return false;
                     }
@@ -147,11 +157,13 @@ b8 shader_system_initialize(u64* memory_requirement, void* memory, void* config)
     if (!memory)
         return true;
 
-    // Setup the state pointer, memory block, shader array, then create the hashtable
+    // Setup the state pointer, memory block, shader array, etc.
     state_ptr = memory;
     u64 addr = (u64)memory;
     state_ptr->shaders = (void*)(addr + struct_requirement);
     state_ptr->config = *typed_config;
+
+    state_ptr->resource_state = engine_systems_get()->bresource_state;
 
     // Invalidate all shader ids
     for (u32 i = 0; i < typed_config->max_shader_count; ++i)
@@ -169,7 +181,7 @@ b8 shader_system_initialize(u64* memory_requirement, void* memory, void* config)
     
 #ifdef _DEBUG
     // Watch for file hot reloads in debug builds
-    event_register(EVENT_CODE_WATCHED_FILE_WRITTEN, state_ptr, file_watch_event);
+    event_register(EVENT_CODE_RESOURCE_HOT_RELOADED, state_ptr, file_watch_event);
 #endif
 
     return true;
@@ -196,250 +208,29 @@ void shader_system_shutdown(void* state)
     state_ptr = 0;
 }
 
-bhandle shader_system_create(const shader_config* config)
+b8 shader_system_reload(bhandle shader_handle)
 {
-    bhandle new_handle = generate_new_shader_handle();
-    if (bhandle_is_invalid(new_handle))
-    {
-        BERROR("Unable to find free slot to create new shader. Aborting");
-        return new_handle;
-    }
-
-    bshader* out_shader = &state_ptr->shaders[new_handle.handle_index];
-    bzero_memory(out_shader, sizeof(bshader));
-    // Sync handle uniqueid
-    out_shader->uniqueid = new_handle.unique_id.uniqueid;
-    out_shader->state = SHADER_STATE_NOT_CREATED;
-    out_shader->name = bname_create(config->name);
-    out_shader->attribute_stride = 0;
-    out_shader->shader_stage_count = config->stage_count;
-    out_shader->stage_configs = ballocate(sizeof(shader_stage_config) * config->stage_count, MEMORY_TAG_ARRAY);
-    out_shader->uniforms = darray_create(shader_uniform);
-    out_shader->attributes = darray_create(shader_attribute);
-
-    // Per-frame frequency
-    out_shader->per_frame.bound_id = INVALID_ID; // NOTE: per-frame doesn't have a bound id, but invalidate it anyway
-    out_shader->per_frame.uniform_count = 0;
-    out_shader->per_frame.uniform_sampler_count = 0;
-    out_shader->per_frame.sampler_indices = 0;
-    out_shader->per_frame.uniform_texture_count = 0;
-    out_shader->per_frame.texture_indices = 0;
-    out_shader->per_frame.ubo_size = 0;
-
-    // Per-group frequency
-    out_shader->per_group.bound_id = INVALID_ID;
-    out_shader->per_group.uniform_count = 0;
-    out_shader->per_group.uniform_sampler_count = 0;
-    out_shader->per_group.sampler_indices = 0;
-    out_shader->per_group.uniform_texture_count = 0;
-    out_shader->per_group.texture_indices = 0;
-    out_shader->per_group.ubo_size = 0;
-
-    // Per-draw frequency
-    out_shader->per_draw.bound_id = INVALID_ID;
-    out_shader->per_draw.uniform_count = 0;
-    out_shader->per_group.uniform_sampler_count = 0;
-    out_shader->per_group.sampler_indices = 0;
-    out_shader->per_group.uniform_texture_count = 0;
-    out_shader->per_group.texture_indices = 0;
-    // TODO: per-draw frequency does not have a UBO. To provided by the renderer
-    out_shader->per_draw.ubo_size = 0;
-
-    // Take copy of the flags
-    out_shader->flags = config->flags;
-
-#ifdef _DEBUG
-    // NOTE: Only watch module files for debug builds
-    out_shader->module_watch_ids = ballocate(sizeof(u32) * config->stage_count, MEMORY_TAG_ARRAY);
-#endif
-
-    // Examine shader stages and load shader source as required.
-    // This source is then fed to the backend renderer, which stands up any shader program resources as required
-    // TODO: Implement #include directives here at this level so it's handled the same regardless of what backend is being used
-    // Each stage
-    for (u8 i = 0; i < config->stage_count; ++i)
-    {
-        out_shader->stage_configs[i].stage = config->stage_configs[i].stage;
-        out_shader->stage_configs[i].filename = string_duplicate(config->stage_configs[i].filename);
-        // FIXME: Convert to use the new resource system
-        // Read the resource
-        resource text_resource;
-        if (!resource_system_load(out_shader->stage_configs[i].filename, RESOURCE_TYPE_TEXT, 0, &text_resource))
-        {
-            BERROR("Unable to read shader file: %s", out_shader->stage_configs[i].filename);
-            // Invalidate the new handle and return it
-            bhandle_invalidate(&new_handle);
-            return new_handle;
-        }
-        // Take a copy of the source and length, then release the resource
-        // out_shader->stage_configs[i].source_length = text_resource.data_size;
-        out_shader->stage_configs[i].source = string_duplicate(text_resource.data);
-        // TODO: Implement recursive #include directives here at this level so it's handled the same regardless of what backend is being used
-        // This should recursively replace #includes with the file content in-place and adjust the source length along the way
-
-#ifdef _DEBUG
-        // Allow shader hot-reloading in debug builds
-        if (!platform_watch_file(text_resource.full_path, &out_shader->module_watch_ids[i]))
-        {
-            // If this fails, warn about it but there's no need to crash over it
-            BWARN("Failed to watch shader source file '%s'", text_resource.full_path);
-        }
-#endif
-
-        // Release the resource as it isn't needed anymore at this point
-        resource_system_unload(&text_resource);
-    }
-
-    // Keep a copy of the topology types
-    out_shader->topology_types = config->topology_types;
-
-    // Ready to be initialized
-    out_shader->state = SHADER_STATE_UNINITIALIZED;
-
-    // Process attributes
-    for (u32 i = 0; i < config->attribute_count; ++i)
-    {
-        shader_attribute_config* ac = &config->attributes[i];
-        if (!internal_attribute_add(out_shader, ac))
-        {
-            BERROR("Failed to add attribute '%s' to shader '%s'", ac->name, config->name);
-            // Invalidate the new handle and return it
-            bhandle_invalidate(&new_handle);
-            return new_handle;
-        }
-    }
-
-    // Process uniforms
-    for (u32 i = 0; i < config->uniform_count; ++i)
-    {
-        shader_uniform_config* uc = &config->uniforms[i];
-        b8 uniform_add_result = false;
-        if (uniform_type_is_sampler(uc->type))
-        {
-            uniform_add_result = internal_sampler_add(out_shader, uc);
-        }
-        else if (uniform_type_is_texture(uc->type))
-        {
-            uniform_add_result = internal_texture_add(out_shader, uc);
-        }
-        else
-        {
-            uniform_add_result = internal_uniform_add(out_shader, uc, INVALID_ID);
-        }
-        if (!uniform_add_result)
-        {
-            // Invalidate the new handle and return it
-            bhandle_invalidate(&new_handle);
-            return new_handle;
-        }
-    }
-
-    // Now that uniforms are processed, take note of the indices of textures and samplers
-    // These are used for fast lookups later by type
-    out_shader->per_frame.sampler_indices = BALLOC_TYPE_CARRAY(u32, out_shader->per_frame.uniform_sampler_count);
-    out_shader->per_group.sampler_indices = BALLOC_TYPE_CARRAY(u32, out_shader->per_group.uniform_sampler_count);
-    out_shader->per_draw.sampler_indices = BALLOC_TYPE_CARRAY(u32, out_shader->per_draw.uniform_sampler_count);
-    u32 frame_textures = 0, frame_samplers = 0;
-    u32 group_textures = 0, group_samplers = 0;
-    u32 draw_textures = 0, draw_samplers = 0;
-    for (u32 i = 0; i < config->uniform_count; ++i)
-    {
-        shader_uniform_config* uc = &config->uniforms[i];
-        if (uniform_type_is_sampler(uc->type))
-        {
-            switch (uc->frequency)
-            {
-            case SHADER_UPDATE_FREQUENCY_PER_FRAME:
-                out_shader->per_frame.sampler_indices[frame_samplers] = i;
-                break;
-            case SHADER_UPDATE_FREQUENCY_PER_GROUP:
-                out_shader->per_group.sampler_indices[group_samplers] = i;
-                break;
-            case SHADER_UPDATE_FREQUENCY_PER_DRAW:
-                out_shader->per_draw.sampler_indices[draw_samplers] = i;
-                break;
-            }
-        }
-        else if (uniform_type_is_texture(uc->type))
-        {
-            switch (uc->frequency)
-            {
-            case SHADER_UPDATE_FREQUENCY_PER_FRAME:
-                out_shader->per_frame.texture_indices[frame_textures] = i;
-                break;
-            case SHADER_UPDATE_FREQUENCY_PER_GROUP:
-                out_shader->per_group.texture_indices[group_textures] = i;
-                break;
-            case SHADER_UPDATE_FREQUENCY_PER_DRAW:
-                out_shader->per_draw.texture_indices[draw_textures] = i;
-                break;
-            }
-        }
-    }
-
-    // Create renderer-internal resources
-    if (!renderer_shader_create(state_ptr->renderer, new_handle, config))
-    {
-        BERROR("Error creating shader");
-        // Invalidate the new handle and return it
-        bhandle_invalidate(&new_handle);
-        return new_handle;
-    }
-
-    return new_handle;
-}
-
-b8 shader_system_reload(bhandle shader)
-{
-    if (bhandle_is_invalid(shader))
+    if (bhandle_is_invalid(shader_handle))
         return false;
 
-    bshader* s = &state_ptr->shaders[shader.handle_index];
+    bshader* shader = &state_ptr->shaders[shader_handle.handle_index];
 
-    // Make a copy of the stage configs in case a file fails to load
-    b8 has_error = false;
-    shader_stage_config* new_stage_configs = ballocate(sizeof(shader_stage_config) * s->shader_stage_count, MEMORY_TAG_ARRAY);
-    for (u8 i = 0; i < s->shader_stage_count; ++i)
+    // Check each shader stage generation for out-of-sync
+    for (u8 i = 0; i < shader->shader_stage_count; ++i)
     {
-        // Read the resource
-        resource text_resource;
-        if (!resource_system_load(s->stage_configs[i].filename, RESOURCE_TYPE_TEXT, 0, &text_resource))
+        if (shader->stage_source_text_generations[i] != shader->stage_source_text_resources[i]->base.generation)
         {
-            BERROR("Unable to read shader file: %s", s->stage_configs[i].filename);
-            has_error = true;
-            break;
+            // Swap out the source on the config
+            if (shader->stage_configs[i].source)
+                string_free(shader->stage_configs[i].source);
+
+            shader->stage_configs[i].source = string_duplicate(shader->stage_source_text_resources[i]->text);
+            // Sync the generations
+            shader->stage_source_text_generations[i] = shader->stage_source_text_resources[i]->base.generation;
         }
-
-        // Free the old source
-        if (s->stage_configs[i].source)
-            string_free(s->stage_configs[i].source);
-
-        // Take a copy of the source and length, then release the resource
-        new_stage_configs[i].source = string_duplicate(text_resource.data);
-        // TODO: Implement recursive #include directives here at this level so it's handled the same regardless of what backend is being used
-        // This should recursively replace #includes with the file content in-place and adjust the source length along the way
-
-        // Release the resource as it isn't needed anymore at this point
-        resource_system_unload(&text_resource);
     }
 
-    for (u8 i = 0; i < s->shader_stage_count; ++i)
-    {
-        if (has_error)
-        {
-            if (new_stage_configs[i].source)
-                string_free(new_stage_configs[i].source);
-        }
-        else
-        {
-            s->stage_configs[i].source = new_stage_configs[i].source;
-        }
-    }
-    bfree(new_stage_configs, sizeof(shader_stage_config) * s->shader_stage_count, MEMORY_TAG_ARRAY);
-    if (has_error)
-        return false;
-
-    return renderer_shader_reload(state_ptr->renderer, shader, s->shader_stage_count, s->stage_configs);
+    return renderer_shader_reload(state_ptr->renderer, shader_handle, shader->shader_stage_count, shader->stage_configs);
 }
 
 bhandle shader_system_get(bname name)
@@ -456,17 +247,21 @@ bhandle shader_system_get(bname name)
         }
     }
 
-    // Not found, attempt to load the shader resource and return it
-    resource shader_config_resource;
-    if (!resource_system_load(bname_string_get(name), RESOURCE_TYPE_SHADER, 0, &shader_config_resource))
+    // Not found, attempt to load the shader resource
+    bresource_shader_request_info request_info = {0};
+    request_info.base.type = BRESOURCE_TYPE_SHADER;
+    request_info.base.synchronous = true; // Shaders are needed immediately
+    request_info.shader_config_source_text = 0;
+
+    bresource_shader* shader_resource = (bresource_shader*)bresource_system_request(state_ptr->resource_state, name, (bresource_request_info*)&request_info);
+    if (!shader_resource)
     {
         BERROR("Failed to load shader resource for shader '%s'", name);
         return bhandle_invalid();
     }
 
-    shader_config* config = (shader_config*)shader_config_resource.data;
-    bhandle shader_handle = shader_system_create(config);
-    resource_system_unload(&shader_config_resource);
+    // Create the shader
+    bhandle shader_handle = shader_create(shader_resource);
 
     if (bhandle_is_invalid(shader_handle))
     {
@@ -492,15 +287,6 @@ static void internal_shader_destroy(bhandle* shader)
 
     s->name = INVALID_BNAME;
 
-#ifdef _DEBUG
-    if (s->module_watch_ids)
-    {
-        // Unwatch the shader files
-        for (u8 i = 0; i < s->shader_stage_count; ++i)
-            platform_unwatch_file(s->module_watch_ids[i]);
-    }
-#endif
-
     // Make sure to invalidate the handle
     bhandle_invalidate(shader);
 }
@@ -523,12 +309,12 @@ b8 shader_system_set_wireframe(bhandle shader, b8 wireframe_enabled)
 
     if (!wireframe_enabled)
     {
-        renderer_shader_flag_set(state_ptr->renderer, shader, SHADER_FLAG_WIREFRAME, false);
+        renderer_shader_flag_set(state_ptr->renderer, shader, SHADER_FLAG_WIREFRAME_BIT, false);
         return true;
     }
 
     if (renderer_shader_supports_wireframe(state_ptr->renderer, shader))
-        renderer_shader_flag_set(state_ptr->renderer, shader, SHADER_FLAG_WIREFRAME, true);
+        renderer_shader_flag_set(state_ptr->renderer, shader, SHADER_FLAG_WIREFRAME_BIT, true);
 
     return true;
 }
@@ -718,7 +504,7 @@ static b8 internal_attribute_add(bshader* shader, const shader_attribute_config*
 
     // Create/push the attribute
     shader_attribute attrib = {};
-    attrib.name = bname_create(config->name);
+    attrib.name = config->name;
     attrib.size = size;
     attrib.type = config->type;
     darray_push(shader->attributes, attrib);
@@ -729,7 +515,7 @@ static b8 internal_attribute_add(bshader* shader, const shader_attribute_config*
 static b8 internal_texture_add(bshader* shader, shader_uniform_config* config)
 {
     // Verify the name is valid and unique
-    if (!uniform_name_valid(shader, bname_create(config->name)) || !shader_uniform_add_state_valid(shader))
+    if (!uniform_name_valid(shader, config->name) || !shader_uniform_add_state_valid(shader))
         return false;
     
     // Verify that there are not too many textures present across all frequencies
@@ -773,7 +559,7 @@ static b8 internal_texture_add(bshader* shader, shader_uniform_config* config)
 static b8 internal_sampler_add(bshader* shader, shader_uniform_config* config)
 {
     // Verify the name is valid and unique
-    if (!uniform_name_valid(shader, bname_create(config->name)) || !shader_uniform_add_state_valid(shader))
+    if (!uniform_name_valid(shader, config->name) || !shader_uniform_add_state_valid(shader))
         return false;
 
     // Verify that there are not too many samplers present across all frequencies
@@ -826,7 +612,7 @@ static bhandle generate_new_shader_handle(void)
 
 static b8 internal_uniform_add(bshader* shader, const shader_uniform_config* config, u32 location)
 {
-    if (!shader_uniform_add_state_valid(shader) || !uniform_name_valid(shader, bname_create(config->name)))
+    if (!shader_uniform_add_state_valid(shader) || !uniform_name_valid(shader, config->name))
         return false;
 
     u32 uniform_count = darray_length(shader->uniforms);
@@ -917,4 +703,173 @@ static b8 shader_uniform_add_state_valid(bshader* shader)
         return false;
     }
     return true;
+}
+
+static bhandle shader_create(const bresource_shader* shader_resource)
+{
+    bhandle new_handle = generate_new_shader_handle();
+    if (bhandle_is_invalid(new_handle))
+    {
+        BERROR("Unable to find free slot to create new shader. Aborting...");
+        return new_handle;
+    }
+
+    // TODO: probably don't need to keep a copy of all the resource properties since we now hold a pointer to the resource
+    bshader* out_shader = &state_ptr->shaders[new_handle.handle_index];
+    bzero_memory(out_shader, sizeof(bshader));
+    // Sync handle uniqueid
+    out_shader->uniqueid = new_handle.unique_id.uniqueid;
+    out_shader->state = SHADER_STATE_NOT_CREATED;
+    out_shader->name = shader_resource->base.name;
+    out_shader->attribute_stride = 0;
+    out_shader->shader_stage_count = shader_resource->stage_count;
+    out_shader->stage_configs = ballocate(sizeof(shader_stage_config) * shader_resource->stage_count, MEMORY_TAG_ARRAY);
+    out_shader->uniforms = darray_create(shader_uniform);
+    out_shader->attributes = darray_create(shader_attribute);
+
+    // Per-frame frequency
+    out_shader->per_frame.bound_id = INVALID_ID; // NOTE: per-frame doesn't have a bound id, but invalidate it anyway
+    out_shader->per_frame.uniform_count = 0;
+    out_shader->per_frame.uniform_sampler_count = 0;
+    out_shader->per_frame.sampler_indices = 0;
+    out_shader->per_frame.uniform_texture_count = 0;
+    out_shader->per_frame.texture_indices = 0;
+    out_shader->per_frame.ubo_size = 0;
+
+    // Per-group frequency
+    out_shader->per_group.bound_id = INVALID_ID;
+    out_shader->per_group.uniform_count = 0;
+    out_shader->per_group.uniform_sampler_count = 0;
+    out_shader->per_group.sampler_indices = 0;
+    out_shader->per_group.uniform_texture_count = 0;
+    out_shader->per_group.texture_indices = 0;
+    out_shader->per_group.ubo_size = 0;
+
+    // Per-draw frequency
+    out_shader->per_draw.bound_id = INVALID_ID;
+    out_shader->per_draw.uniform_count = 0;
+    out_shader->per_group.uniform_sampler_count = 0;
+    out_shader->per_group.sampler_indices = 0;
+    out_shader->per_group.uniform_texture_count = 0;
+    out_shader->per_group.texture_indices = 0;
+    // TODO: per-draw frequency does not have a UBO. To provided by the renderer
+    out_shader->per_draw.ubo_size = 0;
+
+    // Take a copy of the flags
+    out_shader->flags = shader_resource->flags;
+
+    // Save off a pointer to the config resource
+    out_shader->shader_resource = shader_resource;
+
+    // Create arrays to track stage "text" resources
+    out_shader->stage_source_text_resources = BALLOC_TYPE_CARRAY(bresource_text*, out_shader->shader_stage_count);
+    out_shader->stage_source_text_generations = BALLOC_TYPE_CARRAY(u32, out_shader->shader_stage_count);
+
+    // Take a copy of the array
+    BCOPY_TYPE_CARRAY(out_shader->stage_configs, shader_resource->stage_configs, shader_stage_config, out_shader->shader_stage_count);
+
+    // Take a copy of the source string for each stage
+    for (u8 i = 0; i < shader_resource->stage_count; ++i)
+    {
+        out_shader->stage_configs[i].source = string_duplicate(shader_resource->stage_configs[i].source);
+    }
+
+    // Keep a copy of the topology types
+    out_shader->topology_types = shader_resource->topology_types;
+
+    // Ready to be initialized
+    out_shader->state = SHADER_STATE_UNINITIALIZED;
+
+    // Process attributes
+    for (u32 i = 0; i < shader_resource->attribute_count; ++i)
+    {
+        shader_attribute_config* ac = &shader_resource->attributes[i];
+        if (!internal_attribute_add(out_shader, ac))
+        {
+            BERROR("Failed to add attribute '%s' to shader '%s'", ac->name, out_shader->name);
+            // Invalidate the new handle and return it
+            bhandle_invalidate(&new_handle);
+            return new_handle;
+        }
+    }
+
+    // Process uniforms
+    for (u32 i = 0; i < shader_resource->uniform_count; ++i)
+    {
+        shader_uniform_config* uc = &shader_resource->uniforms[i];
+        b8 uniform_add_result = false;
+        if (uniform_type_is_sampler(uc->type))
+        {
+            uniform_add_result = internal_sampler_add(out_shader, uc);
+        }
+        else if (uniform_type_is_texture(uc->type))
+        {
+            uniform_add_result = internal_texture_add(out_shader, uc);
+        }
+        else
+        {
+            uniform_add_result = internal_uniform_add(out_shader, uc, INVALID_ID);
+        }
+
+        if (!uniform_add_result)
+        {
+            // Invalidate the new handle and return it
+            bhandle_invalidate(&new_handle);
+            return new_handle;
+        }
+    }
+
+    // Now that uniforms are processed, take note of the indices of textures and samplers.
+    // These are used for fast lookups later by type
+    out_shader->per_frame.sampler_indices = BALLOC_TYPE_CARRAY(u32, out_shader->per_frame.uniform_sampler_count);
+    out_shader->per_group.sampler_indices = BALLOC_TYPE_CARRAY(u32, out_shader->per_group.uniform_sampler_count);
+    out_shader->per_draw.sampler_indices = BALLOC_TYPE_CARRAY(u32, out_shader->per_draw.uniform_sampler_count);
+    u32 frame_textures = 0, frame_samplers = 0;
+    u32 group_textures = 0, group_samplers = 0;
+    u32 draw_textures = 0, draw_samplers = 0;
+    for (u32 i = 0; i < shader_resource->uniform_count; ++i)
+    {
+        shader_uniform_config* uc = &shader_resource->uniforms[i];
+        if (uniform_type_is_sampler(uc->type))
+        {
+            switch (uc->frequency)
+            {
+            case SHADER_UPDATE_FREQUENCY_PER_FRAME:
+                out_shader->per_frame.sampler_indices[frame_samplers] = i;
+                break;
+            case SHADER_UPDATE_FREQUENCY_PER_GROUP:
+                out_shader->per_group.sampler_indices[group_samplers] = i;
+                break;
+            case SHADER_UPDATE_FREQUENCY_PER_DRAW:
+                out_shader->per_draw.sampler_indices[draw_samplers] = i;
+                break;
+            }
+        }
+        else if (uniform_type_is_texture(uc->type))
+        {
+            switch (uc->frequency)
+            {
+            case SHADER_UPDATE_FREQUENCY_PER_FRAME:
+                out_shader->per_frame.texture_indices[frame_textures] = i;
+                break;
+            case SHADER_UPDATE_FREQUENCY_PER_GROUP:
+                out_shader->per_group.texture_indices[group_textures] = i;
+                break;
+            case SHADER_UPDATE_FREQUENCY_PER_DRAW:
+                out_shader->per_draw.texture_indices[draw_textures] = i;
+                break;
+            }
+        }
+    }
+
+    // Create renderer-internal resources
+    if (!renderer_shader_create(state_ptr->renderer, new_handle, shader_resource))
+    {
+        BERROR("Error creating shader");
+        // Invalidate the new handle and return it
+        bhandle_invalidate(&new_handle);
+        return new_handle;
+    }
+
+    return new_handle;
 }

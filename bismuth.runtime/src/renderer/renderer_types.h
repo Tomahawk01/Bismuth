@@ -256,7 +256,7 @@ typedef struct renderer_backend_interface
     b8 (*texture_read_data)(struct renderer_backend_interface* backend, bhandle renderer_texture_handle, u32 offset, u32 size, u8** out_pixels);
     b8 (*texture_read_pixel)(struct renderer_backend_interface* backend, bhandle renderer_texture_handle, u32 x, u32 y, u8** out_rgba);
 
-    b8 (*shader_create)(struct renderer_backend_interface* backend, bhandle shader, const shader_config* config);
+    b8 (*shader_create)(struct renderer_backend_interface* backend, bhandle shader, const bresource_shader* shader_resource);
     void (*shader_destroy)(struct renderer_backend_interface* backend, bhandle shader);
     b8 (*shader_reload)(struct renderer_backend_interface* backend, bhandle s, u32 shader_stage_count, shader_stage_config* shader_stages);
 

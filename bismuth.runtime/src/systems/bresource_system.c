@@ -6,6 +6,7 @@
 #include "defines.h"
 #include "bresources/handlers/bresource_handler_material.h"
 #include "bresources/handlers/bresource_handler_static_mesh.h"
+#include "bresources/handlers/bresource_handler_text.h"
 #include "bresources/handlers/bresource_handler_texture.h"
 #include "bresources/bresource_types.h"
 #include "logger.h"
@@ -55,6 +56,20 @@ b8 bresource_system_initialize(u64* memory_requirement, struct bresource_system_
     state->asset_system = engine_systems_get()->asset_state;
 
     // Register known handler types
+
+    // Text handler
+    {
+        bresource_handler handler = {0};
+        handler.allocate = bresource_handler_text_allocate;
+        handler.release = bresource_handler_text_release;
+        handler.request = bresource_handler_text_request;
+        if (!bresource_system_handler_register(state, BRESOURCE_TYPE_TEXT, handler))
+        {
+            BERROR("Failed to register text resource handler");
+            return false;
+        }
+    }
+
     // Texture handler
     {
         bresource_handler handler = {0};
@@ -148,14 +163,14 @@ bresource* bresource_system_request(struct bresource_system_state* state, bname 
             if (!lookup->r)
             {
                 // Grab a handler for the resource type, if there is one
-                bresource_handler* h = &state->handlers[info->type];
-                if (!h->allocate)
+                bresource_handler* handler = &state->handlers[info->type];
+                if (!handler->allocate)
                 {
                     BERROR("There is no handler setup for the asset type. Null/0 will be returned");
                     return 0;
                 }
                 // Have the handler allocate memory for the resource
-                lookup->r = h->allocate();
+                lookup->r = handler->allocate();
                 if (!lookup->r)
                 {
                     BERROR("Resource handler failed to allocate resource. Null/0 will be returned");
@@ -180,7 +195,7 @@ bresource* bresource_system_request(struct bresource_system_state* state, bname 
                 lookup->reference_count = 0;
 
                 // Make the actual request
-                b8 result = h->request(h, lookup->r, info);
+                b8 result = handler->request(handler, lookup->r, info);
                 if (result)
                 {
                     // Increment reference count

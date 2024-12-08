@@ -68,7 +68,7 @@ static b8 setup_frequency_state(renderer_backend_interface* backend, vulkan_shad
 static b8 release_shader_frequency_state(vulkan_context* context, vulkan_shader* internal_shader, shader_update_frequency frequency, u32 frequency_id);
 static void destroy_shader_frequency_states(shader_update_frequency frequency, vulkan_shader_frequency_state* states, u32 state_count, u32 image_count, vulkan_shader_frequency_info* info);
 static b8 shader_create_modules_and_pipelines(renderer_backend_interface* backend, vulkan_shader* internal_shader, u8 stage_count, shader_stage_config* stage_configs);
-static void setup_frequency_descriptors(b8 do_ubo, vulkan_shader_frequency_info* frequency_info, vulkan_descriptor_set_config* set_config, const shader_config* config);
+static void setup_frequency_descriptors(b8 do_ubo, vulkan_shader_frequency_info* frequency_info, vulkan_descriptor_set_config* set_config, const bresource_shader* config);
 static b8 vulkan_descriptorset_update_and_bind(vulkan_context* context, u16 generation, vulkan_shader* internal_shader, const vulkan_shader_frequency_info* info, vulkan_shader_frequency_state* frequency_state, u32 descriptor_set_index);
 static u8 frequency_descriptor_set_count(const vulkan_shader_frequency_info* frequency_info);
 
@@ -1918,12 +1918,12 @@ b8 vulkan_renderer_texture_read_pixel(renderer_backend_interface* backend, bhand
     return texture_read_offset_range(backend, texture_data, 0, 0, x, y, 1, 1, out_rgba);
 }
 
-b8 vulkan_renderer_shader_create(renderer_backend_interface* backend, bhandle shader, const shader_config* config)
+b8 vulkan_renderer_shader_create(renderer_backend_interface* backend, bhandle shader, const bresource_shader* shader_resource)
 {
     // Verify stage support before anything else
-    for (u8 i = 0; i < config->stage_count; ++i)
+    for (u8 i = 0; i < shader_resource->stage_count; ++i)
     {
-        switch (config->stage_configs[i].stage)
+        switch (shader_resource->stage_configs[i].stage)
         {
             case SHADER_STAGE_FRAGMENT:
             case SHADER_STAGE_VERTEX:
@@ -1935,7 +1935,7 @@ b8 vulkan_renderer_shader_create(renderer_backend_interface* backend, bhandle sh
                 BWARN("vulkan_renderer_shader_create: SHADER_STAGE_COMPUTE is set but not yet supported");
                 break;
             default:
-                BERROR("Unsupported stage type: %d", shader_stage_to_string(config->stage_configs[i].stage));
+                BERROR("Unsupported stage type: %d", shader_stage_to_string(shader_resource->stage_configs[i].stage));
                 break;
         }
     }
@@ -1948,10 +1948,10 @@ b8 vulkan_renderer_shader_create(renderer_backend_interface* backend, bhandle sh
     // Setup the internal shader
     internal_shader->per_draw_push_constant_block = ballocate(128, MEMORY_TAG_RENDERER);
 
-    internal_shader->stage_count = config->stage_count;
-    internal_shader->flags = config->flags;
-    internal_shader->topology_types = config->topology_types;
-    internal_shader->name = bname_create(config->name);
+    internal_shader->stage_count = shader_resource->stage_count;
+    internal_shader->flags = shader_resource->flags;
+    internal_shader->topology_types = shader_resource->topology_types;
+    internal_shader->name = shader_resource->base.name;
 
     // Count up uniform/sampler/textures and UBO sizes
     bzero_memory(&internal_shader->per_frame_info, sizeof(vulkan_shader_frequency_info));
@@ -1970,11 +1970,11 @@ b8 vulkan_renderer_shader_create(renderer_backend_interface* backend, bhandle sh
     internal_shader->per_draw_info.bound_id = INVALID_ID;
 
     // Process uniforms
-    internal_shader->uniform_count = config->uniform_count;
+    internal_shader->uniform_count = shader_resource->uniform_count;
     internal_shader->uniforms = BALLOC_TYPE_CARRAY(shader_uniform, internal_shader->uniform_count);
-    for (u32 i = 0; i < config->uniform_count; ++i)
+    for (u32 i = 0; i < shader_resource->uniform_count; ++i)
     {
-        shader_uniform_config* u_config = &config->uniforms[i];
+        shader_uniform_config* u_config = &shader_resource->uniforms[i];
         b8 is_sampler = uniform_type_is_sampler(u_config->type);
         b8 is_texture = uniform_type_is_texture(u_config->type);
         vulkan_shader_frequency_info* info = 0;
@@ -2010,7 +2010,7 @@ b8 vulkan_renderer_shader_create(renderer_backend_interface* backend, bhandle sh
 
         // Keep a copy of the uniform properties
         shader_uniform* uniform = &internal_shader->uniforms[i];
-        uniform->name = bname_create(u_config->name);
+        uniform->name =  u_config->name;
         uniform->offset = info->ubo_size;
         uniform->location = u_config->location;
         uniform->size = u_config->size;
@@ -2021,8 +2021,8 @@ b8 vulkan_renderer_shader_create(renderer_backend_interface* backend, bhandle sh
         info->ubo_size += uniform_size;
     }
 
-    internal_shader->max_groups = config->max_groups;
-    internal_shader->max_per_draw_count = config->max_per_draw_count;
+    internal_shader->max_groups = shader_resource->max_groups;
+    internal_shader->max_per_draw_count = shader_resource->max_per_draw_count;
 
     // Need a max of VULKAN_SHADER_DESCRIPTOR_SET_LAYOUT_COUNT descriptor sets, one per shader update frequency
     // Note that this can mean that only one (or potentially none) exist as well
@@ -2046,17 +2046,17 @@ b8 vulkan_renderer_shader_create(renderer_backend_interface* backend, bhandle sh
     u32 image_count = get_image_count(context);
     // Get a count of sampler descriptors needed
     u32 per_frame_sampler_count = internal_shader->per_frame_info.uniform_sampler_count * image_count;
-    u32 per_group_sampler_count = config->max_groups * internal_shader->per_group_info.uniform_sampler_count * image_count;
-    u32 per_draw_sampler_count = config->max_per_draw_count * internal_shader->per_draw_info.uniform_sampler_count * image_count;
+    u32 per_group_sampler_count = shader_resource->max_groups * internal_shader->per_group_info.uniform_sampler_count * image_count;
+    u32 per_draw_sampler_count = shader_resource->max_per_draw_count * internal_shader->per_draw_info.uniform_sampler_count * image_count;
     u32 max_sampler_count = per_frame_sampler_count + per_group_sampler_count + per_draw_sampler_count;
     // Get a count of image descriptors needed
     u32 per_frame_image_count = internal_shader->per_frame_info.uniform_texture_count * image_count;
-    u32 per_group_image_count = config->max_groups * internal_shader->per_group_info.uniform_texture_count * image_count;
-    u32 per_draw_image_count = config->max_per_draw_count * internal_shader->per_draw_info.uniform_texture_count * image_count;
+    u32 per_group_image_count = shader_resource->max_groups * internal_shader->per_group_info.uniform_texture_count * image_count;
+    u32 per_draw_image_count = shader_resource->max_per_draw_count * internal_shader->per_draw_info.uniform_texture_count * image_count;
     u32 max_image_count = per_frame_image_count + per_group_image_count + per_draw_image_count;
     // Get a count of uniform buffer descriptors needed
     u32 per_frame_ubo_count = internal_shader->per_frame_info.uniform_count * image_count;
-    u32 per_group_ubo_count = config->max_groups * image_count;
+    u32 per_group_ubo_count = shader_resource->max_groups * image_count;
     u32 per_draw_ubo_count = 0; // NOTE: this is 0 because per_draw ubo is handled as a push constant
     u32 max_ubo_count = per_frame_ubo_count + per_group_ubo_count + per_draw_ubo_count;
 
@@ -2085,7 +2085,7 @@ b8 vulkan_renderer_shader_create(renderer_backend_interface* backend, bhandle sh
     {
         vulkan_descriptor_set_config* set_config = &internal_shader->descriptor_sets[internal_shader->descriptor_set_count];
 
-        setup_frequency_descriptors(true, &internal_shader->per_frame_info, set_config, config);
+        setup_frequency_descriptors(true, &internal_shader->per_frame_info, set_config, shader_resource);
 
         // Increment the set counter
         internal_shader->descriptor_set_count++;
@@ -2096,7 +2096,7 @@ b8 vulkan_renderer_shader_create(renderer_backend_interface* backend, bhandle sh
     {
         vulkan_descriptor_set_config* set_config = &internal_shader->descriptor_sets[internal_shader->descriptor_set_count];
 
-        setup_frequency_descriptors(true, &internal_shader->per_group_info, set_config, config);
+        setup_frequency_descriptors(true, &internal_shader->per_group_info, set_config, shader_resource);
 
         // Increment the set counter
         internal_shader->descriptor_set_count++;
@@ -2108,7 +2108,7 @@ b8 vulkan_renderer_shader_create(renderer_backend_interface* backend, bhandle sh
         // In that set, add a binding for UBO if used
         vulkan_descriptor_set_config* set_config = &internal_shader->descriptor_sets[internal_shader->descriptor_set_count];
 
-        setup_frequency_descriptors(true, &internal_shader->per_draw_info, set_config, config);
+        setup_frequency_descriptors(true, &internal_shader->per_draw_info, set_config, shader_resource);
 
         // Increment the set counter
         internal_shader->descriptor_set_count++;
@@ -2129,13 +2129,13 @@ b8 vulkan_renderer_shader_create(renderer_backend_interface* backend, bhandle sh
         internal_shader->per_draw_states[i].id = INVALID_ID;
 
     // Keep copy of cull mode
-    internal_shader->cull_mode = config->cull_mode;
+    internal_shader->cull_mode = shader_resource->cull_mode;
 
-    b8 needs_wireframe = (internal_shader->flags & SHADER_FLAG_WIREFRAME) != 0;
+    b8 needs_wireframe = (internal_shader->flags & SHADER_FLAG_WIREFRAME_BIT) != 0;
     // Determine if the implementation supports this and set to false if not
     if (!context->device.features.fillModeNonSolid)
     {
-        BINFO("Renderer backend does not support fillModeNonSolid. Wireframe mode is not possible, but was requested for the shader '%s'", config->name);
+        BINFO("Renderer backend does not support fillModeNonSolid. Wireframe mode is not possible, but was requested for the shader '%s'", bname_string_get(shader_resource->base.name));
         needs_wireframe = false;
     }
 
@@ -2158,23 +2158,23 @@ b8 vulkan_renderer_shader_create(renderer_backend_interface* backend, bhandle sh
     }
 
     // Process attributes
-    u32 attribute_count = config->attribute_count;
+    u32 attribute_count = shader_resource->attribute_count;
     u32 offset = 0;
     for (u32 i = 0; i < attribute_count; ++i)
     {
-        shader_attribute_config* attribute_config = &config->attributes[i];
+        shader_attribute_config* attribute_config = &shader_resource->attributes[i];
         // Setup the new attribute
         VkVertexInputAttributeDescription attribute;
         attribute.location = i;
         attribute.binding = 0;
         attribute.offset = offset;
-        attribute.format = types[config->attributes[i].type];
+        attribute.format = types[shader_resource->attributes[i].type];
 
         // Push into the config's attribute collection and add to the stride
         internal_shader->attributes[i] = attribute;
 
-        offset += config->attributes[i].size;
-        internal_shader->attribute_stride += config->attributes[i].size;
+        offset += shader_resource->attributes[i].size;
+        internal_shader->attribute_stride += shader_resource->attributes[i].size;
     }
 
     // Descriptor pool
@@ -2227,64 +2227,64 @@ b8 vulkan_renderer_shader_create(renderer_backend_interface* backend, bhandle sh
 
     // Create one pipeline per topology class
     // Point class
-    if (config->topology_types & PRIMITIVE_TOPOLOGY_TYPE_POINT_LIST)
+    if (shader_resource->topology_types & PRIMITIVE_TOPOLOGY_TYPE_POINT_LIST_BIT)
     {
         internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_POINT] = ballocate(sizeof(vulkan_pipeline), MEMORY_TAG_VULKAN);
         // Set the supported types for this class
-        internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_POINT]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_POINT_LIST;
+        internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_POINT]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_POINT_LIST_BIT;
 
         // Wireframe versions
         if (needs_wireframe)
         {
             internal_shader->wireframe_pipelines[VULKAN_TOPOLOGY_CLASS_POINT] = ballocate(sizeof(vulkan_pipeline), MEMORY_TAG_VULKAN);
             // Set the supported types for this class
-            internal_shader->wireframe_pipelines[VULKAN_TOPOLOGY_CLASS_POINT]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_POINT_LIST;
+            internal_shader->wireframe_pipelines[VULKAN_TOPOLOGY_CLASS_POINT]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_POINT_LIST_BIT;
         }
     }
 
     // Line class
-    if (config->topology_types & PRIMITIVE_TOPOLOGY_TYPE_LINE_LIST || config->topology_types & PRIMITIVE_TOPOLOGY_TYPE_LINE_STRIP)
+    if (shader_resource->topology_types & PRIMITIVE_TOPOLOGY_TYPE_LINE_LIST_BIT || shader_resource->topology_types & PRIMITIVE_TOPOLOGY_TYPE_LINE_STRIP_BIT)
     {
         internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_LINE] = ballocate(sizeof(vulkan_pipeline), MEMORY_TAG_VULKAN);
         // Set the supported types for this class
-        internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_LINE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_LINE_LIST;
-        internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_LINE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_LINE_STRIP;
+        internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_LINE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_LINE_LIST_BIT;
+        internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_LINE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_LINE_STRIP_BIT;
 
         // Wireframe versions
         if (needs_wireframe)
         {
             internal_shader->wireframe_pipelines[VULKAN_TOPOLOGY_CLASS_LINE] = ballocate(sizeof(vulkan_pipeline), MEMORY_TAG_VULKAN);
             // Set the supported types for this class
-            internal_shader->wireframe_pipelines[VULKAN_TOPOLOGY_CLASS_LINE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_LINE_LIST;
-            internal_shader->wireframe_pipelines[VULKAN_TOPOLOGY_CLASS_LINE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_LINE_STRIP;
+            internal_shader->wireframe_pipelines[VULKAN_TOPOLOGY_CLASS_LINE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_LINE_LIST_BIT;
+            internal_shader->wireframe_pipelines[VULKAN_TOPOLOGY_CLASS_LINE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_LINE_STRIP_BIT;
         }
     }
 
     // Triangle class
-    if (config->topology_types & PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_LIST ||
-        config->topology_types & PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_STRIP ||
-        config->topology_types & PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_FAN)
+    if (shader_resource->topology_types & PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_LIST_BIT ||
+        shader_resource->topology_types & PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_STRIP_BIT ||
+        shader_resource->topology_types & PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_FAN_BIT)
     {
         internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_TRIANGLE] = ballocate(sizeof(vulkan_pipeline), MEMORY_TAG_VULKAN);
         // Set the supported types for this class
-        internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_TRIANGLE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_LIST;
-        internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_TRIANGLE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_STRIP;
-        internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_TRIANGLE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_FAN;
+        internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_TRIANGLE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_LIST_BIT;
+        internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_TRIANGLE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_STRIP_BIT;
+        internal_shader->pipelines[VULKAN_TOPOLOGY_CLASS_TRIANGLE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_FAN_BIT;
 
         // Wireframe versions
         if (needs_wireframe)
         {
             internal_shader->wireframe_pipelines[VULKAN_TOPOLOGY_CLASS_TRIANGLE] = ballocate(sizeof(vulkan_pipeline), MEMORY_TAG_VULKAN);
             // Set the supported types for this class
-            internal_shader->wireframe_pipelines[VULKAN_TOPOLOGY_CLASS_TRIANGLE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_LIST;
-            internal_shader->wireframe_pipelines[VULKAN_TOPOLOGY_CLASS_TRIANGLE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_STRIP;
-            internal_shader->wireframe_pipelines[VULKAN_TOPOLOGY_CLASS_TRIANGLE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_FAN;
+            internal_shader->wireframe_pipelines[VULKAN_TOPOLOGY_CLASS_TRIANGLE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_LIST_BIT;
+            internal_shader->wireframe_pipelines[VULKAN_TOPOLOGY_CLASS_TRIANGLE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_STRIP_BIT;
+            internal_shader->wireframe_pipelines[VULKAN_TOPOLOGY_CLASS_TRIANGLE]->supported_topology_types |= PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_FAN_BIT;
         }
     }
 
-    if (!shader_create_modules_and_pipelines(backend, internal_shader, config->stage_count, config->stage_configs))
+    if (!shader_create_modules_and_pipelines(backend, internal_shader, shader_resource->stage_count, shader_resource->stage_configs))
     {
-        BERROR("Failed initial load on shader '%s'. See logs for details", config->name);
+        BERROR("Failed initial load on shader '%s'. See logs for details", bname_string_get(shader_resource->base.name));
         return false;
     }
 
@@ -2298,28 +2298,28 @@ b8 vulkan_renderer_shader_create(renderer_backend_interface* backend, bhandle sh
             internal_shader->bound_pipeline_index = i;
 
             // Extract the first type from the pipeline
-            for (u32 j = 1; j < PRIMITIVE_TOPOLOGY_TYPE_MAX; j = j << 1)
+            for (u32 j = 1; j < PRIMITIVE_TOPOLOGY_TYPE_MAX_BIT; j = j << 1)
             {
                 if (internal_shader->pipelines[i]->supported_topology_types & j)
                 {
                     switch (j)
                     {
-                    case PRIMITIVE_TOPOLOGY_TYPE_POINT_LIST:
+                    case PRIMITIVE_TOPOLOGY_TYPE_POINT_LIST_BIT:
                         internal_shader->current_topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
                         break;
-                    case PRIMITIVE_TOPOLOGY_TYPE_LINE_LIST:
+                    case PRIMITIVE_TOPOLOGY_TYPE_LINE_LIST_BIT:
                         internal_shader->current_topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
                         break;
-                    case PRIMITIVE_TOPOLOGY_TYPE_LINE_STRIP:
+                    case PRIMITIVE_TOPOLOGY_TYPE_LINE_STRIP_BIT:
                         internal_shader->current_topology = VK_PRIMITIVE_TOPOLOGY_LINE_STRIP;
                         break;
-                    case PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_LIST:
+                    case PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_LIST_BIT:
                         internal_shader->current_topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
                         break;
-                    case PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_STRIP:
+                    case PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_STRIP_BIT:
                         internal_shader->current_topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
                         break;
-                    case PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_FAN:
+                    case PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_FAN_BIT:
                         internal_shader->current_topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN;
                         break;
                     default:
@@ -2359,7 +2359,7 @@ b8 vulkan_renderer_shader_create(renderer_backend_interface* backend, bhandle sh
     u64 total_buffer_size = internal_shader->per_frame_info.ubo_stride + (internal_shader->per_group_info.ubo_stride * internal_shader->max_groups);
     for (u32 i = 0; i < image_count; ++i)
     {
-        const char* buffer_name = string_format("renderbuffer_uniform_%s_idx_%d", config->name, i);
+        const char* buffer_name = string_format("renderbuffer_uniform_%s_idx_%d", bname_string_get(shader_resource->base.name), i);
         if (!renderer_renderbuffer_create(buffer_name, RENDERBUFFER_TYPE_UNIFORM, total_buffer_size, RENDERBUFFER_TRACK_TYPE_FREELIST, &internal_shader->uniform_buffers[i]))
         {
             BERROR("Vulkan buffer creation failed for object shader");
@@ -2494,7 +2494,7 @@ b8 vulkan_renderer_shader_use(renderer_backend_interface* backend, bhandle shade
     vulkan_command_buffer* command_buffer = get_current_command_buffer(context);
 
     // Pick the correct pipeline
-    b8 wireframe_enabled = vulkan_renderer_shader_flag_get(backend, shader, SHADER_FLAG_WIREFRAME);
+    b8 wireframe_enabled = vulkan_renderer_shader_flag_get(backend, shader, SHADER_FLAG_WIREFRAME_BIT);
     vulkan_pipeline** pipeline_array = wireframe_enabled ? internal_shader->wireframe_pipelines : internal_shader->pipelines;
     vulkan_pipeline_bind(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_array[internal_shader->bound_pipeline_index]);
 
@@ -2652,7 +2652,7 @@ b8 vulkan_renderer_shader_apply_per_draw(renderer_backend_interface* backend, bh
     VkCommandBuffer command_buffer = get_current_command_buffer(context)->handle;
 
     // Pick the correct pipeline
-    b8 wireframe_enabled = vulkan_renderer_shader_flag_get(backend, shader, SHADER_FLAG_WIREFRAME);
+    b8 wireframe_enabled = vulkan_renderer_shader_flag_get(backend, shader, SHADER_FLAG_WIREFRAME_BIT);
     vulkan_pipeline** pipeline_array = wireframe_enabled ? internal_shader->wireframe_pipelines : internal_shader->pipelines;
 
     // Update the non-sampler uniforms via push constants
@@ -3653,7 +3653,7 @@ static b8 vulkan_graphics_pipeline_create(vulkan_context* context, const vulkan_
     VkPipelineRasterizationStateCreateInfo rasterizer_create_info = {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO};
     rasterizer_create_info.depthClampEnable = VK_FALSE;
     rasterizer_create_info.rasterizerDiscardEnable = VK_FALSE;
-    rasterizer_create_info.polygonMode = (config->shader_flags & SHADER_FLAG_WIREFRAME) ? VK_POLYGON_MODE_LINE : VK_POLYGON_MODE_FILL;
+    rasterizer_create_info.polygonMode = (config->shader_flags & SHADER_FLAG_WIREFRAME_BIT) ? VK_POLYGON_MODE_LINE : VK_POLYGON_MODE_FILL;
     rasterizer_create_info.lineWidth = 1.0f;
     switch (config->cull_mode)
     {
@@ -3710,16 +3710,16 @@ static b8 vulkan_graphics_pipeline_create(vulkan_context* context, const vulkan_
 
     // Depth and stencil testing
     VkPipelineDepthStencilStateCreateInfo depth_stencil = {VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO};
-    if (config->shader_flags & SHADER_FLAG_DEPTH_TEST)
+    if (config->shader_flags & SHADER_FLAG_DEPTH_TEST_BIT)
     {
         depth_stencil.depthTestEnable = VK_TRUE;
-        if (config->shader_flags & SHADER_FLAG_DEPTH_WRITE)
+        if (config->shader_flags & SHADER_FLAG_DEPTH_WRITE_BIT)
             depth_stencil.depthWriteEnable = VK_TRUE;
         depth_stencil.depthCompareOp = VK_COMPARE_OP_LESS;
         depth_stencil.depthBoundsTestEnable = VK_FALSE;
     }
-    depth_stencil.stencilTestEnable = (config->shader_flags & SHADER_FLAG_STENCIL_TEST) ? VK_TRUE : VK_FALSE;
-    if (config->shader_flags & SHADER_FLAG_STENCIL_TEST)
+    depth_stencil.stencilTestEnable = (config->shader_flags & SHADER_FLAG_STENCIL_TEST_BIT) ? VK_TRUE : VK_FALSE;
+    if (config->shader_flags & SHADER_FLAG_STENCIL_TEST_BIT)
     {
         // equivalent to glStencilFunc(func, ref, mask)
         depth_stencil.back.compareOp = VK_COMPARE_OP_ALWAYS;
@@ -3733,7 +3733,7 @@ static b8 vulkan_graphics_pipeline_create(vulkan_context* context, const vulkan_
         // equivalent of glStencilMask(mask)
 
         // Back face
-        depth_stencil.back.writeMask = (config->shader_flags & SHADER_FLAG_STENCIL_WRITE) ? 0xFF : 0x00;
+        depth_stencil.back.writeMask = (config->shader_flags & SHADER_FLAG_STENCIL_WRITE_BIT) ? 0xFF : 0x00;
 
         // Front face. Just use the same settings for front/back
         depth_stencil.front = depth_stencil.back;
@@ -3799,30 +3799,30 @@ static b8 vulkan_graphics_pipeline_create(vulkan_context* context, const vulkan_
     // Input assembly
     VkPipelineInputAssemblyStateCreateInfo input_assembly = {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO};
     // The pipeline being created already has available types, so just grab the first one
-    for (u32 i = 1; i < PRIMITIVE_TOPOLOGY_TYPE_MAX; i = i << 1)
+    for (u32 i = 1; i < PRIMITIVE_TOPOLOGY_TYPE_MAX_BIT; i = i << 1)
     {
         if (out_pipeline->supported_topology_types & i)
         {
-            primitive_topology_type ptt = i;
+            primitive_topology_type_bits ptt = i;
 
             switch (ptt)
             {
-            case PRIMITIVE_TOPOLOGY_TYPE_POINT_LIST:
+            case PRIMITIVE_TOPOLOGY_TYPE_POINT_LIST_BIT:
                 input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
                 break;
-            case PRIMITIVE_TOPOLOGY_TYPE_LINE_LIST:
+            case PRIMITIVE_TOPOLOGY_TYPE_LINE_LIST_BIT:
                 input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
                 break;
-            case PRIMITIVE_TOPOLOGY_TYPE_LINE_STRIP:
+            case PRIMITIVE_TOPOLOGY_TYPE_LINE_STRIP_BIT:
                 input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_LINE_STRIP;
                 break;
-            case PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_LIST:
+            case PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_LIST_BIT:
                 input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
                 break;
-            case PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_STRIP:
+            case PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_STRIP_BIT:
                 input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
                 break;
-            case PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_FAN:
+            case PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_FAN_BIT:
                 input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN;
                 break;
             default:
@@ -3892,7 +3892,7 @@ static b8 vulkan_graphics_pipeline_create(vulkan_context* context, const vulkan_
     pipeline_create_info.pViewportState = &viewport_state;
     pipeline_create_info.pRasterizationState = &rasterizer_create_info;
     pipeline_create_info.pMultisampleState = &multisampling_create_info;
-    pipeline_create_info.pDepthStencilState = ((config->shader_flags & SHADER_FLAG_DEPTH_TEST) || (config->shader_flags & SHADER_FLAG_STENCIL_TEST)) ? &depth_stencil : 0;
+    pipeline_create_info.pDepthStencilState = ((config->shader_flags & SHADER_FLAG_DEPTH_TEST_BIT) || (config->shader_flags & SHADER_FLAG_STENCIL_TEST_BIT)) ? &depth_stencil : 0;
     pipeline_create_info.pColorBlendState = &color_blend_state_create_info;
     pipeline_create_info.pDynamicState = &dynamic_state_create_info;
     pipeline_create_info.pTessellationState = 0;
@@ -4337,9 +4337,9 @@ static b8 shader_create_modules_and_pipelines(renderer_backend_interface* backen
     for (u32 i = 0; i < internal_shader->stage_count; ++i)
     {
         shader_stage_config* sc = &stage_configs[i];
-        if (!create_shader_module(context, internal_shader, sc->stage, sc->source, sc->filename, &new_stages[i]))
+        if (!create_shader_module(context, internal_shader, sc->stage, sc->source, bname_string_get(sc->resource_name), &new_stages[i]))
         {
-            BERROR("Unable to create %s shader module for '%s'. Shader will be destroyed", stage_configs[i].filename, bname_string_get(internal_shader->name));
+            BERROR("Unable to create %s shader module for '%s'. Shader will be destroyed", bname_string_get(stage_configs[i].resource_name), bname_string_get(internal_shader->name));
             has_error = true;
             goto shader_module_pipeline_cleanup;
         }
@@ -4393,7 +4393,7 @@ static b8 shader_create_modules_and_pipelines(renderer_backend_interface* backen
 
         // Strip the wireframe flag if it's there
         shader_flag_bits flags = internal_shader->flags;
-        flags &= ~(SHADER_FLAG_WIREFRAME);
+        flags &= ~(SHADER_FLAG_WIREFRAME_BIT);
         pipeline_config.shader_flags = flags;
         // NOTE: Always one block for the push constant
         pipeline_config.push_constant_range_count = 1;
@@ -4404,7 +4404,7 @@ static b8 shader_create_modules_and_pipelines(renderer_backend_interface* backen
         pipeline_config.name = string_duplicate(bname_string_get(internal_shader->name));
         pipeline_config.topology_types = internal_shader->topology_types;
 
-        if ((internal_shader->flags & SHADER_FLAG_COLOR_READ) || (internal_shader->flags & SHADER_FLAG_COLOR_WRITE))
+        if ((internal_shader->flags & SHADER_FLAG_COLOR_READ_BIT) || (internal_shader->flags & SHADER_FLAG_COLOR_WRITE_BIT))
         {
             pipeline_config.color_attachment_count = 1;
             pipeline_config.color_attachment_formats = &context->current_window->renderer_state->backend_state->swapchain.image_format.format;
@@ -4415,7 +4415,7 @@ static b8 shader_create_modules_and_pipelines(renderer_backend_interface* backen
             pipeline_config.color_attachment_formats = 0;
         }
 
-        if ((internal_shader->flags & SHADER_FLAG_DEPTH_TEST) || (internal_shader->flags & SHADER_FLAG_DEPTH_WRITE) || (internal_shader->flags & SHADER_FLAG_STENCIL_TEST) || (internal_shader->flags & SHADER_FLAG_STENCIL_WRITE))
+        if ((internal_shader->flags & SHADER_FLAG_DEPTH_TEST_BIT) || (internal_shader->flags & SHADER_FLAG_DEPTH_WRITE_BIT) || (internal_shader->flags & SHADER_FLAG_STENCIL_TEST_BIT) || (internal_shader->flags & SHADER_FLAG_STENCIL_WRITE_BIT))
         {
             pipeline_config.depth_attachment_format = context->device.depth_format;
             pipeline_config.stencil_attachment_format = context->device.depth_format;
@@ -4432,7 +4432,7 @@ static b8 shader_create_modules_and_pipelines(renderer_backend_interface* backen
         if (pipeline_result && new_wireframe_pipelines)
         {
             // Use the same config, but make sure the wireframe flag is set
-            pipeline_config.shader_flags |= SHADER_FLAG_WIREFRAME;
+            pipeline_config.shader_flags |= SHADER_FLAG_WIREFRAME_BIT;
             pipeline_result = vulkan_graphics_pipeline_create(context, &pipeline_config, &new_wireframe_pipelines[i]);
         }
 
@@ -4498,7 +4498,7 @@ shader_module_pipeline_cleanup:
     return !has_error;
 }
 
-static void setup_frequency_descriptors(b8 do_ubo, vulkan_shader_frequency_info* frequency_info, vulkan_descriptor_set_config* set_config, const shader_config* config)
+static void setup_frequency_descriptors(b8 do_ubo, vulkan_shader_frequency_info* frequency_info, vulkan_descriptor_set_config* set_config, const bresource_shader* config)
 {
     // Total bindings are 1 UBO for per_frame (if needed), plus per_frame sampler count
     // This is dynamically allocated now
@@ -4729,7 +4729,7 @@ static b8 vulkan_descriptorset_update_and_bind(
         vkUpdateDescriptorSets(context->device.logical_device, descriptor_write_count, descriptor_writes, 0, 0);
 
     // Pick the correct pipeline
-    b8 wireframe_enabled = FLAG_GET(internal_shader->flags, SHADER_FLAG_WIREFRAME);
+    b8 wireframe_enabled = FLAG_GET(internal_shader->flags, SHADER_FLAG_WIREFRAME_BIT);
     vulkan_pipeline** pipeline_array = wireframe_enabled ? internal_shader->wireframe_pipelines : internal_shader->pipelines;
 
     VkCommandBuffer command_buffer = get_current_command_buffer(context)->handle;

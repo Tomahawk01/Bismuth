@@ -79,8 +79,8 @@ typedef struct bwindow
     struct bwindow_renderer_state* renderer_state;
 } bwindow;
 
-typedef void (*platform_filewatcher_file_deleted_callback)(u32 watcher_id);
-typedef void (*platform_filewatcher_file_written_callback)(u32 watcher_id);
+typedef void (*platform_filewatcher_file_deleted_callback)(u32 watcher_id, void* context);
+typedef void (*platform_filewatcher_file_written_callback)(u32 watcher_id, void* context);
 typedef void (*platform_window_closed_callback)(const struct bwindow* window);
 typedef void (*platform_window_resized_callback)(const struct bwindow* window);
 typedef void (*platform_process_key)(keys key, b8 pressed);
@@ -127,8 +127,8 @@ BAPI const char* platform_dynamic_library_extension(void);
 BAPI const char* platform_dynamic_library_prefix(void);
 
 BAPI platform_error_code platform_copy_file(const char *source, const char *dest, b8 overwrite_if_exists);
-BAPI void platform_register_watcher_deleted_callback(platform_filewatcher_file_deleted_callback callback);
-BAPI void platform_register_watcher_written_callback(platform_filewatcher_file_written_callback callback);
+BAPI void platform_register_watcher_deleted_callback(platform_filewatcher_file_deleted_callback callback, void* context);
+BAPI void platform_register_watcher_written_callback(platform_filewatcher_file_written_callback callback, void* context);
 BAPI void platform_register_window_closed_callback(platform_window_closed_callback callback);
 BAPI void platform_register_window_resized_callback(platform_window_resized_callback callback);
 BAPI void platform_register_process_key(platform_process_key callback);

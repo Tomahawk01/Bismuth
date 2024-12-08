@@ -58,7 +58,7 @@ b8 skybox_load(skybox* sb)
 
     sb->render_frame_number = INVALID_ID_U64;
 
-    bhandle skybox_shader = shader_system_get(kname_create("Shader.DefaultSkybox")); // TODO: allow configurable shader
+    bhandle skybox_shader = shader_system_get(bname_create("Shader.DefaultSkybox")); // TODO: allow configurable shader
     if (!renderer_shader_per_group_resources_acquire(engine_systems_get()->renderer_system, skybox_shader, &sb->group_id))
     {
         BFATAL("Unable to acquire shader group resources for skybox");
@@ -78,7 +78,7 @@ b8 skybox_unload(skybox* sb)
     }
     sb->state = SKYBOX_STATE_UNDEFINED;
 
-    bhandle skybox_shader = shader_system_get(kname_create("Shader.DefaultSkybox")); // TODO: allow configurable shader
+    bhandle skybox_shader = shader_system_get(bname_create("Shader.DefaultSkybox")); // TODO: allow configurable shader
     if (!renderer_shader_per_group_resources_release(engine_systems_get()->renderer_system, skybox_shader, sb->group_id))
     {
         BWARN("Unable to release shader group resources for skybox");
