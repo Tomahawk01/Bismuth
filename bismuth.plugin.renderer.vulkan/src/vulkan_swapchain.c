@@ -1,17 +1,18 @@
 #include "vulkan_swapchain.h"
 
-#include "defines.h"
-#include "logger.h"
-#include "memory/bmemory.h"
-#include "platform/platform.h"
-#include "renderer/renderer_frontend.h"
-#include "renderer/renderer_types.h"
-#include "resources/resource_types.h"
-#include "strings/bstring.h"
-#include "vulkan_device.h"
-#include "vulkan_types.h"
-#include "vulkan_utils.h"
 #include <vulkan/vulkan_core.h>
+
+#include <defines.h>
+#include <logger.h>
+#include <memory/bmemory.h>
+#include <platform/platform.h>
+#include <renderer/renderer_frontend.h>
+#include <renderer/renderer_types.h>
+#include <resources/resource_types.h>
+#include <strings/bstring.h>
+#include <vulkan_device.h>
+#include <vulkan_types.h>
+#include <vulkan_utils.h>
 
 static b8 create(renderer_backend_interface* backend, bwindow* window, renderer_config_flags flags, vulkan_swapchain* swapchain);
 static void destroy(renderer_backend_interface* backend, vulkan_swapchain* swapchain);
@@ -214,7 +215,7 @@ static b8 create(renderer_backend_interface* backend, bwindow* window, renderer_
 
     // Get the texture_internal_data based on the existing or newly-created handle above.
     // Use that to setup the internal images/views for the colorbuffer texture.
-    texture_internal_data* texture_data = renderer_texture_resources_get(backend->frontend_state, window_internal->colorbuffer->renderer_texture_handle);
+    vulkan_texture_handle_data* texture_data = &context->textures[window_internal->colorbuffer->renderer_texture_handle.handle_index];
     if (!texture_data)
     {
         BFATAL("Unable to get internal data for colorbuffer image. Swapchain creation failed");
@@ -292,9 +293,8 @@ static void destroy(renderer_backend_interface* backend, vulkan_swapchain* swapc
 
     bwindow* window = swapchain->owning_window;
     bwindow_renderer_state* window_internal = window->renderer_state;
-    // bwindow_renderer_backend_state* window_backend = window_internal->backend_state;
 
-    texture_internal_data* texture_data = renderer_texture_resources_get(backend->frontend_state, window_internal->colorbuffer->renderer_texture_handle);
+    vulkan_texture_handle_data* texture_data = &context->textures[window_internal->colorbuffer->renderer_texture_handle.handle_index];
     if (!texture_data)
     {
         BFATAL("Unable to get internal data for colorbuffer image. Swapchain destruction failed");

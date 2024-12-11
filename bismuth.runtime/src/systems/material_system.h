@@ -11,6 +11,11 @@
 #define MATERIAL_DEFAULT_NAME_WATER "Material.DefaultWater"
 #define MATERIAL_DEFAULT_NAME_BLENDED "Material.DefaultBlended"
 
+#define MATERIAL_MAX_IRRADIANCE_CUBEMAP_COUNT 4
+#define MATERIAL_MAX_SHADOW_CASCADES 4
+#define MATERIAL_MAX_POINT_LIGHTS 10
+#define MATERIAL_MAX_VIEWS 4
+
 struct material_system_state;
 struct frame_data;
 
@@ -21,27 +26,34 @@ typedef struct material_system_config
     u32 max_instance_count;
 } material_system_config;
 
-typedef enum material_texture_param
+typedef enum material_texture_input
 {
-    // Albedo for PBR, sometimes known as a "diffuse" color. Specifies per-pixel color
-    MATERIAL_TEXTURE_PARAM_ALBEDO = 0,
+    // Forms the base color of a material. Albedo for PBR, sometimes known as a "diffuse" color. Specifies per-pixel color
+    MATERIAL_TEXTURE_INPUT_BASE_COLOR,
     // Texture specifying per-pixel normal vector
-    MATERIAL_TEXTURE_PARAM_NORMAL = 1,
+    MATERIAL_TEXTURE_INPUT_NORMAL,
     // Texture specifying per-pixel metallic value
-    MATERIAL_TEXTURE_PARAM_METALLIC = 2,
+    MATERIAL_TEXTURE_INPUT_METALLIC,
     // Texture specifying per-pixel roughness value
-    MATERIAL_TEXTURE_PARAM_ROUGHNESS = 3,
+    MATERIAL_TEXTURE_INPUT_ROUGHNESS,
     // Texture specifying per-pixel ambient occlusion value
-    MATERIAL_TEXTURE_PARAM_AMBIENT_OCCLUSION = 4,
+    MATERIAL_TEXTURE_INPUT_AMBIENT_OCCLUSION,
     // Texture specifying per-pixel emissive value
-    MATERIAL_TEXTURE_PARAM_EMISSIVE = 5,
+    MATERIAL_TEXTURE_INPUT_EMISSIVE,
+    // Texture specifying the reflection (only used for water materials)
+    MATERIAL_TEXTURE_INPUT_REFLECTION,
     // Texture specifying per-pixel refraction strength
-    MATERIAL_TEXTURE_INPUT_REFRACTION = 6,
+    MATERIAL_TEXTURE_INPUT_REFRACTION,
+    // Texture specifying the reflection depth (only used for water materials)
+    MATERIAL_TEXTURE_INPUT_REFLECTION_DEPTH,
+    // Texture specifying the refraction depth
+    MATERIAL_TEXTURE_INPUT_REFRACTION_DEPTH,
+    MATERIAL_TEXTURE_INPUT_DUDV,
     // Texture holding per-pixel metallic (r), roughness (g) and ambient occlusion (b) value
-    MATERIAL_TEXTURE_MRA = 7,
-    // The size of the material_texture_param enumeration
-    MATERIAL_TEXTURE_COUNT
-} material_texture_param;
+    MATERIAL_TEXTURE_INPUT_MRA,
+    // The size of the material_texture_input enumeration
+    MATERIAL_TEXTURE_INPUT_COUNT
+} material_texture_input;
 
 /**
  * @brief A material instance, which contains handles to both
@@ -66,8 +78,8 @@ void material_system_shutdown(struct material_system_state* state);
 
 BAPI b8 material_system_get_handle(struct material_system_state* state, bname name, bhandle* out_material_handle);
 
-BAPI const bresource_texture* material_texture_get(struct material_system_state* state, bhandle material, material_texture_param tex_param);
-BAPI void material_texture_set(struct material_system_state* state, bhandle material, material_texture_param tex_param, const bresource_texture* texture);
+BAPI bresource_texture* material_texture_get(struct material_system_state* state, bhandle material, material_texture_input tex_input);
+BAPI void material_texture_set(struct material_system_state* state, bhandle material, material_texture_input tex_input, bresource_texture* texture);
 
 BAPI texture_channel material_metallic_texture_channel_get(struct material_system_state* state, bhandle material);
 BAPI void material_metallic_texture_channel_set(struct material_system_state* state, bhandle material, texture_channel value);
@@ -111,8 +123,8 @@ BAPI void material_refraction_enabled_set(struct material_system_state* state, b
 BAPI f32 material_refraction_scale_get(struct material_system_state* state, bhandle material);
 BAPI void material_refraction_scale_set(struct material_system_state* state, bhandle material, f32 value);
 
-BAPI b8 material_use_vertex_color_as_albedo_get(struct material_system_state* state, bhandle material);
-BAPI void material_use_vertex_color_as_albedo_set(struct material_system_state* state, bhandle material, b8 value);
+BAPI b8 material_use_vertex_color_as_base_color_get(struct material_system_state* state, bhandle material);
+BAPI void material_use_vertex_color_as_base_color_set(struct material_system_state* state, bhandle material, b8 value);
 
 BAPI b8 material_flag_set(struct material_system_state* state, bhandle material, bmaterial_flag_bits flag, b8 value);
 BAPI b8 material_flag_get(struct material_system_state* state, bhandle material, bmaterial_flag_bits flag);
@@ -124,9 +136,34 @@ BAPI b8 material_flag_get(struct material_system_state* state, bhandle material,
 BAPI b8 material_system_acquire(struct material_system_state* state, bname name, material_instance* out_instance);
 BAPI void material_system_release(struct material_system_state* state, material_instance* instance);
 
-BAPI b8 material_system_prepare_frame(struct material_system_state* state, struct frame_data* p_frame_data);
+/** @brief Holds internal state for per-frame data (i.e across all standard materials); */
+typedef struct material_frame_data
+{
+    // Light space for shadow mapping. Per cascade
+    mat4 directional_light_spaces[MATERIAL_MAX_SHADOW_CASCADES];
+    mat4 projection;
+    mat4 views[MATERIAL_MAX_VIEWS];
+    vec4 view_positions[MATERIAL_MAX_VIEWS];
+    u32 render_mode;
+    f32 cascade_splits[MATERIAL_MAX_SHADOW_CASCADES];
+    f32 shadow_bias;
+    f32 delta_time;
+    f32 game_time;
+    bresource_texture* shadow_map_texture;
+    bresource_texture* irradiance_cubemap_textures[MATERIAL_MAX_SHADOW_CASCADES];
+} material_frame_data;
+b8 material_system_prepare_frame(struct material_system_state* state, material_frame_data mat_frame_data, struct frame_data* p_frame_data);
+
 BAPI b8 material_system_apply(struct material_system_state* state, bhandle material, struct frame_data* p_frame_data);
-BAPI b8 material_system_apply_instance(struct material_system_state* state, const material_instance* instance, struct frame_data* p_frame_data);
+
+typedef struct material_instance_draw_data
+{
+    mat4 model;
+    vec4 clipping_plane;
+    u32 irradiance_cubemap_index;
+    u32 view_index;
+} material_instance_draw_data;
+b8 material_system_apply_instance(struct material_system_state* state, const material_instance* instance, struct material_instance_draw_data draw_data, struct frame_data* p_frame_data);
 
 BAPI b8 material_instance_flag_set(struct material_system_state* state, material_instance instance, bmaterial_flag_bits flag, b8 value);
 BAPI b8 material_instance_flag_get(struct material_system_state* state, material_instance instance, bmaterial_flag_bits flag);

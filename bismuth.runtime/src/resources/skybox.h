@@ -26,7 +26,7 @@ typedef struct skybox
 
     bgeometry geometry;
     u32 group_id;
-    u64 render_frame_number;
+    u16 skybox_shader_group_data_generation;
     u8 draw_index;
 } skybox;
 

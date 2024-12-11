@@ -31,7 +31,7 @@ b8 renderer_system_deserialize_config(const char* config_str, renderer_system_co
 BAPI b8 renderer_system_initialize(u64* memory_requirement, struct renderer_system_state* state, const renderer_system_config* config);
 BAPI void renderer_system_shutdown(struct renderer_system_state* state);
 
-BAPI u64 renderer_system_frame_number_get(struct renderer_system_state* state);
+BAPI u16 renderer_system_frame_number_get(struct renderer_system_state* state);
 
 BAPI b8 renderer_on_window_created(struct renderer_system_state* state, struct bwindow* window);
 BAPI void renderer_on_window_destroyed(struct renderer_system_state* state, struct bwindow* window);
@@ -122,7 +122,7 @@ BAPI b8 renderer_shader_bind_per_frame(struct renderer_system_state* state, bhan
 BAPI b8 renderer_shader_bind_per_group(struct renderer_system_state* state, bhandle shader, u32 group_id);
 BAPI b8 renderer_shader_bind_per_draw(struct renderer_system_state* state, bhandle shader, u32 draw_id);
 
-BAPI b8 renderer_shader_apply_per_frame(struct renderer_system_state* state, bhandle shader, u16 generation);
+BAPI b8 renderer_shader_apply_per_frame(struct renderer_system_state* state, bhandle shader);
 BAPI b8 renderer_shader_apply_per_group(struct renderer_system_state* state, bhandle shader, u16 generation);
 BAPI b8 renderer_shader_apply_per_draw(struct renderer_system_state* state, bhandle shader, u16 generation);
 

@@ -18,13 +18,13 @@
 #include <resources/resource_types.h>
 #include <strings/bstring.h>
 #include <systems/font_system.h>
-#include <systems/geometry_system.h>
 #include <systems/shader_system.h>
 #include <systems/texture_system.h>
 #include <systems/xform_system.h>
 
 #include "core/engine.h"
 #include "bresources/bresource_types.h"
+#include "strings/bname.h"
 
 static b8 standard_ui_system_mouse_down(u16 code, void* sender, void* listener_inst, event_context context)
 {
@@ -208,19 +208,7 @@ b8 standard_ui_system_initialize(u64* memory_requirement, standard_ui_state* sta
     if (!state->atlas_texture)
     {
         BERROR("Failed to request atlas texture for standard UI");
-        // TODO: use default texture instead
-        return false;
-    }
-
-    // Atlas texture map
-    bresource_texture_map* map = &state->atlas;
-    map->repeat_u = map->repeat_v = map->repeat_w = TEXTURE_REPEAT_CLAMP_TO_EDGE;
-    map->filter_minify = map->filter_magnify = TEXTURE_FILTER_MODE_NEAREST;
-    map->texture = state->atlas_texture;
-    if (!renderer_bresource_texture_map_resources_acquire(state->renderer, map))
-    {
-        BERROR("Unable to acquire atlas texture map resources. StandardUI cannot be initialized");
-        return false;
+        state->atlas_texture = texture_system_request(bname_create(DEFAULT_TEXTURE_NAME), INVALID_BNAME, 0, 0);
     }
 
     // Listen for input events
@@ -261,14 +249,11 @@ void standard_ui_system_shutdown(standard_ui_state* state)
             c->destroy(state, c);
         }
 
-        // Release texture map for UI atlas
-        renderer_bresource_texture_map_resources_release(state->renderer, &state->atlas);
-
         // Release texture for UI atlas
-        if (state->atlas.texture)
+        if (state->atlas_texture)
         {
-            texture_system_release_resource((bresource_texture*)state->atlas.texture);
-            state->atlas.texture = 0;
+            texture_system_release_resource(state->atlas_texture);
+            state->atlas_texture = 0;
         }
     }
 }
@@ -305,7 +290,7 @@ b8 standard_ui_system_render(standard_ui_state* state, sui_control* root, struct
     if (!state)
         return false;
 
-    render_data->ui_atlas = &state->atlas;
+    render_data->ui_atlas = &state->atlas_texture;
 
     if (!root)
         root = &state->root;

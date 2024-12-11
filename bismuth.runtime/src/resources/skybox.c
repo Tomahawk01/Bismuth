@@ -56,7 +56,7 @@ b8 skybox_load(skybox* sb)
 
     sb->cubemap = texture_system_request_cube(sb->cubemap_name, true, false, 0, 0);
 
-    sb->render_frame_number = INVALID_ID_U64;
+    sb->skybox_shader_group_data_generation = INVALID_ID_U16;
 
     bhandle skybox_shader = shader_system_get(bname_create("Shader.DefaultSkybox")); // TODO: allow configurable shader
     if (!renderer_shader_per_group_resources_acquire(engine_systems_get()->renderer_system, skybox_shader, &sb->group_id))
@@ -85,7 +85,7 @@ b8 skybox_unload(skybox* sb)
         return false;
     }
 
-    sb->render_frame_number = INVALID_ID_U64;
+    sb->skybox_shader_group_data_generation = INVALID_ID_U16;
 
     renderer_geometry_destroy(&sb->geometry);
     geometry_destroy(&sb->geometry);

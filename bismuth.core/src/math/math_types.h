@@ -120,6 +120,14 @@ typedef struct vertex_2d
     vec2 texcoord;
 } vertex_2d;
 
+typedef struct color_vertex_3d
+{
+    /** @brief The position of the vertex. w is ignored */
+    vec4 position;
+    /** @brief The color of the vertex */
+    vec4 color;
+} color_vertex_3d;
+
 typedef struct plane_3d
 {
     vec3 normal;

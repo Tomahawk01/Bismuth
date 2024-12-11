@@ -76,7 +76,7 @@ typedef enum bson_tokenize_mode
 } bson_tokenize_mode;
 
 // Resets both the current token type and the tokenize mode to unknown
-static void RESET_CURRENT_TOKEN_AND_MODE(bson_token* current_token, bson_tokenize_mode* mode)
+static void reset_current_token_and_mode(bson_token* current_token, bson_tokenize_mode* mode)
 {
     current_token->type = BSON_TOKEN_TYPE_UNKNOWN;
     current_token->start = 0;
@@ -101,7 +101,7 @@ static void _populate_token_content(bson_token* t, const char* source)
 #endif
 
 // Pushes the current token, if not of unknown type
-static void PUSH_TOKEN(bson_token* t, bson_parser* parser)
+static void push_token(bson_token* t, bson_parser* parser)
 {
     if (t->type != BSON_TOKEN_TYPE_UNKNOWN)
     {
@@ -167,8 +167,8 @@ b8 bson_parser_tokenize(bson_parser* parser, const char* source)
             if (codepoint == '"' && (prev_codepoint != '\\' || prev_codepoint2 == '\\'))
             {
                 // Terminate the string, push the token onto the array, and revert modes
-                PUSH_TOKEN(&current_token, parser);
-                RESET_CURRENT_TOKEN_AND_MODE(&current_token, &mode);
+                push_token(&current_token, parser);
+                reset_current_token_and_mode(&current_token, &mode);
             }
             else
             {
@@ -187,14 +187,14 @@ b8 bson_parser_tokenize(bson_parser* parser, const char* source)
         {
             case '\n':
             {
-                PUSH_TOKEN(&current_token, parser);
+                push_token(&current_token, parser);
 
                 // Just create a new token and insert it
                 bson_token newline_token = {BSON_TOKEN_TYPE_NEWLINE, c, c + advance};
 
-                PUSH_TOKEN(&newline_token, parser); // old
+                push_token(&newline_token, parser); // old
 
-                RESET_CURRENT_TOKEN_AND_MODE(&current_token, &mode);
+                reset_current_token_and_mode(&current_token, &mode);
             } break;
             case '\t':
             case '\r':
@@ -208,7 +208,7 @@ b8 bson_parser_tokenize(bson_parser* parser, const char* source)
                 else
                 {
                     // Before switching to whitespace mode, push the current token
-                    PUSH_TOKEN(&current_token, parser);
+                    push_token(&current_token, parser);
                     mode = BSON_TOKENIZE_MODE_WHITESPACE;
                     current_token.type = BSON_TOKEN_TYPE_WHITESPACE;
                     current_token.start = c;
@@ -217,49 +217,49 @@ b8 bson_parser_tokenize(bson_parser* parser, const char* source)
             } break;
             case '{':
             {
-                PUSH_TOKEN(&current_token, parser);
+                push_token(&current_token, parser);
 
                 // Create and push a new token for this
                 bson_token open_brace_token = {BSON_TOKEN_TYPE_CURLY_BRACE_OPEN, c, c + advance};
-                PUSH_TOKEN(&open_brace_token, parser);
+                push_token(&open_brace_token, parser);
 
-                RESET_CURRENT_TOKEN_AND_MODE(&current_token, &mode);
+                reset_current_token_and_mode(&current_token, &mode);
             } break;
             case '}':
             {
-                PUSH_TOKEN(&current_token, parser);
+                push_token(&current_token, parser);
 
                 // Create and push a new token for this
                 bson_token close_brace_token = {BSON_TOKEN_TYPE_CURLY_BRACE_CLOSE, c, c + advance};
-                PUSH_TOKEN(&close_brace_token, parser);
+                push_token(&close_brace_token, parser);
 
-                RESET_CURRENT_TOKEN_AND_MODE(&current_token, &mode);
+                reset_current_token_and_mode(&current_token, &mode);
             } break;
             case '[':
             {
-                PUSH_TOKEN(&current_token, parser);
+                push_token(&current_token, parser);
 
                 // Create and push a new token for this
                 bson_token open_bracket_token = {BSON_TOKEN_TYPE_BRACKET_OPEN, c, c + advance};
-                PUSH_TOKEN(&open_bracket_token, parser);
+                push_token(&open_bracket_token, parser);
 
-                RESET_CURRENT_TOKEN_AND_MODE(&current_token, &mode);
+                reset_current_token_and_mode(&current_token, &mode);
             } break;
             case ']':
             {
-                PUSH_TOKEN(&current_token, parser);
+                push_token(&current_token, parser);
 
                 // Create and push a new token for this
                 bson_token close_bracket_token = {BSON_TOKEN_TYPE_BRACKET_CLOSE, c, c + advance};
-                PUSH_TOKEN(&close_bracket_token, parser);
+                push_token(&close_bracket_token, parser);
 
-                RESET_CURRENT_TOKEN_AND_MODE(&current_token, &mode);
+                reset_current_token_and_mode(&current_token, &mode);
             } break;
             case '"':
             {
-                PUSH_TOKEN(&current_token, parser);
+                push_token(&current_token, parser);
 
-                RESET_CURRENT_TOKEN_AND_MODE(&current_token, &mode);
+                reset_current_token_and_mode(&current_token, &mode);
 
                 // Change to string parsing mode
                 mode = BSON_TOKENIZE_MODE_STRING_LITERAL;
@@ -285,7 +285,7 @@ b8 bson_parser_tokenize(bson_parser* parser, const char* source)
                 else
                 {
                     // Push the existing token
-                    PUSH_TOKEN(&current_token, parser);
+                    push_token(&current_token, parser);
 
                     // Switch to numeric parsing mode
                     mode = BSON_TOKENIZE_MODE_NUMERIC_LITERAL;
@@ -296,28 +296,28 @@ b8 bson_parser_tokenize(bson_parser* parser, const char* source)
             } break;
             case '-':
             {
-                PUSH_TOKEN(&current_token, parser);
+                push_token(&current_token, parser);
 
                 // Create and push a new token for this
                 bson_token minus_token = {BSON_TOKEN_TYPE_OPERATOR_MINUS, c, c + advance};
-                PUSH_TOKEN(&minus_token, parser);
+                push_token(&minus_token, parser);
 
-                RESET_CURRENT_TOKEN_AND_MODE(&current_token, &mode);
+                reset_current_token_and_mode(&current_token, &mode);
             } break;
             case '+':
             {
-                PUSH_TOKEN(&current_token, parser);
+                push_token(&current_token, parser);
 
                 // Create and push a new token for this
                 bson_token plus_token = {BSON_TOKEN_TYPE_OPERATOR_PLUS, c, c + advance};
-                PUSH_TOKEN(&plus_token, parser);
+                push_token(&plus_token, parser);
 
-                RESET_CURRENT_TOKEN_AND_MODE(&current_token, &mode);
+                reset_current_token_and_mode(&current_token, &mode);
             } break;
             case '/':
             {
-                PUSH_TOKEN(&current_token, parser);
-                RESET_CURRENT_TOKEN_AND_MODE(&current_token, &mode);
+                push_token(&current_token, parser);
+                reset_current_token_and_mode(&current_token, &mode);
 
                 // Look ahead and see if another slash follows. If so, the rest of the line is a comment.
                 // Skip forward until a newline is found.
@@ -342,51 +342,51 @@ b8 bson_parser_tokenize(bson_parser* parser, const char* source)
                 {
                     // Otherwise it should be treated as a slash operator
                     bson_token slash_token = {BSON_TOKEN_TYPE_OPERATOR_SLASH, c, c + advance};
-                    PUSH_TOKEN(&slash_token, parser);
+                    push_token(&slash_token, parser);
                 }
 
-                RESET_CURRENT_TOKEN_AND_MODE(&current_token, &mode);
+                reset_current_token_and_mode(&current_token, &mode);
             } break;
             case '*':
             {
-                PUSH_TOKEN(&current_token, parser);
+                push_token(&current_token, parser);
 
                 // Create and push a new token for this
                 bson_token asterisk_token = {BSON_TOKEN_TYPE_OPERATOR_ASTERISK, c, c + advance};
-                PUSH_TOKEN(&asterisk_token, parser);
+                push_token(&asterisk_token, parser);
 
-                RESET_CURRENT_TOKEN_AND_MODE(&current_token, &mode);
+                reset_current_token_and_mode(&current_token, &mode);
             } break;
             case '=':
             {
-                PUSH_TOKEN(&current_token, parser);
+                push_token(&current_token, parser);
 
                 // Create and push a new token for this
                 bson_token equal_token = {BSON_TOKEN_TYPE_OPERATOR_EQUAL, c, c + advance};
-                PUSH_TOKEN(&equal_token, parser);
+                push_token(&equal_token, parser);
 
-                RESET_CURRENT_TOKEN_AND_MODE(&current_token, &mode);
+                reset_current_token_and_mode(&current_token, &mode);
             } break;
             case '.':
             {
-                PUSH_TOKEN(&current_token, parser);
+                push_token(&current_token, parser);
 
                 // Create and push a new token for this
                 bson_token dot_token = {BSON_TOKEN_TYPE_OPERATOR_DOT, c, c + advance};
-                PUSH_TOKEN(&dot_token, parser);
+                push_token(&dot_token, parser);
 
-                RESET_CURRENT_TOKEN_AND_MODE(&current_token, &mode);
+                reset_current_token_and_mode(&current_token, &mode);
             } break;
             case '\0':
             {
                 // Reached the end of the file
-                PUSH_TOKEN(&current_token, parser);
+                push_token(&current_token, parser);
 
                 // Create and push a new token for this
                 bson_token eof_token = {BSON_TOKEN_TYPE_EOF, c, c + advance};
-                PUSH_TOKEN(&eof_token, parser);
+                push_token(&eof_token, parser);
 
-                RESET_CURRENT_TOKEN_AND_MODE(&current_token, &mode);
+                reset_current_token_and_mode(&current_token, &mode);
 
                 eof_reached = true;
             } break;
@@ -421,13 +421,13 @@ b8 bson_parser_tokenize(bson_parser* parser, const char* source)
 
                         if (bool_advance)
                         {
-                            PUSH_TOKEN(&current_token, parser);
+                            push_token(&current_token, parser);
 
                             // Create and push boolean token
                             bson_token bool_token = {BSON_TOKEN_TYPE_BOOLEAN, c, c + bool_advance};
-                            PUSH_TOKEN(&bool_token, parser);
+                            push_token(&bool_token, parser);
 
-                            RESET_CURRENT_TOKEN_AND_MODE(&current_token, &mode);
+                            reset_current_token_and_mode(&current_token, &mode);
 
                             // Move forward by the size of the token
                             advance = bool_advance;
@@ -436,7 +436,7 @@ b8 bson_parser_tokenize(bson_parser* parser, const char* source)
                         {
                             // Treat as the start of an identifier definition
                             // Push the existing token
-                            PUSH_TOKEN(&current_token, parser);
+                            push_token(&current_token, parser);
 
                             // Switch to identifier parsing mode
                             mode = BSON_TOKENIZE_MODE_DEFINING_IDENTIFIER;
@@ -462,10 +462,10 @@ b8 bson_parser_tokenize(bson_parser* parser, const char* source)
         // Now advance c
         c += advance;
     }
-    PUSH_TOKEN(&current_token, parser);
+    push_token(&current_token, parser);
     // Create and push a new token for this
     bson_token eof_token = {BSON_TOKEN_TYPE_EOF, char_length, char_length + 1};
-    PUSH_TOKEN(&eof_token, parser);
+    push_token(&eof_token, parser);
 
     return true;
 }

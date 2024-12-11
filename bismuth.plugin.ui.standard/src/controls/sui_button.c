@@ -88,20 +88,22 @@ b8 sui_button_control_load(standard_ui_state* state, struct sui_control* self)
     self->bounds.width = typed_data->size.x;
     self->bounds.height = typed_data->size.y;
 
-    // Acquire instance resources for this control
-    bresource_texture_map* maps[1] = {&state->atlas};
-    shader* s = shader_system_get("Shader.StandardUI");
-    // u16 atlas_location = s->uniforms[s->instance_sampler_indices[0]].index;
-    shader_instance_resource_config instance_resource_config = {0};
-    // Map count for this type is known
-    shader_instance_uniform_texture_config atlas_texture = {0};
-    atlas_texture.bresource_texture_map_count = 1;
-    atlas_texture.bresource_texture_maps = maps;
+    bhandle sui_shader = shader_system_get(bname_create(STANDARD_UI_SHADER_NAME));
+    // Acquire group resources for this control
+    if (!shader_system_shader_group_acquire(sui_shader, &typed_data->group_id))
+    {
+        BFATAL("Unable to acquire shader group resources for button");
+        return false;
+    }
+    typed_data->group_generation = INVALID_ID_U16;
 
-    instance_resource_config.uniform_config_count = 1;
-    instance_resource_config.uniform_configs = &atlas_texture;
-
-    renderer_shader_instance_resources_acquire(state->renderer, s, &instance_resource_config, &typed_data->instance_id);
+    // Also acquire per-draw resources.
+    if (!shader_system_shader_per_draw_acquire(sui_shader, &typed_data->draw_id))
+    {
+        BFATAL("Unable to acquire shader per-draw resources for button");
+        return false;
+    }
+    typed_data->draw_generation = INVALID_ID_U16;
 
     return true;
 }
@@ -139,7 +141,6 @@ b8 sui_button_control_render(standard_ui_state* state, struct sui_control* self,
     {
         standard_ui_renderable renderable = {0};
         renderable.render_data.unique_id = self->id.uniqueid;
-        renderable.render_data.material = 0; // typed_data->nslice.g->material;
         renderable.render_data.vertex_count = typed_data->nslice.vertex_data.element_count;
         renderable.render_data.vertex_element_size = typed_data->nslice.vertex_data.element_size;
         renderable.render_data.vertex_buffer_offset = typed_data->nslice.vertex_data.buffer_offset;
@@ -149,7 +150,10 @@ b8 sui_button_control_render(standard_ui_state* state, struct sui_control* self,
         renderable.render_data.model = xform_world_get(self->xform);
         renderable.render_data.diffuse_color = vec4_one();  // white TODO: pull from object properties
 
-        renderable.instance_id = &typed_data->instance_id;
+        renderable.group_id = &typed_data->group_id;
+        renderable.group_generation = &typed_data->group_generation;
+        renderable.per_draw_id = &typed_data->draw_id;
+        renderable.per_draw_generation = &typed_data->draw_generation;
 
         darray_push(render_data->renderables, renderable);
     }

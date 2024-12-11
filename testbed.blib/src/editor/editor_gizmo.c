@@ -1,12 +1,13 @@
 #include "editor_gizmo.h"
 
 #include "identifiers/bhandle.h"
-#include "memory/bmemory.h"
+#include "math/geometry.h"
 #include "math/math_types.h"
+#include "memory/bmemory.h"
 #include "renderer/camera.h"
 
-#include <logger.h>
 #include <defines.h>
+#include <logger.h>
 #include <math/geometry.h>
 #include <math/geometry_3d.h>
 #include <math/bmath.h>
@@ -78,20 +79,27 @@ b8 editor_gizmo_load(editor_gizmo* gizmo)
 
     for (u32 i = 0; i < EDITOR_GIZMO_MODE_MAX + 1; ++i)
     {
-        if (!renderer_geometry_create(&gizmo->mode_data[i].geo, sizeof(color_vertex_3d), gizmo->mode_data[i].vertex_count, gizmo->mode_data[i].vertices, 0, 0, 0))
-        {
-            BERROR("Failed to create gizmo geometry type: '%u'", i);
-            return false;
-        }
-        if (!renderer_geometry_upload(&gizmo->mode_data[i].geo))
+        bgeometry* g = &gizmo->mode_data[i].geo;
+        editor_gizmo_mode_data* mode = &gizmo->mode_data[i];
+
+        g->vertex_count = mode->vertex_count;
+        g->vertex_element_size = sizeof(color_vertex_3d);
+        g->vertex_buffer_offset = 0;
+        g->vertices = BALLOC_TYPE_CARRAY(color_vertex_3d, g->vertex_count);
+        g->index_count = 0;
+        g->index_element_size = 0;
+        g->indices = 0;
+        g->index_buffer_offset = 0;
+
+        if (!renderer_geometry_upload(g))
         {
             BERROR("Failed to upload gizmo geometry type: '%u'", i);
             return false;
         }
-        if (gizmo->mode_data[i].geo.generation == INVALID_ID_U16)
-            gizmo->mode_data[i].geo.generation = 0;
+        if (g->generation == INVALID_ID_U16)
+            g->generation = 0;
         else
-            gizmo->mode_data[i].geo.generation++;
+            g->generation++;
     }
 
 #ifdef _DEBUG

@@ -111,8 +111,7 @@ typedef struct mesh
     identifier id;
     u8 generation;
     u16 geometry_count;
-    struct geometry_config* g_configs;
-    struct geometry** geometries;
+    bgeometry* geometries;
     extents_3d extents;
     void* debug_data;
 } mesh;

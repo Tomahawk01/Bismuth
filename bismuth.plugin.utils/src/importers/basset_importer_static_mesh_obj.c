@@ -1,17 +1,18 @@
 #include "basset_importer_static_mesh_obj.h"
 
-#include "memory/bmemory.h"
-#include "platform/vfs.h"
-#include "serializers/obj_mtl_serializer.h"
-#include "serializers/obj_serializer.h"
-#include "strings/bname.h"
-
 #include <assets/basset_types.h>
 #include <core/engine.h>
+#include <core_render_types.h>
 #include <logger.h>
+#include <memory/bmemory.h>
+#include <platform/vfs.h>
 #include <serializers/basset_binary_static_mesh_serializer.h>
 #include <serializers/basset_material_serializer.h>
+#include <strings/bname.h>
 #include <strings/bstring.h>
+
+#include "serializers/obj_mtl_serializer.h"
+#include "serializers/obj_serializer.h"
 
 b8 basset_importer_static_mesh_obj_import(const struct basset_importer* self, u64 data_size, const void* data, void* params, struct basset* out_asset)
 {
@@ -157,88 +158,75 @@ b8 basset_importer_static_mesh_obj_import(const struct basset_importer* self, u6
                         new_material.type = m_src->type;
 
                         // Material maps
-                        new_material.map_count = m_src->texture_map_count;
-                        new_material.maps = ballocate(sizeof(basset_material_map) * new_material.map_count, MEMORY_TAG_ARRAY);
-                        for (u32 j = 0; j < new_material.map_count; ++j)
+                        for (u32 j = 0; j < m_src->texture_map_count; ++j)
                         {
-                            basset_material_map* map = &new_material.maps[j];
                             obj_mtl_source_texture_map* map_src = &m_src->maps[j];
 
-                            // Name of the map (really just for informational purposes)
-                            map->name = map_src->name;
-
-                            // Name for the image asset
-                            map->image_asset_name = map_src->image_asset_name;
-
-                            // Name of the package containing the asset. In this case (import), it will always be the same package
-                            map->image_asset_package_name = out_asset->package_name;
+                            bmaterial_texture_input* texture_input = 0;
 
                             // Map channel. NOTE: OBJ format _can_ specify different channels per material type. Bismuth doesn't, so just use the "base" type
                             switch (map_src->channel)
                             {
                             case OBJ_TEXTURE_MAP_CHANNEL_PBR_NORMAL:
                             case OBJ_TEXTURE_MAP_CHANNEL_PHONG_NORMAL:
-                                map->channel = BASSET_MATERIAL_MAP_CHANNEL_NORMAL;
+                                texture_input = &new_material.normal_map;
+                                new_material.normal_enabled = true;
                                 break;
                             case OBJ_TEXTURE_MAP_CHANNEL_PBR_ALBEDO:
-                                map->channel = BASSET_MATERIAL_MAP_CHANNEL_ALBEDO;
+                                case OBJ_TEXTURE_MAP_CHANNEL_PHONG_DIFFUSE:
+                                case OBJ_TEXTURE_MAP_CHANNEL_UNLIT_COLOR:
+                                texture_input = &new_material.base_color_map;
                                 break;
                             case OBJ_TEXTURE_MAP_CHANNEL_PBR_METALLIC:
-                                map->channel = BASSET_MATERIAL_MAP_CHANNEL_METALLIC;
+                                texture_input = &new_material.metallic_map;
+                                texture_input->channel = TEXTURE_CHANNEL_R;
                                 break;
                             case OBJ_TEXTURE_MAP_CHANNEL_PBR_ROUGHNESS:
-                                map->channel = BASSET_MATERIAL_MAP_CHANNEL_ROUGHNESS;
+                                texture_input = &new_material.roughness_map;
+                                texture_input->channel = TEXTURE_CHANNEL_R;
                                 break;
                             case OBJ_TEXTURE_MAP_CHANNEL_PBR_AO:
-                                map->channel = BASSET_MATERIAL_MAP_CHANNEL_AO;
+                                texture_input = &new_material.ambient_occlusion_map;
+                                texture_input->channel = TEXTURE_CHANNEL_R;
+                                new_material.ambient_occlusion_enabled = true;
                                 break;
                             case OBJ_TEXTURE_MAP_CHANNEL_PBR_EMISSIVE:
-                                map->channel = BASSET_MATERIAL_MAP_CHANNEL_EMISSIVE;
+                                texture_input = &new_material.emissive_map;
+                                new_material.emissive_enabled = true;
                                 break;
                             case OBJ_TEXTURE_MAP_CHANNEL_PBR_CLEAR_COAT:
-                                map->channel = BASSET_MATERIAL_MAP_CHANNEL_CLEAR_COAT;
+                                // TODO: support clear coat
+                                // texture_input = &new_material.clear_coat_map;
+                                BWARN("PBR clear coat not supported. Skipping...");
                                 break;
                             case OBJ_TEXTURE_MAP_CHANNEL_PBR_CLEAR_COAT_ROUGHNESS:
-                                map->channel = BASSET_MATERIAL_MAP_CHANNEL_CLEAR_COAT_ROUGHNESS;
+                                // TODO: support clear coat roughness
+                                // texture_input = &new_material.clear_coat_roughness_map;
+                                BWARN("PBR clear coat roughness not supported. Skipping...");
                                 break;
                             case OBJ_TEXTURE_MAP_CHANNEL_PBR_WATER:
-                                map->channel = BASSET_MATERIAL_MAP_CHANNEL_WATER_DUDV;
+                                texture_input = &new_material.dudv_map;
                                 break;
                             case OBJ_TEXTURE_MAP_CHANNEL_PHONG_SPECULAR:
-                                map->channel = BASSET_MATERIAL_MAP_CHANNEL_SPECULAR;
-                                break;
-                            case OBJ_TEXTURE_MAP_CHANNEL_PHONG_DIFFUSE:
-                            case OBJ_TEXTURE_MAP_CHANNEL_UNLIT_COLOR:
-                                map->channel = BASSET_MATERIAL_MAP_CHANNEL_DIFFUSE;
-                                break;
-                            default:
-                                BWARN("Unsupported map type listed. Defaulting to diffuse");
-                                map->channel = BASSET_MATERIAL_MAP_CHANNEL_DIFFUSE;
+                                // TODO: Phong/specular support
+                                // texture_input = &new_material.specular;
+                                BWARN("Phong specular not supported. Skipping...");
                                 break;
                             }
 
-                            // Repeats
-                            map->repeat_u = map_src->repeat_u;
-                            map->repeat_v = map_src->repeat_v;
-                            map->repeat_w = map_src->repeat_w;
-
-                            // Filters
-                            map->filter_min = map_src->filter_min;
-                            map->filter_mag = map_src->filter_mag;
+                            if (texture_input)
+                            {
+                                texture_input->resource_name = map_src->image_asset_name;
+                                // Assume the same package name
+                                texture_input->package_name = out_asset->package_name;
+                            }
                         }
 
-                        // Material properties
-                        new_material.property_count = m_src->property_count;
-                        new_material.properties = ballocate(sizeof(basset_material_property) * new_material.property_count, MEMORY_TAG_ARRAY);
-                        for (u32 j = 0; j < new_material.property_count; ++j)
+                        // If metallic, roughness and ao all point to the same texture, switch to MRA instead
+                        if (new_material.metallic_map.resource_name == new_material.roughness_map.resource_name == new_material.ambient_occlusion_map.resource_name)
                         {
-                            basset_material_property* prop = &new_material.properties[j];
-                            obj_mtl_source_property* prop_src = &m_src->properties[j];
-
-                            prop->name = prop_src->name;
-                            prop->type = prop_src->type;
-                            prop->size = prop_src->size;
-                            bcopy_memory(&prop->value, &prop_src->value, sizeof(mat4));
+                            new_material.mra_map.resource_name = new_material.metallic_map.resource_name;
+                            new_material.mra_map.package_name = new_material.metallic_map.resource_name;
                         }
 
                         // Serialize the material
@@ -257,16 +245,6 @@ b8 basset_importer_static_mesh_obj_import(const struct basset_importer* self, u6
 
                             // Properties
                             bfree(m_src->properties, sizeof(obj_mtl_source_property) * m_src->property_count, MEMORY_TAG_ARRAY);
-                        }
-
-                        // Cleanup bmt from memory since there is no mechanic from here to load it.
-                        // This will just be loaded from disk later
-                        {
-                            // Maps
-                            bfree(new_material.maps, sizeof(obj_mtl_source_material) * new_material.map_count, MEMORY_TAG_ARRAY);
-
-                            // Properties
-                            bfree(new_material.properties, sizeof(obj_mtl_source_property) * new_material.property_count, MEMORY_TAG_ARRAY);
                         }
                     } // each material
                 }

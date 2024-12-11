@@ -310,6 +310,9 @@ typedef struct bresource_material
     b8 emissive_enabled;
     vec4 emissive;
     bmaterial_texture_input emissive_map;
+
+    // Derivative (dudv) map. Only used for water materials
+    bmaterial_texture_input dudv_map;
     
     u32 custom_sampler_count;
     bmaterial_sampler_config* custom_samplers;

@@ -20,6 +20,7 @@
 #define INPUT_AO "ao"
 #define INPUT_MRA "mra"
 #define INPUT_EMISSIVE "emissive"
+#define INPUT_DUDV "dudv"
 
 #define INPUT_MAP "map"
 #define INPUT_VALUE "value"
@@ -72,6 +73,7 @@ const char* basset_material_serialize(const basset* asset)
     // Material inputs
     bson_object inputs = bson_object_create();
 
+    // Properties and maps used in all material types
     // Base color
     bson_object base_color = bson_object_create();
     if (material->base_color_map.resource_name)
@@ -97,70 +99,90 @@ const char* basset_material_serialize(const basset* asset)
     bson_object_value_add_boolean(&normal, INPUT_ENABLED, material->normal_enabled);
     bson_object_value_add_object(&inputs, INPUT_NORMAL, base_color);
 
-    // Metallic
-    bson_object metallic = bson_object_create();
-    if (material->metallic_map.resource_name)
+    // Properties and maps only used in standard materials
+    if (material->type == BMATERIAL_TYPE_STANDARD)
     {
-        const char* channel = texture_channel_to_string(material->metallic_map_source_channel);
-        add_map_obj(&base_color, channel, &material->metallic_map);
-    }
-    else
-    {
-        bson_object_value_add_float(&metallic, INPUT_VALUE, material->metallic);
-    }
-    bson_object_value_add_object(&inputs, INPUT_METALLIC, metallic);
+        // Metallic
+        bson_object metallic = bson_object_create();
+        if (material->metallic_map.resource_name)
+        {
+            const char* channel = texture_channel_to_string(material->metallic_map_source_channel);
+            add_map_obj(&metallic, channel, &material->metallic_map);
+        }
+        else
+        {
+            bson_object_value_add_float(&metallic, INPUT_VALUE, material->metallic);
+        }
+        bson_object_value_add_object(&inputs, INPUT_METALLIC, metallic);
 
-    // Roughness
-    bson_object roughness = bson_object_create();
-    if (material->roughness_map.resource_name)
-    {
-        const char* channel = texture_channel_to_string(material->roughness_map_source_channel);
-        add_map_obj(&base_color, channel, &material->roughness_map);
-    }
-    else
-    {
-        bson_object_value_add_float(&roughness, INPUT_VALUE, material->roughness);
-    }
-    bson_object_value_add_object(&inputs, INPUT_ROUGHNESS, roughness);
+        // Roughness
+        bson_object roughness = bson_object_create();
+        if (material->roughness_map.resource_name)
+        {
+            const char* channel = texture_channel_to_string(material->roughness_map_source_channel);
+            add_map_obj(&roughness, channel, &material->roughness_map);
+        }
+        else
+        {
+            bson_object_value_add_float(&roughness, INPUT_VALUE, material->roughness);
+        }
+        bson_object_value_add_object(&inputs, INPUT_ROUGHNESS, roughness);
 
-    // Roughness
-    bson_object ao = bson_object_create();
-    if (material->ambient_occlusion_map.resource_name)
-    {
-        const char* channel = texture_channel_to_string(material->ambient_occlusion_map_source_channel);
-        add_map_obj(&base_color, channel, &material->ambient_occlusion_map);
-    }
-    else
-    {
-        bson_object_value_add_float(&ao, INPUT_VALUE, material->ambient_occlusion);
-    }
-    bson_object_value_add_boolean(&ao, INPUT_ENABLED, material->ambient_occlusion_enabled);
-    bson_object_value_add_object(&inputs, INPUT_AO, ao);
+        // Ambient occlusion
+        bson_object ao = bson_object_create();
+        if (material->ambient_occlusion_map.resource_name)
+        {
+            const char* channel = texture_channel_to_string(material->ambient_occlusion_map_source_channel);
+            add_map_obj(&ao, channel, &material->ambient_occlusion_map);
+        }
+        else
+        {
+            bson_object_value_add_float(&ao, INPUT_VALUE, material->ambient_occlusion);
+        }
+        bson_object_value_add_boolean(&ao, INPUT_ENABLED, material->ambient_occlusion_enabled);
+        bson_object_value_add_object(&inputs, INPUT_AO, ao);
 
-    // Metallic/roughness/ao combined value (mra)
-    bson_object mra = bson_object_create();
-    if (material->mra_map.resource_name)
-    {
-        add_map_obj(&base_color, 0, &material->mra_map);
-    }
-    else
-    {
-        bson_object_value_add_vec3(&mra, INPUT_VALUE, material->mra);
-    }
-    bson_object_value_add_object(&inputs, INPUT_MRA, mra);
+        // Metallic/roughness/ao combined value (mra)
+        bson_object mra = bson_object_create();
+        if (material->mra_map.resource_name)
+        {
+            add_map_obj(&mra, 0, &material->mra_map);
+        }
+        else
+        {
+            bson_object_value_add_vec3(&mra, INPUT_VALUE, material->mra);
+        }
+        bson_object_value_add_object(&inputs, INPUT_MRA, mra);
 
-    // Emissive
-    bson_object emissive = bson_object_create();
-    if (material->emissive_map.resource_name)
-    {
-        add_map_obj(&base_color, 0, &material->emissive_map);
+        // Emissive
+        bson_object emissive = bson_object_create();
+        if (material->emissive_map.resource_name)
+        {
+            add_map_obj(&emissive, 0, &material->emissive_map);
+        }
+        else
+        {
+            bson_object_value_add_vec4(&emissive, INPUT_VALUE, material->emissive);
+        }
+        bson_object_value_add_boolean(&emissive, INPUT_ENABLED, material->emissive_enabled);
+        bson_object_value_add_object(&inputs, INPUT_EMISSIVE, emissive);
     }
-    else
+
+    // Properties only used in water materials
+    if (material->type == BMATERIAL_TYPE_WATER)
     {
-        bson_object_value_add_vec4(&emissive, INPUT_VALUE, material->emissive);
+        // Top-level material properties
+        bson_object_value_add_float(&tree.root, "tiling", material->tiling);
+        bson_object_value_add_float(&tree.root, "wave_strength", material->wave_strength);
+        bson_object_value_add_float(&tree.root, "wave_speed", material->wave_speed);
+        // Besides normal, DUDV is also configurable
+        bson_object dudv = bson_object_create();
+        if (material->dudv_map.resource_name)
+        {
+            add_map_obj(&base_color, 0, &material->dudv_map);
+            bson_object_value_add_object(&inputs, INPUT_DUDV, dudv);
+        }
     }
-    bson_object_value_add_boolean(&emissive, INPUT_ENABLED, material->emissive_enabled);
-    bson_object_value_add_object(&inputs, INPUT_EMISSIVE, emissive);
 
     // Samplers
     if (material->custom_samplers && material->custom_sampler_count)
@@ -280,6 +302,18 @@ b8 basset_material_deserialize(const char* file_text, basset* out_asset)
     if (!bson_object_property_value_get_bool(&tree.root, "use_vertex_color_as_base_color", &out_material->use_vertex_color_as_base_color))
         out_material->use_vertex_color_as_base_color = false;
 
+    // Properties only used in water materials
+    if (out_material->type == BMATERIAL_TYPE_WATER)
+    {
+        // Top-level material properties - use defaults if not provided
+        if (!bson_object_property_value_get_float(&tree.root, "tiling", &out_material->tiling))
+            out_material->tiling = 0.25f;
+        if (!bson_object_property_value_get_float(&tree.root, "wave_strength", &out_material->wave_strength))
+            out_material->wave_strength = 0.02f;
+        if (!bson_object_property_value_get_float(&tree.root, "wave_speed", &out_material->wave_speed))
+            out_material->wave_speed = 0.03f;
+    }
+
     // Extract inputs. The array of inputs is required, but the actual inputs themselves are optional
     {
         bson_object inputs_obj = {0};
@@ -302,41 +336,56 @@ b8 basset_material_deserialize(const char* file_text, basset* out_asset)
                 input_count++;
             }
 
-            // mra
-            if (extract_input_map_channel_or_vec3(&inputs_obj, "mra", 0, &out_material->mra_map, &out_material->mra, (vec3){0.0f, 0.5f, 1.0f}))
+            // Inputs only used in standard materials
+            if (out_material->type == BMATERIAL_TYPE_STANDARD)
             {
-                // Only count values actually included in config, as a validation check later
-                input_count++;
-                // Flag to use MRA
-                out_material->use_mra = true;
+                // mra
+                if (extract_input_map_channel_or_vec3(&inputs_obj, "mra", 0, &out_material->mra_map, &out_material->mra, (vec3){0.0f, 0.5f, 1.0f}))
+                {
+                    // Only count values actually included in config, as a validation check later
+                    input_count++;
+                    // Flag to use MRA
+                    out_material->use_mra = true;
+                }
+
+                // metallic
+                if (extract_input_map_channel_or_float(&inputs_obj, "metallic", 0, &out_material->metallic_map, &out_material->metallic_map_source_channel, &out_material->metallic, 0.0f))
+                {
+                    // Only count values actually included in config, as a validation check later
+                    input_count++;
+                }
+
+                // roughness
+                if (extract_input_map_channel_or_float(&inputs_obj, "roughness", 0, &out_material->roughness_map, &out_material->roughness_map_source_channel, &out_material->roughness, 0.5f))
+                {
+                    // Only count values actually included in config, as a validation check later
+                    input_count++;
+                }
+
+                // ao
+                if (extract_input_map_channel_or_float(&inputs_obj, "ao", &out_material->ambient_occlusion_enabled, &out_material->ambient_occlusion_map, &out_material->ambient_occlusion_map_source_channel, &    out_material->ambient_occlusion, 1.0f))
+                {
+                    // Only count values actually included in config, as a validation check later
+                    input_count++;
+                }
+
+                // emissive
+                if (extract_input_map_channel_or_vec4(&inputs_obj, "emissive", &out_material->emissive_enabled, &out_material->emissive_map, &out_material->emissive, vec4_zero()))
+                {
+                    // Only count values actually included in config, as a validation check later
+                    input_count++;
+                }
             }
 
-            // metallic
-            if (extract_input_map_channel_or_float(&inputs_obj, "metallic", 0, &out_material->metallic_map, &out_material->metallic_map_source_channel, &out_material->metallic, 0.0f))
+            // Inputs only used in water materials
+            if (out_material->type == BMATERIAL_TYPE_WATER)
             {
-                // Only count values actually included in config, as a validation check later
-                input_count++;
-            }
-
-            // roughness
-            if (extract_input_map_channel_or_float(&inputs_obj, "roughness", 0, &out_material->roughness_map, &out_material->roughness_map_source_channel, &out_material->roughness, 0.5f))
-            {
-                // Only count values actually included in config, as a validation check later
-                input_count++;
-            }
-
-            // ao
-            if (extract_input_map_channel_or_float(&inputs_obj, "ao", &out_material->ambient_occlusion_enabled, &out_material->ambient_occlusion_map, &out_material->ambient_occlusion_map_source_channel, &out_material->ambient_occlusion, 1.0f))
-            {
-                // Only count values actually included in config, as a validation check later
-                input_count++;
-            }
-
-            // emissive
-            if (extract_input_map_channel_or_vec4(&inputs_obj, "emissive", &out_material->emissive_enabled, &out_material->emissive_map, &out_material->emissive, vec4_zero()))
-            {
-                // Only count values actually included in config, as a validation check later
-                input_count++;
+                // Besides normal, DUDV is also configurable
+                if (extract_input_map_channel_or_vec4(&inputs_obj, INPUT_DUDV, 0, &out_material->dudv_map, 0, vec4_zero()))
+                {
+                    // Only count values actually included in config, as a validation check later
+                    input_count++;
+                }
             }
 
             if (input_count < 1)
@@ -441,18 +490,20 @@ static b8 extract_input_map_channel_or_float(const bson_object* inputs_obj, cons
             bson_object_property_value_get_bool(&input, INPUT_ENABLED, out_enabled);
 
         b8 has_map = bson_object_property_value_get_object(&input, INPUT_MAP, &map_obj);
-        b8 has_value = bson_object_property_value_get_float(&input, INPUT_VALUE, out_value);
+        b8 has_value = out_value ? bson_object_property_value_get_float(&input, INPUT_VALUE, out_value) : false;
         if (has_map && has_value)
         {
             BWARN("Input '%s' specified both a value and a map. The map will be used", input_name);
-            *out_value = default_value;
+            if (out_value)
+                *out_value = default_value;
             has_value = false;
             input_found = true;
         }
         else if (!has_map && !has_value)
         {
             BWARN("Input '%s' specified neither a value nor a map. A default value will be used", input_name);
-            *out_value = default_value;
+            if (out_value)
+                *out_value = default_value;
             has_value = true;
         }
         else
@@ -471,7 +522,8 @@ static b8 extract_input_map_channel_or_float(const bson_object* inputs_obj, cons
     else
     {
         // If nothing is specified, use the default for this
-        *out_value = default_value;
+        if (out_value)
+            *out_value = default_value;
     }
     
     return input_found;
@@ -488,18 +540,20 @@ static b8 extract_input_map_channel_or_vec4(const bson_object* inputs_obj, const
             bson_object_property_value_get_bool(&input, INPUT_ENABLED, out_enabled);
 
         b8 has_map = bson_object_property_value_get_object(&input, INPUT_MAP, &map_obj);
-        b8 has_value = bson_object_property_value_get_vec4(&input, INPUT_VALUE, out_value);
+        b8 has_value = out_value ? bson_object_property_value_get_vec4(&input, INPUT_VALUE, out_value) : false;
         if (has_map && has_value)
         {
             BWARN("Input '%s' specified both a value and a map. The map will be used", input_name);
-            *out_value = default_value;
+            if (out_value)
+                *out_value = default_value;
             has_value = false;
             input_found = true;
         }
         else if (!has_map && !has_value)
         {
             BWARN("Input '%s' specified neither a value nor a map. A default value will be used", input_name);
-            *out_value = default_value;
+            if (out_value)
+                *out_value = default_value;
             has_value = true;
         }
         else
@@ -518,7 +572,8 @@ static b8 extract_input_map_channel_or_vec4(const bson_object* inputs_obj, const
     else
     {
         // If nothing is specified, use the default for this
-        *out_value = default_value;
+        if (out_value)
+            *out_value = default_value;
     }
 
     return input_found;
@@ -535,18 +590,20 @@ static b8 extract_input_map_channel_or_vec3(const bson_object* inputs_obj, const
             bson_object_property_value_get_bool(&input, INPUT_ENABLED, out_enabled);
 
         b8 has_map = bson_object_property_value_get_object(&input, INPUT_MAP, &map_obj);
-        b8 has_value = bson_object_property_value_get_vec3(&input, INPUT_VALUE, out_value);
+        b8 has_value = out_value ? bson_object_property_value_get_vec3(&input, INPUT_VALUE, out_value) : false;
         if (has_map && has_value)
         {
             BWARN("Input '%s' specified both a value and a map. The map will be used.", input_name);
-            *out_value = default_value;
+            if (out_value)
+                *out_value = default_value;
             has_value = false;
             input_found = true;
         }
         else if (!has_map && !has_value)
         {
             BWARN("Input '%s' specified neither a value nor a map. A default value will be used.", input_name);
-            *out_value = default_value;
+            if (out_value)
+                *out_value = default_value;
             has_value = true;
         }
         else
@@ -565,7 +622,8 @@ static b8 extract_input_map_channel_or_vec3(const bson_object* inputs_obj, const
     else
     {
         // If nothing is specified, use the default for this
-        *out_value = default_value;
+        if (out_value)
+            *out_value = default_value;
     }
 
     return input_found;

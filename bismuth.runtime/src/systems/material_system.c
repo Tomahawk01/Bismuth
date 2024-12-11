@@ -1,23 +1,27 @@
 #include "material_system.h"
 
-#include "assets/basset_types.h"
-#include "containers/darray.h"
+#include <assets/basset_types.h>
+#include <containers/darray.h>
+#include <core_render_types.h>
+#include <debug/bassert.h>
+#include <defines.h>
+#include <identifiers/bhandle.h>
+#include <logger.h>
+#include <math/bmath.h>
+#include <memory/bmemory.h>
+#include <platform/platform.h>
+#include <serializers/basset_material_serializer.h>
+#include <serializers/basset_shader_serializer.h>
+#include <strings/bname.h>
+
 #include "core/console.h"
 #include "core/engine.h"
+#include "core/event.h"
 #include "core/frame_data.h"
-#include "core_render_types.h"
-#include "debug/bassert.h"
-#include "defines.h"
-#include "identifiers/bhandle.h"
+#include "core/bvar.h"
 #include "bresources/bresource_types.h"
-#include "logger.h"
-#include "math/bmath.h"
-#include "memory/bmemory.h"
 #include "renderer/renderer_frontend.h"
-#include "renderer/rendergraph_nodes/shadow_rendergraph_node.h"
-#include "serializers/basset_material_serializer.h"
-#include "serializers/basset_shader_serializer.h"
-#include "strings/bname.h"
+#include "runtime_defines.h"
 #include "systems/bresource_system.h"
 #include "systems/light_system.h"
 #include "systems/shader_system.h"
@@ -27,7 +31,9 @@
 #define MATERIAL_SHADER_NAME_WATER "Shader.MaterialWater"
 #define MATERIAL_SHADER_NAME_BLENDED "Shader.MaterialBlended"
 
-// Textures
+// Texture indices
+
+// Standard material
 const u32 MAT_STANDARD_IDX_BASE_COLOR = 0;
 const u32 MAT_STANDARD_IDX_NORMAL = 1;
 const u32 MAT_STANDARD_IDX_METALLIC = 2;
@@ -35,11 +41,19 @@ const u32 MAT_STANDARD_IDX_ROUGHNESS = 3;
 const u32 MAT_STANDARD_IDX_AO = 4;
 const u32 MAT_STANDARD_IDX_MRA = 5;
 const u32 MAT_STANDARD_IDX_EMISSIVE = 6;
-const u32 MAT_STANDARD_IDX_SHADOW_MAP = 7;
-const u32 MAT_STANDARD_IDX_IRRADIANCE_MAP = 8;
 
-#define SHADOW_CASCADE_COUNT 4
-#define MAX_POINT_LIGHTS 10
+#define MATERIAL_STANDARD_TEXTURE_COUNT 7
+#define MATERIAL_STANDARD_SAMPLER_COUNT 7
+
+// Water material
+const u32 MAT_WATER_IDX_REFLECTION = 0;
+const u32 MAT_WATER_IDX_REFRACTION = 1;
+const u32 MAT_WATER_IDX_REFRACTION_DEPTH = 2;
+const u32 MAT_WATER_IDX_DUDV = 3;
+const u32 MAT_WATER_IDX_NORMAL = 4;
+
+#define MATERIAL_WATER_TEXTURE_COUNT 5
+#define MATERIAL_WATER_SAMPLER_COUNT 5
 
 // Represents the data for a single instance of a material.
 // This can be thought of as "per-draw" data
@@ -108,6 +122,11 @@ typedef struct material_data
     bresource_texture* refraction_texture;
     f32 refraction_scale;
 
+    bresource_texture* reflection_texture;
+    bresource_texture* reflection_depth_texture;
+    bresource_texture* dudv_texture;
+    bresource_texture* refraction_depth_texture;
+
     vec3 mra;
     /** @brief This is a combined texture holding metallic/roughness/ambient occlusion all in one texture */
     bresource_texture* mra_texture;
@@ -120,6 +139,12 @@ typedef struct material_data
     // Multiplied against uv coords of vertex data. Overridden by instance data
     vec3 uv_scale;
 
+    // Affects the strength of waves for a water type material
+    f32 wave_strength;
+    // Affects wave movement speed for a water material
+    f32 wave_speed;
+    f32 tiling;
+
     // Shader group id for per-group uniforms
     u32 group_id;
 
@@ -128,6 +153,10 @@ typedef struct material_data
     // Can roll back around to 0
     u16 generation;
 } material_data;
+
+// ======================================================
+// Standard Material
+// ======================================================
 
 typedef enum material_standard_flag_bits
 {
@@ -146,10 +175,10 @@ typedef struct material_standard_shader_locations
 {
     // Per frame
     u16 material_frame_ubo;
-    u16 shadow_textures;
-    u16 ibl_cube_textures;
+    u16 shadow_texture;
+    u16 irradiance_cube_textures;
     u16 shadow_sampler;
-    u16 ibl_sampler;
+    u16 irradiance_sampler;
 
     // Per group
     u16 material_textures;
@@ -160,32 +189,31 @@ typedef struct material_standard_shader_locations
     u16 material_draw_ubo;
 } material_standard_shader_locations;
 
-// Per-frame UBO data -388 bytes
+// Standard Material Per-frame UBO data
 typedef struct material_standard_frame_uniform_data
 {
     // Light space for shadow mapping. Per cascade
-    mat4 directional_light_spaces[SHADOW_CASCADE_COUNT]; // 256 bytes
+    mat4 directional_light_spaces[MATERIAL_MAX_SHADOW_CASCADES]; // 256 bytes
     mat4 projection;
-    mat4 view;
-    mat4 inv_view;
-    vec3 view_position;
-    f32 bias;
-    vec3 inv_view_position;
+    mat4 views[MATERIAL_MAX_VIEWS];
+    vec4 view_positions[MATERIAL_MAX_VIEWS];
+    f32 cascade_splits[MATERIAL_MAX_SHADOW_CASCADES];
+    f32 shadow_bias;
     u32 render_mode;
-    vec4 cascade_splits[SHADOW_CASCADE_COUNT];
-    // HACK: Read this in from somewhere (or have global setter?);
-    vec4 clipping_plane;
     u32 use_pcf;
+    f32 delta_time;
+    f32 game_time;
+    vec3 padding;
 } material_standard_frame_uniform_data;
 
-// Per-group UBO data -656 bytes
+// Standard Material Per-group UBO data
 typedef struct material_standard_group_uniform_data
 {
-    directional_light_data dir_light;            // 48 bytes
-    point_light_data p_lights[MAX_POINT_LIGHTS]; // 48 bytes each
-    i32 num_p_lights;
+    directional_light_data dir_light;                     // 48 bytes
+    point_light_data p_lights[MATERIAL_MAX_POINT_LIGHTS]; // 48 bytes each
+    u32 num_p_lights;
     // The material lighting model
-    u32 model;
+    u32 lighting_model;
     // Base set of flags for the material. Copied to the material instance when created
     u32 flags;
     // Texture use flags
@@ -193,7 +221,6 @@ typedef struct material_standard_group_uniform_data
 
     vec4 base_color;
     vec4 emissive;
-
     vec3 normal;
     f32 metallic;
     vec3 mra;
@@ -207,40 +234,86 @@ typedef struct material_standard_group_uniform_data
     f32 emissive_texture_intensity;
 
     f32 refraction_scale;
-    f32 delta_time;
-    f32 game_time;
 
     // Packed texture channels for various maps requiring it
     u32 texture_channels; // [metallic, roughness, ao, unused]
+    vec2 padding;
 } material_standard_group_uniform_data;
 
-// Per-draw UBO data - 84 bytes
+// Standard Material Per-draw UBO
 typedef struct material_standard_draw_uniform_data
 {
     mat4 model;
     vec4 clipping_plane;
     u32 view_index;
-    u32 ibl_index;
+    u32 irradiance_cubemap_index;
+    vec2 padding;
 } material_standard_draw_uniform_data;
 
-/** @brief Holds internal state for per-frame data (i.e across all standard materials); */
-typedef struct material_standard_frame_data
+// ======================================================
+// Water Material
+// ======================================================
+
+// Water Material Per-frame UBO data
+typedef struct material_water_frame_uniform_data
 {
     // Light space for shadow mapping. Per cascade
-    mat4 directional_light_spaces[SHADOW_CASCADE_COUNT];
+    mat4 directional_light_spaces[MATERIAL_MAX_SHADOW_CASCADES]; // 256 bytes
     mat4 projection;
-    mat4 view;
-    mat4 inv_view;
-    vec3 view_position;
+    mat4 views[MATERIAL_MAX_VIEWS];
+    f32 cascade_splits[MATERIAL_MAX_SHADOW_CASCADES];
+    vec4 view_positions[MATERIAL_MAX_VIEWS];
+    f32 shadow_bias;
     u32 render_mode;
-    vec3 inv_view_position;
     u32 use_pcf;
-    vec4 cascade_splits[SHADOW_CASCADE_COUNT];
-    // HACK: Read this in from somewhere (or have global setter?);
-    f32 bias;
-    vec4 clipping_plane;
-    u16 generation;
-} material_standard_frame_data;
+    f32 delta_time;
+    f32 game_time;
+    vec3 padding;
+} material_water_frame_uniform_data;
+
+// Water Material Per-group UBO
+typedef struct material_water_group_uniform_data
+{
+    directional_light_data dir_light;                     // 48 bytes
+    point_light_data p_lights[MATERIAL_MAX_POINT_LIGHTS]; // 48 bytes each
+    u32 num_p_lights;
+    // The material lighting model
+    u32 lighting_model;
+    // Base set of flags for the material. Copied to the material instance when created
+    u32 flags;
+    f32 padding;
+} material_water_group_uniform_data;
+
+// Water Material Per-draw UBO
+typedef struct material_water_draw_uniform_data
+{
+    mat4 model;
+    u32 irradiance_cubemap_index;
+    u32 view_index;
+    vec2 padding;
+    f32 tiling;
+    f32 wave_strength;
+    f32 wave_speed;
+    f32 padding2;
+} material_water_draw_uniform_data;
+
+typedef struct material_water_shader_locations
+{
+    // Per frame
+    u16 material_frame_ubo;
+    u16 shadow_texture;
+    u16 irradiance_cube_textures;
+    u16 shadow_sampler;
+    u16 irradiance_sampler;
+    
+    // Per group
+    u16 material_group_ubo;
+    u16 material_textures;
+    u16 material_samplers;
+
+    // Per draw
+    u16 material_draw_ubo;
+} material_water_shader_locations;
 
 /** @brief The structure which holds state for the entire material system */
 typedef struct material_system_state
@@ -256,18 +329,23 @@ typedef struct material_system_state
     bhandle default_standard_material;
     bhandle default_water_material;
     bhandle default_blended_material;
-    material_standard_shader_locations standard_material_locations;
-    material_standard_frame_data standard_frame_data;
 
     // Cached handles for various material types' shaders
     bhandle material_standard_shader;
+    material_standard_shader_locations standard_material_locations;
+
     bhandle material_water_shader;
+    material_water_shader_locations water_material_locations;
+
     bhandle material_blended_shader;
 
     // Keep a pointer to the renderer state for quick access
     struct renderer_system_state* renderer;
     struct texture_system_state* texture_system;
     struct bresource_system_state* resource_system;
+
+    // Runtime package name pre-hashed and kept here for convenience
+    bname runtime_package_name;
 } material_system_state;
 
 // Holds data for a material instance request
@@ -290,10 +368,10 @@ static void material_destroy(material_system_state* state, bhandle* material_han
 static b8 material_instance_create(material_system_state* state, bhandle base_material, bhandle* out_instance_handle);
 static void material_instance_destroy(material_system_state* state, bhandle base_material, bhandle* instance_handle);
 static void material_resource_loaded(bresource* resource, void* listener);
-static material_instance default_material_instance_get(material_system_state* state, bhandle base_material, const char* name_str);
+static material_instance default_material_instance_get(material_system_state* state, bhandle base_material);
 static material_instance_data* get_instance_data(material_system_state* state, material_instance instance);
-static void default_standard_material_locations_get(material_system_state* state);
 static void increment_generation(u16* generation);
+static b8 material_on_event(u16 code, void* sender, void* listener_inst, event_context data);
 
 b8 material_system_initialize(u64* memory_requirement, material_system_state* state, const material_system_config* config)
 {
@@ -309,6 +387,9 @@ b8 material_system_initialize(u64* memory_requirement, material_system_state* st
     if (!state)
         return true;
 
+    // Just so it doesn't have to be rehashed all the time
+    state->runtime_package_name = bname_create(PACKAGE_NAME_RUNTIME);
+
     // Keep a pointer to the renderer system state for quick access
     const engine_system_states* states = engine_systems_get();
     state->renderer = states->renderer_system;
@@ -322,125 +403,254 @@ b8 material_system_initialize(u64* memory_requirement, material_system_state* st
     state->instances = darray_create(material_instance_data*);
 
     // Get default material shaders
-    basset_shader mat_std_shader = {0};
-    bname mat_std_shader_name = bname_create(MATERIAL_SHADER_NAME_STANDARD);
-    mat_std_shader.base.name = mat_std_shader_name;
-    mat_std_shader.base.package_name = bname_create("Runtime");
-    mat_std_shader.base.generation = INVALID_ID;
-    mat_std_shader.base.type = BASSET_TYPE_SHADER;
-    mat_std_shader.base.meta.version = 1;
-    mat_std_shader.depth_test = true;
-    mat_std_shader.depth_write = true;
-    mat_std_shader.stencil_test = false;
-    mat_std_shader.stencil_write = false;
-    mat_std_shader.color_write = true;
-    mat_std_shader.color_read = false;
-    mat_std_shader.supports_wireframe = true;
-    mat_std_shader.cull_mode = FACE_CULL_MODE_BACK;
-    mat_std_shader.max_groups = state->config.max_material_count;
-    mat_std_shader.max_draw_ids = state->config.max_instance_count;
-    mat_std_shader.topology_types = PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_LIST_BIT;
-
-    mat_std_shader.stage_count = 2;
-    mat_std_shader.stages = BALLOC_TYPE_CARRAY(basset_shader_stage, mat_std_shader.stage_count);
-    mat_std_shader.stages[0].type = SHADER_STAGE_VERTEX;
-    mat_std_shader.stages[0].package_name = "Runtime";
-    mat_std_shader.stages[0].source_asset_name = "MaterialStandard_vert";
-    mat_std_shader.stages[1].type = SHADER_STAGE_FRAGMENT;
-    mat_std_shader.stages[1].package_name = "Runtime";
-    mat_std_shader.stages[1].source_asset_name = "MaterialStandard_frag";
-
-    mat_std_shader.attribute_count = 5;
-    mat_std_shader.attributes = BALLOC_TYPE_CARRAY(basset_shader_attribute, mat_std_shader.attribute_count);
-    mat_std_shader.attributes[0].type = SHADER_ATTRIB_TYPE_FLOAT32_3;
-    mat_std_shader.attributes[0].name = "in_position";
-
-    mat_std_shader.attributes[1].name = "in_normal";
-    mat_std_shader.attributes[1].type = SHADER_ATTRIB_TYPE_FLOAT32_3;
-    mat_std_shader.attributes[2].name = "in_texcoord";
-    mat_std_shader.attributes[2].type = SHADER_ATTRIB_TYPE_FLOAT32_2;
-    mat_std_shader.attributes[3].name = "in_colour";
-    mat_std_shader.attributes[3].type = SHADER_ATTRIB_TYPE_FLOAT32_4;
-    mat_std_shader.attributes[4].name = "in_tangent";
-    mat_std_shader.attributes[4].type = SHADER_ATTRIB_TYPE_FLOAT32_3;
-
-    mat_std_shader.uniform_count = 9;
-    mat_std_shader.uniforms = BALLOC_TYPE_CARRAY(basset_shader_uniform, mat_std_shader.uniform_count);
-
-    // per_frame
-    mat_std_shader.uniforms[0].name = "material_frame_ubo";
-    mat_std_shader.uniforms[0].type = SHADER_UNIFORM_TYPE_STRUCT;
-    mat_std_shader.uniforms[0].size = 388;
-    mat_std_shader.uniforms[0].frequency = SHADER_UPDATE_FREQUENCY_PER_FRAME;
-
-    mat_std_shader.uniforms[1].name = "shadow_textures";
-    mat_std_shader.uniforms[1].type = SHADER_UNIFORM_TYPE_TEXTURE_2D_ARRAY;
-    mat_std_shader.uniforms[1].frequency = SHADER_UPDATE_FREQUENCY_PER_FRAME;
-
-    mat_std_shader.uniforms[2].name = "ibl_cube_textures";
-    mat_std_shader.uniforms[2].type = SHADER_UNIFORM_TYPE_TEXTURE_CUBE;
-    mat_std_shader.uniforms[2].array_size = 4;
-    mat_std_shader.uniforms[2].frequency = SHADER_UPDATE_FREQUENCY_PER_FRAME;
-
-    mat_std_shader.uniforms[3].name = "shadow_sampler";
-    mat_std_shader.uniforms[3].type = SHADER_UNIFORM_TYPE_SAMPLER;
-    mat_std_shader.uniforms[3].frequency = SHADER_UPDATE_FREQUENCY_PER_FRAME;
-
-    mat_std_shader.uniforms[4].name = "ibl_sampler";
-    mat_std_shader.uniforms[4].type = SHADER_UNIFORM_TYPE_SAMPLER;
-    mat_std_shader.uniforms[4].frequency = SHADER_UPDATE_FREQUENCY_PER_FRAME;
-
-    // per_group
-    mat_std_shader.uniforms[5].name = "material_textures";
-    mat_std_shader.uniforms[5].type = SHADER_UNIFORM_TYPE_TEXTURE_2D;
-    mat_std_shader.uniforms[5].array_size = 7;
-    mat_std_shader.uniforms[5].frequency = SHADER_UPDATE_FREQUENCY_PER_GROUP;
-
-    mat_std_shader.uniforms[6].name = "material_samplers";
-    mat_std_shader.uniforms[6].type = SHADER_UNIFORM_TYPE_SAMPLER;
-    mat_std_shader.uniforms[6].array_size = 7;
-    mat_std_shader.uniforms[6].frequency = SHADER_UPDATE_FREQUENCY_PER_GROUP;
-
-    mat_std_shader.uniforms[7].name = "material_group_ubo";
-    mat_std_shader.uniforms[7].type = SHADER_UNIFORM_TYPE_STRUCT;
-    mat_std_shader.uniforms[7].size = 656;
-    mat_std_shader.uniforms[7].frequency = SHADER_UPDATE_FREQUENCY_PER_GROUP;
-
-    // per_draw
-    mat_std_shader.uniforms[8].name = "material_draw_ubo";
-    mat_std_shader.uniforms[8].type = SHADER_UNIFORM_TYPE_STRUCT;
-    mat_std_shader.uniforms[8].size = 84;
-    mat_std_shader.uniforms[8].frequency = SHADER_UPDATE_FREQUENCY_PER_DRAW;
-
-    // Serialize
-    const char* config_source = basset_shader_serialize((basset*)&mat_std_shader);
-
-    // Destroy the temp asset
-    BFREE_TYPE_CARRAY(mat_std_shader.stages, basset_shader_stage, mat_std_shader.stage_count);
-    BFREE_TYPE_CARRAY(mat_std_shader.attributes, basset_shader_attribute, mat_std_shader.attribute_count);
-    BFREE_TYPE_CARRAY(mat_std_shader.uniforms, basset_shader_uniform, mat_std_shader.uniform_count);
-    bzero_memory(&mat_std_shader, sizeof(basset_shader));
     
-    // Create/load the shader from the serialized source
-    state->material_standard_shader = shader_system_get_from_source(mat_std_shader_name, config_source);
-    default_standard_material_locations_get(state);
-    // Setup per-frame data for the standard shader
-    state->standard_frame_data.projection = mat4_perspective(deg_to_rad(45.0f), 720.0f / 1280.0f, 0.01f, 1000.0f);
-    state->standard_frame_data.inv_view = mat4_look_at(vec3_zero(), vec3_forward(), vec3_up());
-    state->standard_frame_data.inv_view_position = vec3_zero();
-    state->standard_frame_data.view = mat4_inverse(state->standard_frame_data.inv_view);
-    state->standard_frame_data.view_position = vec3_zero();
-    state->standard_frame_data.render_mode = 0;
-    for (u32 i = 0; i < SHADOW_CASCADE_COUNT; ++i)
+    // Standard material shader.
     {
-        state->standard_frame_data.cascade_splits[i] = vec4_zero();
-        state->standard_frame_data.directional_light_spaces[i] = mat4_identity();
-    }
-    state->standard_frame_data.use_pcf = 1;
-    state->standard_frame_data.bias = 0.0005f;
-    state->standard_frame_data.clipping_plane = vec4_zero();
+        bname mat_std_shader_name = bname_create(MATERIAL_SHADER_NAME_STANDARD);
+        basset_shader mat_std_shader = {0};
+        mat_std_shader.base.name = mat_std_shader_name;
+        mat_std_shader.base.package_name = state->runtime_package_name;
+        mat_std_shader.base.generation = INVALID_ID;
+        mat_std_shader.base.type = BASSET_TYPE_SHADER;
+        mat_std_shader.base.meta.version = 1;
+        mat_std_shader.depth_test = true;
+        mat_std_shader.depth_write = true;
+        mat_std_shader.stencil_test = false;
+        mat_std_shader.stencil_write = false;
+        mat_std_shader.color_write = true;
+        mat_std_shader.color_read = false;
+        mat_std_shader.supports_wireframe = true;
+        mat_std_shader.cull_mode = FACE_CULL_MODE_BACK;
+        mat_std_shader.max_groups = state->config.max_material_count;
+        mat_std_shader.max_draw_ids = state->config.max_instance_count;
+        mat_std_shader.topology_types = PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_LIST_BIT;
 
-    state->material_water_shader = shader_system_get(bname_create(MATERIAL_SHADER_NAME_WATER));
+        mat_std_shader.stage_count = 2;
+        mat_std_shader.stages = BALLOC_TYPE_CARRAY(basset_shader_stage, mat_std_shader.stage_count);
+        mat_std_shader.stages[0].type = SHADER_STAGE_VERTEX;
+        mat_std_shader.stages[0].package_name = PACKAGE_NAME_RUNTIME;
+        mat_std_shader.stages[0].source_asset_name = "MaterialStandard_vert";
+        mat_std_shader.stages[1].type = SHADER_STAGE_FRAGMENT;
+        mat_std_shader.stages[1].package_name = PACKAGE_NAME_RUNTIME;
+        mat_std_shader.stages[1].source_asset_name = "MaterialStandard_frag";
+
+        mat_std_shader.attribute_count = 5;
+        mat_std_shader.attributes = BALLOC_TYPE_CARRAY(basset_shader_attribute, mat_std_shader.attribute_count);
+        mat_std_shader.attributes[0].type = SHADER_ATTRIB_TYPE_FLOAT32_3;
+        mat_std_shader.attributes[0].name = "in_position";
+
+        mat_std_shader.attributes[1].name = "in_normal";
+        mat_std_shader.attributes[1].type = SHADER_ATTRIB_TYPE_FLOAT32_3;
+        mat_std_shader.attributes[2].name = "in_texcoord";
+        mat_std_shader.attributes[2].type = SHADER_ATTRIB_TYPE_FLOAT32_2;
+        mat_std_shader.attributes[3].name = "in_color";
+        mat_std_shader.attributes[3].type = SHADER_ATTRIB_TYPE_FLOAT32_4;
+        mat_std_shader.attributes[4].name = "in_tangent";
+        mat_std_shader.attributes[4].type = SHADER_ATTRIB_TYPE_FLOAT32_3;
+
+        mat_std_shader.uniform_count = 9;
+        mat_std_shader.uniforms = BALLOC_TYPE_CARRAY(basset_shader_uniform, mat_std_shader.uniform_count);
+
+        // per_frame
+        mat_std_shader.uniforms[0].name = "material_frame_ubo";
+        mat_std_shader.uniforms[0].type = SHADER_UNIFORM_TYPE_STRUCT;
+        mat_std_shader.uniforms[0].size = sizeof(material_standard_frame_uniform_data);
+        mat_std_shader.uniforms[0].frequency = SHADER_UPDATE_FREQUENCY_PER_FRAME;
+
+        mat_std_shader.uniforms[1].name = "shadow_texture";
+        mat_std_shader.uniforms[1].type = SHADER_UNIFORM_TYPE_TEXTURE_2D_ARRAY;
+        mat_std_shader.uniforms[1].frequency = SHADER_UPDATE_FREQUENCY_PER_FRAME;
+
+        mat_std_shader.uniforms[2].name = "irradiance_cube_textures";
+        mat_std_shader.uniforms[2].type = SHADER_UNIFORM_TYPE_TEXTURE_CUBE;
+        mat_std_shader.uniforms[2].array_size = MATERIAL_MAX_IRRADIANCE_CUBEMAP_COUNT;
+        mat_std_shader.uniforms[2].frequency = SHADER_UPDATE_FREQUENCY_PER_FRAME;
+
+        mat_std_shader.uniforms[3].name = "shadow_sampler";
+        mat_std_shader.uniforms[3].type = SHADER_UNIFORM_TYPE_SAMPLER;
+        mat_std_shader.uniforms[3].frequency = SHADER_UPDATE_FREQUENCY_PER_FRAME;
+
+        mat_std_shader.uniforms[4].name = "irradiance_sampler";
+        mat_std_shader.uniforms[4].type = SHADER_UNIFORM_TYPE_SAMPLER;
+        mat_std_shader.uniforms[4].frequency = SHADER_UPDATE_FREQUENCY_PER_FRAME;
+
+        // per_group
+        mat_std_shader.uniforms[5].name = "material_textures";
+        mat_std_shader.uniforms[5].type = SHADER_UNIFORM_TYPE_TEXTURE_2D;
+        mat_std_shader.uniforms[5].array_size = MATERIAL_STANDARD_TEXTURE_COUNT;
+        mat_std_shader.uniforms[5].frequency = SHADER_UPDATE_FREQUENCY_PER_GROUP;
+
+        mat_std_shader.uniforms[6].name = "material_samplers";
+        mat_std_shader.uniforms[6].type = SHADER_UNIFORM_TYPE_SAMPLER;
+        mat_std_shader.uniforms[6].array_size = MATERIAL_STANDARD_SAMPLER_COUNT;
+        mat_std_shader.uniforms[6].frequency = SHADER_UPDATE_FREQUENCY_PER_GROUP;
+
+        mat_std_shader.uniforms[7].name = "material_group_ubo";
+        mat_std_shader.uniforms[7].type = SHADER_UNIFORM_TYPE_STRUCT;
+        mat_std_shader.uniforms[7].size = sizeof(material_standard_group_uniform_data);
+        mat_std_shader.uniforms[7].frequency = SHADER_UPDATE_FREQUENCY_PER_GROUP;
+
+        // per_draw
+        mat_std_shader.uniforms[8].name = "material_draw_ubo";
+        mat_std_shader.uniforms[8].type = SHADER_UNIFORM_TYPE_STRUCT;
+        mat_std_shader.uniforms[8].size = sizeof(material_standard_draw_uniform_data);
+        mat_std_shader.uniforms[8].frequency = SHADER_UPDATE_FREQUENCY_PER_DRAW;
+
+        // Serialize
+        const char* config_source = basset_shader_serialize((basset*)&mat_std_shader);
+
+        // Destroy the temp asset
+        BFREE_TYPE_CARRAY(mat_std_shader.stages, basset_shader_stage, mat_std_shader.stage_count);
+        BFREE_TYPE_CARRAY(mat_std_shader.attributes, basset_shader_attribute, mat_std_shader.attribute_count);
+        BFREE_TYPE_CARRAY(mat_std_shader.uniforms, basset_shader_uniform, mat_std_shader.uniform_count);
+        bzero_memory(&mat_std_shader, sizeof(basset_shader));
+
+        // Create/load the shader from the serialized source
+        state->material_standard_shader = shader_system_get_from_source(mat_std_shader_name, config_source);
+
+        // Save off the shader's uniform locations
+        {
+            // Per frame
+            state->standard_material_locations.material_frame_ubo = shader_system_uniform_location(state->material_standard_shader, bname_create("material_frame_ubo"));
+            state->standard_material_locations.shadow_texture = shader_system_uniform_location(state->material_standard_shader, bname_create("shadow_texture"));
+            state->standard_material_locations.irradiance_cube_textures = shader_system_uniform_location(state->material_standard_shader, bname_create("irradiance_cube_textures"));
+            state->standard_material_locations.shadow_sampler = shader_system_uniform_location(state->material_standard_shader, bname_create("shadow_sampler"));
+            state->standard_material_locations.irradiance_sampler = shader_system_uniform_location(state->material_standard_shader, bname_create("irradiance_sampler"));
+
+            // Per group
+            state->standard_material_locations.material_textures = shader_system_uniform_location(state->material_standard_shader, bname_create("material_textures"));
+            state->standard_material_locations.material_samplers = shader_system_uniform_location(state->material_standard_shader, bname_create("material_samplers"));
+            state->standard_material_locations.material_group_ubo = shader_system_uniform_location(state->material_standard_shader, bname_create("material_group_ubo"));
+
+            // Per draw.
+            state->standard_material_locations.material_draw_ubo = shader_system_uniform_location(state->material_standard_shader, bname_create("material_draw_ubo"));
+        }
+    }
+
+    // Water material shader
+    {
+        bname mat_water_shader_name = bname_create(MATERIAL_SHADER_NAME_WATER);
+        basset_shader mat_water_shader = {0};
+        mat_water_shader.base.name = mat_water_shader_name;
+        mat_water_shader.base.package_name = state->runtime_package_name;
+        mat_water_shader.base.generation = INVALID_ID;
+        mat_water_shader.base.type = BASSET_TYPE_SHADER;
+        mat_water_shader.base.meta.version = 1;
+        mat_water_shader.depth_test = true;
+        mat_water_shader.depth_write = true;
+        mat_water_shader.stencil_test = false;
+        mat_water_shader.stencil_write = false;
+        mat_water_shader.color_write = true;
+        mat_water_shader.color_read = false;
+        mat_water_shader.supports_wireframe = true;
+        mat_water_shader.cull_mode = FACE_CULL_MODE_BACK;
+        mat_water_shader.max_groups = state->config.max_material_count;
+        mat_water_shader.max_draw_ids = state->config.max_instance_count;
+        mat_water_shader.topology_types = PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE_LIST_BIT;
+
+        mat_water_shader.stage_count = 2;
+        mat_water_shader.stages = BALLOC_TYPE_CARRAY(basset_shader_stage, mat_water_shader.stage_count);
+        mat_water_shader.stages[0].type = SHADER_STAGE_VERTEX;
+        mat_water_shader.stages[0].package_name = PACKAGE_NAME_RUNTIME;
+        mat_water_shader.stages[0].source_asset_name = "MaterialWater_vert";
+        mat_water_shader.stages[1].type = SHADER_STAGE_FRAGMENT;
+        mat_water_shader.stages[1].package_name = PACKAGE_NAME_RUNTIME;
+        mat_water_shader.stages[1].source_asset_name = "MaterialWater_frag";
+
+        mat_water_shader.attribute_count = 1;
+        mat_water_shader.attributes = BALLOC_TYPE_CARRAY(basset_shader_attribute, mat_water_shader.attribute_count);
+        mat_water_shader.attributes[0].type = SHADER_ATTRIB_TYPE_FLOAT32_4;
+        mat_water_shader.attributes[0].name = "in_position";
+
+        mat_water_shader.uniform_count = 17;
+        mat_water_shader.uniforms = BALLOC_TYPE_CARRAY(basset_shader_uniform, mat_water_shader.uniform_count);
+
+        // per_frame
+        u32 uidx = 0;
+        mat_water_shader.uniforms[uidx].name = "material_frame_ubo";
+        mat_water_shader.uniforms[uidx].type = SHADER_UNIFORM_TYPE_STRUCT;
+        mat_water_shader.uniforms[uidx].size = sizeof(material_water_frame_uniform_data);
+        mat_water_shader.uniforms[uidx].frequency = SHADER_UPDATE_FREQUENCY_PER_FRAME;
+        uidx++;
+
+        mat_water_shader.uniforms[uidx].name = "shadow_texture";
+        mat_water_shader.uniforms[uidx].type = SHADER_UNIFORM_TYPE_TEXTURE_2D_ARRAY;
+        mat_water_shader.uniforms[uidx].frequency = SHADER_UPDATE_FREQUENCY_PER_FRAME;
+        uidx++;
+
+        mat_water_shader.uniforms[uidx].name = "irradiance_cube_textures";
+        mat_water_shader.uniforms[uidx].type = SHADER_UNIFORM_TYPE_TEXTURE_CUBE;
+        mat_water_shader.uniforms[uidx].array_size = MATERIAL_MAX_IRRADIANCE_CUBEMAP_COUNT;
+        mat_water_shader.uniforms[uidx].frequency = SHADER_UPDATE_FREQUENCY_PER_FRAME;
+        uidx++;
+
+        mat_water_shader.uniforms[uidx].name = "shadow_sampler";
+        mat_water_shader.uniforms[uidx].type = SHADER_UNIFORM_TYPE_SAMPLER;
+        mat_water_shader.uniforms[uidx].frequency = SHADER_UPDATE_FREQUENCY_PER_FRAME;
+        uidx++;
+
+        mat_water_shader.uniforms[uidx].name = "irradiance_sampler";
+        mat_water_shader.uniforms[uidx].type = SHADER_UNIFORM_TYPE_SAMPLER;
+        mat_water_shader.uniforms[uidx].frequency = SHADER_UPDATE_FREQUENCY_PER_FRAME;
+        uidx++;
+
+        // per_group
+        mat_water_shader.uniforms[uidx].name = "material_group_ubo";
+        mat_water_shader.uniforms[uidx].type = SHADER_UNIFORM_TYPE_STRUCT;
+        mat_water_shader.uniforms[uidx].size = sizeof(material_water_group_uniform_data);
+        mat_water_shader.uniforms[uidx].frequency = SHADER_UPDATE_FREQUENCY_PER_GROUP;
+        uidx++;
+
+        mat_water_shader.uniforms[uidx].name = "material_textures";
+        mat_water_shader.uniforms[uidx].type = SHADER_UNIFORM_TYPE_TEXTURE_2D;
+        mat_water_shader.uniforms[uidx].frequency = SHADER_UPDATE_FREQUENCY_PER_GROUP;
+        mat_water_shader.uniforms[uidx].array_size = MATERIAL_WATER_TEXTURE_COUNT;
+        uidx++;
+
+        mat_water_shader.uniforms[uidx].name = "material_samplers";
+        mat_water_shader.uniforms[uidx].type = SHADER_UNIFORM_TYPE_SAMPLER;
+        mat_water_shader.uniforms[uidx].frequency = SHADER_UPDATE_FREQUENCY_PER_GROUP;
+        mat_water_shader.uniforms[uidx].array_size = MATERIAL_WATER_SAMPLER_COUNT;
+        uidx++;
+
+        // per_draw
+        mat_water_shader.uniforms[uidx].name = "material_draw_ubo";
+        mat_water_shader.uniforms[uidx].type = SHADER_UNIFORM_TYPE_STRUCT;
+        mat_water_shader.uniforms[uidx].size = sizeof(material_water_draw_uniform_data);
+        mat_water_shader.uniforms[uidx].frequency = SHADER_UPDATE_FREQUENCY_PER_DRAW;
+        uidx++;
+
+        // Serialize
+        const char* config_source = basset_shader_serialize((basset*)&mat_water_shader);
+
+        // Destroy the temp asset
+        BFREE_TYPE_CARRAY(mat_water_shader.stages, basset_shader_stage, mat_water_shader.stage_count);
+        BFREE_TYPE_CARRAY(mat_water_shader.attributes, basset_shader_attribute, mat_water_shader.attribute_count);
+        BFREE_TYPE_CARRAY(mat_water_shader.uniforms, basset_shader_uniform, mat_water_shader.uniform_count);
+        bzero_memory(&mat_water_shader, sizeof(basset_shader));
+
+        // Create/load the shader from the serialized source
+        state->material_water_shader = shader_system_get_from_source(mat_water_shader_name, config_source);
+
+        // Save off the shader's uniform locations
+        {
+            // Per frame
+            state->water_material_locations.material_frame_ubo = shader_system_uniform_location(state->material_water_shader, bname_create("material_frame_ubo"));
+            state->water_material_locations.shadow_texture = shader_system_uniform_location(state->material_water_shader, bname_create("shadow_texture"));
+            state->water_material_locations.irradiance_cube_textures = shader_system_uniform_location(state->material_water_shader, bname_create("irradiance_cube_textures"));
+            state->water_material_locations.shadow_sampler = shader_system_uniform_location(state->material_water_shader, bname_create("shadow_sampler"));
+            state->water_material_locations.irradiance_sampler = shader_system_uniform_location(state->material_water_shader, bname_create("irradiance_sampler"));
+
+            // Per group
+            state->water_material_locations.material_textures = shader_system_uniform_location(state->material_water_shader, bname_create("material_textures"));
+            state->water_material_locations.material_samplers = shader_system_uniform_location(state->material_water_shader, bname_create("material_samplers"));
+            state->water_material_locations.material_group_ubo = shader_system_uniform_location(state->material_water_shader, bname_create("material_group_ubo"));
+
+            // Per draw
+            state->water_material_locations.material_draw_ubo = shader_system_uniform_location(state->material_standard_shader, bname_create("material_draw_ubo"));
+        }
+    }
+
     state->material_blended_shader = shader_system_get(bname_create(MATERIAL_SHADER_NAME_BLENDED));
 
     // Load up some default materials
@@ -452,7 +662,7 @@ b8 material_system_initialize(u64* memory_requirement, material_system_state* st
 
     if (!create_default_water_material(state))
     {
-        BFATAL("Failed to create default blended material. Application cannot continue");
+        BFATAL("Failed to create default water material. Application cannot continue");
         return false;
     }
 
@@ -482,6 +692,211 @@ void material_system_shutdown(struct material_system_state* state)
         shader_system_destroy(&state->material_water_shader);
         shader_system_destroy(&state->material_blended_shader);
     }
+}
+
+bresource_texture* material_texture_get(struct material_system_state* state, bhandle material, material_texture_input tex_input)
+{
+    if (!state || bhandle_is_invalid(material) || bhandle_is_stale(material, state->materials[material.handle_index].unique_id))
+        return false;
+
+    material_data* data = &state->materials[material.handle_index];
+    switch (tex_input)
+    {
+    case MATERIAL_TEXTURE_INPUT_BASE_COLOR:
+        return data->base_color_texture;
+    case MATERIAL_TEXTURE_INPUT_NORMAL:
+        return data->normal_texture;
+    case MATERIAL_TEXTURE_INPUT_METALLIC:
+        return data->metallic_texture;
+    case MATERIAL_TEXTURE_INPUT_ROUGHNESS:
+        return data->roughness_texture;
+    case MATERIAL_TEXTURE_INPUT_AMBIENT_OCCLUSION:
+        return data->ao_texture;
+    case MATERIAL_TEXTURE_INPUT_EMISSIVE:
+        return data->emissive_texture;
+    case MATERIAL_TEXTURE_INPUT_REFLECTION:
+        return data->reflection_texture;
+    case MATERIAL_TEXTURE_INPUT_REFRACTION:
+        return data->refraction_texture;
+    case MATERIAL_TEXTURE_INPUT_REFLECTION_DEPTH:
+        return data->reflection_depth_texture;
+    case MATERIAL_TEXTURE_INPUT_REFRACTION_DEPTH:
+        return data->refraction_depth_texture;
+    case MATERIAL_TEXTURE_INPUT_DUDV:
+        return data->dudv_texture;
+    case MATERIAL_TEXTURE_INPUT_MRA:
+        return data->mra_texture;
+    case MATERIAL_TEXTURE_INPUT_COUNT:
+    default:
+        BERROR("Unknown material texture input");
+        return 0;
+    }
+}
+
+void material_texture_set(struct material_system_state* state, bhandle material, material_texture_input tex_input, bresource_texture* texture)
+{
+    if (!state || bhandle_is_invalid(material) || bhandle_is_stale(material, state->materials[material.handle_index].unique_id))
+        return;
+
+    material_data* data = &state->materials[material.handle_index];
+    switch (tex_input)
+    {
+    case MATERIAL_TEXTURE_INPUT_BASE_COLOR:
+        data->base_color_texture = texture;
+    case MATERIAL_TEXTURE_INPUT_NORMAL:
+        data->normal_texture = texture;
+    case MATERIAL_TEXTURE_INPUT_METALLIC:
+        data->metallic_texture = texture;
+    case MATERIAL_TEXTURE_INPUT_ROUGHNESS:
+        data->roughness_texture = texture;
+    case MATERIAL_TEXTURE_INPUT_AMBIENT_OCCLUSION:
+        data->ao_texture = texture;
+    case MATERIAL_TEXTURE_INPUT_EMISSIVE:
+        data->emissive_texture = texture;
+    case MATERIAL_TEXTURE_INPUT_REFLECTION:
+        data->reflection_texture = texture;
+    case MATERIAL_TEXTURE_INPUT_REFRACTION:
+        data->refraction_texture = texture;
+    case MATERIAL_TEXTURE_INPUT_REFLECTION_DEPTH:
+        data->reflection_depth_texture = texture;
+    case MATERIAL_TEXTURE_INPUT_REFRACTION_DEPTH:
+        data->refraction_depth_texture = texture;
+    case MATERIAL_TEXTURE_INPUT_DUDV:
+        data->dudv_texture = texture;
+    case MATERIAL_TEXTURE_INPUT_MRA:
+        data->mra_texture = texture;
+    case MATERIAL_TEXTURE_INPUT_COUNT:
+    default:
+        BERROR("Unknown material texture input");
+        return;
+    }
+}
+
+b8 material_has_transparency_get(struct material_system_state* state, bhandle material)
+{
+    return material_flag_get(state, material, BMATERIAL_FLAG_HAS_TRANSPARENCY_BIT);
+}
+
+void material_has_transparency_set(struct material_system_state* state, bhandle material, b8 value)
+{
+    material_flag_set(state, material, BMATERIAL_FLAG_HAS_TRANSPARENCY_BIT, value);
+}
+
+b8 material_double_sided_get(struct material_system_state* state, bhandle material)
+{
+    return material_flag_get(state, material, BMATERIAL_FLAG_DOUBLE_SIDED_BIT);
+}
+
+void material_double_sided_set(struct material_system_state* state, bhandle material, b8 value)
+{
+    material_flag_set(state, material, BMATERIAL_FLAG_DOUBLE_SIDED_BIT, value);
+}
+
+b8 material_recieves_shadow_get(struct material_system_state* state, bhandle material)
+{
+    return material_flag_get(state, material, BMATERIAL_FLAG_RECIEVES_SHADOW_BIT);
+}
+
+void material_recieves_shadow_set(struct material_system_state* state, bhandle material, b8 value)
+{
+    material_flag_set(state, material, BMATERIAL_FLAG_RECIEVES_SHADOW_BIT, value);
+}
+
+b8 material_casts_shadow_get(struct material_system_state* state, bhandle material)
+{
+    return material_flag_get(state, material, BMATERIAL_FLAG_CASTS_SHADOW_BIT);
+}
+
+void material_casts_shadow_set(struct material_system_state* state, bhandle material, b8 value)
+{
+    material_flag_set(state, material, BMATERIAL_FLAG_CASTS_SHADOW_BIT, value);
+}
+
+b8 material_normal_enabled_get(struct material_system_state* state, bhandle material)
+{
+    return material_flag_get(state, material, BMATERIAL_FLAG_NORMAL_ENABLED_BIT);
+}
+
+void material_normal_enabled_set(struct material_system_state* state, bhandle material, b8 value)
+{
+    material_flag_set(state, material, BMATERIAL_FLAG_NORMAL_ENABLED_BIT, value);
+}
+
+b8 material_ao_enabled_get(struct material_system_state* state, bhandle material)
+{
+    return material_flag_get(state, material, BMATERIAL_FLAG_AO_ENABLED_BIT);
+}
+
+void material_ao_enabled_set(struct material_system_state* state, bhandle material, b8 value)
+{
+    material_flag_set(state, material, BMATERIAL_FLAG_AO_ENABLED_BIT, value);
+}
+
+b8 material_emissive_enabled_get(struct material_system_state* state, bhandle material)
+{
+    return material_flag_get(state, material, BMATERIAL_FLAG_EMISSIVE_ENABLED_BIT);
+}
+
+void material_emissive_enabled_set(struct material_system_state* state, bhandle material, b8 value)
+{
+    material_flag_set(state, material, BMATERIAL_FLAG_EMISSIVE_ENABLED_BIT, value);
+}
+
+b8 material_refraction_enabled_get(struct material_system_state* state, bhandle material)
+{
+    return material_flag_get(state, material, BMATERIAL_FLAG_REFRACTION_ENABLED_BIT);
+}
+
+void material_refraction_enabled_set(struct material_system_state* state, bhandle material, b8 value)
+{
+    material_flag_set(state, material, BMATERIAL_FLAG_REFRACTION_ENABLED_BIT, value);
+}
+
+f32 material_refraction_scale_get(struct material_system_state* state, bhandle material)
+{
+    if (!state || bhandle_is_invalid(material) || bhandle_is_stale(material, state->materials[material.handle_index].unique_id))
+        return 0;
+
+    material_data* data = &state->materials[material.handle_index];
+    return data->refraction_scale;
+}
+
+void material_refraction_scale_set(struct material_system_state* state, bhandle material, f32 value)
+{
+    if (!state || bhandle_is_invalid(material) || bhandle_is_stale(material, state->materials[material.handle_index].unique_id))
+        return;
+
+    material_data* data = &state->materials[material.handle_index];
+    data->refraction_scale = value;
+}
+
+b8 material_use_vertex_color_as_base_color_get(struct material_system_state* state, bhandle material)
+{
+    return material_flag_get(state, material, BMATERIAL_FLAG_USE_VERTEX_COLOR_AS_BASE_COLOR_BIT);
+}
+
+void material_use_vertex_color_as_base_color_set(struct material_system_state* state, bhandle material, b8 value)
+{
+    material_flag_set(state, material, BMATERIAL_FLAG_USE_VERTEX_COLOR_AS_BASE_COLOR_BIT, value);
+}
+
+b8 material_flag_set(struct material_system_state* state, bhandle material, bmaterial_flag_bits flag, b8 value)
+{
+    if (!state || bhandle_is_invalid(material) || bhandle_is_stale(material, state->materials[material.handle_index].unique_id))
+        return false;
+
+    material_data* data = &state->materials[material.handle_index];
+    FLAG_SET(data->flags, flag, value);
+    return true;
+}
+
+b8 material_flag_get(struct material_system_state* state, bhandle material, bmaterial_flag_bits flag)
+{
+    if (!state || bhandle_is_invalid(material) || bhandle_is_stale(material, state->materials[material.handle_index].unique_id))
+        return false;
+
+    material_data* data = &state->materials[material.handle_index];
+    return FLAG_GET(data->flags, flag);
 }
 
 b8 material_system_acquire(material_system_state* state, bname name, material_instance* out_instance)
@@ -535,7 +950,7 @@ void material_system_release(material_system_state* state, material_instance* in
     }
 }
 
-b8 material_system_prepare_frame(material_system_state* state, frame_data* p_frame_data)
+b8 material_system_prepare_frame(material_system_state* state, material_frame_data mat_frame_data, frame_data* p_frame_data)
 {
     if (!state)
         return false;
@@ -543,24 +958,37 @@ b8 material_system_prepare_frame(material_system_state* state, frame_data* p_fra
     // Standard shader type
     {
         bhandle shader = state->material_standard_shader;
+        shader_system_use(shader);
+
+        // Ensure wireframe mode is (un)set
+        b8 is_wireframe = (mat_frame_data.render_mode == RENDERER_VIEW_MODE_WIREFRAME);
+        shader_system_set_wireframe(shader, is_wireframe);
 
         // Setup frame data UBO structure to send over
         material_standard_frame_uniform_data frame_ubo = {0};
-        frame_ubo.projection = state->standard_frame_data.projection;
-        frame_ubo.view = state->standard_frame_data.view;
-        frame_ubo.inv_view = state->standard_frame_data.inv_view;
-        frame_ubo.view_position = state->standard_frame_data.view_position;
-        frame_ubo.inv_view_position = state->standard_frame_data.inv_view_position;
-        frame_ubo.bias = state->standard_frame_data.bias;
-        frame_ubo.render_mode = state->standard_frame_data.render_mode;
-        frame_ubo.clipping_plane = state->standard_frame_data.clipping_plane;
-        frame_ubo.use_pcf = state->standard_frame_data.use_pcf;
-        for (u8 i = 0; i < MAX_SHADOW_CASCADE_COUNT; ++i)
+        frame_ubo.projection = mat_frame_data.projection;
+        for (u32 i = 0; i < MATERIAL_MAX_VIEWS; ++i)
         {
-            frame_ubo.cascade_splits[i] = state->standard_frame_data.cascade_splits[i];
-            frame_ubo.directional_light_spaces[i] = state->standard_frame_data.directional_light_spaces[i];
+            frame_ubo.views[i] = mat_frame_data.views[i];
+            frame_ubo.view_positions[i] = mat_frame_data.view_positions[i];
         }
-        state->standard_frame_data.generation++;
+        for (u8 i = 0; i < MATERIAL_MAX_SHADOW_CASCADES; ++i)
+        {
+            frame_ubo.cascade_splits[i] = mat_frame_data.cascade_splits[i];
+            frame_ubo.directional_light_spaces[i] = mat_frame_data.directional_light_spaces[i];
+        }
+
+        // Get "use pcf" option
+        i32 iuse_pcf = 0;
+        bvar_i32_get("use_pcf", &iuse_pcf);
+        frame_ubo.use_pcf = (u32)iuse_pcf;
+
+        frame_ubo.delta_time = mat_frame_data.delta_time;
+        frame_ubo.game_time = mat_frame_data.game_time;
+
+        // TODO: These properties below should be pulled in from global settings somewhere instead of this way
+        frame_ubo.shadow_bias = mat_frame_data.shadow_bias;
+        frame_ubo.render_mode = mat_frame_data.render_mode;
 
         if (!shader_system_bind_frame(shader))
         {
@@ -568,18 +996,91 @@ b8 material_system_prepare_frame(material_system_state* state, frame_data* p_fra
             return false;
         }
 
-        // Set the whole thing at once
+        // Set the whole UBO at once
         shader_system_uniform_set_by_location(shader, state->standard_material_locations.material_frame_ubo, &frame_ubo);
 
-        // Apply/upload them to the GPU
-        if (!shader_system_apply_per_frame(shader, state->standard_frame_data.generation))
+        // Texture maps
+        // Shadow map - arrayed texture
+        if (mat_frame_data.shadow_map_texture)
+            shader_system_texture_set_by_location(shader, state->standard_material_locations.shadow_texture, mat_frame_data.shadow_map_texture);
+
+        // Irradience textures provided by probes around in the world
+        for (u32 i = 0; i < MATERIAL_MAX_IRRADIANCE_CUBEMAP_COUNT; ++i)
+        {
+            if (mat_frame_data.irradiance_cubemap_textures[i])
+                shader_system_texture_set_by_location_arrayed(shader, state->standard_material_locations.shadow_texture, i, mat_frame_data.irradiance_cubemap_textures[i]);
+        }
+        // Apply/upload everything to the GPU
+        if (!shader_system_apply_per_frame(shader))
         {
             BERROR("Failed to apply per-frame uniforms");
             return false;
         }
     }
 
-    // TODO: Water
+    // Water shader type
+    {
+        bhandle shader = state->material_water_shader;
+        shader_system_use(shader);
+
+        // Ensure wireframe mode is (un)set
+        b8 is_wireframe = (mat_frame_data.render_mode == RENDERER_VIEW_MODE_WIREFRAME);
+        shader_system_set_wireframe(shader, is_wireframe);
+
+        // Setup frame data UBO structure to send over
+        material_water_frame_uniform_data frame_ubo = {0};
+        frame_ubo.projection = mat_frame_data.projection;
+        for (u32 i = 0; i < MATERIAL_MAX_VIEWS; ++i)
+        {
+            frame_ubo.views[i] = mat_frame_data.views[i];
+            frame_ubo.view_positions[i] = mat_frame_data.view_positions[i];
+        }
+        for (u8 i = 0; i < MATERIAL_MAX_SHADOW_CASCADES; ++i)
+        {
+            frame_ubo.cascade_splits[i] = mat_frame_data.cascade_splits[i];
+            frame_ubo.directional_light_spaces[i] = mat_frame_data.directional_light_spaces[i];
+        }
+
+        // Get "use pcf" option
+        i32 iuse_pcf = 0;
+        bvar_i32_get("use_pcf", &iuse_pcf);
+        frame_ubo.use_pcf = (u32)iuse_pcf;
+
+        frame_ubo.delta_time = mat_frame_data.delta_time;
+        frame_ubo.game_time = mat_frame_data.game_time;
+
+        // TODO: These properties below should be pulled in from global settings somewhere instead of this way
+        frame_ubo.shadow_bias = mat_frame_data.shadow_bias;
+        frame_ubo.render_mode = mat_frame_data.render_mode;
+
+        if (!shader_system_bind_frame(shader))
+        {
+            BERROR("Failed to bind frame frequency for water material shader");
+            return false;
+        }
+
+        // Set the whole UNO at once
+        shader_system_uniform_set_by_location(shader, state->water_material_locations.material_frame_ubo, &frame_ubo);
+
+        // Texture maps
+        // Shadow map - arrayed texture
+        if (mat_frame_data.shadow_map_texture)
+            shader_system_texture_set_by_location(shader, state->water_material_locations.shadow_texture, mat_frame_data.shadow_map_texture);
+
+        // Irradience textures provided by probes around in the world
+        for (u32 i = 0; i < MATERIAL_MAX_IRRADIANCE_CUBEMAP_COUNT; ++i)
+        {
+            if (mat_frame_data.irradiance_cubemap_textures[i])
+                shader_system_texture_set_by_location_arrayed(shader, state->water_material_locations.shadow_texture, i, mat_frame_data.irradiance_cubemap_textures[i]);
+        }
+
+        // Apply/upload everything to the GPU
+        if (!shader_system_apply_per_frame(shader))
+        {
+            BERROR("Failed to apply per-frame uniforms");
+            return false;
+        }
+    }
 
     // TODO: Blended
 
@@ -604,6 +1105,7 @@ b8 material_system_apply(material_system_state* state, bhandle material, frame_d
     case BMATERIAL_TYPE_STANDARD:
     {
         shader = state->material_standard_shader;
+        shader_system_use(shader);
 
         // per-group - ensure this is done once per frame per material
 
@@ -617,7 +1119,12 @@ b8 material_system_apply(material_system_state* state, bhandle material, frame_d
         // Setup frame data UBO structure to send over
         material_standard_group_uniform_data group_ubo = {0};
         group_ubo.flags = base_material->flags;
-        group_ubo.tex_flags = 0;
+
+        group_ubo.lighting_model = (u32)base_material->model;
+        group_ubo.uv_offset = base_material->uv_offset;
+        group_ubo.uv_scale = base_material->uv_scale;
+        group_ubo.refraction_scale = 0;           // TODO: Implement this once refraction is supported in standard materials
+        group_ubo.emissive_texture_intensity = 0; // TODO: emissive intensity
 
         // Directional light
         directional_light* dir_light = light_system_directional_light_get();
@@ -627,16 +1134,16 @@ b8 material_system_apply(material_system_state* state, bhandle material, frame_d
         }
         else
         {
-            BERROR("Failed to bind material shader group");
+            BERROR("Failed to bind standard material shader group");
             return false;
             bzero_memory(&group_ubo.dir_light, sizeof(directional_light_data));
         }
         // Point lights
-        group_ubo.num_p_lights = BMIN(light_system_point_light_count(), MAX_POINT_LIGHTS);
+        group_ubo.num_p_lights = BMIN(light_system_point_light_count(), MATERIAL_MAX_POINT_LIGHTS);
         if (group_ubo.num_p_lights)
         {
-            point_light p_lights[MAX_POINT_LIGHTS];
-            bzero_memory(p_lights, sizeof(point_light) * MAX_POINT_LIGHTS);
+            point_light p_lights[MATERIAL_MAX_POINT_LIGHTS];
+            bzero_memory(p_lights, sizeof(point_light) * MATERIAL_MAX_POINT_LIGHTS);
 
             light_system_point_lights_get(p_lights);
 
@@ -742,8 +1249,109 @@ b8 material_system_apply(material_system_state* state, bhandle material, frame_d
         shader_system_apply_per_group(shader, base_material->generation);
     }
         return true;
-    case BMATERIAL_TYPE_WATER:
-        shader = state->material_water_shader;
+    case BMATERIAL_TYPE_WATER: {
+            shader = state->material_water_shader;
+            shader_system_use(shader);
+
+            // per-group - ensure this is done once per frame per material
+
+            // bind per-group
+            if (!shader_system_bind_group(material, base_material->group_id))
+            {
+                BERROR("Failed to bind water material shader group");
+                return false;
+            }
+
+            // Setup frame data UBO structure to send over
+            material_water_group_uniform_data group_ubo = {0};
+            group_ubo.flags = base_material->flags;
+
+            group_ubo.lighting_model = (u32)base_material->model;
+
+            // FIXME: Light data should be per-frame, and for the entire scene, then indexed at the per-draw level. Light count and list of indices into the light array would be per-draw
+            // TODO: These should be stored in a SSBO
+
+            // Directional light
+            directional_light* dir_light = light_system_directional_light_get();
+            if (dir_light)
+            {
+                group_ubo.dir_light = dir_light->data;
+            }
+            else
+            {
+                BERROR("Failed to bind material shader group.");
+                return false;
+                bzero_memory(&group_ubo.dir_light, sizeof(directional_light_data));
+            }
+            // Point lights
+            group_ubo.num_p_lights = KMIN(light_system_point_light_count(), MATERIAL_MAX_POINT_LIGHTS);
+            if (group_ubo.num_p_lights)
+            {
+                point_light p_lights[MATERIAL_MAX_POINT_LIGHTS];
+                bzero_memory(p_lights, sizeof(point_light) * MATERIAL_MAX_POINT_LIGHTS);
+                light_system_point_lights_get(p_lights);
+                for (u32 i = 0; i < group_ubo.num_p_lights; ++i)
+                {
+                    group_ubo.p_lights[i] = p_lights[i].data;
+                }
+            }
+
+            // Reflection texture
+            if (base_material->reflection_texture)
+            {
+                shader_system_uniform_set_by_location_arrayed(shader, state->water_material_locations.material_textures, MAT_WATER_IDX_REFLECTION, &base_material->reflection_texture);
+            }
+            else
+            {
+                BFATAL("Water material shader requires a reflection texture");
+            }
+
+            // Refraction texture
+            if (base_material->refraction_texture)
+            {
+                shader_system_uniform_set_by_location_arrayed(shader, state->water_material_locations.material_textures, MAT_WATER_IDX_REFRACTION, &base_material->refraction_texture);
+            }
+            else
+            {
+                BFATAL("Water material shader requires a refraction texture");
+            }
+
+            // Refraction depth texture
+            if (base_material->refraction_depth_texture)
+            {
+                shader_system_uniform_set_by_location_arrayed(shader, state->water_material_locations.material_textures, MAT_WATER_IDX_REFRACTION_DEPTH, &base_material->refraction_depth_texture);
+            }
+            else
+            {
+                BFATAL("Water material shader requires a refraction depth texture");
+            }
+
+            // DUDV texture
+            if (base_material->dudv_texture)
+            {
+                shader_system_uniform_set_by_location_arrayed(shader, state->water_material_locations.material_textures, MAT_WATER_IDX_DUDV, &base_material->dudv_texture);
+            }
+            else
+            {
+                BFATAL("Water material shader requires a dudv texture");
+            }
+
+            // Normal texture
+            if (base_material->normal_texture)
+            {
+                shader_system_uniform_set_by_location_arrayed(shader, state->water_material_locations.material_textures, MAT_WATER_IDX_NORMAL, &base_material->normal_texture);
+            }
+            else
+            {
+                BFATAL("Water material shader requires a normal texture");
+            }
+
+            // Set the whole thing at once
+            shader_system_uniform_set_by_location(shader, state->water_material_locations.material_group_ubo, &group_ubo);
+
+            // Apply/upload them to the GPU
+            shader_system_apply_per_group(shader, base_material->generation);
+        }
         return false;
     case BMATERIAL_TYPE_BLENDED:
         shader = state->material_blended_shader;
@@ -754,13 +1362,13 @@ b8 material_system_apply(material_system_state* state, bhandle material, frame_d
     }
 }
 
-b8 material_system_apply_instance(material_system_state* state, const material_instance* instance, frame_data* p_frame_data)
+b8 material_system_apply_instance(material_system_state* state, const material_instance* instance, struct material_instance_draw_data draw_data, frame_data* p_frame_data)
 {
     if (!state)
         return false;
 
-    material_instance_data* instance_data = get_instance_data(state, *instance);
-    if (!instance_data)
+    material_instance_data* mat_inst_data = get_instance_data(state, *instance);
+    if (!mat_inst_data)
         return false;
 
     material_data* base_material = &state->materials[instance->material.handle_index];
@@ -778,29 +1386,54 @@ b8 material_system_apply_instance(material_system_state* state, const material_i
 
         // per-draw - this gets run every time apply is called
         // bind per-draw
-        if (!shader_system_bind_draw_id(state->material_standard_shader, instance_data->per_draw_id))
+        if (!shader_system_bind_draw_id(shader, mat_inst_data->per_draw_id))
         {
-            BERROR("Failed to bind material shader draw id");
+            BERROR("Failed to bind standard material shader draw id");
             return false;
         }
-        // update uniforms if dirty
-        // TODO: Dirty check
-        material_standard_draw_uniform_data draw_ubo = {0};
-        draw_ubo.clipping_plane = vec4_zero(); //  FIXME: This should probably be defined per reflective surface used
 
-        draw_ubo.model = mat4_identity();
-        draw_ubo.ibl_index = 0;  // TODO: Should be provided externally
-        draw_ubo.view_index = 0; // FIXME: This won't render reflections properly until we pass this in
+        // Update uniform data
+        material_standard_draw_uniform_data draw_ubo = {0};
+        draw_ubo.clipping_plane = draw_data.clipping_plane;
+        draw_ubo.model = draw_data.model;
+        draw_ubo.irradiance_cubemap_index = draw_data.irradiance_cubemap_index;
+        draw_ubo.view_index = draw_data.view_index;
 
         // Set the whole thing at once
         shader_system_uniform_set_by_location(shader, state->standard_material_locations.material_draw_ubo, &draw_ubo);
 
         // apply per-draw
-        shader_system_apply_per_draw(state->material_standard_shader, instance_data->generation);
+        shader_system_apply_per_draw(shader, mat_inst_data->generation);
     }
         return true;
-    case BMATERIAL_TYPE_WATER:
-        shader = state->material_water_shader;
+    case BMATERIAL_TYPE_WATER: {
+            shader = state->material_water_shader;
+
+            // per-draw - this gets run every time apply is called
+
+            // bind per-draw
+            if (!shader_system_bind_draw_id(shader, mat_inst_data->per_draw_id))
+            {
+                BERROR("Failed to bind water material shader draw id");
+                return false;
+            }
+
+            // Update uniform data
+            material_water_draw_uniform_data draw_ubo = {0};
+            draw_ubo.model = draw_data.model;
+            draw_ubo.irradiance_cubemap_index = draw_data.irradiance_cubemap_index;
+            draw_ubo.view_index = draw_data.view_index;
+            // TODO: Pull in instance-specific overrides for these, if set
+            draw_ubo.tiling = base_material->tiling;
+            draw_ubo.wave_speed = base_material->wave_speed;
+            draw_ubo.wave_strength = base_material->wave_strength;
+
+            // Set the whole thing at once
+            shader_system_uniform_set_by_location(shader, state->water_material_locations.material_draw_ubo, &draw_ubo);
+
+            // apply per-draw
+            shader_system_apply_per_draw(shader, mat_inst_data->generation);
+        }
         return false;
     case BMATERIAL_TYPE_BLENDED:
         shader = state->material_blended_shader;
@@ -905,17 +1538,17 @@ b8 material_instance_uv_scale_set(struct material_system_state* state, material_
 
 material_instance material_system_get_default_standard(material_system_state* state)
 {
-    return default_material_instance_get(state, state->default_standard_material, "standard");
+    return default_material_instance_get(state, state->default_standard_material);
 }
 
 material_instance material_system_get_default_water(material_system_state* state)
 {
-    return default_material_instance_get(state, state->default_water_material, "water");
+    return default_material_instance_get(state, state->default_water_material);
 }
 
 material_instance material_system_get_default_blended(material_system_state* state)
 {
-    return default_material_instance_get(state, state->default_blended_material, "blended");
+    return default_material_instance_get(state, state->default_blended_material);
 }
 
 void material_system_dump(material_system_state* state)
@@ -951,6 +1584,7 @@ static b8 create_default_standard_material(material_system_state* state)
     asset.base.name = material_name;
     asset.base.type = BASSET_TYPE_MATERIAL;
     asset.type = BMATERIAL_TYPE_STANDARD;
+    asset.model = BMATERIAL_MODEL_PBR;
     asset.has_transparency = false;
     asset.double_sided = false;
     asset.recieves_shadow = true;
@@ -975,7 +1609,7 @@ static b8 create_default_standard_material(material_system_state* state)
     // The material source is serialized into a string
     request.material_source_text = basset_material_serialize((basset*)&asset);
 
-    if (!bresource_system_request(state->resource_system, bname_create("default"), (bresource_request_info*)&request))
+    if (!bresource_system_request(state->resource_system, material_name, (bresource_request_info*)&request))
     {
         BERROR("Resource request for default standard material failed. See logs for details");
         return false;
@@ -986,7 +1620,55 @@ static b8 create_default_standard_material(material_system_state* state)
 
 static b8 create_default_water_material(material_system_state* state)
 {
-    // TODO: ...
+    bname material_name = bname_create(MATERIAL_DEFAULT_NAME_WATER);
+
+    // Create a fake material "asset" that can be serialized into a string
+    basset_material asset = {0};
+    asset.base.name = material_name;
+    asset.base.type = BASSET_TYPE_MATERIAL;
+    asset.type = BMATERIAL_TYPE_WATER;
+    asset.model = BMATERIAL_MODEL_PBR;
+    asset.has_transparency = false;
+    asset.double_sided = false;
+    asset.recieves_shadow = true;
+    asset.casts_shadow = false;
+    asset.use_vertex_color_as_base_color = false;
+    asset.tiling = 0.25f;
+    asset.wave_strength = 0.02f;
+    asset.wave_speed = 0.03f;
+
+    // Use default DUDV texture
+    asset.dudv_map.resource_name = bname_create(DEFAULT_WATER_DUDV_TEXTURE_NAME);
+    asset.dudv_map.package_name = state->runtime_package_name;
+
+    // Use default water normal texture
+    asset.normal_map.resource_name = bname_create(DEFAULT_WATER_NORMAL_TEXTURE_NAME);
+    asset.normal_map.package_name = state->runtime_package_name;
+    asset.normal_enabled = true;
+
+    // Setup a listener
+    material_request_listener* listener = BALLOC_TYPE(material_request_listener, MEMORY_TAG_MATERIAL_INSTANCE);
+    listener->state = state;
+    listener->material_handle = material_handle_create(state, material_name);
+    listener->instance_handle = 0; // NOTE: creation of default materials does not immediately need an instance
+
+    bresource_material_request_info request = {0};
+    request.base.type = BRESOURCE_TYPE_MATERIAL;
+    request.base.listener_inst = listener;
+    request.base.user_callback = material_resource_loaded;
+    // The material source is serialized into a string
+    request.material_source_text = basset_material_serialize((basset*)&asset);
+
+    // NOTE: This material also owns (and requests) the reflect/refract (and depth
+    // textures for each) as opposed to the typical route of requesting via config
+
+    // Request the resource
+    if (!bresource_system_request(state->resource_system, material_name, (bresource_request_info*)&request))
+    {
+        BERROR("Resource request for default water material failed. See logs for details");
+        return false;
+    }
+    
     return true;
 }
 
@@ -1118,7 +1800,7 @@ static b8 material_create(material_system_state* state, bhandle material_handle,
         return false;
     }
     
-    // Base color map or value
+    // Base color map or value - used by all material types
     if (typed_resource->base_color_map.resource_name)
     {
         material->base_color_texture = texture_system_request(typed_resource->base_color_map.resource_name, typed_resource->base_color_map.package_name, 0, 0);
@@ -1128,73 +1810,139 @@ static b8 material_create(material_system_state* state, bhandle material_handle,
         material->base_color = typed_resource->base_color;
     }
 
-    // Normal map
+    // Normal map - used by all material types
     if (typed_resource->normal_map.resource_name)
         material->normal_texture = texture_system_request(typed_resource->normal_map.resource_name, typed_resource->normal_map.package_name, 0, 0);
-    material->flags |= typed_resource->normal_enabled ? BMATERIAL_FLAG_NORMAL_ENABLED_BIT : 0;
+    FLAG_SET(material->flags, BMATERIAL_FLAG_NORMAL_ENABLED_BIT, typed_resource->normal_enabled);
 
-    // Metallic map or value
-    if (typed_resource->metallic_map.resource_name)
+    // Water textures require normals to be enabled and a texture to exist
+    if (material->type == BMATERIAL_TYPE_WATER)
     {
-        material->metallic_texture = texture_system_request(typed_resource->metallic_map.resource_name, typed_resource->metallic_map.package_name, 0, 0);
-        material->metallic_texture_channel = typed_resource->metallic_map.channel;
-    }
-    else
-    {
-        material->metallic = typed_resource->metallic;
-    }
+        FLAG_SET(material->flags, BMATERIAL_FLAG_NORMAL_ENABLED_BIT, true);
 
-    // Roughness map or value
-    if (typed_resource->roughness_map.resource_name)
-    {
-        material->roughness_texture = texture_system_request(typed_resource->roughness_map.resource_name, typed_resource->roughness_map.package_name, 0, 0);
-        material->roughness_texture_channel = typed_resource->roughness_map.channel;
-    }
-    else
-    {
-        material->roughness = typed_resource->roughness;
+        // A special normal texture is also required, if not set
+        if (!material->normal_texture)
+            material->dudv_texture = texture_system_request(bname_create(DEFAULT_WATER_NORMAL_TEXTURE_NAME), state->runtime_package_name, 0, 0);
     }
 
-    // Ambient occlusion map or value
-    if (typed_resource->ambient_occlusion_map.resource_name)
+    // Inputs only used by standard materials
+    if (material->type == BMATERIAL_TYPE_STANDARD)
     {
-        material->ao_texture = texture_system_request(typed_resource->ambient_occlusion_map.resource_name, typed_resource->ambient_occlusion_map.package_name, 0, 0);
-        material->ao_texture_channel = typed_resource->ambient_occlusion_map.channel;
-    }
-    else
-    {
-        material->ao = typed_resource->ambient_occlusion;
-    }
-    material->flags |= typed_resource->ambient_occlusion_enabled ? BMATERIAL_FLAG_AO_ENABLED_BIT : 0;
+        // Metallic map or value
+        if (typed_resource->metallic_map.resource_name)
+        {
+            material->metallic_texture = texture_system_request(typed_resource->metallic_map.resource_name, typed_resource->metallic_map.package_name, 0, 0);
+            material->metallic_texture_channel = typed_resource->metallic_map.channel;
+        }
+        else
+        {
+            material->metallic = typed_resource->metallic;
+        }
+        // Roughness map or value
+        if (typed_resource->roughness_map.resource_name)
+        {
+            material->roughness_texture = texture_system_request(typed_resource->roughness_map.resource_name, typed_resource->roughness_map.package_name, 0, 0);
+            material->roughness_texture_channel = typed_resource->roughness_map.channel;
+        }
+        else
+        {
+            material->roughness = typed_resource->roughness;
+        }
+        // Ambient occlusion map or value
+        if (typed_resource->ambient_occlusion_map.resource_name)
+        {
+            material->ao_texture = texture_system_request(typed_resource->ambient_occlusion_map.resource_name, typed_resource->ambient_occlusion_map.package_name, 0, 0);
+            material->ao_texture_channel = typed_resource->ambient_occlusion_map.channel;
+        }
+        else
+        {
+            material->ao = typed_resource->ambient_occlusion;
+        }
+        FLAG_SET(material->flags, BMATERIAL_FLAG_AO_ENABLED_BIT, typed_resource->ambient_occlusion_enabled);
 
-    // MRA (combined metallic/roughness/ao) map or value
-    if (typed_resource->mra_map.resource_name)
-    {
-        material->mra_texture = texture_system_request(typed_resource->mra_map.resource_name, typed_resource->mra_map.package_name, 0, 0);
-    }
-    else
-    {
-        material->mra = typed_resource->mra;
-    }
-    material->flags |= typed_resource->use_mra ? BMATERIAL_FLAG_MRA_ENABLED_BIT : 0;
+        // MRA (combined metallic/roughness/ao) map or value
+        if (typed_resource->mra_map.resource_name)
+        {
+            material->mra_texture = texture_system_request(typed_resource->mra_map.resource_name, typed_resource->mra_map.package_name, 0, 0);
+        }
+        else
+        {
+            material->mra = typed_resource->mra;
+        }
+        FLAG_SET(material->flags, BMATERIAL_FLAG_MRA_ENABLED_BIT, typed_resource->use_mra);
 
-    // Emissive map or value
-    if (typed_resource->emissive_map.resource_name)
-    {
-        material->emissive_texture = texture_system_request(typed_resource->emissive_map.resource_name, typed_resource->emissive_map.package_name, 0, 0);
+        // Emissive map or value
+        if (typed_resource->emissive_map.resource_name)
+        {
+            material->emissive_texture = texture_system_request(typed_resource->emissive_map.resource_name, typed_resource->emissive_map.package_name, 0, 0);
+        }
+        else
+        {
+            material->emissive = typed_resource->emissive;
+        }
+        FLAG_SET(material->flags, BMATERIAL_FLAG_EMISSIVE_ENABLED_BIT, typed_resource->emissive_enabled);
+
+        // Refraction
+        // TODO: implement refraction.
+        /* if (typed_resource->refraction_map.resource_name)
+        {
+            material->refraction_texture = texture_system_request(typed_resource->refraction_map.resource_name, typed_resource->refraction_map.package_name, 0, 0);
+        }
+        FLAG_SET(material->flags, BMATERIAL_FLAG_REFRACTION_ENABLED_BIT, typed_resource->refraction_enabled); */
     }
-    else
+    else if (material->type == BMATERIAL_TYPE_WATER)
     {
-        material->emissive = typed_resource->emissive;
+        // Inputs only used by water materials
+
+        // Derivative (dudv) map
+        if (typed_resource->dudv_map.resource_name)
+        {
+            material->dudv_texture = texture_system_request(typed_resource->dudv_map.resource_name, typed_resource->dudv_map.package_name, 0, 0);
+        }
+        else
+        {
+            material->dudv_texture = texture_system_request(bname_create(DEFAULT_WATER_DUDV_TEXTURE_NAME), state->runtime_package_name, 0, 0);
+        }
+
+        // NOTE: This material also owns (and requests) the reflect/refract (and depth textures for each) as opposed to the typical route of requesting via config
+
+        // Get the current window size as the dimensions of these textures will be based on this
+        bwindow* window = engine_active_window_get();
+        // TODO: should probably cut this in half
+        u32 tex_width = window->width;
+        u32 tex_height = window->height;
+
+        // Create reflection textures
+        material->reflection_texture = texture_system_request_writeable(bname_create("__waterplane_reflection_color__"), tex_width, tex_height, BRESOURCE_TEXTURE_FORMAT_RGBA8, false, true);
+        if (!material->reflection_texture)
+            return false;
+        material->reflection_depth_texture = texture_system_request_depth(bname_create("__waterplane_reflection_depth__"), tex_width, tex_height, true);
+        if (!material->reflection_depth_texture)
+            return false;
+
+        // Create refraction textures
+        material->refraction_texture = texture_system_request_writeable(bname_create("__waterplane_refraction_color__"), tex_width, tex_height, BRESOURCE_TEXTURE_FORMAT_RGBA8, false, true);
+        if (!material->refraction_texture)
+            return false;
+        material->refraction_depth_texture = texture_system_request_depth(bname_create("__waterplane_refraction_depth__"), tex_width, tex_height, true);
+        if (!material->reflection_depth_texture)
+            return false;
+
+        // Listen for window resizes, as these must trigger a resize of our reflect/refract
+        // texture render targets. This should only be active while the material is loaded.
+        if (!event_register(EVENT_CODE_WINDOW_RESIZED, material, material_on_event))
+        {
+            BERROR("Unable to register material for window resize event. See logs for details");
+            return false;
+        }
     }
-    material->flags |= typed_resource->emissive_enabled ? BMATERIAL_FLAG_EMISSIVE_ENABLED_BIT : 0;
 
     // Set remaining flags
-    material->flags |= typed_resource->has_transparency ? BMATERIAL_FLAG_HAS_TRANSPARENCY_BIT : 0;
-    material->flags |= typed_resource->double_sided ? BMATERIAL_FLAG_DOUBLE_SIDED_BIT : 0;
-    material->flags |= typed_resource->recieves_shadow ? BMATERIAL_FLAG_RECIEVES_SHADOW_BIT : 0;
-    material->flags |= typed_resource->casts_shadow ? BMATERIAL_FLAG_CASTS_SHADOW_BIT : 0;
-    material->flags |= typed_resource->use_vertex_color_as_base_color ? BMATERIAL_FLAG_USE_VERTEX_COLOR_AS_BASE_COLOR_BIT : 0;
+    FLAG_SET(material->flags, BMATERIAL_FLAG_HAS_TRANSPARENCY_BIT, typed_resource->has_transparency);
+    FLAG_SET(material->flags, BMATERIAL_FLAG_DOUBLE_SIDED_BIT, typed_resource->double_sided);
+    FLAG_SET(material->flags, BMATERIAL_FLAG_RECIEVES_SHADOW_BIT, typed_resource->recieves_shadow);
+    FLAG_SET(material->flags, BMATERIAL_FLAG_CASTS_SHADOW_BIT, typed_resource->casts_shadow);
+    FLAG_SET(material->flags, BMATERIAL_FLAG_USE_VERTEX_COLOR_AS_BASE_COLOR_BIT, typed_resource->use_vertex_color_as_base_color);
 
     // Create a group for the material
     if (!shader_system_shader_group_acquire(material_shader, &material->group_id))
@@ -1255,6 +2003,36 @@ static void material_destroy(material_system_state* state, bhandle* material_han
     if (material->emissive_texture)
     {
         texture_system_release_resource(material->emissive_texture);
+    }
+    if (material->dudv_texture)
+    {
+        texture_system_release_resource(material->dudv_texture);
+    }
+    if (material->reflection_texture)
+    {
+        texture_system_release_resource(material->reflection_texture);
+    }
+    if (material->reflection_depth_texture)
+    {
+        texture_system_release_resource(material->reflection_depth_texture);
+    }
+    if (material->refraction_texture)
+    {
+        texture_system_release_resource(material->refraction_texture);
+    }
+    if (material->refraction_depth_texture)
+    {
+        texture_system_release_resource(material->refraction_depth_texture);
+    }
+
+    if (material->type == BMATERIAL_TYPE_WATER)
+    {
+        // Immediately stop listening for resize events
+        if (!event_unregister(EVENT_CODE_WINDOW_RESIZED, material, material_on_event))
+        {
+            // Nothing to really do about it, but warn the user
+            BWARN("Unable to unregister material for resize event. See logs for details");
+        }
     }
 
     // Release the group for the material
@@ -1359,16 +2137,18 @@ static void material_resource_loaded(bresource* resource, void* listener)
     }
 }
 
-static material_instance default_material_instance_get(material_system_state* state, bhandle base_material, const char* name_str)
+static material_instance default_material_instance_get(material_system_state* state, bhandle base_material)
 {
     material_instance instance = {0};
     instance.material = base_material;
+
+    material_data* base = &state->materials[base_material.handle_index];
 
     // Get an instance of it
     if (!material_instance_create(state, instance.material, &instance.instance))
     {
         // Fatal here because if this happens on a default material, something is seriously borked
-        BFATAL("Failed to obtain an instance of the default %s material", name_str);
+        BFATAL("Failed to obtain an instance of the default '%s' material", bname_string_get(base->name));
 
         // Invalidate the handles
         bhandle_invalidate(&instance.material);
@@ -1405,30 +2185,48 @@ static material_instance_data* get_instance_data(material_system_state* state, m
     return &state->instances[instance.material.handle_index][instance.instance.handle_index];
 }
 
-static void default_standard_material_locations_get(material_system_state* state)
-{
-    // Save off the shader's uniform locations
-    
-    // Per frame
-    state->standard_material_locations.material_frame_ubo = shader_system_uniform_location(state->material_standard_shader, bname_create("material_frame_ubo"));
-    state->standard_material_locations.shadow_textures = shader_system_uniform_location(state->material_standard_shader, bname_create("shadow_textures"));
-    state->standard_material_locations.ibl_cube_textures = shader_system_uniform_location(state->material_standard_shader, bname_create("ibl_cube_textures"));
-    state->standard_material_locations.shadow_sampler = shader_system_uniform_location(state->material_standard_shader, bname_create("shadow_sampler"));
-    state->standard_material_locations.ibl_sampler = shader_system_uniform_location(state->material_standard_shader, bname_create("ibl_sampler"));
-
-    // Per group
-    state->standard_material_locations.material_textures = shader_system_uniform_location(state->material_standard_shader, bname_create("material_textures"));
-    state->standard_material_locations.material_samplers = shader_system_uniform_location(state->material_standard_shader, bname_create("material_samplers"));
-    state->standard_material_locations.material_group_ubo = shader_system_uniform_location(state->material_standard_shader, bname_create("material_group_ubo"));
-
-    // Per draw.
-    state->standard_material_locations.material_draw_ubo = shader_system_uniform_location(state->material_standard_shader, bname_create("material_draw_ubo"));
-}
-
 static void increment_generation(u16* generation)
 {
     (*generation)++;
     // Roll over to ensure a valid generation
     if ((*generation) == INVALID_ID_U16)
         (*generation) = 0;
+}
+
+static b8 material_on_event(u16 code, void* sender, void* listener_inst, event_context context)
+{
+    if (code == EVENT_CODE_WINDOW_RESIZED)
+    {
+        // Resize textures to match new frame buffer
+        u16 width = context.data.u16[0] / 8;
+        u16 height = context.data.u16[1] / 8;
+
+        // const bwindow* window = sender;
+        material_data* material = listener_inst;
+
+        if (material->reflection_texture->base.generation != INVALID_ID_U8)
+        {
+            if (!texture_system_resize(material->reflection_texture, width, height, true))
+                BERROR("Failed to resize reflection color texture for material");
+        }
+        if (material->reflection_depth_texture->base.generation != INVALID_ID_U8)
+        {
+            if (!texture_system_resize(material->reflection_depth_texture, width, height, true))
+                BERROR("Failed to resize reflection depth texture for material");
+        }
+
+        if (material->refraction_texture->base.generation != INVALID_ID_U8)
+        {
+            if (!texture_system_resize(material->refraction_texture, width, height, true))
+                BERROR("Failed to resize refraction color texture for material");
+        }
+        if (material->reflection_depth_texture->base.generation != INVALID_ID_U8)
+        {
+            if (!texture_system_resize(material->reflection_depth_texture, width, height, true))
+                BERROR("Failed to resize refraction depth texture for material");
+        }
+    }
+
+    // Allow other systems to pick up event
+    return false;
 }

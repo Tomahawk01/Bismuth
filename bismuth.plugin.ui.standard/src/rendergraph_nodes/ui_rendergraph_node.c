@@ -9,6 +9,7 @@
 #include "renderer/rendergraph.h"
 #include "renderer/viewport.h"
 #include "standard_ui_system.h"
+#include "strings/bname.h"
 #include "strings/bstring.h"
 #include "systems/shader_system.h"
 
@@ -33,13 +34,12 @@ typedef struct sui_shader_locations
 typedef struct ui_pass_internal_data
 {
     struct renderer_system_state* renderer;
-    u32 shader_id;
-    shader* sui_shader; // standard ui // TODO: different render pass?
+    bhandle* sui_shader; // standard ui // TODO: different render pass?
     sui_shader_locations sui_locations;
 
     struct bresource_texture* colorbuffer_texture;
     struct bresource_texture* depthbuffer_texture;
-    struct bresource_texture_map* ui_atlas;
+    struct bresource_texture* ui_atlas;
     standard_ui_render_data render_data;
 
     viewport vp;
@@ -143,13 +143,12 @@ b8 ui_rendergraph_node_initialize(struct rendergraph_node* self)
     // Load the StandardUI shader
 
     // Get either the custom shader override or the defined default
-    internal_data->sui_shader = shader_system_get("Shader.StandardUI");
-    internal_data->shader_id = internal_data->sui_shader->id;
-    internal_data->sui_locations.projection = shader_system_uniform_location(internal_data->shader_id, "projection");
-    internal_data->sui_locations.view = shader_system_uniform_location(internal_data->shader_id, "view");
-    internal_data->sui_locations.properties = shader_system_uniform_location(internal_data->shader_id, "properties");
-    internal_data->sui_locations.model = shader_system_uniform_location(internal_data->shader_id, "model");
-    internal_data->sui_locations.diffuse_map = shader_system_uniform_location(internal_data->shader_id, "diffuse_texture");
+    internal_data->sui_shader = shader_system_get(bname_create("StandardUI"));
+    internal_data->sui_locations.projection = shader_system_uniform_location(internal_data->sui_shader, bname_create("projection"));
+    internal_data->sui_locations.view = shader_system_uniform_location(internal_data->sui_shader, bname_create("view"));
+    internal_data->sui_locations.properties = shader_system_uniform_location(internal_data->sui_shader, bname_create("properties"));
+    internal_data->sui_locations.model = shader_system_uniform_location(internal_data->sui_shader, bname_create("model"));
+    internal_data->sui_locations.diffuse_map = shader_system_uniform_location(internal_data->sui_shader, bname_create("diffuse_texture"));
 
     return true;
 }
@@ -205,16 +204,17 @@ b8 ui_rendergraph_node_execute(struct rendergraph_node* self, struct frame_data*
     renderer_set_depth_write_enabled(false);
 
     // Renderables
-    if (!shader_system_use_by_id(internal_data->sui_shader->id))
+    if (!shader_system_use(internal_data->sui_shader))
     {
         BERROR("Failed to use StandardUI shader. Render frame failed");
         return false;
     }
 
-    // Apply globals
-    shader_system_uniform_set_by_location(internal_data->shader_id, internal_data->sui_locations.projection, &internal_data->projection);
-    shader_system_uniform_set_by_location(internal_data->shader_id, internal_data->sui_locations.view, &internal_data->view);
-    shader_system_apply_global(internal_data->shader_id);
+    // Apply per-frame data
+    shader_system_bind_frame(internal_data->sui_shader);
+    shader_system_uniform_set_by_location(internal_data->sui_shader, internal_data->sui_locations.projection, &internal_data->projection);
+    shader_system_uniform_set_by_location(internal_data->sui_shader, internal_data->sui_locations.view, &internal_data->view);
+    shader_system_apply_per_frame(internal_data->sui_shader);
 
     u32 renderable_count = darray_length(internal_data->render_data.renderables);
     for (u32 i = 0; i < renderable_count; ++i)
@@ -240,8 +240,11 @@ b8 ui_rendergraph_node_execute(struct rendergraph_node* self, struct frame_data*
             renderer_clear_depth_set(internal_data->renderer, 1.0f);
             renderer_clear_stencil_set(internal_data->renderer, 0.0f);
 
-            shader_system_uniform_set_by_location(internal_data->shader_id, internal_data->sui_locations.model, &renderable->clip_mask_render_data->model);
-            shader_system_apply_local(internal_data->shader_id);
+            shader_system_bind_draw_id(internal_data->sui_shader, *renderable->per_draw_id);
+            shader_system_uniform_set_by_location(internal_data->sui_shader, internal_data->sui_locations.model, &renderable->clip_mask_render_data->model);
+            shader_system_apply_per_draw(internal_data->sui_shader, *renderable->per_draw_generation);
+            // Increment the generation.
+            (*renderable->per_draw_generation)++;
             // Draw the clip mask geometry
             renderer_geometry_draw(renderable->clip_mask_render_data);
 
@@ -262,17 +265,18 @@ b8 ui_rendergraph_node_execute(struct rendergraph_node* self, struct frame_data*
             renderer_set_stencil_test_enabled(false);
         }
 
-        // Apply instance
-        shader_system_bind_instance(internal_data->shader_id, *renderable->instance_id);
+        // Apply group
+        shader_system_bind_group(internal_data->sui_shader, *renderable->group_id);
         // NOTE: Expand this to a structure if more data is needed
-        shader_system_uniform_set_by_location(internal_data->shader_id, internal_data->sui_locations.properties, &renderable->render_data.diffuse_color);
-        bresource_texture_map* atlas = renderable->atlas_override ? renderable->atlas_override : internal_data->ui_atlas;
-        shader_system_uniform_set_by_location(internal_data->shader_id, internal_data->sui_locations.diffuse_map, atlas);
-        shader_system_apply_instance(internal_data->shader_id);
+        shader_system_uniform_set_by_location(internal_data->sui_shader, internal_data->sui_locations.properties, &renderable->render_data.diffuse_color);
+        bresource_texture* atlas = renderable->atlas_override ? renderable->atlas_override : internal_data->ui_atlas;
+        shader_system_uniform_set_by_location(internal_data->sui_shader, internal_data->sui_locations.diffuse_map, atlas);
+        shader_system_apply_per_group(internal_data->sui_shader, *renderable->group_generation);
 
         // Apply local
-        shader_system_uniform_set_by_location(internal_data->shader_id, internal_data->sui_locations.model, &renderable->render_data.model);
-        shader_system_apply_local(internal_data->shader_id);
+        shader_system_bind_draw_id(internal_data->sui_shader, *renderable->per_draw_id);
+        shader_system_uniform_set_by_location(internal_data->sui_shader, internal_data->sui_locations.model, &renderable->render_data.model);
+        shader_system_apply_per_draw(internal_data->sui_shader, *renderable->per_draw_generation);
 
         // Draw
         renderer_geometry_draw(&renderable->render_data);
@@ -309,7 +313,7 @@ void ui_rendergraph_node_destroy(struct rendergraph_node* self)
     }
 }
 
-void ui_rendergraph_node_set_atlas(struct rendergraph_node* self, bresource_texture_map* atlas)
+void ui_rendergraph_node_set_atlas(struct rendergraph_node* self, bresource_texture* atlas)
 {
     if (self)
     {

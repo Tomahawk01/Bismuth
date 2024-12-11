@@ -7,6 +7,7 @@
 #include "renderer/renderer_types.h"
 #include "renderer/rendergraph.h"
 #include "renderer/viewport.h"
+#include "strings/bname.h"
 #include "strings/bstring.h"
 #include "systems/material_system.h"
 #include "systems/shader_system.h"
@@ -22,8 +23,7 @@ typedef struct debug_rendergraph_node_internal_data
 {
     struct renderer_system_state* renderer;
 
-    u32 color_shader_id;
-    shader* color_shader;
+    bhandle color_shader;
     debug_shader_locations debug_locations;
 
     struct bresource_texture* colorbuffer_texture;
@@ -142,11 +142,10 @@ b8 debug_rendergraph_node_initialize(struct rendergraph_node* self)
 
     // Load debug color3d shader and get shader uniform locations
     // Get a pointer to the shader
-    internal_data->color_shader = shader_system_get("Shader.Builtin.ColorShader3D");
-    internal_data->color_shader_id = internal_data->color_shader->id;
-    internal_data->debug_locations.projection = shader_system_uniform_location(internal_data->color_shader_id, "projection");
-    internal_data->debug_locations.view = shader_system_uniform_location(internal_data->color_shader_id, "view");
-    internal_data->debug_locations.model = shader_system_uniform_location(internal_data->color_shader_id, "model");
+    internal_data->color_shader = shader_system_get(bname_create("Shader.Builtin.ColorShader3D"));
+    internal_data->debug_locations.projection = shader_system_uniform_location(internal_data->color_shader, bname_create("projection"));
+    internal_data->debug_locations.view = shader_system_uniform_location(internal_data->color_shader, bname_create("view"));
+    internal_data->debug_locations.model = shader_system_uniform_location(internal_data->color_shader, bname_create("model"));
 
     return true;
 }
@@ -199,21 +198,26 @@ b8 debug_rendergraph_node_execute(struct rendergraph_node* self, struct frame_da
         // Bind the viewport
         renderer_active_viewport_set(&internal_data->vp);
 
-        shader_system_use_by_id(internal_data->color_shader->id);
+        shader_system_use(internal_data->color_shader);
 
-        // Globals
-        shader_system_uniform_set_by_location(internal_data->color_shader_id, internal_data->debug_locations.projection, &internal_data->projection);
-        shader_system_uniform_set_by_location(internal_data->color_shader_id, internal_data->debug_locations.view, &internal_data->view);
-        shader_system_apply_global(internal_data->color_shader_id);
+        // Per-frame data
+        shader_system_uniform_set_by_location(internal_data->color_shader, internal_data->debug_locations.projection, &internal_data->projection);
+        shader_system_uniform_set_by_location(internal_data->color_shader, internal_data->debug_locations.view, &internal_data->view);
+        shader_system_apply_per_frame(internal_data->color_shader);
 
         for (u32 i = 0; i < internal_data->geometry_count; ++i)
         {
             // NOTE: No instance-level uniforms to be set
             geometry_render_data* render_data = &internal_data->geometries[i];
+            shader_system_bind_draw_id(internal_data->color_shader, render_data->draw_id);
 
             // Set model matrix
-            shader_system_uniform_set_by_location(internal_data->color_shader_id, internal_data->debug_locations.model, &render_data->model);
-            shader_system_apply_local(internal_data->color_shader_id);
+            shader_system_uniform_set_by_location(internal_data->color_shader, internal_data->debug_locations.model, &render_data->model);
+            if (!shader_system_apply_per_draw(internal_data->color_shader, render_data->draw_generation))
+            {
+                BERROR("Failed to apply per-draw uniforms in debug shader. Geometry will not be drawn");
+                continue;
+            }
 
             // Draw it
             renderer_geometry_draw(render_data);

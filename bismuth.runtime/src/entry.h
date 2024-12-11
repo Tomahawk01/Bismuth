@@ -20,7 +20,7 @@ int main(void)
     // Request application instance from the application
     application app_inst = {0};
 
-    const char* app_file_content = filesystem_read_entire_text_file("../testbed.assets/app_config.bson");
+    const char* app_file_content = filesystem_read_entire_text_file("../testbed.bapp/app_config.bson");
     if (!app_file_content)
     {
         BFATAL("Failed to read app_config.bson file text. Application cannot start");

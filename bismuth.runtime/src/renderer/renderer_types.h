@@ -35,6 +35,14 @@ typedef struct geometry_render_data
 {
     mat4 model;
     material_instance material;
+
+    // The per-draw id to be used when applying this data. Used for draws that don't use materials
+    u32 draw_id;
+    // The per-draw generation.
+    // This should be incremented by the owner of the data that is fed into this structure to indicate when an update is required.
+    // Used for draws that don't use materials
+    u16 draw_generation;
+
     u64 unique_id;
     b8 winding_inverted;
     vec4 diffuse_color;
@@ -271,7 +279,7 @@ typedef struct renderer_backend_interface
     b8 (*shader_bind_per_group)(struct renderer_backend_interface* backend, bhandle shader, u32 group_id);
     b8 (*shader_bind_per_draw)(struct renderer_backend_interface* backend, bhandle shader, u32 draw_id);
 
-    b8 (*shader_apply_per_frame)(struct renderer_backend_interface* backend, bhandle shader, u16 generation);
+    b8 (*shader_apply_per_frame)(struct renderer_backend_interface* backend, bhandle shader, u16 renderer_frame_number);
     b8 (*shader_apply_per_group)(struct renderer_backend_interface* backend, bhandle shader, u16 generation);
     b8 (*shader_apply_per_draw)(struct renderer_backend_interface* backend, bhandle shader, u16 generation);
 

@@ -21,15 +21,18 @@ typedef struct standard_ui_system_config
 
 typedef struct standard_ui_renderable
 {
-    u32* instance_id;
-    bresource_texture_map* atlas_override;
+    u32* group_id;
+    u16* group_generation;
+    u32* per_draw_id;
+    u16* per_draw_generation;
+    bresource_texture* atlas_override;
     geometry_render_data render_data;
     geometry_render_data* clip_mask_render_data;
 } standard_ui_renderable;
 
 typedef struct standard_ui_render_data
 {
-    bresource_texture_map* ui_atlas;
+    bresource_texture* ui_atlas;
     // darray
     standard_ui_renderable* renderables;
 } standard_ui_render_data;
@@ -57,7 +60,7 @@ typedef struct sui_clip_mask
 {
     u32 reference_id;
     bhandle clip_xform;
-    struct geometry* clip_geometry;
+    bgeometry clip_geometry;
     geometry_render_data render_data;
 } sui_clip_mask;
 
@@ -122,7 +125,6 @@ typedef struct standard_ui_state
     // texture_map ui_atlas;
 
     bresource_texture* atlas_texture;
-    bresource_texture_map atlas;
 
     u64 focused_id;
 

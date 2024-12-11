@@ -132,7 +132,7 @@ BAPI b8 shader_system_texture_set(bhandle shader, bname sampler_name, const bres
  * @param t A pointer to the texture to be set.
  * @return True on success; otherwise false.
  */
-BAPI b8 shader_system_texture_set_arrayed(bhandle shader, bname sampler_name, u32 array_index, const bresource_texture* t);
+BAPI b8 shader_system_texture_set_arrayed(bhandle shader, bname uniform_name, u32 array_index, const bresource_texture* t);
 
 /**
  * @brief Sets a uniform value by location
@@ -146,13 +146,14 @@ BAPI b8 shader_system_uniform_set_by_location(bhandle shader, u16 location, cons
 BAPI b8 shader_system_uniform_set_by_location_arrayed(bhandle shader, u16 location, u32 array_index, const void* value);
 
 BAPI b8 shader_system_texture_set_by_location(bhandle shader, u16 location, const struct bresource_texture* t);
+BAPI b8 shader_system_texture_set_by_location_arrayed(bhandle shader, u16 location, u32 array_index, const struct bresource_texture* value);
 BAPI b8 shader_system_sampler_set_by_location_arrayed(bhandle shader, u16 location, u32 array_index, const struct bresource_texture* t);
 
 BAPI b8 shader_system_bind_frame(bhandle shader);
-BAPI b8 shader_system_bind_group(bhandle shader, u32 instance_id);
-BAPI b8 shader_system_bind_draw_id(bhandle shader, u32 local_id);
+BAPI b8 shader_system_bind_group(bhandle shader, u32 group_id);
+BAPI b8 shader_system_bind_draw_id(bhandle shader, u32 draw_id);
 
-BAPI b8 shader_system_apply_per_frame(bhandle shader, u16 generation);
+BAPI b8 shader_system_apply_per_frame(bhandle shader);
 BAPI b8 shader_system_apply_per_group(bhandle shader, u16 generation);
 BAPI b8 shader_system_apply_per_draw(bhandle shader, u16 generation);
 

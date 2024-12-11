@@ -260,8 +260,18 @@ typedef struct basset_material
     vec4 emissive;
     bmaterial_texture_input emissive_map;
 
+    // DUDV map - only used for water materials
+    bmaterial_texture_input dudv_map;
+
     u32 custom_sampler_count;
     bmaterial_sampler_config* custom_samplers;
+
+    // Only used in water materials
+    f32 tiling;
+    // Only used in water materials
+    f32 wave_strength;
+    // Only used in water materials
+    f32 wave_speed;
 } basset_material;
 
 #define BASSET_TYPE_NAME_TEXT "Text"

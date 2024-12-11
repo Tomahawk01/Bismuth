@@ -9,13 +9,15 @@ typedef struct texture_system_config
     u32 max_texture_count;
 } texture_system_config;
 
-#define DEFAULT_TEXTURE_NAME "default"
-#define DEFAULT_DIFFUSE_TEXTURE_NAME "default_diff"
-#define DEFAULT_SPECULAR_TEXTURE_NAME "default_spec"
-#define DEFAULT_NORMAL_TEXTURE_NAME "default_norm"
-#define DEFAULT_COMBINED_TEXTURE_NAME "default_combined"
-#define DEFAULT_CUBE_TEXTURE_NAME "default_cube"
-#define DEFAULT_TERRAIN_TEXTURE_NAME "default_terrain"
+#define DEFAULT_TEXTURE_NAME "Texture.Default"
+
+#define DEFAULT_BASE_COLOR_TEXTURE_NAME "Texture.DefaultBase"
+#define DEFAULT_SPECULAR_TEXTURE_NAME "Texture.DefaultSpecular"
+#define DEFAULT_NORMAL_TEXTURE_NAME "Texture.DefaultNormal"
+#define DEFAULT_MRA_TEXTURE_NAME "Texture.DefaultMRA"
+#define DEFAULT_CUBE_TEXTURE_NAME "Texture.DefaultCube"
+#define DEFAULT_WATER_NORMAL_TEXTURE_NAME "Texture.DefaultWaterNormal"
+#define DEFAULT_WATER_DUDV_TEXTURE_NAME "Texture.DefaultWaterDUDV"
 
 b8 texture_system_initialize(u64* memory_requirement, void* state, void* config);
 void texture_system_shutdown(void* state);
@@ -35,13 +37,3 @@ BAPI void texture_system_release_resource(bresource_texture* t);
 BAPI b8 texture_system_resize(bresource_texture* t, u32 width, u32 height, b8 regenerate_internal_data);
 
 BAPI b8 texture_system_write_data(bresource_texture* t, u32 offset, u32 size, void* data);
-
-BAPI const bresource_texture* texture_system_get_default_bresource_texture(struct texture_system_state* state);
-BAPI const bresource_texture* texture_system_get_default_bresource_diffuse_texture(struct texture_system_state* state);
-BAPI const bresource_texture* texture_system_get_default_bresource_specular_texture(struct texture_system_state* state);
-BAPI const bresource_texture* texture_system_get_default_bresource_normal_texture(struct texture_system_state* state);
-BAPI const bresource_texture* texture_system_get_default_bresource_combined_texture(struct texture_system_state* state);
-BAPI const bresource_texture* texture_system_get_default_bresource_cube_texture(struct texture_system_state* state);
-BAPI const bresource_texture* texture_system_get_default_bresource_terrain_texture(struct texture_system_state* state);
-
-BAPI bhandle texture_system_resource_get_internal_or_default(const bresource_texture* t, u32* out_generation);

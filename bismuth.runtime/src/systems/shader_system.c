@@ -408,14 +408,19 @@ b8 shader_system_texture_set(bhandle shader, bname sampler_name, const bresource
     return shader_system_texture_set_arrayed(shader, sampler_name, 0, t);
 }
 
-b8 shader_system_texture_set_arrayed(bhandle shader, bname sampler_name, u32 array_index, const bresource_texture* t)
+b8 shader_system_texture_set_arrayed(bhandle shader, bname uniform_name, u32 array_index, const bresource_texture* t)
 {
-    return shader_system_uniform_set_arrayed(shader, sampler_name, array_index, t);
+    return shader_system_uniform_set_arrayed(shader, uniform_name, array_index, t);
 }
 
 b8 shader_system_texture_set_by_location(bhandle shader, u16 location, const bresource_texture* t)
 {
     return shader_system_uniform_set_by_location_arrayed(shader, location, 0, t);
+}
+
+b8 shader_system_texture_set_by_location_arrayed(bhandle shader, u16 location, u32 array_index, const bresource_texture* t)
+{
+    return shader_system_uniform_set_by_location_arrayed(shader, location, array_index, t);
 }
 
 b8 shader_system_uniform_set_by_location(bhandle shader, u16 location, const void* value)
@@ -462,9 +467,9 @@ b8 shader_system_bind_draw_id(bhandle shader, u32 draw_id)
     return renderer_shader_bind_per_draw(state_ptr->renderer, shader, draw_id);
 }
 
-b8 shader_system_apply_per_frame(bhandle shader, u16 generation)
+b8 shader_system_apply_per_frame(bhandle shader)
 {
-    return renderer_shader_apply_per_frame(state_ptr->renderer, shader, generation);
+    return renderer_shader_apply_per_frame(state_ptr->renderer, shader);
 }
 
 b8 shader_system_apply_per_group(bhandle shader, u16 generation)

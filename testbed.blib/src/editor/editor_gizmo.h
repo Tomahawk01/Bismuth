@@ -1,6 +1,7 @@
 #pragma once
 
 #include <defines.h>
+#include <math/geometry.h>
 #include <math/math_types.h>
 #include <resources/resource_types.h>
 
@@ -41,7 +42,7 @@ typedef struct editor_gizmo_mode_data
     u32 index_count;
     u32* indices;
 
-    geometry geo;
+    bgeometry geo;
 
     u32 extents_count;
     extents_3d* mode_extents;

@@ -50,11 +50,9 @@
 
 // TODO: temp
 #include <identifiers/identifier.h>
-#include <resources/mesh.h>
 #include <resources/scene.h>
 #include <resources/skybox.h>
 #include <systems/audio_system.h>
-#include <systems/geometry_system.h>
 #include <systems/light_system.h>
 #include <systems/material_system.h>
 #include <systems/resource_system.h>
@@ -75,6 +73,7 @@
 #include "renderer/rendergraph_nodes/forward_rendergraph_node.h"
 #include "renderer/rendergraph_nodes/shadow_rendergraph_node.h"
 #include "rendergraph_nodes/ui_rendergraph_node.h"
+#include "strings/bname.h"
 #include "systems/plugin_system.h"
 #include "systems/timeline_system.h"
 
@@ -177,35 +176,7 @@ b8 game_on_debug_event(u16 code, void* sender, void* listener_inst, event_contex
 
     if (code == EVENT_CODE_DEBUG0)
     {
-        const char* names[3] =
-        {
-            "rocks",
-            "stone",
-            "wood"
-        };
-        static i8 choice = 2;
-
-        // Save old names
-        const char* old_name = names[choice];
-
-        choice++;
-        choice %= 3;
-
-        // Swap out material on the first mesh if it exists
-        geometry* g = state->meshes[0].geometries[0];
-        if (g)
-        {
-            // Acquire new material
-            g->material = material_system_acquire(names[choice]);
-            if (!g->material)
-            {
-                BWARN("event_on_debug_event no material found! Using default material");
-                g->material = material_system_get_default();
-            }
-
-            // Release old diffuse material
-            material_system_release(old_name);
-        }
+        // Does nothing for now
         return true;
     }
     else if (code == EVENT_CODE_DEBUG1)
@@ -1047,9 +1018,9 @@ b8 application_prepare_frame(struct application* app_inst, struct frame_data* p_
 
     // Calculate splits based on view camera frustum
     vec4 splits;
-    for (u32 c = 0; c < MAX_SHADOW_CASCADE_COUNT; c++)
+    for (u32 c = 0; c < MATERIAL_MAX_SHADOW_CASCADES; c++)
     {
-        f32 p = (c + 1) / (f32)MAX_SHADOW_CASCADE_COUNT;
+        f32 p = (c + 1) / (f32)MATERIAL_MAX_SHADOW_CASCADES;
         f32 log = min_z * bpow(ratio, p);
         f32 uniform = min_z + range * p;
         f32 d = cascade_split_multiplier * (log - uniform) + uniform;
@@ -1058,10 +1029,10 @@ b8 application_prepare_frame(struct application* app_inst, struct frame_data* p_
 
     // Default values to use in the event there is no directional light.
     // These are required because the scene pass needs them
-    mat4 shadow_camera_lookats[MAX_SHADOW_CASCADE_COUNT];
-    mat4 shadow_camera_projections[MAX_SHADOW_CASCADE_COUNT];
-    vec3 shadow_camera_positions[MAX_SHADOW_CASCADE_COUNT];
-    for (u32 i = 0; i < MAX_SHADOW_CASCADE_COUNT; ++i)
+    mat4 shadow_camera_lookats[MATERIAL_MAX_SHADOW_CASCADES];
+    mat4 shadow_camera_projections[MATERIAL_MAX_SHADOW_CASCADES];
+    vec3 shadow_camera_positions[MATERIAL_MAX_SHADOW_CASCADES];
+    for (u32 i = 0; i < MATERIAL_MAX_SHADOW_CASCADES; ++i)
     {
         shadow_camera_lookats[i] = mat4_identity();
         shadow_camera_projections[i] = mat4_identity();
@@ -1075,7 +1046,7 @@ b8 application_prepare_frame(struct application* app_inst, struct frame_data* p_
         rendergraph_node* node = &state->forward_graph.nodes[i];
         if (strings_equali(node->name, "sui"))
         {
-            ui_rendergraph_node_set_atlas(node, &state->sui_state->atlas);
+            ui_rendergraph_node_set_atlas(node, &state->sui_state->atlas_texture);
 
             // We have the one
             ui_rendergraph_node_set_viewport_and_matrices(
@@ -1117,7 +1088,7 @@ b8 application_prepare_frame(struct application* app_inst, struct frame_data* p_
                 scene_render_frame_prepare(scene, p_frame_data);
 
                 // Pass over shadow map "camera" view and projection matrices (one per cascade)
-                for (u32 c = 0; c < MAX_SHADOW_CASCADE_COUNT; c++)
+                for (u32 c = 0; c < MATERIAL_MAX_SHADOW_CASCADES; c++)
                 {
                     forward_rendergraph_node_cascade_data_set(
                         node,
@@ -1135,7 +1106,7 @@ b8 application_prepare_frame(struct application* app_inst, struct frame_data* p_
                 // HACK: use the skybox cubemap as the irradiance texture for now.
                 // HACK: #2 Support for multiple skyboxes, but using the first one for now.
                 // TODO: Support multiple skyboxes/irradiance maps
-                forward_rendergraph_node_irradiance_texture_set(node, p_frame_data, scene->skyboxes ? scene->skyboxes[0].cubemap.texture : texture_system_get_default_bresource_cube_texture(engine_systems_get()->texture_system));
+                forward_rendergraph_node_irradiance_texture_set(node, p_frame_data, scene->skyboxes ? scene->skyboxes[0].cubemap : texture_system_request(bname_create(DEFAULT_CUBE_TEXTURE_NAME), INVALID_BNAME, 0, 0));
 
                 // Camera frustum culling and count
                 viewport* v = current_viewport;
@@ -1238,7 +1209,7 @@ b8 application_prepare_frame(struct application* app_inst, struct frame_data* p_
                 mat4 cam_view_proj = mat4_transposed(mat4_mul(camera_view_get(current_camera), shadow_dist_projection));
 
                 // Pass over shadow map "camera" view and projection matrices (one per cascade)
-                for (u32 c = 0; c < MAX_SHADOW_CASCADE_COUNT; c++)
+                for (u32 c = 0; c < MATERIAL_MAX_SHADOW_CASCADES; c++)
                 {
                     // NOTE: Each pass for cascades will need to do the following process.
                     // The only real difference will be that the near/far clips will be adjusted for each
@@ -1263,7 +1234,7 @@ b8 application_prepare_frame(struct application* app_inst, struct frame_data* p_
                     for (u32 i = 0; i < 8; ++i)
                         center = vec3_add(center, vec3_from_vec4(corners[i]));
                     center = vec3_div_scalar(center, 8.0f); // size
-                    if (c == MAX_SHADOW_CASCADE_COUNT - 1)
+                    if (c == MATERIAL_MAX_SHADOW_CASCADES - 1)
                         culling_center = center;
 
                     // Get the furthest-out point from the center and use that as the extents
@@ -1273,7 +1244,7 @@ b8 application_prepare_frame(struct application* app_inst, struct frame_data* p_
                         f32 distance = vec3_distance(vec3_from_vec4(corners[i]), center);
                         radius = BMAX(radius, distance);
                     }
-                    if (c == MAX_SHADOW_CASCADE_COUNT - 1)
+                    if (c == MATERIAL_MAX_SHADOW_CASCADES - 1)
                         culling_radius = radius;
 
                     // Calculate the extents by using the radius from above
@@ -1391,8 +1362,7 @@ b8 application_prepare_frame(struct application* app_inst, struct frame_data* p_
             {
                 geometry_render_data rd = {0};
                 rd.model = xform_world_get(state->test_lines[i].xform);
-                geometry* g = &state->test_lines[i].geo;
-                rd.material = g->material;
+                bgeometry* g = &state->test_lines[i].geometry;
                 rd.vertex_count = g->vertex_count;
                 rd.vertex_buffer_offset = g->vertex_buffer_offset;
                 rd.index_count = g->index_count;
@@ -1406,8 +1376,7 @@ b8 application_prepare_frame(struct application* app_inst, struct frame_data* p_
             {
                 geometry_render_data rd = {0};
                 rd.model = xform_world_get(state->test_boxes[i].xform);
-                geometry* g = &state->test_boxes[i].geo;
-                rd.material = g->material;
+                bgeometry* g = &state->test_boxes[i].geometry;
                 rd.vertex_count = g->vertex_count;
                 rd.vertex_buffer_offset = g->vertex_buffer_offset;
                 rd.index_count = g->index_count;

@@ -31,11 +31,6 @@ typedef struct obj_mtl_source_texture_map
     bname image_asset_name;
     // The texture channel to be used
     obj_texture_map_channel channel;
-    texture_filter filter_min;
-    texture_filter filter_mag;
-    texture_repeat repeat_u;
-    texture_repeat repeat_v;
-    texture_repeat repeat_w;
 } obj_mtl_source_texture_map;
 
 typedef struct obj_mtl_source_property
@@ -65,6 +60,8 @@ typedef struct obj_mtl_source_material
     bname name;
     // Material type
     bmaterial_type type;
+    // Material lighting model
+    bmaterial_model model;
     // Texture maps
     u32 texture_map_count;
     obj_mtl_source_texture_map* maps;
