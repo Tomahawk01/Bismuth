@@ -181,8 +181,15 @@ static void asset_to_resource(const basset_material* asset, bresource_material* 
     out_material->emissive_map = asset->emissive_map;
 
     out_material->custom_sampler_count = asset->custom_sampler_count;
-    BALLOC_TYPE_CARRAY(bmaterial_sampler_config, out_material->custom_sampler_count);
-    BCOPY_TYPE_CARRAY(out_material->custom_samplers, asset->custom_samplers, bmaterial_sampler_config, out_material->custom_sampler_count);
+    if (out_material->custom_sampler_count)
+    {
+        BALLOC_TYPE_CARRAY(bmaterial_sampler_config, out_material->custom_sampler_count);
+        BCOPY_TYPE_CARRAY(
+            out_material->custom_samplers,
+            asset->custom_samplers,
+            bmaterial_sampler_config,
+            out_material->custom_sampler_count);
+    }
 
     out_material->base.state = BRESOURCE_STATE_LOADED;
 }

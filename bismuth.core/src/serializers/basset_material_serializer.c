@@ -410,7 +410,7 @@ b8 basset_material_deserialize(const char* file_text, basset* out_asset)
                         bmaterial_sampler_config custom_sampler = {0};
 
                         // name
-                        if (!bson_object_property_value_get_bname(&sampler, "name", &custom_sampler.name))
+                        if (!bson_object_property_value_get_string_as_bname(&sampler, "name", &custom_sampler.name))
                         {
                             BERROR("name, a required map field, was not found. Skipping sampler");
                             continue;
@@ -633,14 +633,14 @@ static void add_map_obj(bson_object* base_obj, const char* source_channel, bmate
 {
     // Add map object
     bson_object map_obj = bson_object_create();
-    bson_object_value_add_bname(&map_obj, INPUT_MAP_RESOURCE_NAME, texture->resource_name);
+    bson_object_value_add_bname_as_string(&map_obj, INPUT_MAP_RESOURCE_NAME, texture->resource_name);
     // Package name. Optional
     if (texture->package_name)
-        bson_object_value_add_bname(&map_obj, INPUT_MAP_PACKAGE_NAME, texture->package_name);
+        bson_object_value_add_bname_as_string(&map_obj, INPUT_MAP_PACKAGE_NAME, texture->package_name);
 
     // Sampler name. Optional
     if (texture->sampler_name)
-        bson_object_value_add_bname(&map_obj, INPUT_MAP_SAMPLER_NAME, texture->sampler_name);
+        bson_object_value_add_bname_as_string(&map_obj, INPUT_MAP_SAMPLER_NAME, texture->sampler_name);
 
     // Source channel, if provided
     if (source_channel)
@@ -652,18 +652,18 @@ static void add_map_obj(bson_object* base_obj, const char* source_channel, bmate
 static b8 extract_map(const bson_object* map_obj, bmaterial_texture_input* out_texture, texture_channel* out_source_channel)
 {
     // Extract the resource_name. Required
-    if (!bson_object_property_value_get_bname(map_obj, INPUT_MAP_RESOURCE_NAME, &out_texture->resource_name))
+    if (!bson_object_property_value_get_string_as_bname(map_obj, INPUT_MAP_RESOURCE_NAME, &out_texture->resource_name))
     {
         BERROR("input map.resource_name is required");
         return false;
     }
 
     // Attempt to extract package name, optional
-    if (!bson_object_property_value_get_bname(map_obj, INPUT_MAP_PACKAGE_NAME, &out_texture->package_name))
+    if (!bson_object_property_value_get_string_as_bname(map_obj, INPUT_MAP_PACKAGE_NAME, &out_texture->package_name))
         out_texture->package_name = INVALID_BNAME;
 
     // Optional property, so it doesn't matter if we get it or not
-    if (!bson_object_property_value_get_bname(map_obj, INPUT_MAP_SAMPLER_NAME, &out_texture->sampler_name))
+    if (!bson_object_property_value_get_string_as_bname(map_obj, INPUT_MAP_SAMPLER_NAME, &out_texture->sampler_name))
         out_texture->sampler_name = INVALID_BNAME;
 
     if (out_source_channel)

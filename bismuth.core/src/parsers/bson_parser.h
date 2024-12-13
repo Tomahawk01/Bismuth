@@ -262,13 +262,22 @@ BAPI b8 bson_array_value_add_vec3(bson_array* array, vec3 value);
 BAPI b8 bson_array_value_add_vec2(bson_array* array, vec2 value);
 
 /**
- * @brief Adds an unnamed bname value to the provided array
+ * @brief Adds an unnamed bname value as a string to the provided array
  *
  * @param array A pointer to the array to add the property to.
  * @param value The value to be set.
  * @return True on success; otherwise false.
  */
-BAPI b8 bson_array_value_add_bname(bson_array* array, bname value);
+BAPI b8 bson_array_value_add_bname_as_string(bson_array* array, bname value);
+
+/**
+ * @brief Adds an unnamed string_id value as a string to the provided array
+ *
+ * @param array A pointer to the array to add the property to.
+ * @param value The value to be set.
+ * @return True on success; otherwise false.
+ */
+BAPI b8 bson_array_value_add_bstring_id_as_string(bson_array* array, bstring_id value);
 
 /**
  * @brief Adds an unnamed object value to the provided array.
@@ -387,14 +396,24 @@ BAPI b8 bson_object_value_add_vec3(bson_object* object, const char* name, vec3 v
 BAPI b8 bson_object_value_add_vec2(bson_object* object, const char* name, vec2 value);
 
 /**
- * @brief Adds a named bname value to the provided object
+ * @brief Adds a named kname value to the provided object
  *
  * @param object A pointer to the object to add the property to.
  * @param name A constant pointer to the name to be used. Required.
  * @param value The value to be set.
  * @return True on success; otherwise false.
  */
-BAPI b8 bson_object_value_add_bname(bson_object* object, const char* name, bname value);
+BAPI b8 bson_object_value_add_bname_as_string(bson_object* object, const char* name, bname value);
+
+/**
+ * @brief Adds a named bstring_id value as a string to the provided object
+ *
+ * @param object A pointer to the object to add the property to.
+ * @param name A constant pointer to the name to be used. Required.
+ * @param value The value to be set.
+ * @return True on success; otherwise false.
+ */
+BAPI b8 bson_object_value_add_bstring_id_as_string(bson_object* object, const char* name, bstring_id value);
 
 /**
  * @brief Adds a named object value to the provided object.
@@ -541,7 +560,17 @@ BAPI b8 bson_array_element_value_get_vec2(const bson_array* array, u32 index, ve
  * @param out_value A pointer to hold the object property's value.
  * @return True on success; otherwise false.
  */
-BAPI b8 bson_array_element_value_get_bname(const bson_array* array, u32 index, bname* out_value);
+BAPI b8 bson_array_element_value_get_string_as_bname(const bson_array* array, u32 index, bname* out_value);
+
+/**
+ * @brief Attempts to retrieve the array element's value at the provided index as a bstring_id. Fails if out of range or on type mismatch. bstring_ids are always stored as strings
+ *
+ * @param array A constant pointer to the array to search. Required.
+ * @param index The array index to search for. Required.
+ * @param out_value A pointer to hold the object property's value.
+ * @return True on success; otherwise false.
+ */
+BAPI b8 bson_array_element_value_get_string_as_bstring_id(const bson_array* array, u32 index, bstring_id* out_value);
 
 /**
  * @brief Attempts to retrieve the array element's value at the provided index as an object. Fails if out of range or on type mismatch
@@ -552,6 +581,16 @@ BAPI b8 bson_array_element_value_get_bname(const bson_array* array, u32 index, b
  * @return True on success; otherwise false.
  */
 BAPI b8 bson_array_element_value_get_object(const bson_array* array, u32 index, bson_object* out_value);
+
+/**
+ * @brief Attempts to retrieve the array element's value at the provided index as an array. Fails if out of range or on type mismatch
+ *
+ * @param array A constant pointer to the array to search. Required.
+ * @param index The array index to search for. Required.
+ * @param out_value A pointer to hold the object property's value.
+ * @return True on success; otherwise false.
+ */
+BAPI b8 bson_array_element_value_get_array(const bson_array* array, u32 index, bson_array* out_value);
 
 /**
  * Obtains the type of the property with the given name. Fails if the name is not found.
@@ -671,7 +710,18 @@ BAPI b8 bson_object_property_value_get_vec2(const bson_object* object, const cha
  * @param out_value A pointer to hold the object property's value.
  * @return True on success; otherwise false.
  */
-BAPI b8 bson_object_property_value_get_bname(const bson_object* object, const char* name, bname* out_value);
+BAPI b8 bson_object_property_value_get_string_as_bname(const bson_object* object, const char* name, bname* out_value);
+
+/**
+ * @brief Attempts to retrieve the given object's property value by name as a bstring_id. Fails if not found
+ * or on type mismatch. bstring_ids are always stored as thier original text format.
+ *
+ * @param object A constant pointer to the object to search. Required.
+ * @param name The property name to search for. Required.
+ * @param out_value A pointer to hold the object property's value.
+ * @return True on success; otherwise false.
+ */
+BAPI b8 bson_object_property_value_get_string_as_bstring_id(const bson_object* object, const char* name, bstring_id* out_value);
 
 /**
  * @brief Attempts to retrieve a copy of given object's property value by name as an object. Fails if not found or on type mismatch
@@ -682,6 +732,16 @@ BAPI b8 bson_object_property_value_get_bname(const bson_object* object, const ch
  * @return True on success; otherwise false
  */
 BAPI b8 bson_object_property_value_get_object(const bson_object* object, const char* name, bson_object* out_value);
+
+/**
+ * @brief Attempts to retrieve the a copy given object's property value by name as an array. Fails if not found or on type mismatch
+ *
+ * @param object A constant pointer to the object to search. Required.
+ * @param name The property name to search for. Required.
+ * @param out_value A pointer to hold a copy of the object property's value.
+ * @return True on success; otherwise false.
+ */
+BAPI b8 bson_object_property_value_get_array(const bson_object* object, const char* name, bson_array* out_value);
 
 /**
  * @brief Creates and returns a new property of the object type.

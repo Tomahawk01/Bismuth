@@ -81,6 +81,9 @@ static void reset_current_token_and_mode(bson_token* current_token, bson_tokeniz
     current_token->type = BSON_TOKEN_TYPE_UNKNOWN;
     current_token->start = 0;
     current_token->end = 0;
+#ifdef BISMUTH_DEBUG
+    current_token->content = 0;
+#endif
 
     *mode = BSON_TOKENIZE_MODE_UNKNOWN;
 }
@@ -103,7 +106,7 @@ static void _populate_token_content(bson_token* t, const char* source)
 // Pushes the current token, if not of unknown type
 static void push_token(bson_token* t, bson_parser* parser)
 {
-    if (t->type != BSON_TOKEN_TYPE_UNKNOWN)
+    if (t->type != BSON_TOKEN_TYPE_UNKNOWN && (t->end - t->start > 0))
     {
         POPULATE_TOKEN_CONTENT(t, parser->file_content);
         darray_push(parser->tokens, *t);
@@ -192,7 +195,7 @@ b8 bson_parser_tokenize(bson_parser* parser, const char* source)
                 // Just create a new token and insert it
                 bson_token newline_token = {BSON_TOKEN_TYPE_NEWLINE, c, c + advance};
 
-                push_token(&newline_token, parser); // old
+                push_token(&newline_token, parser);
 
                 reset_current_token_and_mode(&current_token, &mode);
             } break;
@@ -476,14 +479,16 @@ b8 bson_parser_tokenize(bson_parser* parser, const char* source)
         current_token = &parser->tokens[index]; \
     }
 
-#define ENSURE_IDENTIFIER(token_string)                                                                          \
-    {                                                                                                            \
-        if (expect_identifier)                                                                                   \
-        {                                                                                                        \
-            BERROR("Expected identifier, instead found '%s'. Position: %u", token_string, current_token->start); \
-            return false;                                                                                        \
-        }                                                                                                        \
+static b8 ensure_identifier(b8 expect_identifier, bson_token* current_token, const char* token_string)
+{
+    if (expect_identifier)
+    {
+        BERROR("Expected identifier, instead found '%s'. Position: %u", token_string, current_token->start);
+        return false;
     }
+
+    return  true;
+}
 
 static bson_token* get_last_non_whitespace_token(bson_parser* parser, u32 current_index)
 {
@@ -733,7 +738,9 @@ b8 bson_parser_parse(bson_parser* parser, bson_tree* out_tree)
             }
             case BSON_TOKEN_TYPE_OPERATOR_EQUAL:
             {
-                ENSURE_IDENTIFIER("=")
+                if (!ensure_identifier(expect_identifier, current_token, "="))
+                    return false;
+
                 // Previous token must be an identifier
                 bson_token* t = get_last_non_whitespace_token(parser, index);
                 if (!t)
@@ -1074,7 +1081,7 @@ static void bson_tree_object_to_string(const bson_object* obj, char* out_source,
             if (p->name)
             {
                 // Write the name, then a space, then =, then another space
-                write_string(out_source, position, bname_string_get(p->name));
+                write_string(out_source, position, bstring_id_string_get(p->name));
                 write_spaces(out_source, position, 1);
                 write_string(out_source, position, "=");
                 write_spaces(out_source, position, 1);
@@ -1363,12 +1370,24 @@ b8 bson_array_value_add_vec2(bson_array* array, vec2 value)
     return result;
 }
 
-b8 bson_array_value_add_bname(bson_array* array, bname value)
+b8 bson_array_value_add_bname_as_string(bson_array* array, bname value)
 {
     const char* temp_str = bname_string_get(value);
     if (!temp_str)
     {
-        BWARN("bson_array_value_add_bname failed to convert value to string");
+        BWARN("bson_array_value_add_bname_as_string failed to convert value to string");
+        return false;
+    }
+    b8 result = bson_array_value_add_string(array, temp_str);
+    return result;
+}
+
+b8 bson_array_value_add_bstring_id_as_string(bson_array* array, bstring_id value)
+{
+    const char* temp_str = bstring_id_string_get(value);
+    if (!temp_str)
+    {
+        BWARN("bson_array_value_add_bstring_id_as_string failed to convert value to string");
         return false;
     }
     b8 result = bson_array_value_add_string(array, temp_str);
@@ -1507,12 +1526,24 @@ b8 bson_object_value_add_vec2(bson_object* object, const char* name, vec2 value)
     return result;
 }
 
-b8 bson_object_value_add_bname(bson_object* object, const char* name, bname value)
+b8 bson_object_value_add_bname_as_string(bson_object* object, const char* name, bname value)
 {
     const char* temp_str = bname_string_get(value);
     if (!temp_str)
     {
-        BWARN("bson_object_value_add_bname failed to convert value to string");
+        BWARN("bson_object_value_add_bname_as_string failed to convert value to string");
+        return false;
+    }
+    b8 result = bson_object_value_add_string(object, name, temp_str);
+    return result;
+}
+
+b8 bson_object_value_add_bstring_id_as_string(bson_object* object, const char* name, bstring_id value)
+{
+    const char* temp_str = bstring_id_string_get(value);
+    if (!temp_str)
+    {
+        BWARN("bson_object_value_add_bstring_id_as_string failed to convert value to string");
         return false;
     }
     b8 result = bson_object_value_add_string(object, name, temp_str);
@@ -1660,7 +1691,12 @@ b8 bson_array_element_value_get_string(const bson_array* array, u32 index, const
     if (!out_value || !bson_array_index_in_range(array, index))
         return false;
 
-    BASSERT_MSG(array->properties[index].type != BSON_PROPERTY_TYPE_STRING, "Array element is not a string");
+    bson_property* p = &array->properties[index];
+    if (p->type != BSON_PROPERTY_TYPE_STRING)
+    {
+        BERROR("Error parsing array element value as '%s' - it is instead stored as (type='%s')", bson_property_type_to_string(BSON_PROPERTY_TYPE_STRING), bson_property_type_to_string(p->type));
+        return 0;
+    }
 
     *out_value = array->properties[index].value.s;
     return true;
@@ -1710,7 +1746,7 @@ b8 bson_array_element_value_get_vec2(const bson_array* array, u32 index, vec2* o
     return string_to_vec2(str, out_value);
 }
 
-b8 bson_array_element_value_get_bname(const bson_array* array, u32 index, bname* out_value)
+b8 bson_array_element_value_get_string_as_bname(const bson_array* array, u32 index, bname* out_value)
 {
     if (!out_value || !bson_array_index_in_range(array, index))
         return false;
@@ -1722,14 +1758,46 @@ b8 bson_array_element_value_get_bname(const bson_array* array, u32 index, bname*
     return true;
 }
 
+b8 bson_array_element_value_get_string_as_bstring_id(const bson_array* array, u32 index, bstring_id* out_value)
+{
+    if (!out_value || !bson_array_index_in_range(array, index))
+        return false;
+
+    BASSERT_MSG(array->properties[index].type != BSON_PROPERTY_TYPE_STRING, "Array element is not stored as a string");
+
+    const char* str = array->properties[index].value.s;
+    *out_value = bstring_id_create(str);
+    return true;
+}
+
 b8 bson_array_element_value_get_object(const bson_array* array, u32 index, bson_object* out_value)
 {
     if (!out_value || !bson_array_index_in_range(array, index))
         return false;
 
-    BASSERT_MSG(array->properties[index].type == BSON_PROPERTY_TYPE_OBJECT || array->properties[index].type == BSON_PROPERTY_TYPE_ARRAY, "Array element is not an object or array");
+    bson_property* p = &array->properties[index];
+    if (p->type != BSON_PROPERTY_TYPE_OBJECT)
+    {
+        BERROR("Error parsing array element value as '%s' - property is instead stored as (type='%s').", bson_property_type_to_string(BSON_PROPERTY_TYPE_OBJECT), bson_property_type_to_string(p->type));
+        return false;
+    }
+    *out_value = p->value.o;
+    return true;
+}
 
-    *out_value = array->properties[index].value.o;
+b8 bson_array_element_value_get_array(const bson_array* array, u32 index, bson_array* out_value)
+{
+    if (!out_value || !bson_array_index_in_range(array, index))
+        return false;
+
+    bson_property* p = &array->properties[index];
+    if (p->type != BSON_PROPERTY_TYPE_ARRAY)
+    {
+        BERROR("Error parsing array element value as '%s' - property is instead stored as (type='%s')", bson_property_type_to_string(BSON_PROPERTY_TYPE_ARRAY), bson_property_type_to_string(p->type));
+        return false;
+    }
+
+    *out_value = p->value.o;
     return true;
 }
 
@@ -1951,7 +2019,7 @@ static const char* bson_object_property_value_get_string_reference(const bson_ob
     bson_property* p = &object->properties[index];
     if (p->type != BSON_PROPERTY_TYPE_STRING)
     {
-        BERROR("Error parsing value as '%s' - property not stored as string (type='%s')", bson_property_type_to_string(BSON_PROPERTY_TYPE_STRING), bson_property_type_to_string(p->type));
+        BERROR("Error parsing value as '%s' - property is instead stored as (type='%s')", bson_property_type_to_string(BSON_PROPERTY_TYPE_STRING), bson_property_type_to_string(p->type));
         return 0;
     }
     return p->value.s;
@@ -1993,7 +2061,7 @@ b8 bson_object_property_value_get_vec2(const bson_object* object, const char* na
     return string_to_vec2(str, out_value);
 }
 
-b8 bson_object_property_value_get_bname(const bson_object* object, const char* name, bname* out_value)
+b8 bson_object_property_value_get_string_as_bname(const bson_object* object, const char* name, bname* out_value)
 {
     if (!out_value)
         return false;
@@ -2006,6 +2074,19 @@ b8 bson_object_property_value_get_bname(const bson_object* object, const char* n
     return true;
 }
 
+b8 bson_object_property_value_get_string_as_bstring_id(const bson_object* object, const char* name, bstring_id* out_value)
+{
+    if (!out_value)
+        return false;
+
+    const char* str = bson_object_property_value_get_string_reference(object, name, "bstring_id");
+    if (!str)
+        return false;
+
+    *out_value = bstring_id_create(str);
+    return true;
+}
+
 b8 bson_object_property_value_get_object(const bson_object* object, const char* name, bson_object* out_value)
 {
     i32 index = bson_object_property_index_get(object, name);
@@ -2013,9 +2094,28 @@ b8 bson_object_property_value_get_object(const bson_object* object, const char* 
         return false;
 
     bson_property* p = &object->properties[index];
+    // Allow both object and array here
     if (p->type != BSON_PROPERTY_TYPE_OBJECT)
     {
-        BERROR("Error parsing value as '%s' - property not stored as string (type='%s')", bson_property_type_to_string(BSON_PROPERTY_TYPE_OBJECT), bson_property_type_to_string(p->type));
+        BERROR("Error parsing value as '%s' - property is instead stored as (type='%s')", bson_property_type_to_string(BSON_PROPERTY_TYPE_OBJECT), bson_property_type_to_string(p->type));
+        return false;
+    }
+
+    *out_value = p->value.o;
+    return true;
+}
+
+b8 bson_object_property_value_get_array(const bson_object* object, const char* name, bson_array* out_value)
+{
+    i32 index = bson_object_property_index_get(object, name);
+    if (index == -1)
+        return false;
+
+    bson_property* p = &object->properties[index];
+    // Allow both object and array here
+    if (p->type != BSON_PROPERTY_TYPE_ARRAY)
+    {
+        BERROR("Error parsing value as '%s' - property is instead stored as (type='%s')", bson_property_type_to_string(BSON_PROPERTY_TYPE_ARRAY), bson_property_type_to_string(p->type));
         return false;
     }
 

@@ -19,6 +19,9 @@ BAPI char* string_duplicate(const char* str);
 
 BAPI void string_free(const char* str);
 
+BAPI i64 bstr_ncmp(const char* str0, const char* str1, u32 max_len);
+BAPI i64 bstr_ncmpi(const char* str0, const char* str1, u32 max_len);
+
 // Case-sensitive string comparison. Return true if same, otherwise false
 BAPI b8 strings_equal(const char* str0, const char* str1);
 

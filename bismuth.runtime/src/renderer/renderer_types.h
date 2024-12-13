@@ -291,7 +291,7 @@ typedef struct renderer_backend_interface
 
     b8 (*shader_uniform_set)(struct renderer_backend_interface* backend, bhandle frontend_shader, struct shader_uniform* uniform, u32 array_index, const void* value);
 
-    bhandle (*sampler_acquire)(struct renderer_backend_interface* backend, texture_filter filter, texture_repeat repeat, f32 anisotropy, u32 mip_levels);
+    bhandle (*sampler_acquire)(struct renderer_backend_interface* backend, texture_filter filter, texture_repeat repeat, f32 anisotropy);
     void (*sampler_release)(struct renderer_backend_interface* backend, bhandle* sampler);
     b8 (*sampler_refresh)(struct renderer_backend_interface* backend, bhandle* sampler, texture_filter filter, texture_repeat repeat, f32 anisotropy, u32 mip_levels);
 
@@ -301,6 +301,8 @@ typedef struct renderer_backend_interface
 
     b8 (*flag_enabled_get)(struct renderer_backend_interface* backend, renderer_config_flags flag);
     void (*flag_enabled_set)(struct renderer_backend_interface* backend, renderer_config_flags flag, b8 enabled);
+
+    f32 (*max_anisotropy_get)(struct renderer_backend_interface* backend);
 
     b8 (*renderbuffer_internal_create)(struct renderer_backend_interface* backend, renderbuffer* buffer);
     void (*renderbuffer_internal_destroy)(struct renderer_backend_interface* backend, renderbuffer* buffer);

@@ -3,6 +3,7 @@
 #include "defines.h"
 #include "logger.h"
 #include "memory/bmemory.h"
+#include "debug/bassert.h"
 
 void* _darray_create(u64 length, u64 stride, frame_allocator_int* allocator)
 {
@@ -61,6 +62,7 @@ void* _darray_resize(void* array)
 
 void* _darray_push(void* array, const void* value_ptr)
 {
+    BASSERT_DEBUG(array);
     u64 header_size = sizeof(darray_header);
     darray_header* header = (darray_header*)((u8*)array - header_size);
     if (header->length >= header->capacity)

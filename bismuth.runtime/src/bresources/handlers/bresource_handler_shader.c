@@ -50,14 +50,14 @@ b8 bresource_handler_shader_request(bresource_handler* self, bresource* resource
         if (info->assets.base.length == 0 && typed_request->shader_config_source_text)
         {
             // Deserialize shader asset from provided source
-            basset shader_from_source = {0};
-            if (!basset_shader_deserialize(typed_request->shader_config_source_text, &shader_from_source))
+            basset_shader shader_from_source = {0};
+            if (!basset_shader_deserialize(typed_request->shader_config_source_text, (basset*)&shader_from_source))
             {
                 BERROR("Failed to deserialize shader from direct source upon resource request");
                 return false;
             }
 
-            asset_to_resource((basset_shader*)&shader_from_source, typed_resource);
+            asset_to_resource(&shader_from_source, typed_resource);
             return true;
         }
         else
@@ -171,7 +171,14 @@ static void asset_to_resource(const basset_shader* asset, bresource_shader* out_
         basset_shader_uniform* u = &asset->uniforms[i];
         shader_uniform_config* config = &out_shader_resource->uniforms[i];
         config->type = u->type;
-        config->size = size_from_shader_uniform_type(u->type);
+        if (config->type == SHADER_UNIFORM_TYPE_STRUCT || config->type == SHADER_UNIFORM_TYPE_CUSTOM)
+        {
+            config->size = u->size;
+        }
+        else
+        {
+            config->size = size_from_shader_uniform_type(u->type);
+        }
         config->name = bname_create(u->name);
         config->array_length = u->array_size;
         config->frequency = u->frequency;
@@ -212,7 +219,14 @@ static void asset_to_resource(const basset_shader* asset, bresource_shader* out_
             target->source = 0;
             return;
         }
-        target->source = string_duplicate(text_resource->text);
+        if (text_resource->text)
+        {
+            target->source = string_duplicate(text_resource->text);
+        }
+        else
+        {
+            BWARN("Loaded shader source asset '%s' has no source", bname_string_get(text_resource->base.name));
+        }
 
         // Keep track of the watch ids if they exist
         if (text_resource->base.asset_file_watch_ids)

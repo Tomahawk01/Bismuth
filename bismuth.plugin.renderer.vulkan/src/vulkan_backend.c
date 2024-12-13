@@ -1,5 +1,6 @@
 #include "vulkan_backend.h"
 
+#include <shaderc/env.h>
 #include <vulkan/vulkan_core.h>
 // For runtime shader compilation
 #include <shaderc/shaderc.h>
@@ -40,9 +41,10 @@
 // #endif
 
 // NOTE: To disable custom allocator, comment this out or set to 0
-#ifndef BVULKAN_USE_CUSTOM_ALLOCATOR
-#define BVULKAN_USE_CUSTOM_ALLOCATOR 1
-#endif
+// TODO: re-enable this
+// #ifndef BVULKAN_USE_CUSTOM_ALLOCATOR
+// #define BVULKAN_USE_CUSTOM_ALLOCATOR 1
+// #endif
 
 VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(
     VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
@@ -294,6 +296,9 @@ b8 vulkan_renderer_backend_initialize(renderer_backend_interface* backend, const
 
     // Samplers array
     context->samplers = darray_create(vulkan_sampler_handle_data);
+
+    // Shaders array
+    context->shaders = darray_create(vulkan_shader);
 
     // Create a shader compiler
     context->shader_compiler = shaderc_compiler_initialize();
@@ -2003,7 +2008,7 @@ b8 vulkan_renderer_shader_create(renderer_backend_interface* backend, bhandle sh
         }
         else
         {
-            uniform_size = (u_config->size * u_config->array_length);
+            uniform_size = (u_config->size * (u_config->array_length ? u_config->array_length : 1));
             info->uniform_count++;
         }
 
@@ -2019,6 +2024,13 @@ b8 vulkan_renderer_shader_create(renderer_backend_interface* backend, bhandle sh
 
         info->ubo_size += uniform_size;
     }
+
+    // NOTE: The Vulkan spec only guarantees 128 bytes of data. Therefore we align the "UBO" aka push constant stride to that, and only ever use one
+    internal_shader->per_draw_info.ubo_stride = get_aligned(internal_shader->per_draw_info.ubo_size, 128);
+
+    // The other frequencies can use the UBO min offset from the device limits
+    internal_shader->per_frame_info.ubo_stride = get_aligned(internal_shader->per_frame_info.ubo_size, context->device.properties.limits.minUniformBufferOffsetAlignment);
+    internal_shader->per_group_info.ubo_stride = get_aligned(internal_shader->per_group_info.ubo_size, context->device.properties.limits.minUniformBufferOffsetAlignment);
 
     internal_shader->max_groups = shader_resource->max_groups;
     internal_shader->max_per_draw_count = shader_resource->max_per_draw_count;
@@ -2717,20 +2729,19 @@ static b8 sampler_create_internal(vulkan_context* context, texture_filter filter
     sampler_info.addressModeV = mode;
     sampler_info.addressModeW = mode;
 
-    // TODO: Fix this anywhere it's being used for a depth texture
-    // b8 use_anisotropy = context->device.features.samplerAnisotropy;
-    if (false)
+    // FIXME: Fix this anywhere it's being used for a depth texture
+    b8 use_anisotropy = context->device.features.samplerAnisotropy && anisotropy > 0;
+    // Don't exceed device anisotropy limits
+    f32 actual_anisotropy = BMIN(anisotropy, context->device.properties.limits.maxSamplerAnisotropy);
+    if (use_anisotropy)
     {
-        // Disable anisotropy for depth texture sampling because AMD has a fit over it
-        sampler_info.anisotropyEnable = VK_FALSE;
-        sampler_info.maxAnisotropy = 0;
+        sampler_info.anisotropyEnable = VK_TRUE;
+        sampler_info.maxAnisotropy = actual_anisotropy;
     }
     else
     {
-        /* sampler_info.anisotropyEnable = VK_TRUE;
-        sampler_info.maxAnisotropy = 16; */
-        sampler_info.anisotropyEnable = VK_TRUE;
-        sampler_info.maxAnisotropy = anisotropy;
+        sampler_info.anisotropyEnable = VK_FALSE;
+        sampler_info.maxAnisotropy = 0;
     }
     sampler_info.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
     // sampler_info.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
@@ -3002,14 +3013,17 @@ static b8 create_shader_module(vulkan_context* context, vulkan_shader* internal_
     BDEBUG("Compiling stage '%s' for shader '%s'...", shader_stage_to_string(stage), bname_string_get(internal_shader->name));
                 
     // Attempt to compile the shader
+    shaderc_compile_options_t options = shaderc_compile_options_initialize();
+    shaderc_compile_options_set_target_env(options, shaderc_target_env_vulkan, shaderc_env_version_vulkan_1_3);
+    u32 source_length = string_length(source);
     shaderc_compilation_result_t compilation_result = shaderc_compile_into_spv(
         context->shader_compiler,
         source,
-        string_length(source),
+        source_length,
         shader_kind,
         filename,
         "main",
-        0);
+        options);
 
     if (!compilation_result)
     {
@@ -3087,6 +3101,20 @@ void vulkan_renderer_flag_enabled_set(renderer_backend_interface* backend, rende
     vulkan_swapchain* swapchain = &context->current_window->renderer_state->backend_state->swapchain;
     swapchain->flags = (enabled ? (swapchain->flags | flag) : (swapchain->flags & ~flag));
     context->render_flag_changed = true;
+}
+
+f32 vulkan_renderer_max_anisotropy_get(renderer_backend_interface* backend)
+{
+    vulkan_context* context = (vulkan_context*)backend->internal_context;
+    if (!context->device.features.samplerAnisotropy)
+    {
+        // Not available
+        return 0;
+    }
+    else
+    {
+        return context->device.properties.limits.maxSamplerAnisotropy;
+    }
 }
 
 // NOTE: Begin vulkan buffer
@@ -4021,7 +4049,7 @@ static b8 setup_frequency_state(renderer_backend_interface* backend, vulkan_shad
         break;
     }
 
-    if (frequency != SHADER_UPDATE_FREQUENCY_PER_FRAME)
+    if (frequency == SHADER_UPDATE_FREQUENCY_PER_FRAME)
     {
         frequency_state = &internal->per_frame_state;
     }

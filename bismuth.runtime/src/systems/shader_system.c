@@ -256,7 +256,7 @@ bhandle shader_system_get(bname name)
     bresource_shader* shader_resource = (bresource_shader*)bresource_system_request(state_ptr->resource_state, name, (bresource_request_info*)&request_info);
     if (!shader_resource)
     {
-        BERROR("Failed to load shader resource for shader '%s'", name);
+        BERROR("Failed to load shader resource for shader '%s'", bname_string_get(name));
         return bhandle_invalid();
     }
 
@@ -287,7 +287,7 @@ bhandle shader_system_get_from_source(bname name, const char* shader_config_sour
     bresource_shader* shader_resource = (bresource_shader*)bresource_system_request(state_ptr->resource_state, name, (bresource_request_info*)&request_info);
     if (!shader_resource)
     {
-        BERROR("Failed to load shader resource for shader '%s'", name);
+        BERROR("Failed to load shader resource for shader '%s'", bname_string_get(name));
         return bhandle_invalid();
     }
 
@@ -690,21 +690,26 @@ static b8 internal_uniform_add(bshader* shader, const shader_uniform_config* con
     // Count regular uniforms only, as the others are counted in the functions called before this for textures and samplers
     if (!is_sampler_or_texture)
     {
+        shader_frequency_data* frequency = 0;
         if (entry.frequency == SHADER_UPDATE_FREQUENCY_PER_FRAME)
         {
-            shader->per_frame.ubo_size += (entry.size * entry.array_length);
-            shader->per_frame.uniform_count++;
+            frequency = &shader->per_frame;
         }
         else if (entry.frequency == SHADER_UPDATE_FREQUENCY_PER_GROUP)
         {
-            shader->per_group.ubo_size += (entry.size * entry.array_length);
-            shader->per_group.uniform_count++;
+            frequency = &shader->per_group;
         }
         else if (entry.frequency == SHADER_UPDATE_FREQUENCY_PER_DRAW)
         {
-            shader->per_draw.ubo_size += (entry.size * entry.array_length);
-            shader->per_draw.uniform_count++;
+            frequency = &shader->per_draw;
         }
+        if (!frequency)
+        {
+            BFATAL("No frequency found - investigate this");
+            return false;
+        }
+        frequency->ubo_size += (entry.size * (entry.array_length ? entry.array_length : 1));
+        frequency->uniform_count++;
     }
 
     return true;
@@ -856,9 +861,24 @@ static bhandle shader_create(const bresource_shader* shader_resource)
 
     // Now that uniforms are processed, take note of the indices of textures and samplers.
     // These are used for fast lookups later by type
-    out_shader->per_frame.sampler_indices = BALLOC_TYPE_CARRAY(u32, out_shader->per_frame.uniform_sampler_count);
-    out_shader->per_group.sampler_indices = BALLOC_TYPE_CARRAY(u32, out_shader->per_group.uniform_sampler_count);
-    out_shader->per_draw.sampler_indices = BALLOC_TYPE_CARRAY(u32, out_shader->per_draw.uniform_sampler_count);
+    if (out_shader->per_frame.uniform_sampler_count) {
+        out_shader->per_frame.sampler_indices = BALLOC_TYPE_CARRAY(u32, out_shader->per_frame.uniform_sampler_count);
+    }
+    if (out_shader->per_group.uniform_sampler_count) {
+        out_shader->per_group.sampler_indices = BALLOC_TYPE_CARRAY(u32, out_shader->per_group.uniform_sampler_count);
+    }
+    if (out_shader->per_draw.uniform_sampler_count) {
+        out_shader->per_draw.sampler_indices = BALLOC_TYPE_CARRAY(u32, out_shader->per_draw.uniform_sampler_count);
+    }
+    if (out_shader->per_frame.uniform_texture_count) {
+        out_shader->per_frame.texture_indices = BALLOC_TYPE_CARRAY(u32, out_shader->per_frame.uniform_texture_count);
+    }
+    if (out_shader->per_group.uniform_texture_count) {
+        out_shader->per_group.texture_indices = BALLOC_TYPE_CARRAY(u32, out_shader->per_group.uniform_texture_count);
+    }
+    if (out_shader->per_draw.uniform_texture_count) {
+        out_shader->per_draw.texture_indices = BALLOC_TYPE_CARRAY(u32, out_shader->per_draw.uniform_texture_count);
+    }
     u32 frame_textures = 0, frame_samplers = 0;
     u32 group_textures = 0, group_samplers = 0;
     u32 draw_textures = 0, draw_samplers = 0;

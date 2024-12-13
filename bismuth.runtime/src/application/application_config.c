@@ -54,7 +54,7 @@ b8 application_config_parse_file_content(const char* file_content, application_c
     // Window configs
     out_config->windows = darray_create(bwindow_config);
     bson_array window_configs_array;
-    if (bson_object_property_value_get_object(&app_config_tree.root, "windows", &window_configs_array))
+    if (bson_object_property_value_get_array(&app_config_tree.root, "windows", &window_configs_array))
     {
         u32 window_config_count = 0;
         if (!bson_array_element_count_get(&window_configs_array, &window_config_count))
@@ -142,7 +142,7 @@ b8 application_config_parse_file_content(const char* file_content, application_c
     // System configs
     out_config->systems = darray_create(application_system_config);
     bson_array system_configs_array;
-    if (!bson_object_property_value_get_object(&app_config_tree.root, "systems", &system_configs_array))
+    if (!bson_object_property_value_get_array(&app_config_tree.root, "systems", &system_configs_array))
     {
         BERROR("systems config is required in application configuration");
         return false;
@@ -192,7 +192,7 @@ b8 application_config_parse_file_content(const char* file_content, application_c
     // Rendergraph configs
     out_config->rendergraphs = darray_create(application_rendergraph_config);
     bson_array rendergraph_configs_array;
-    if (!bson_object_property_value_get_object(&app_config_tree.root, "rendergraphs", &rendergraph_configs_array))
+    if (!bson_object_property_value_get_array(&app_config_tree.root, "rendergraphs", &rendergraph_configs_array))
     {
         BERROR("rendergraphs config is required in application configuration");
         return false;

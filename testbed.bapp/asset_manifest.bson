@@ -1,12 +1,12 @@
 package_name = "Testbed"
 references = [
     {
-        name = "Runtime"
-        path = "../bismuth.runtime/asset_manifest.bson"
+        name = "Bismuth.Runtime"
+        path = "../bismuth.runtime/"
     }
     {
-        name = "PluginStandardUi"
-        path = "../bismuth.plugin.ui.standard/asset_manifest.bson"
+        name = "Bismuth.Plugin.Ui.Standard"
+        path = "../bismuth.plugin.ui.standard/"
     }
 ]
 assets = [

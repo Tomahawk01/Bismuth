@@ -589,7 +589,7 @@ static b8 create_default_textures(texture_system_state* state)
             bcopy_memory(pixels + layer_size * i, cube_side_pixels, layer_size);
 
         // Request new resource texture
-        u32 pixel_array_size = sizeof(u8) * pixel_count * channels;
+        u32 pixel_array_size = image_size;
         state->default_bresource_cube_texture = create_default_bresource_texture(state, bname_create(DEFAULT_CUBE_TEXTURE_NAME), BRESOURCE_TEXTURE_TYPE_CUBE, tex_dimension, 6, channels, pixel_array_size, pixels);
         if (!state->default_bresource_cube_texture)
         {

@@ -5,10 +5,12 @@
 #include "debug/bassert.h"
 #include "defines.h"
 #include "bresources/handlers/bresource_handler_material.h"
+#include "bresources/handlers/bresource_handler_shader.h"
 #include "bresources/handlers/bresource_handler_static_mesh.h"
 #include "bresources/handlers/bresource_handler_text.h"
 #include "bresources/handlers/bresource_handler_texture.h"
 #include "bresources/bresource_types.h"
+#include "bresources/bresource_utils.h"
 #include "logger.h"
 #include "memory/bmemory.h"
 #include "strings/bname.h"
@@ -109,6 +111,19 @@ b8 bresource_system_initialize(u64* memory_requirement, struct bresource_system_
         }
     }
 
+    // Shader handler
+    {
+        bresource_handler handler = {0};
+        handler.allocate = bresource_handler_shader_allocate;
+        handler.release = bresource_handler_shader_release;
+        handler.request = bresource_handler_shader_request;
+        if (!bresource_system_handler_register(state, BRESOURCE_TYPE_SHADER, handler))
+        {
+            BERROR("Failed to register shader resource handler");
+            return false;
+        }
+    }
+
     BINFO("Resource system (new) initialized");
     return true;
 }
@@ -166,7 +181,7 @@ bresource* bresource_system_request(struct bresource_system_state* state, bname 
                 bresource_handler* handler = &state->handlers[info->type];
                 if (!handler->allocate)
                 {
-                    BERROR("There is no handler setup for the asset type. Null/0 will be returned");
+                    BERROR("There is no handler setup for the resource type '%s'. Null/0 will be returned", bresource_type_to_string(info->type));
                     return 0;
                 }
                 // Have the handler allocate memory for the resource

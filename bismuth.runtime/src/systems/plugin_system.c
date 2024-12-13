@@ -32,7 +32,7 @@ b8 plugin_system_deserialize_config(const char* config_str, plugin_system_config
 
     // Get plugin configs
     bson_array plugin_configs = {0};
-    if (!bson_object_property_value_get_object(&tree.root, "plugins", &plugin_configs))
+    if (!bson_object_property_value_get_array(&tree.root, "plugins", &plugin_configs))
     {
         BERROR("No plugins are configured");
         return false;

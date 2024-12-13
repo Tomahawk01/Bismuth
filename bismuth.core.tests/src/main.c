@@ -8,6 +8,7 @@
 #include "memory/dynamic_allocator_tests.h"
 #include "memory/linear_allocator_tests.h"
 #include "parsers/bson_parser_tests.h"
+#include "strings/string_tests.h"
 #include "test_manager.h"
 
 int main(void)
@@ -17,6 +18,7 @@ int main(void)
 
 
     // TODO: Add test registrations here
+    string_register_tests();
     array_register_tests();
     darray_register_tests();
     stackarray_register_tests();
@@ -25,6 +27,7 @@ int main(void)
     hashtable_register_tests();
     freelist_register_tests();
     dynamic_allocator_register_tests();
+    string_register_tests();
 
     BDEBUG("Starting tests...");
 

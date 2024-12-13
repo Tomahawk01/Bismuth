@@ -136,7 +136,7 @@ BAPI b8 renderer_shader_uniform_set(struct renderer_system_state* state, bhandle
 
 BAPI bhandle renderer_generic_sampler_get(struct renderer_system_state* state, shader_generic_sampler sampler);
 
-BAPI bhandle renderer_sampler_acquire(struct renderer_system_state* state, texture_filter filter, texture_repeat repeat, f32 anisotropy, u32 mip_levels);
+BAPI bhandle renderer_sampler_acquire(struct renderer_system_state* state, texture_filter filter, texture_repeat repeat, f32 anisotropy);
 BAPI void renderer_sampler_release(struct renderer_system_state* state, bhandle* sampler);
 BAPI b8 renderer_sampler_refresh(struct renderer_system_state* state, bhandle* sampler, texture_filter filter, texture_repeat repeat, f32 anisotropy, u32 mip_levels);
 
@@ -146,6 +146,8 @@ BAPI b8 renderer_is_multithreaded(void);
 
 BAPI b8 renderer_flag_enabled_get(renderer_config_flags flag);
 BAPI void renderer_flag_enabled_set(renderer_config_flags flag, b8 enabled);
+
+BAPI f32 renderer_max_anisotropy_get(void);
 
 BAPI b8 renderer_renderbuffer_create(const char* name, renderbuffer_type type, u64 total_size, renderbuffer_track_type track_type, renderbuffer* out_buffer);
 BAPI void renderer_renderbuffer_destroy(renderbuffer* buffer);

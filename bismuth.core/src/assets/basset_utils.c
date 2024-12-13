@@ -136,6 +136,11 @@ void asset_handler_base_on_asset_loaded(struct vfs_state* vfs, vfs_asset_data as
                 }
                 result = ASSET_REQUEST_RESULT_SUCCESS;
             }
+            else
+            {
+                // Every handler must have some sort of serializer, even if it's not much more than a passthough
+                BERROR("No serializer configured for asset type '%s'", basset_type_to_string(context.asset->type));
+            }
 
         from_source_cleanup:
             if (extension)
@@ -173,6 +178,11 @@ void asset_handler_base_on_asset_loaded(struct vfs_state* vfs, vfs_asset_data as
                 {
                     result = ASSET_REQUEST_RESULT_SUCCESS;
                 }
+            }
+            else
+            {
+                // Every handler must have some sort of deserializer, even if it's not much more than a passthough
+                BERROR("No deserializer configured for asset type '%s'", basset_type_to_string(context.asset->type));
             }
         }
 
