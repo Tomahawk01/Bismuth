@@ -124,6 +124,7 @@ assets = [
     {
         name = "BitmapFont.OpenSans21px"
         path = "./assets/fonts/BitmapFont.OpenSans21px.bbf"
+        source_path = "./assets/fonts/source/BitmapFont.OpenSans21px.fnt"
     }
     {
         name = "Texture.BitmapFont.OpenSans21px_0"

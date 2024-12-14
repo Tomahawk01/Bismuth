@@ -510,6 +510,5 @@ typedef struct basset_bitmap_font
     i32 atlas_size_y;
     array_basset_bitmap_font_glyph glyphs;
     array_basset_bitmap_font_kerning kernings;
-    f32 tab_x_advance;
     array_basset_bitmap_font_page pages;
 } basset_bitmap_font;
