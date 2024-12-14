@@ -7,13 +7,13 @@ depth_write=false
 stages = [
     {
         type = "vertex"
-        source_asset_name = "Pick_UI_vert"
-        package_name = "PluginUiStandard"
+        source_asset_name = "Shader.Pick_UI_vert"
+        package_name = "Bismuth.Plugin.Ui.Standard"
     }
     {
         type = "fragment"
-        source_asset_name = "Pick_UI_frag"
-        package_name = "PluginUiStandard"
+        source_asset_name = "Shader.Pick_UI_frag"
+        package_name = "Bismuth.Plugin.Ui.Standard"
     }
 ]
 
@@ -29,7 +29,7 @@ attributes = [
 ]
 
 uniforms = {
-    global = [
+    per_frame = [
         {
             name = "projection"
             type = "mat4"
@@ -39,13 +39,13 @@ uniforms = {
             type = "mat4"
         }
     ]
-    instance = [
+    per_group = [
         {
             name = "id_color"
             type = "vec3"
         }
     ]
-    local = [
+    per_draw = [
         {
             name = "model"
             type = "mat4"

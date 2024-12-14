@@ -9,6 +9,7 @@
 #include "memory/bmemory.h"
 #include "renderer/renderer_frontend.h"
 #include "resources/resource_types.h"
+#include "runtime_defines.h"
 #include "systems/bresource_system.h"
 #include "strings/bname.h"
 #include "strings/bstring.h"
@@ -628,6 +629,12 @@ static b8 create_default_textures(texture_system_state* state)
         bfree(terrain_pixels, layer_size * layer_count, MEMORY_TAG_ARRAY);
     } */
 
+   // Default water normal texture is part of the runtime package - request it
+    state->default_bresource_water_normal_texture = texture_system_request(bname_create(DEFAULT_WATER_NORMAL_TEXTURE_NAME), bname_create(PACKAGE_NAME_RUNTIME), 0, 0);
+
+    // Default water dudv texture is part of the runtime package - request it
+    state->default_bresource_water_dudv_texture = texture_system_request(bname_create(DEFAULT_WATER_DUDV_TEXTURE_NAME), bname_create(PACKAGE_NAME_RUNTIME), 0, 0);
+
     return true;
 }
 
@@ -681,9 +688,9 @@ static bresource_texture* default_texture_by_name(texture_system_state* state, b
         return state->default_bresource_mra_texture;
     } else if (name == state->default_bresource_cube_texture->base.name) {
         return state->default_bresource_cube_texture;
-    } else if (name == state->default_bresource_water_normal_texture->base.name) {
+    } else if (state->default_bresource_water_normal_texture && name == state->default_bresource_water_normal_texture->base.name) {
         return state->default_bresource_water_normal_texture;
-    } else if (name == state->default_bresource_water_dudv_texture->base.name) {
+    } else if (state->default_bresource_water_dudv_texture && name == state->default_bresource_water_dudv_texture->base.name) {
         return state->default_bresource_water_dudv_texture;
     }
 

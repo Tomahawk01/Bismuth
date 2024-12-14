@@ -50,7 +50,7 @@ const char* basset_material_serialize(const basset* asset)
 
     bson_tree tree = {0};
     // The root of the tree
-    tree.root.type = BSON_OBJECT_TYPE_OBJECT;
+    tree.root = bson_object_create();
 
     basset_material* material = (basset_material*)asset;
 
@@ -75,97 +75,108 @@ const char* basset_material_serialize(const basset* asset)
 
     // Properties and maps used in all material types
     // Base color
-    bson_object base_color = bson_object_create();
-    if (material->base_color_map.resource_name)
     {
-        add_map_obj(&base_color, 0, &material->base_color_map);
+        bson_object base_color = bson_object_create();
+        if (material->base_color_map.resource_name)
+        {
+            add_map_obj(&base_color, 0, &material->base_color_map);
+        }
+        else
+        {
+            bson_object_value_add_vec4(&base_color, INPUT_VALUE, material->base_color);
+        }
+        bson_object_value_add_object(&inputs, INPUT_BASE_COLOR, base_color);
     }
-    else
-    {
-        bson_object_value_add_vec4(&base_color, INPUT_VALUE, material->base_color);
-    }
-    bson_object_value_add_object(&inputs, INPUT_BASE_COLOR, base_color);
 
     // Normal
-    bson_object normal = bson_object_create();
-    if (material->normal_map.resource_name)
     {
-        add_map_obj(&normal, 0, &material->normal_map);
+        bson_object normal = bson_object_create();
+        if (material->normal_map.resource_name)
+        {
+            add_map_obj(&normal, 0, &material->normal_map);
+        }
+        else
+        {
+            bson_object_value_add_vec3(&normal, INPUT_VALUE, material->normal);
+        }
+        bson_object_value_add_boolean(&normal, INPUT_ENABLED, material->normal_enabled);
+        bson_object_value_add_object(&inputs, INPUT_NORMAL, normal);
     }
-    else
-    {
-        bson_object_value_add_vec3(&normal, INPUT_VALUE, material->normal);
-    }
-    bson_object_value_add_boolean(&normal, INPUT_ENABLED, material->normal_enabled);
-    bson_object_value_add_object(&inputs, INPUT_NORMAL, base_color);
 
     // Properties and maps only used in standard materials
     if (material->type == BMATERIAL_TYPE_STANDARD)
     {
         // Metallic
-        bson_object metallic = bson_object_create();
-        if (material->metallic_map.resource_name)
         {
-            const char* channel = texture_channel_to_string(material->metallic_map_source_channel);
-            add_map_obj(&metallic, channel, &material->metallic_map);
+            bson_object metallic = bson_object_create();
+            if (material->metallic_map.resource_name)
+            {
+                const char* channel = texture_channel_to_string(material->metallic_map_source_channel);
+                add_map_obj(&metallic, channel, &material->metallic_map);
+            }
+            else
+            {
+                bson_object_value_add_float(&metallic, INPUT_VALUE, material->metallic);
+            }
+            bson_object_value_add_object(&inputs, INPUT_METALLIC, metallic);
         }
-        else
-        {
-            bson_object_value_add_float(&metallic, INPUT_VALUE, material->metallic);
-        }
-        bson_object_value_add_object(&inputs, INPUT_METALLIC, metallic);
 
         // Roughness
-        bson_object roughness = bson_object_create();
-        if (material->roughness_map.resource_name)
         {
-            const char* channel = texture_channel_to_string(material->roughness_map_source_channel);
-            add_map_obj(&roughness, channel, &material->roughness_map);
+            bson_object roughness = bson_object_create();
+            if (material->roughness_map.resource_name)
+            {
+                const char* channel = texture_channel_to_string(material->roughness_map_source_channel);
+                add_map_obj(&roughness, channel, &material->roughness_map);
+            }
+            else
+            {
+                bson_object_value_add_float(&roughness, INPUT_VALUE, material->roughness);
+            }
+            bson_object_value_add_object(&inputs, INPUT_ROUGHNESS, roughness);
         }
-        else
-        {
-            bson_object_value_add_float(&roughness, INPUT_VALUE, material->roughness);
-        }
-        bson_object_value_add_object(&inputs, INPUT_ROUGHNESS, roughness);
 
         // Ambient occlusion
-        bson_object ao = bson_object_create();
-        if (material->ambient_occlusion_map.resource_name)
         {
-            const char* channel = texture_channel_to_string(material->ambient_occlusion_map_source_channel);
-            add_map_obj(&ao, channel, &material->ambient_occlusion_map);
+            bson_object ao = bson_object_create();
+            if (material->ambient_occlusion_map.resource_name)
+            {
+                const char* channel = texture_channel_to_string(material->ambient_occlusion_map_source_channel);
+                add_map_obj(&ao, channel, &material->ambient_occlusion_map);
+            }
+            else
+            {
+                bson_object_value_add_float(&ao, INPUT_VALUE, material->ambient_occlusion);
+            }
+            bson_object_value_add_boolean(&ao, INPUT_ENABLED, material->ambient_occlusion_enabled);
+            bson_object_value_add_object(&inputs, INPUT_AO, ao);
         }
-        else
-        {
-            bson_object_value_add_float(&ao, INPUT_VALUE, material->ambient_occlusion);
-        }
-        bson_object_value_add_boolean(&ao, INPUT_ENABLED, material->ambient_occlusion_enabled);
-        bson_object_value_add_object(&inputs, INPUT_AO, ao);
 
         // Metallic/roughness/ao combined value (mra)
-        bson_object mra = bson_object_create();
-        if (material->mra_map.resource_name)
         {
-            add_map_obj(&mra, 0, &material->mra_map);
+            bson_object mra = bson_object_create();
+            if (material->mra_map.resource_name) {
+                add_map_obj(&mra, 0, &material->mra_map);
+            } else {
+                bson_object_value_add_vec3(&mra, INPUT_VALUE, material->mra);
+            }
+            bson_object_value_add_object(&inputs, INPUT_MRA, mra);
         }
-        else
-        {
-            bson_object_value_add_vec3(&mra, INPUT_VALUE, material->mra);
-        }
-        bson_object_value_add_object(&inputs, INPUT_MRA, mra);
 
         // Emissive
-        bson_object emissive = bson_object_create();
-        if (material->emissive_map.resource_name)
         {
-            add_map_obj(&emissive, 0, &material->emissive_map);
+            bson_object emissive = bson_object_create();
+            if (material->emissive_map.resource_name)
+            {
+                add_map_obj(&emissive, 0, &material->emissive_map);
+            }
+            else
+            {
+                bson_object_value_add_vec4(&emissive, INPUT_VALUE, material->emissive);
+            }
+            bson_object_value_add_boolean(&emissive, INPUT_ENABLED, material->emissive_enabled);
+            bson_object_value_add_object(&inputs, INPUT_EMISSIVE, emissive);
         }
-        else
-        {
-            bson_object_value_add_vec4(&emissive, INPUT_VALUE, material->emissive);
-        }
-        bson_object_value_add_boolean(&emissive, INPUT_ENABLED, material->emissive_enabled);
-        bson_object_value_add_object(&inputs, INPUT_EMISSIVE, emissive);
     }
 
     // Properties only used in water materials
@@ -175,28 +186,31 @@ const char* basset_material_serialize(const basset* asset)
         bson_object_value_add_float(&tree.root, "tiling", material->tiling);
         bson_object_value_add_float(&tree.root, "wave_strength", material->wave_strength);
         bson_object_value_add_float(&tree.root, "wave_speed", material->wave_speed);
+
         // Besides normal, DUDV is also configurable
-        bson_object dudv = bson_object_create();
-        if (material->dudv_map.resource_name)
         {
-            add_map_obj(&base_color, 0, &material->dudv_map);
-            bson_object_value_add_object(&inputs, INPUT_DUDV, dudv);
+            bson_object dudv = bson_object_create();
+            if (material->dudv_map.resource_name)
+            {
+                add_map_obj(&dudv, 0, &material->dudv_map);
+                bson_object_value_add_object(&inputs, INPUT_DUDV, dudv);
+            }
         }
     }
+
+    bson_object_value_add_object(&tree.root, "inputs", inputs);
 
     // Samplers
     if (material->custom_samplers && material->custom_sampler_count)
     {
-        bson_array samplers_array = {0};
-        samplers_array.type = BSON_OBJECT_TYPE_ARRAY;
+        bson_array samplers_array = bson_array_create();
 
         // Each sampler
         for (u32 i = 0; i < material->custom_sampler_count; ++i)
         {
             bmaterial_sampler_config* custom_sampler = &material->custom_samplers[i];
 
-            bson_object sampler = {0};
-            sampler.type = BSON_OBJECT_TYPE_OBJECT;
+            bson_object sampler = bson_object_create();
 
             bson_object_value_add_string(&sampler, "name", bname_string_get(custom_sampler->name));
 
@@ -214,7 +228,7 @@ const char* basset_material_serialize(const basset* asset)
         }
 
         // Add the samplers array to the root object
-        bson_object_value_add_object(&tree.root, SAMPLERS, samplers_array);
+        bson_object_value_add_array(&tree.root, SAMPLERS, samplers_array);
     }
 
     // Tree is built, output it to a string

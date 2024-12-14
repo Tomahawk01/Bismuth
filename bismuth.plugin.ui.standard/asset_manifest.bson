@@ -7,49 +7,32 @@ references = [
 ]
 assets = [
     {
-        name = "StandardUI"
-        path = "./assets/shaders/UI.bsc"
+        name = "Shader.UI"
+        path = "./assets/shaders/Shader.UI.bsc"
     }
     {
-        name = "UI_frag"
-        path = "./assets/shaders/UI_frag.glsl"
+        name = "Shader.UI_frag"
+        path = "./assets/shaders/Shader.UI_frag.glsl"
     }
     {
-        name = "UI_vert"
-        path = "./assets/shaders/UI_vert.glsl"
+        name = "Shader.UI_vert"
+        path = "./assets/shaders/Shader.UI_vert.glsl"
     }
     {
-        name = "Pick_UI"
-        path = "./assets/shaders/Pick_UI.bsc"
+        name = "Shader.Pick_UI"
+        path = "./assets/shaders/Shader.Pick_UI.bsc"
     }
     {
-        name = "Pick_UI_frag"
-        path = "./assets/shaders/Pick_UI_frag.glsl"
+        name = "Shader.Pick_UI_frag"
+        path = "./assets/shaders/Shader.Pick_UI_frag.glsl"
     }
     {
-        name = "Pick_UI_vert"
-        path = "./assets/shaders/Pick_UI_vert.glsl"
+        name = "Shader.Pick_UI_vert"
+        path = "./assets/shaders/Shader.Pick_UI_vert.glsl"
     }
     {
-        name = "StandardUIAtlas"
-        path = "./assets/images/StandardUIAtlas.bbi"
-        source_path = "./assets/images/source/StandardUIAtlas.png"
-    }
-    {
-        name = "OpenSans21px"
-        path = "./assets/fonts/OpenSans21px.fnt"
-    }
-    {
-        name = "OpenSans21px_0"
-        path = "./assets/images/OpenSans21px_0.bbi"
-        source_path = "./assets/images/source/OpenSans21px_0.png"
-    }
-    {
-        name = "NotoSansCJK"
-        path = "./assets/fonts/NotoSansCJK.bsf"
-    }
-    {
-        name = "NotoSansCJK-Regular"
-        path = "./assets/fonts/NotoSansCJK-Regular.ttc"
+        name = "Texture.StandardUIAtlas"
+        path = "./assets/images/Texture.StandardUIAtlas.bbi"
+        source_path = "./assets/images/source/Texture.StandardUIAtlas.png"
     }
 ]

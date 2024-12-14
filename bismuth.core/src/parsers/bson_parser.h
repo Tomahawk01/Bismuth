@@ -101,6 +101,10 @@ typedef struct bson_property
     bson_property_type type;
     // The name of the property. If this belongs to an array, it should be INVALID_BSTRING_ID
     bstring_id name;
+#ifdef BISMUTH_DEBUG
+    // The original named string. Only used in debug builds
+    const char* name_str;
+#endif
     // The property value
     bson_property_value value;
 } bson_property;

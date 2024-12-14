@@ -11,7 +11,7 @@
 #include <string.h>
 #include <stdio.h>
 
-#define B_USE_CUSTOM_MEMORY_ALLOCATOR 1
+#define B_USE_CUSTOM_MEMORY_ALLOCATOR 0
 
 #if !B_USE_CUSTOM_MEMORY_ALLOCATOR
 #if _MSC_VER

@@ -545,7 +545,7 @@ static b8 rendergraph_config_deserialize(const char* source_string, rendergraph_
 
     // nodes
     bson_array nodes;
-    if (bson_object_property_value_get_object(&tree.root, "nodes", &nodes))
+    if (bson_object_property_value_get_array(&tree.root, "nodes", &nodes))
     {
 
         if (!bson_array_element_count_get(&nodes, &out_config->node_count))
@@ -598,7 +598,7 @@ static b8 rendergraph_config_deserialize(const char* source_string, rendergraph_
 
                 // Sink configs
                 bson_array sinks_array;
-                if (bson_object_property_value_get_object(&node, "sinks", &sinks_array))
+                if (bson_object_property_value_get_array(&node, "sinks", &sinks_array))
                 {
                     // Property is optional, so process it if found
 

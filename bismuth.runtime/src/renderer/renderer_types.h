@@ -177,6 +177,8 @@ typedef struct renderer_backend_config
 {
     const char* application_name;
     renderer_config_flags flags;
+
+    u16 max_shader_count;
 } renderer_backend_config;
 
 typedef enum renderer_winding

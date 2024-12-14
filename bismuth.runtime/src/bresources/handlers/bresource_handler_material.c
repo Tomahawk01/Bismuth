@@ -44,13 +44,13 @@ b8 bresource_handler_material_request(bresource_handler* self, bresource* resour
         if (info->assets.base.length == 0 && typed_request->material_source_text)
         {
             // Deserialize material asset from provided source
-            basset material_from_source = {0};
-            if (!basset_material_deserialize(typed_request->material_source_text, &material_from_source))
+            basset_material material_from_source = {0};
+            if (!basset_material_deserialize(typed_request->material_source_text, (basset*)&material_from_source))
             {
                 BERROR("Failed to deserialize material from direct source upon resource request");
                 return false;
             }
-            asset_to_resource((basset_material*)&material_from_source, typed_resource);
+            asset_to_resource(&material_from_source, typed_resource);
             return true;
         }
         else

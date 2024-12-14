@@ -25,6 +25,7 @@
 #include "core/engine.h"
 #include "bresources/bresource_types.h"
 #include "strings/bname.h"
+#include "sui_defines.h"
 
 static b8 standard_ui_system_mouse_down(u16 code, void* sender, void* listener_inst, event_context context)
 {
@@ -201,8 +202,8 @@ b8 standard_ui_system_initialize(u64* memory_requirement, standard_ui_state* sta
 
     // Atlas texture
     state->atlas_texture = texture_system_request(
-        bname_create("StandardUIAtlas"),
-        bname_create("PluginUiStandard"),
+        bname_create(STANDARD_UI_DEFAULT_ATLAS_NAME),
+        bname_create(PACKAGE_NAME_STANDARD_UI),
         state,
         texture_resource_loaded);
     if (!state->atlas_texture)

@@ -711,6 +711,9 @@ b8 bson_parser_parse(bson_parser* parser, bson_tree* out_tree)
                 bson_property prop = {0};
                 prop.type = BSON_PROPERTY_TYPE_UNKNOWN;
                 prop.name = bstring_id_create(buf);
+#ifdef BISMUTH_DEBUG
+                prop.name_str = string_duplicate(buf);
+#endif
 
                 // Push the new property and set the current property to it
                 if (!current_object->properties)
@@ -1080,11 +1083,20 @@ static void bson_tree_object_to_string(const bson_object* obj, char* out_source,
             // If named, it is a property being defined. Otherwise it is an array element
             if (p->name)
             {
-                // Write the name, then a space, then =, then another space
-                write_string(out_source, position, bstring_id_string_get(p->name));
-                write_spaces(out_source, position, 1);
-                write_string(out_source, position, "=");
-                write_spaces(out_source, position, 1);
+                // Try as a stringid first, then kname if nothing is returned
+                const char* name_str = bstring_id_string_get(p->name);
+                if (!name_str)
+                    name_str = bname_string_get(p->name);
+
+                // Only actually write out the name if it exists
+                if (name_str)
+                {
+                    // write the name, then a space, then =, then another space
+                    write_string(out_source, position, name_str);
+                    write_spaces(out_source, position, 1);
+                    write_string(out_source, position, "=");
+                    write_spaces(out_source, position, 1);
+                }
             }
 
             // Write the value
@@ -1141,7 +1153,7 @@ static void bson_tree_object_to_string(const bson_object* obj, char* out_source,
                 default:
                 case BSON_PROPERTY_TYPE_UNKNOWN:
                 {
-                    BWARN("bson_tree_object_cleanup encountered an unknown property type");
+                    BWARN("bson_tree_object_to_string encountered an unknown property type");
                 } break;
             }
         }
@@ -1199,11 +1211,12 @@ void bson_object_cleanup(bson_object* obj)
                 case BSON_PROPERTY_TYPE_UNKNOWN:
                 {
                     BWARN("bson_tree_object_cleanup encountered an unknown property type");
+                    BWARN("Ensure the same object wasn't added more than once somewhere in code");
                 } break;
             }
         }
         darray_destroy(obj->properties);
-        obj->properties = 0;
+        bzero_memory(obj, sizeof(bson_object));
     }
 }
 
@@ -1237,12 +1250,59 @@ static b8 bson_object_property_add(bson_object* obj, bson_property_type type, co
         return false;
     }
 
+    bstring_id new_name = bstring_id_create(name);
+
     if (!obj->properties)
+    {
         obj->properties = darray_create(bson_property);
+    }
+    else
+    {
+        // Check the object's properties and see if an object with that name already exists. If it does, replace it
+        u32 property_count = darray_length(obj->properties);
+        for (u32 i = 0; i < property_count; ++i)
+        {
+            bson_property* p = &obj->properties[i];
+            if (p->name == new_name)
+            {
+                BTRACE("Property '%s' already exists in object, and will be overwritten. Was this intentional?", name);
+                // Replace the property. Start by cleaning up the old one
+                switch (p->type)
+                {
+                case BSON_PROPERTY_TYPE_STRING:
+                    if (p->value.s)
+                    {
+                        string_free(p->value.s);
+                        p->value.s = 0;
+                    }
+                    break;
+                case BSON_PROPERTY_TYPE_OBJECT:
+                case BSON_PROPERTY_TYPE_ARRAY:
+                    bson_object_cleanup(&p->value.o);
+                    break;
+                default:
+                    // Nothing to cleanup for other types
+                    break;
+                }
+                bzero_memory(&p->value, sizeof(bson_property_value));
+                // Assign new values
+                p->type = type;
+                p->name = new_name;
+#ifdef BISMUTH_DEBUG
+                p->name_str = string_duplicate(name);
+#endif
+                p->value = value;
+                return true;
+            }
+        }
+    }
 
     bson_property new_prop = {0};
     new_prop.type = type;
-    new_prop.name = bstring_id_create(name);
+    new_prop.name = new_name;
+#ifdef BISMUTH_DEBUG
+    new_prop.name_str = string_duplicate(name);
+#endif
     new_prop.value = value;
 
     darray_push(obj->properties, new_prop);
@@ -2129,7 +2189,12 @@ bson_property bson_object_property_create(const char* name)
     obj.type = BSON_PROPERTY_TYPE_OBJECT;
     obj.name = INVALID_BSTRING_ID;
     if (name)
+    {
         obj.name = bstring_id_create(name);
+#ifdef BISMUTH_DEBUG
+        obj.name_str = string_duplicate(name);
+#endif
+    }
     obj.value.o.type = BSON_OBJECT_TYPE_OBJECT;
     obj.value.o.properties = darray_create(bson_property);
 
@@ -2142,7 +2207,12 @@ bson_property bson_array_property_create(const char* name)
     arr.type = BSON_PROPERTY_TYPE_ARRAY;
     arr.name = INVALID_BSTRING_ID;
     if (name)
+    {
         arr.name = bstring_id_create(name);
+#ifdef BISMUTH_DEBUG
+        arr.name_str = string_duplicate(name);
+#endif
+    }
     arr.value.o.type = BSON_OBJECT_TYPE_ARRAY;
     arr.value.o.properties = darray_create(bson_property);
 

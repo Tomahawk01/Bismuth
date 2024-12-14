@@ -253,6 +253,14 @@ bhandle shader_system_get(bname name)
     request_info.base.synchronous = true; // Shaders are needed immediately
     request_info.shader_config_source_text = 0;
 
+    // Add shader asset to resource request
+    request_info.base.assets = array_bresource_asset_info_create(1);
+    bresource_asset_info* asset = &request_info.base.assets.data[0];
+    asset->asset_name = name; // Resource name should match the asset name
+    asset->package_name = INVALID_BNAME;
+    asset->type = BASSET_TYPE_SHADER;
+    asset->watch_for_hot_reload = false;
+
     bresource_shader* shader_resource = (bresource_shader*)bresource_system_request(state_ptr->resource_state, name, (bresource_request_info*)&request_info);
     if (!shader_resource)
     {

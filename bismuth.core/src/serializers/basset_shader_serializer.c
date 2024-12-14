@@ -174,7 +174,7 @@ const char* basset_shader_serialize(const basset* asset)
 
             // Add array size if relevant (i.e. more than one)
             if (uniform->array_size > 1)
-                bson_object_value_add_int(&uniform_obj, "array_size", (i64)uniform->size);
+                bson_object_value_add_int(&uniform_obj, "array_size", (i64)uniform->array_size);
 
             switch (uniform->frequency)
             {
