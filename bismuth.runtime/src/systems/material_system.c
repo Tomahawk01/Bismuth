@@ -92,6 +92,8 @@ typedef struct material_instance_data
 // This can be thought of as "per-group" data
 typedef struct material_data
 {
+    u32 index;
+
     bname name;
     /** @brief The material type. Ultimately determines what shader the material is rendered with */
     bmaterial_type type;
@@ -323,15 +325,15 @@ typedef struct material_system_state
 {
     material_system_config config;
 
-    // darray of materials, indexed by material bhandle resource index
+    // collection of materials, indexed by material bhandle resource index
     material_data* materials;
     // darray of material instances, indexed first by material bhandle index, then by instance bhandle index
     material_instance_data** instances;
 
     // A default material for each type of material
-    bhandle default_standard_material;
-    bhandle default_water_material;
-    bhandle default_blended_material;
+    material_data* default_standard_material;
+    material_data* default_water_material;
+    material_data* default_blended_material;
 
     // Cached handles for various material types' shaders
     bhandle material_standard_shader;
@@ -367,12 +369,13 @@ static bhandle get_shader_for_material_type(const material_system_state* state, 
 static bhandle material_handle_create(material_system_state* state, bname name);
 static bhandle material_instance_handle_create(material_system_state* state, bhandle material_handle);
 static b8 material_create(material_system_state* state, bhandle material_handle, const bresource_material* typed_resource);
-static void material_destroy(material_system_state* state, bhandle* material_handle);
+static void material_destroy(material_system_state* state, material_data* material, u32 material_index);
 static b8 material_instance_create(material_system_state* state, bhandle base_material, bhandle* out_instance_handle);
-static void material_instance_destroy(material_system_state* state, bhandle base_material, bhandle* instance_handle);
+static void material_instance_destroy(material_system_state* state, material_data* base_material, material_instance_data* inst);
 static void material_resource_loaded(bresource* resource, void* listener);
-static material_instance default_material_instance_get(material_system_state* state, bhandle base_material);
-static material_instance_data* get_instance_data(material_system_state* state, material_instance instance);
+static material_instance default_material_instance_get(material_system_state* state, material_data* base_material);
+static material_data* get_material_data(material_system_state* state, bhandle material_handle);
+static material_instance_data* get_material_instance_data(material_system_state* state, material_instance instance);
 static void increment_generation(u16* generation);
 static b8 material_on_event(u16 code, void* sender, void* listener_inst, event_context data);
 
@@ -401,9 +404,9 @@ b8 material_system_initialize(u64* memory_requirement, material_system_state* st
 
     state->config = *typed_config;
 
-    state->materials = darray_create(material_data);
+    state->materials = darray_reserve(material_data, config->max_material_count);
     // An array for each material will be created when a material is created
-    state->instances = darray_create(material_instance_data*);
+    state->instances = darray_reserve(material_instance_data*, config->max_material_count);
 
     // Get default material shaders
     
@@ -691,13 +694,15 @@ void material_system_shutdown(struct material_system_state* state)
     if (state)
     {
         // Destroy default materials
-        material_destroy(state, &state->default_standard_material);
-        material_destroy(state, &state->default_water_material);
-        material_destroy(state, &state->default_blended_material);
+        material_destroy(state, state->default_standard_material, 0);
+        material_destroy(state, state->default_water_material, 1);
+        // TODO: destroy this when it's implemented
+        /* material_destroy(state, state->default_blended_material, 2); */
 
         // Release shaders for the default materials
         shader_system_destroy(&state->material_standard_shader);
         shader_system_destroy(&state->material_water_shader);
+        // TODO: release this when it's implemented
         shader_system_destroy(&state->material_blended_shader);
     }
 }
@@ -950,10 +955,13 @@ void material_system_release(material_system_state* state, material_instance* in
         return;
 
     // Getting the material instance data successfully performs all handle checks for the material and instance. This means it's safe to destroy
-    if (get_instance_data(state, *instance))
+    material_data* base_material = get_material_data(state, instance->material);
+    material_instance_data* inst = get_material_instance_data(state, *instance);
+    if (base_material && inst)
     {
-        material_instance_destroy(state, instance->material, &instance->instance);
-        // Invalidate the material handle in the instance pointer as well
+        material_instance_destroy(state, base_material, inst);
+        // Invalidate both handles
+        bhandle_invalidate(&instance->instance);
         bhandle_invalidate(&instance->material);
     }
 }
@@ -1375,7 +1383,7 @@ b8 material_system_apply_instance(material_system_state* state, const material_i
     if (!state)
         return false;
 
-    material_instance_data* mat_inst_data = get_instance_data(state, *instance);
+    material_instance_data* mat_inst_data = get_material_instance_data(state, *instance);
     if (!mat_inst_data)
         return false;
 
@@ -1454,7 +1462,7 @@ b8 material_system_apply_instance(material_system_state* state, const material_i
 
 b8 material_instance_flag_set(struct material_system_state* state, material_instance instance, bmaterial_flag_bits flag, b8 value)
 {
-    material_instance_data* data = get_instance_data(state, instance);
+    material_instance_data* data = get_material_instance_data(state, instance);
     if (!data)
         return false;
 
@@ -1465,7 +1473,7 @@ b8 material_instance_flag_set(struct material_system_state* state, material_inst
 
 b8 material_instance_flag_get(struct material_system_state* state, material_instance instance, bmaterial_flag_bits flag)
 {
-    material_instance_data* data = get_instance_data(state, instance);
+    material_instance_data* data = get_material_instance_data(state, instance);
     if (!data)
         return false;
 
@@ -1477,7 +1485,7 @@ b8 material_instance_base_color_get(struct material_system_state* state, materia
     if (!out_value)
         return false;
 
-    material_instance_data* data = get_instance_data(state, instance);
+    material_instance_data* data = get_material_instance_data(state, instance);
     if (!data)
         return false;
 
@@ -1487,7 +1495,7 @@ b8 material_instance_base_color_get(struct material_system_state* state, materia
 
 b8 material_instance_base_color_set(struct material_system_state* state, material_instance instance, vec4 value)
 {
-    material_instance_data* data = get_instance_data(state, instance);
+    material_instance_data* data = get_material_instance_data(state, instance);
     if (!data)
         return false;
 
@@ -1501,7 +1509,7 @@ b8 material_instance_uv_offset_get(struct material_system_state* state, material
     if (!out_value)
         return false;
 
-    material_instance_data* data = get_instance_data(state, instance);
+    material_instance_data* data = get_material_instance_data(state, instance);
     if (!data)
         return false;
 
@@ -1511,7 +1519,7 @@ b8 material_instance_uv_offset_get(struct material_system_state* state, material
 
 b8 material_instance_uv_offset_set(struct material_system_state* state, material_instance instance, vec3 value)
 {
-    material_instance_data* data = get_instance_data(state, instance);
+    material_instance_data* data = get_material_instance_data(state, instance);
     if (!data)
         return false;
 
@@ -1525,7 +1533,7 @@ b8 material_instance_uv_scale_get(struct material_system_state* state, material_
     if (!out_value)
         return false;
 
-    material_instance_data* data = get_instance_data(state, instance);
+    material_instance_data* data = get_material_instance_data(state, instance);
     if (!data)
         return false;
 
@@ -1535,7 +1543,7 @@ b8 material_instance_uv_scale_get(struct material_system_state* state, material_
 
 b8 material_instance_uv_scale_set(struct material_system_state* state, material_instance instance, vec3 value)
 {
-    material_instance_data* data = get_instance_data(state, instance);
+    material_instance_data* data = get_material_instance_data(state, instance);
     if (!data)
         return false;
 
@@ -1613,6 +1621,9 @@ static b8 create_default_standard_material(material_system_state* state)
     listener->material_handle = material_handle_create(state, material_name);
     listener->instance_handle = 0; // NOTE: creation of default materials does not immediately need an instance
 
+    // Save off a pointer to the material
+    state->default_standard_material = &state->materials[listener->material_handle.handle_index];
+
     bresource_material_request_info request = {0};
     request.base.type = BRESOURCE_TYPE_MATERIAL;
     request.base.listener_inst = listener;
@@ -1669,6 +1680,9 @@ static b8 create_default_water_material(material_system_state* state)
     listener->material_handle = material_handle_create(state, material_name);
     listener->instance_handle = 0; // NOTE: creation of default materials does not immediately need an instance
 
+    // Save off a pointer to the material
+    state->default_water_material = &state->materials[listener->material_handle.handle_index];
+
     bresource_material_request_info request = {0};
     request.base.type = BRESOURCE_TYPE_MATERIAL;
     request.base.listener_inst = listener;
@@ -1719,7 +1733,7 @@ static bhandle get_shader_for_material_type(const material_system_state* state, 
     {
     default:
     case BMATERIAL_TYPE_UNKNOWN:
-        BERROR("Cannot create a material using an 'unknown' material type");
+        BERROR("Cannot get shader for a material using an 'unknown' material type");
         return bhandle_invalid();
     case BMATERIAL_TYPE_STANDARD:
         return state->material_standard_shader;
@@ -1805,6 +1819,8 @@ static bhandle material_instance_handle_create(material_system_state* state, bha
 static b8 material_create(material_system_state* state, bhandle material_handle, const bresource_material* typed_resource)
 {
     material_data* material = &state->materials[material_handle.handle_index];
+
+    material->index = material_handle.handle_index;
 
     // Validate the material type and model
     material->type = typed_resource->type;
@@ -1975,15 +1991,9 @@ static b8 material_create(material_system_state* state, bhandle material_handle,
     return true;
 }
 
-static void material_destroy(material_system_state* state, bhandle* material_handle)
+static void material_destroy(material_system_state* state, material_data* material, u32 material_index)
 {
-    if (bhandle_is_invalid(*material_handle) || bhandle_is_stale(*material_handle, state->materials[material_handle->handle_index].unique_id))
-    {
-        BWARN("Attempting to release material that has an invalid or stale handle");
-        return;
-    }
-
-    material_data* material = &state->materials[material_handle->handle_index];
+    BASSERT_MSG(material, "Tried to destroy null material");
 
     // Select shader
     bhandle material_shader = get_shader_for_material_type(state, material->type);
@@ -2060,14 +2070,13 @@ static void material_destroy(material_system_state* state, bhandle* material_han
     // TODO: Custom samplers
 
     // Destroy instances
-    u32 instance_count = darray_length(state->instances[material_handle->handle_index]);
+    u32 instance_count = darray_length(state->instances[material_index]);
     for (u32 i = 0; i < instance_count; ++i)
     {
-        material_instance_data* inst = &state->instances[material_handle->handle_index][i];
+        material_instance_data* inst = &state->instances[material_index][i];
         if (inst->unique_id != INVALID_ID_U64)
         {
-            bhandle temp_handle = bhandle_create_with_u64_identifier(i, inst->unique_id);
-            material_instance_destroy(state, *material_handle, &temp_handle);
+            material_instance_destroy(state, material, inst);
         }
     }
 
@@ -2076,8 +2085,6 @@ static void material_destroy(material_system_state* state, bhandle* material_han
     // Mark the material slot as free for another material to be loaded
     material->unique_id = INVALID_ID_U64;
     material->group_id = INVALID_ID;
-
-    bhandle_invalidate(material_handle);
 }
 
 static b8 material_instance_create(material_system_state* state, bhandle base_material, bhandle* out_instance_handle)
@@ -2111,27 +2118,19 @@ static b8 material_instance_create(material_system_state* state, bhandle base_ma
     return true;
 }
 
-static void material_instance_destroy(material_system_state* state, bhandle base_material, bhandle* instance_handle)
+static void material_instance_destroy(material_system_state* state, material_data* base_material, material_instance_data* inst)
 {
-    material_data* material = &state->materials[base_material.handle_index];
-    material_instance_data* inst = &state->instances[base_material.handle_index][instance_handle->handle_index];
-    if (bhandle_is_invalid(*instance_handle) || bhandle_is_stale(*instance_handle, state->instances[base_material.handle_index][instance_handle->handle_index].unique_id))
+    if (base_material && inst && inst->unique_id != INVALID_ID_U64)
     {
-        BWARN("Tried to destroy a material instance whose handle is either invalid or stale. Nothing will be done");
-        return;
+        // Release per-draw resources for the instance
+        renderer_shader_per_draw_resources_release(state->renderer, get_shader_for_material_type(state, base_material->type), inst->per_draw_id);
+
+        bzero_memory(inst, sizeof(material_instance_data));
+
+        // Make sure to invalidate the entry
+        inst->unique_id = INVALID_ID_U64;
+        inst->per_draw_id = INVALID_ID;
     }
-
-    // Release per-draw resources for the instance
-    renderer_shader_per_draw_resources_release(state->renderer, get_shader_for_material_type(state, material->type), inst->per_draw_id);
-
-    bzero_memory(inst, sizeof(material_instance_data));
-
-    // Make sure to invalidate the entry
-    inst->unique_id = INVALID_ID_U64;
-    inst->per_draw_id = INVALID_ID;
-
-    // Invalidate the handle too
-    bhandle_invalidate(instance_handle);
 }
 
 static void material_resource_loaded(bresource* resource, void* listener)
@@ -2155,18 +2154,16 @@ static void material_resource_loaded(bresource* resource, void* listener)
     }
 }
 
-static material_instance default_material_instance_get(material_system_state* state, bhandle base_material)
+static material_instance default_material_instance_get(material_system_state* state, material_data* base_material)
 {
     material_instance instance = {0};
-    instance.material = base_material;
-
-    material_data* base = &state->materials[base_material.handle_index];
+    instance.material = bhandle_create_with_u64_identifier(base_material->index, base_material->unique_id);
 
     // Get an instance of it
     if (!material_instance_create(state, instance.material, &instance.instance))
     {
         // Fatal here because if this happens on a default material, something is seriously borked
-        BFATAL("Failed to obtain an instance of the default '%s' material", bname_string_get(base->name));
+        BFATAL("Failed to obtain an instance of the default '%s' material", bname_string_get(base_material->name));
 
         // Invalidate the handles
         bhandle_invalidate(&instance.material);
@@ -2176,25 +2173,47 @@ static material_instance default_material_instance_get(material_system_state* st
     return instance;
 }
 
-static material_instance_data* get_instance_data(material_system_state* state, material_instance instance)
+static material_data* get_material_data(material_system_state* state, bhandle material_handle)
 {
     if (!state)
         return 0;
 
-    // Verify handles first
-    if (bhandle_is_invalid(instance.material) || bhandle_is_invalid(instance.instance))
+    // Verify handle first
+    if (bhandle_is_invalid(material_handle))
     {
-        BWARN("Attempted to get material instance with an invalid base material or instance handle. Nothing to do");
+        BWARN("Attempted to get material data with an invalid base material. Nothing to do");
         return 0;
     }
 
-    if (bhandle_is_stale(instance.material, state->materials[instance.material.handle_index].unique_id))
+    if (bhandle_is_stale(material_handle, state->materials[material_handle.handle_index].unique_id))
     {
-        BWARN("Attempted to get material instance using a stale material handle. Nothing will be done");
+        BWARN("Attempted to get material data using a stale material handle. Nothing will be done");
         return 0;
     }
 
-    if (bhandle_is_stale(instance.material, state->instances[instance.material.handle_index][instance.instance.handle_index].unique_id))
+    return &state->materials[material_handle.handle_index];
+}
+
+static material_instance_data* get_material_instance_data(material_system_state* state, material_instance instance)
+{
+    if (!state)
+        return 0;
+
+    material_data* material = get_material_data(state, instance.material);
+    if (!material)
+    {
+        BERROR("Attempted to get material instance data for a non-existant material. See logs for details");
+        return 0;
+    }
+
+    // Verify handle first
+    if (bhandle_is_invalid(instance.instance))
+    {
+        BWARN("Attempted to get material instance with an invalid instance handle. Nothing to do");
+        return 0;
+    }
+
+    if (bhandle_is_stale(instance.instance, state->instances[instance.material.handle_index][instance.instance.handle_index].unique_id))
     {
         BWARN("Attempted to get material instance using a stale material instance handle. Nothing will be done");
         return 0;

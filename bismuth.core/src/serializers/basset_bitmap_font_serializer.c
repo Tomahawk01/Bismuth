@@ -198,8 +198,9 @@ b8 basset_bitmap_font_deserialize(u64 size, const void* block, basset* out_asset
             bcopy_memory(&len, block + offset, sizeof(u32));
             offset += sizeof(u32);
 
-            char* str = ballocate(sizeof(char) * len, MEMORY_TAG_STRING);
-            bcopy_memory(str, block + offset, sizeof(char) * len);
+            u64 alloc_size = sizeof(char) * len;
+            char* str = ballocate(alloc_size + 1, MEMORY_TAG_STRING);
+            bcopy_memory(str, block + offset, alloc_size);
             offset += len;
 
             typed_asset->pages.data[i].id = i;

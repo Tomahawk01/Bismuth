@@ -30,7 +30,7 @@ typedef struct debug_console_state
     standard_ui_state* sui_state;
 } debug_console_state;
 
-BAPI void debug_console_create(standard_ui_state* sui_state, debug_console_state* out_console_state);
+BAPI b8 debug_console_create(standard_ui_state* sui_state, debug_console_state* out_console_state);
 
 BAPI b8 debug_console_load(debug_console_state* state);
 BAPI void debug_console_unload(debug_console_state* state);

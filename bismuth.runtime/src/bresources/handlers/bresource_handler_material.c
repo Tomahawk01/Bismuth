@@ -51,6 +51,10 @@ b8 bresource_handler_material_request(bresource_handler* self, bresource* resour
                 return false;
             }
             asset_to_resource(&material_from_source, typed_resource);
+
+            // Make the user callback is set
+            if (info->user_callback)
+                info->user_callback((bresource*)typed_resource, info->listener_inst);
             return true;
         }
         else
@@ -110,6 +114,10 @@ static void material_basset_on_result(asset_request_result result, const struct 
         listener->asset = (basset_material*)asset;
         
         asset_to_resource(listener->asset, listener->typed_resource);
+
+        // Make the user callback is set
+        if (listener->request_info->base.user_callback)
+            listener->request_info->base.user_callback((bresource*)listener->typed_resource, listener->request_info->base.listener_inst);
     }
     else
     {

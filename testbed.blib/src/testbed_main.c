@@ -483,7 +483,10 @@ b8 application_initialize(struct application* game_inst)
     state->sui_state = state->sui_plugin_state->state;
     standard_ui_state* sui_state = state->sui_state;
 
-    debug_console_create(state->sui_state, &((testbed_game_state*)game_inst->state)->debug_console);
+#ifdef BISMUTH_DEBUG
+    if (!debug_console_create(state->sui_state, &((testbed_game_state*)game_inst->state)->debug_console))
+        BERROR("Failed to create debug console");
+#endif
 
     application_register_events(game_inst);
 
