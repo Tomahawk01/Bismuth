@@ -71,7 +71,7 @@ b8 debug_console_create(standard_ui_state* sui_state, debug_console_state* out_c
 
     // NOTE: update the text based on number of lines to display and
     // the number of lines offset from the bottom. A UI Text object is
-    // used for display for now. Can worry about colour in a separate pass.
+    // used for display for now. Can worry about color in a separate pass.
     // Not going to consider word wrap.
     // NOTE: also should consider clipping rectangles and newlines.
 
@@ -208,7 +208,7 @@ void debug_console_unload(debug_console_state* state)
         state->loaded = false;
 }
 
-#define DEBUG_CONSOLE_BUFFER_LENGTH 16384
+#define DEBUG_CONSOLE_BUFFER_LENGTH 32768
 void debug_console_update(debug_console_state* state)
 {
     if (state && state->loaded && state->dirty)

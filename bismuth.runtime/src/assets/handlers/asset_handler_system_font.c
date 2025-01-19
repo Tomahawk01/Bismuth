@@ -41,7 +41,6 @@ void asset_handler_system_font_request_asset(struct asset_handler* self, struct 
     context.handler = self;
     context.listener_instance = listener_instance;
     context.user_callback = user_callback;
-    vfs_request_asset(self->vfs, asset->name, asset->package_name, false, false, sizeof(asset_handler_request_context), &context, 0, 0, asset_handler_system_font_on_asset_loaded);
 
     vfs_request_info request_info = {0};
     request_info.package_name = asset->package_name;

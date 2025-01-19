@@ -128,7 +128,7 @@ void vfs_request_asset(vfs_state* state, vfs_request_info info)
     }
 }
 
-void vfs_request_asset_sync(vfs_state* state, vfs_request_info info)
+vfs_asset_data vfs_request_asset_sync(vfs_state* state, vfs_request_info info)
 {
     vfs_asset_data out_data = {0};
 

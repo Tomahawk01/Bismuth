@@ -10,7 +10,9 @@
 #include <systems/shader_system.h>
 
 #include "renderer/nine_slice.h"
+#include "standard_ui_defines.h"
 #include "standard_ui_system.h"
+#include "strings/bname.h"
 
 static void sui_button_control_render_frame_prepare(standard_ui_state* state, struct sui_control* self, const struct frame_data* p_frame_data);
 

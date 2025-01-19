@@ -162,7 +162,7 @@ static void sui_panel_control_render_frame_prepare(standard_ui_state* state, str
         sui_panel_internal_data* typed_data = self->internal_data;
         if (typed_data->is_dirty)
         {
-            renderer_geometry_vertex_update(typed_data->g, 0, typed_data->g.vertex_count, typed_data->g.vertices, true);
+            renderer_geometry_vertex_update(&typed_data->g, 0, typed_data->g.vertex_count, typed_data->g.vertices, true);
             typed_data->is_dirty = false;
         }
     }

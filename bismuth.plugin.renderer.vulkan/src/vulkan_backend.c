@@ -2046,7 +2046,7 @@ b8 vulkan_renderer_shader_create(renderer_backend_interface* backend, bhandle sh
     b8 has_per_frame = frequency_has_uniforms(&internal_shader->per_frame_info);
     b8 has_per_group = frequency_has_uniforms(&internal_shader->per_group_info);
     b8 has_per_draw = frequency_has_uniforms(&internal_shader->per_draw_info);
-    kzero_memory(internal_shader->descriptor_sets, sizeof(vulkan_descriptor_set_config) * VULKAN_SHADER_DESCRIPTOR_SET_LAYOUT_COUNT);
+    bzero_memory(internal_shader->descriptor_sets, sizeof(vulkan_descriptor_set_config) * VULKAN_SHADER_DESCRIPTOR_SET_LAYOUT_COUNT);
 
     // Attributes array
     bzero_memory(internal_shader->attributes, sizeof(VkVertexInputAttributeDescription) * VULKAN_SHADER_MAX_ATTRIBUTES);
@@ -3018,6 +3018,8 @@ static b8 create_shader_module(vulkan_context* context, vulkan_shader* internal_
     }
 
     BDEBUG("Compiling stage '%s' for shader '%s'...", shader_stage_to_string(stage), bname_string_get(internal_shader->name));
+
+    BTRACE("Source:\n%s", source);
                 
     // Attempt to compile the shader
     shaderc_compile_options_t options = shaderc_compile_options_initialize();

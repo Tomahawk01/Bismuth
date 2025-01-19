@@ -909,7 +909,7 @@ b8 material_flag_get(struct material_system_state* state, bhandle material, bmat
         return false;
 
     material_data* data = &state->materials[material.handle_index];
-    return FLAG_GET(data->flags, flag);
+    return FLAG_GET(data->flags, (u32)flag);
 }
 
 b8 material_system_acquire(material_system_state* state, bname name, material_instance* out_instance)
@@ -1300,7 +1300,7 @@ b8 material_system_apply(material_system_state* state, bhandle material, frame_d
                 bzero_memory(&group_ubo.dir_light, sizeof(directional_light_data));
             }
             // Point lights
-            group_ubo.num_p_lights = KMIN(light_system_point_light_count(), MATERIAL_MAX_POINT_LIGHTS);
+            group_ubo.num_p_lights = BMIN(light_system_point_light_count(), MATERIAL_MAX_POINT_LIGHTS);
             if (group_ubo.num_p_lights)
             {
                 point_light p_lights[MATERIAL_MAX_POINT_LIGHTS];
@@ -1477,7 +1477,7 @@ b8 material_instance_flag_get(struct material_system_state* state, material_inst
     if (!data)
         return false;
 
-    return FLAG_GET(data->flags, flag);
+    return FLAG_GET(data->flags, (u32)flag);
 }
 
 b8 material_instance_base_color_get(struct material_system_state* state, material_instance instance, vec4* out_value)

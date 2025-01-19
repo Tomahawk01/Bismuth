@@ -49,7 +49,7 @@ b8 bresource_handler_bitmap_font_request(bresource_handler* self, bresource* res
     bitmap_font_resource_handler_info* listener_inst = ballocate(sizeof(bitmap_font_resource_handler_info), MEMORY_TAG_RESOURCE);
     // Take a copy of the typed request info
     listener_inst->request_info = ballocate(sizeof(bresource_bitmap_font_request_info), MEMORY_TAG_RESOURCE);
-    kcopy_memory(listener_inst->request_info, typed_request, sizeof(bresource_bitmap_font_request_info));
+    bcopy_memory(listener_inst->request_info, typed_request, sizeof(bresource_bitmap_font_request_info));
     listener_inst->typed_resource = typed_resource;
     listener_inst->handler = self;
     listener_inst->asset = 0;

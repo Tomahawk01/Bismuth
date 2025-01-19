@@ -292,7 +292,7 @@ b8 standard_ui_system_render(standard_ui_state* state, sui_control* root, struct
     if (!state)
         return false;
 
-    render_data->ui_atlas = &state->atlas_texture;
+    render_data->ui_atlas = state->atlas_texture;
 
     if (!root)
         root = &state->root;

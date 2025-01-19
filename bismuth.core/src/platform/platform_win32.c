@@ -49,7 +49,9 @@ typedef struct platform_state
     // darray of pointers to created windows (owned by the application)
     bwindow** windows;
     platform_filewatcher_file_deleted_callback watcher_deleted_callback;
+    void* watcher_deleted_context;
     platform_filewatcher_file_written_callback watcher_written_callback;
+    void* watcher_written_context;
     platform_window_closed_callback window_closed_callback;
     platform_window_resized_callback window_resized_callback;
     platform_process_key process_key;
@@ -683,18 +685,15 @@ b8 platform_dynamic_library_load(const char* name, dynamic_library* out_library)
     if (!name)
         return false;
 
-    char filename[MAX_PATH];
-    bzero_memory(filename, sizeof(char) * MAX_PATH);
-    string_format_unsafe(filename, "%s.dll", name);
+    out_library->filename = string_format("%s.dll", name);
 
-    LPCWSTR wfilename = cstr_to_wcstr(filename);
+    LPCWSTR wfilename = cstr_to_wcstr(out_library->filename);
     HMODULE library = LoadLibraryW(wfilename);
     wcstr_free(wfilename);
     if (!library)
         return false;
 
     out_library->name = string_duplicate(name);
-    out_library->filename = string_duplicate(filename);
 
     out_library->internal_data_size = sizeof(HMODULE);
     out_library->internal_data = library;

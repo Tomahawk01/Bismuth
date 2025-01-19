@@ -233,11 +233,17 @@ static bpackage_result asset_get_data(const bpackage* package, b8 is_binary, bna
         if (read_size < original_file_size)
         {
             BTRACE("Package '%s': asset '%s', file at path: '%s' - Read size/file size mismatch (%llu, %llu)", package_name, name_str, asset_path, read_size, original_file_size);
-            void* temp = ballocate(read_size, MEMORY_TAG_ASSET);
+            void* temp = ballocate(read_size + (is_binary ? 1 : 0), MEMORY_TAG_ASSET);
             bcopy_memory(temp, data, read_size);
             bfree(data, actual_file_size, MEMORY_TAG_ASSET);
             data = temp;
             actual_file_size = read_size;
+            // Account for the null terminator for text files
+            if (!is_binary)
+            {
+                actual_file_size++;
+                ((char*)data)[actual_file_size - 1] = 0;
+            }
         }
 
         // Set the output

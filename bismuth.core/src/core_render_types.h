@@ -147,6 +147,22 @@ typedef enum shader_generic_sampler
     SHADER_GENERIC_SAMPLER_COUNT,
 } shader_generic_sampler;
 
+typedef enum renderer_default_texture
+{
+    // Used as a default for material base colors
+    RENDERER_DEFAULT_TEXTURE_BASE_COLOR = 0,
+    RENDERER_DEFAULT_TEXTURE_ALBEDO = RENDERER_DEFAULT_TEXTURE_BASE_COLOR,
+    RENDERER_DEFAULT_TEXTURE_DIFFUSE = RENDERER_DEFAULT_TEXTURE_BASE_COLOR,
+    RENDERER_DEFAULT_TEXTURE_NORMAL = 1,
+    RENDERER_DEFAULT_TEXTURE_METALLIC = 2,
+    RENDERER_DEFAULT_TEXTURE_ROUGHNESS = 3,
+    RENDERER_DEFAULT_TEXTURE_AMBIENT_OCCLUSION = 4,
+    RENDERER_DEFAULT_TEXTURE_EMISSIVE = 5,
+    RENDERER_DEFAULT_TEXTURE_DUDV = 6,
+
+    RENDERER_DEFAULT_TEXTURE_COUNT
+} renderer_default_texture;
+
 /** @brief Represents a single entry in the internal uniform array */
 typedef struct shader_uniform
 {
@@ -186,7 +202,7 @@ typedef struct shader_attribute
 } shader_attribute;
 
 /** @brief Various shader flag bit fields */
-typedef enum shader_flags_bits
+typedef enum shader_flag_bits
 {
     SHADER_FLAG_NONE_BIT = 0x0000,
     // Reads from depth buffer
@@ -202,7 +218,7 @@ typedef enum shader_flags_bits
     SHADER_FLAG_COLOR_READ_BIT = 0x0020,
     // Writes to color buffer
     SHADER_FLAG_COLOR_WRITE_BIT = 0x0040
-} shader_flags_bits;
+} shader_flag_bits;
 
 /** @brief A combination of topology bit flags */
 typedef u32 shader_flags;
@@ -307,25 +323,25 @@ typedef enum bmaterial_texture_map
 typedef enum bmaterial_flag_bits
 {
     // Material is marked as having transparency. If not set, alpha of albedo will not be used
-    BMATERIAL_FLAG_HAS_TRANSPARENCY_BIT = 0x0001,
+    BMATERIAL_FLAG_HAS_TRANSPARENCY_BIT = 0x0001U,
     // Material is double-sided
-    BMATERIAL_FLAG_DOUBLE_SIDED_BIT = 0x0002,
+    BMATERIAL_FLAG_DOUBLE_SIDED_BIT = 0x0002U,
     // Material recieves shadows
-    BMATERIAL_FLAG_RECIEVES_SHADOW_BIT = 0x0004,
+    BMATERIAL_FLAG_RECIEVES_SHADOW_BIT = 0x0004U,
     // Material casts shadows
-    BMATERIAL_FLAG_CASTS_SHADOW_BIT = 0x0008,
+    BMATERIAL_FLAG_CASTS_SHADOW_BIT = 0x0008U,
     // Material normal map enabled. A default z-up value will be used if not set
-    BMATERIAL_FLAG_NORMAL_ENABLED_BIT = 0x0010,
+    BMATERIAL_FLAG_NORMAL_ENABLED_BIT = 0x0010U,
     // Material AO map is enabled. A default of 1.0 (white) will be used if not set
-    BMATERIAL_FLAG_AO_ENABLED_BIT = 0x0020,
+    BMATERIAL_FLAG_AO_ENABLED_BIT = 0x0020U,
     // Material emissive map is enabled. Emissive map is ignored if not set
-    BMATERIAL_FLAG_EMISSIVE_ENABLED_BIT = 0x0040,
+    BMATERIAL_FLAG_EMISSIVE_ENABLED_BIT = 0x0040U,
     // Material combined MRA (metallic/roughness/ao) map is enabled. MRA map is ignored if not set
-    BMATERIAL_FLAG_MRA_ENABLED_BIT = 0x0080,
+    BMATERIAL_FLAG_MRA_ENABLED_BIT = 0x0080U,
     // Material refraction map is enabled. Refraction map is ignored if not set
-    BMATERIAL_FLAG_REFRACTION_ENABLED_BIT = 0x0100,
+    BMATERIAL_FLAG_REFRACTION_ENABLED_BIT = 0x0100U,
     // Material uses vertex color data as the base color
-    BMATERIAL_FLAG_USE_VERTEX_COLOR_AS_BASE_COLOR_BIT = 0x0200
+    BMATERIAL_FLAG_USE_VERTEX_COLOR_AS_BASE_COLOR_BIT = 0x0200U
 } bmaterial_flag_bits;
 
 typedef u32 bmaterial_flags;

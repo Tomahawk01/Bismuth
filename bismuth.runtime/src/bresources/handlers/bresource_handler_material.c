@@ -100,9 +100,9 @@ void bresource_handler_material_release(bresource_handler* self, bresource* reso
 
         if (typed_resource->custom_sampler_count && typed_resource->custom_samplers)
             BFREE_TYPE_CARRAY(typed_resource->custom_samplers, bmaterial_sampler_config, typed_resource->custom_sampler_count);
-    }
 
-    BFREE_TYPE(typed_resource, bresource_material, MEMORY_TAG_RESOURCE);
+        BFREE_TYPE(typed_resource, bresource_material, MEMORY_TAG_RESOURCE);
+    }
 }
 
 static void material_basset_on_result(asset_request_result result, const struct basset* asset, void* listener_inst)

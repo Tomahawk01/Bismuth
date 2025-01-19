@@ -58,7 +58,7 @@ void bquick_sort(u64 type_size, void* data, i32 low_index, i32 high_index, PFN_b
     }
 }
 
-i32 kquicksort_compare_u32_desc(void* a, void* b)
+i32 bquicksort_compare_u32_desc(void* a, void* b)
 {
     u32 a_typed = *(u32*)a;
     u32 b_typed = *(u32*)b;
@@ -74,7 +74,7 @@ i32 kquicksort_compare_u32_desc(void* a, void* b)
     return 0;
 }
 
-i32 kquicksort_compare_u32(void* a, void* b)
+i32 bquicksort_compare_u32(void* a, void* b)
 {
     u32 a_typed = *(u32*)a;
     u32 b_typed = *(u32*)b;

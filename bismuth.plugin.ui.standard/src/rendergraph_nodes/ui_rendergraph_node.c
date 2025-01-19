@@ -44,7 +44,7 @@ typedef struct sui_per_draw_ubo
 typedef struct ui_rendergraph_node_internal_data
 {
     struct renderer_system_state* renderer;
-    bhandle* sui_shader; // standard ui // TODO: different render pass?
+    bhandle sui_shader; // standard ui // TODO: different render pass?
     sui_shader_locations sui_locations;
 
     bresource_texture* colorbuffer_texture;

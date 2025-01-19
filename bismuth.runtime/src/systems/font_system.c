@@ -1150,7 +1150,7 @@ static b8 rebuild_system_font_variant_atlas(system_font_lookup* lookup, system_f
         u32 entry_count = stbtt_GetKerningTable(&lookup->info, kerning_table, variant->data.kerning_count);
         if (entry_count != variant->data.kerning_count)
         {
-            BERROR("Kerning entry count mismatch: %u->%u", entry_count, variant->kerning_count);
+            BERROR("Kerning entry count mismatch: %u->%u", entry_count, variant->data.kerning_count);
             return false;
         }
 
