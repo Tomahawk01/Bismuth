@@ -1,9 +1,9 @@
 version=1
 
-stages=vertex,fragment
-stagefiles=Runtime.Text.Color3D_vert,Runtime.Text.Color3D_frag
-depth_test=1
-depth_write=1
+depth_test=true
+depth_write=true
+max_draw_ids = 256
+
 supported_topologies = [
     "line_list"
     "triangle_list"
@@ -12,13 +12,13 @@ supported_topologies = [
 stages = [
     {
         type = "vertex"
-        source_asset_name = "Color3D_vert"
-        package_name = "Runtime"
+        source_asset_name = "Shader.Color3D_vert"
+        package_name = "Bismuth.Runtime"
     }
     {
         type = "fragment"
-        source_asset_name = "Color3D_frag"
-        package_name = "Runtime"
+        source_asset_name = "Shader.Color3D_frag"
+        package_name = "Bismuth.Runtime"
     }
 ]
 

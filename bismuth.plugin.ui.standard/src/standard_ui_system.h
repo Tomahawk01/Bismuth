@@ -115,6 +115,7 @@ typedef struct sui_control
 typedef struct standard_ui_state
 {
     struct renderer_system_state* renderer;
+    struct font_system_state* font_system;
     standard_ui_system_config config;
     u32 total_control_count;
     u32 active_control_count;

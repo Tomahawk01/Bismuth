@@ -7,13 +7,13 @@ cull_mode="none"
 stages = [
     {
         type = "vertex"
-        source_asset_name = "Shadow_Terrain_vert"
-        package_name = "Runtime"
+        source_asset_name = "Shader.Shadow_Terrain_vert"
+        package_name = "Bismuth.Runtime"
     }
     {
         type = "fragment"
-        source_asset_name = "Shadow_Terrain_frag"
-        package_name = "Runtime"
+        source_asset_name = "Shader.Shadow_Terrain_frag"
+        package_name = "Bismuth.Runtime"
     }
 ]
 

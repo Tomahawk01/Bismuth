@@ -1,10 +1,5 @@
 #version 450
 
-struct ui_properties
-{
-    vec4 diffuse_color;
-};
-
 // =========================================================
 // Inputs
 // =========================================================
@@ -21,7 +16,7 @@ layout(set = 0, binding = 0) uniform per_frame_ubo
 
 layout(set = 1, binding = 0) uniform per_group_ubo
 {
-    ui_properties properties;
+    vec4 diffuse_color;
 } sui_group_ubo;
 
 layout(set = 1, binding = 1) uniform texture2D atlas_texture;

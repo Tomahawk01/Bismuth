@@ -375,3 +375,74 @@ typedef struct bresource_binary
     u32 size;
     const void* bytes;
 } bresource_binary;
+
+#define BRESOURCE_TYPE_NAME_FONT "Font"
+
+typedef struct font_glyph
+{
+    i32 codepoint;
+    u16 x;
+    u16 y;
+    u16 width;
+    u16 height;
+    i16 x_offset;
+    i16 y_offset;
+    i16 x_advance;
+    u8 page_id;
+} font_glyph;
+
+typedef struct font_kerning
+{
+    i32 codepoint_0;
+    i32 codepoint_1;
+    i16 amount;
+} font_kerning;
+
+typedef struct font_page
+{
+    bname image_asset_name;
+} font_page;
+
+ARRAY_TYPE(font_glyph);
+ARRAY_TYPE(font_kerning);
+ARRAY_TYPE(font_page);
+
+/** @brief Represents a bitmap font resource */
+typedef struct bresource_bitmap_font
+{
+    bresource base;
+
+    bname face;
+    // The font size
+    u32 size;
+    i32 line_height;
+    i32 baseline;
+    u32 atlas_size_x;
+    u32 atlas_size_y;
+
+    array_font_glyph glyphs;
+    array_font_kerning kernings;
+    array_font_page pages;
+} bresource_bitmap_font;
+
+typedef struct bresource_bitmap_font_request_info
+{
+    bresource_request_info base;
+} bresource_bitmap_font_request_info;
+
+/** @brief Represents a system font resource */
+typedef struct bresource_system_font
+{
+    bresource base;
+    bname ttf_asset_name;
+    bname ttf_asset_package_name;
+    u32 face_count;
+    bname* faces;
+    u32 font_binary_size;
+    void* font_binary;
+} bresource_system_font;
+
+typedef struct bresource_system_font_request_info
+{
+    bresource_request_info base;
+} bresource_system_font_request_info;

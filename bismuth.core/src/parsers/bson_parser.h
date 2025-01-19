@@ -400,7 +400,7 @@ BAPI b8 bson_object_value_add_vec3(bson_object* object, const char* name, vec3 v
 BAPI b8 bson_object_value_add_vec2(bson_object* object, const char* name, vec2 value);
 
 /**
- * @brief Adds a named kname value to the provided object
+ * @brief Adds a named bname value to the provided object
  *
  * @param object A pointer to the object to add the property to.
  * @param name A constant pointer to the name to be used. Required.

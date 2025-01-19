@@ -6,7 +6,6 @@
 #include "memory/bmemory.h"
 #include "parsers/bson_parser.h"
 #include "strings/bname.h"
-#include "strings/bstring.h"
 
 #define SYSTEM_FONT_FORMAT_VERSION 1
 
@@ -88,11 +87,13 @@ b8 basset_system_font_deserialize(const char* file_text, basset* out_asset)
         }
 
         // version
-        if (!bson_object_property_value_get_int(&tree.root, "version", (i64*)(&typed_asset->base.meta.version)))
+        i64 version = 0;
+        if (!bson_object_property_value_get_int(&tree.root, "version", &version))
         {
             BERROR("Failed to parse version, which is a required field");
             goto cleanup_bson;
         }
+        typed_asset->base.meta.version = (u32)version;
 
         // ttf_asset_name
         if (!bson_object_property_value_get_string_as_bname(&tree.root, "ttf_asset_name", &typed_asset->ttf_asset_name))
@@ -110,7 +111,7 @@ b8 basset_system_font_deserialize(const char* file_text, basset* out_asset)
 
         // Faces array
         bson_array face_array = {0};
-        if (!bson_object_property_value_get_object(&tree.root, "faces", &face_array))
+        if (!bson_object_property_value_get_array(&tree.root, "faces", &face_array))
         {
             BERROR("Failed to parse faces, which is a required field");
             goto cleanup_bson;

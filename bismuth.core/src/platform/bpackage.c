@@ -142,7 +142,7 @@ static asset_entry* asset_entry_get(const bpackage* package, bname name)
             return entry;
     }
 
-    BERROR("Package '%s': No entry called '%s' exists", bname_string_get(package->name), bname_string_get(name));
+    BTRACE("Package '%s': No entry called '%s' exists", bname_string_get(package->name), bname_string_get(name));
     return 0;
 }
 

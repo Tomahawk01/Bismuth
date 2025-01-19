@@ -1,17 +1,17 @@
 version = 1
-depth_test=true
-depth_write=true
+depth_test = true
+depth_write = true
 
 stages = [
     {
         type = "vertex"
-        source_asset_name = "Pick_Terrain_vert"
-        package_name = "Runtime"
+        source_asset_name = "Shader.Pick_StaticMesh_vert"
+        package_name = "Bismuth.Runtime"
     }
     {
         type = "fragment"
-        source_asset_name = "Pick_Terrain_frag"
-        package_name = "Runtime"
+        source_asset_name = "Shader.Pick_StaticMesh_frag"
+        package_name = "Bismuth.Runtime"
     }
 ]
 
@@ -34,16 +34,12 @@ attributes = [
     }
     {
         name = "in_tangent"
-        type = "vec4"
-    }
-    {
-        name = "in_mat_weights"
-        type = "vec4"
+        type = "vec3"
     }
 ]
 
 uniforms = {
-    global = [
+    per_frame = [
         {
             name = "projection"
             type = "mat4"
@@ -53,13 +49,13 @@ uniforms = {
             type = "mat4"
         }
     ]
-    instance = [
+    per_group = [
         {
             name = "id_color"
             type = "vec3"
         }
     ]
-    local = [
+    per_draw = [
         {
             name = "model"
             type = "mat4"

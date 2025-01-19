@@ -158,50 +158,14 @@ static void asset_handler_system_font_on_asset_loaded(struct vfs_state* vfs, vfs
                 typed_asset->font_binary_size = font_file_data.size;
                 typed_asset->font_binary = ballocate(typed_asset->font_binary_size, MEMORY_TAG_ASSET);
                 bcopy_memory(typed_asset->font_binary, font_file_data.bytes, font_file_data.size);
-
             }
             else
             {
-                // NOTE: This could mean the asset doesn't exist in this package. Try all others by sending INVALID_BNAME as the package name
-                vfs_request_info any_package_request_info = {0};
-                any_package_request_info.package_name = INVALID_BNAME;
-                any_package_request_info.asset_name = typed_asset->ttf_asset_name;
-                any_package_request_info.is_binary = true;
-                any_package_request_info.get_source = false;
-                any_package_request_info.context_size = 0;
-                any_package_request_info.context = 0;
-                any_package_request_info.import_params = 0;
-                any_package_request_info.import_params_size = 0;
-                any_package_request_info.vfs_callback = asset_handler_system_font_on_asset_loaded;
-                any_package_request_info.watch_for_hot_reload = false; // Fonts don't need hot reloading
-                vfs_request_asset_sync(vfs, any_package_request_info);
-
-                // If it was found, take a copy of the data
-                if (font_file_data.result == VFS_REQUEST_RESULT_SUCCESS)
-                {
-                    // Take a copy of the font binary data
-                    typed_asset->font_binary_size = font_file_data.size;
-                    typed_asset->font_binary = ballocate(typed_asset->font_binary_size, MEMORY_TAG_ASSET);
-                    bcopy_memory(typed_asset->font_binary, font_file_data.bytes, font_file_data.size);
-                    // Warn so that it's obvious where this came from in the case that it's wrong
-                    BWARN(
-                        "The dependent asset '%s' was not found in package '%s', but WAS found in package '%s'",
-                        bname_string_get(typed_asset->ttf_asset_name),
-                        bname_string_get(context.asset->package_name),
-                        bname_string_get(font_file_data.package_name));
-                    // Update the package name
-                    context.asset->package_name = font_file_data.package_name;
-
-                }
-                else
-                {
-                    // If it _still_ isn't found, then there really is nothing to do
-                    BERROR("Failed to read system font binary data. Asset load failed");
-                    result = ASSET_REQUEST_RESULT_VFS_REQUEST_FAILED;
-                }
+                BERROR("Failed to read system font binary data (package='%s', name='%s'). Asset load failed", bname_string_get(typed_asset->ttf_asset_name), bname_string_get(typed_asset->ttf_asset_package_name));
+                result = ASSET_REQUEST_RESULT_VFS_REQUEST_FAILED;
             }
 
-            // Release VFS asset
+            // Release VFS asset resources
             if (font_file_data.bytes && font_file_data.size)
             {
                 bfree((void*)font_file_data.bytes, font_file_data.size, MEMORY_TAG_ASSET);

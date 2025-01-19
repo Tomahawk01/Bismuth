@@ -397,6 +397,7 @@ void vfs_request_direct_from_disk_sync(vfs_state* state, const char* path, b8 is
 
 b8 vfs_asset_write(vfs_state* state, const basset* asset, b8 is_binary, u64 size, const void* data)
 {
+    BASSERT_DEBUG(state);
     u32 package_count = darray_length(state->packages);
     if (asset->package_name == 0)
     {

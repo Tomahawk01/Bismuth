@@ -1,18 +1,44 @@
 #include "font_system.h"
 
-#include "containers/darray.h"
-#include "containers/hashtable.h"
+#include <assets/basset_types.h>
+#include <containers/darray.h>
+#include <debug/bassert.h>
+#include <defines.h>
+#include <identifiers/bhandle.h>
+#include <logger.h>
+#include <math/bmath.h>
+#include <memory/bmemory.h>
+#include <parsers/bson_parser.h>
+#include <strings/bname.h>
+#include <strings/bstring.h>
+
 #include "core/engine.h"
 #include "bresources/bresource_types.h"
-#include "logger.h"
-#include "memory/bmemory.h"
-#include "parsers/bson_parser.h"
-#include "resources/resource_types.h"
 #include "renderer/renderer_frontend.h"
-#include "strings/bname.h"
-#include "strings/bstring.h"
+#include "systems/bresource_system.h"
 #include "systems/texture_system.h"
-#include "systems/resource_system.h"
+
+// The minumum value that can be used for "max_bitmap_font_count"
+#define BITMAP_FONT_MAX_COUNT_MIN 1U
+// The maxumum value that can be used for "max_bitmap_font_count"
+#define BITMAP_FONT_MAX_COUNT_MAX U8_MAX
+// The minumum value that can be used for "max_system_font_count"
+#define SYSTEM_FONT_MAX_COUNT_MIN 1U
+// The maxumum value that can be used for "max_system_font_count"
+#define SYSTEM_FONT_MAX_COUNT_MAX U8_MAX
+
+// The minumum number of bitmap fonts that can be configured
+#define BITMAP_FONT_COUNT_MIN 0U
+// The maximum number of bitmap fonts that can be configured
+#define BITMAP_FONT_COUNT_MAX U8_MAX
+// The minumum number of system fonts that can be configured
+#define SYSTEM_FONT_COUNT_MIN 0U
+// The maximum number of system fonts that can be configured
+#define SYSTEM_FONT_COUNT_MAX U8_MAX
+
+#define SYSTEM_FONT_DEFAULT_SIZE 20
+#define SYSTEM_FONT_SIZE_MIN 1U
+#define SYSTEM_FONT_SIZE_MAX U16_MAX
 
 // For system fonts
 #define STB_TRUETYPE_IMPLEMENTATION
@@ -20,34 +46,55 @@
 
 #include <runtime_defines.h>
 
-typedef struct bitmap_font_internal_data
+// Represents individual font data, used for a bitmap font or a system font variant
+typedef struct font_data
 {
-    resource loaded_resource;
-    bitmap_font_resource_data* resource_data;
-} bitmap_font_internal_data;
+    bname face_name;
+    u32 size;
+    i32 line_height;
+    i32 baseline;
+    i32 atlas_size_x;
+    i32 atlas_size_y;
+    u32 glyph_count;
+    font_glyph* glyphs;
+    u32 kerning_count;
+    font_kerning* kernings;
+    f32 tab_x_advance;
+} font_data;
 
-typedef struct system_font_variant_data
+typedef struct bitmap_font_page
 {
-    // darray
-    i32* codepoints;
-    f32 scale;
-} system_font_variant_data;
+    bresource_texture* atlas;
+} bitmap_font_page;
 
 typedef struct bitmap_font_lookup
 {
-    u16 id;
-    u16 reference_count;
-    bitmap_font_internal_data font;
+    // Used for handle lookups to determine stale handles
+    u64 uniqueid;
+    font_data data;
+    u32 page_count;
+    bitmap_font_page* pages;
 } bitmap_font_lookup;
+
+typedef struct system_font_variant_data
+{
+    // Used for handle lookups to determine stale handles
+    u64 uniqueid;
+    // darray
+    i32* codepoints;
+    f32 scale;
+    font_data data;
+    bresource_texture* atlas;
+} system_font_variant_data;
 
 typedef struct system_font_lookup
 {
-    u16 id;
-    u16 reference_count;
+    // Used for making sure handles within the base aren't stale
+    u64 uniqueid;
     // darray
-    font_data* size_variants;
+    system_font_variant_data* size_variants;
     u64 binary_size;
-    char* face;
+    bname face;
     void* font_binary;
     i32 offset;
     i32 index;
@@ -57,23 +104,27 @@ typedef struct system_font_lookup
 typedef struct font_system_state
 {
     font_system_config config;
-    hashtable bitmap_font_lookup;
-    hashtable system_font_lookup;
     bitmap_font_lookup* bitmap_fonts;
     system_font_lookup* system_fonts;
-    void* bitmap_hashtable_block;
-    void* system_hashtable_block;
 } font_system_state;
 
-static const u32 max_font_count = 101; // TODO: Need to find a better way to handle this
-
-static b8 setup_font_data(font_data* font);
+static bitmap_font_lookup* get_bitmap_font_lookup(font_system_state* state, bhandle base_font);
+static bitmap_font_lookup* get_bitmap_font_lookup_by_name(font_system_state* state, bname font_name, u64* out_resource_index);
+static system_font_lookup* get_system_font_lookup(font_system_state* state, bhandle base_font);
+static system_font_lookup* get_system_font_lookup_by_name(font_system_state* state, bname font_name, u64* out_resource_index);
+static system_font_variant_data* get_system_font_variant_by_handle(font_system_state* state, system_font_lookup* base_font, bhandle variant);
+static system_font_variant_data* get_system_font_variant_by_size(font_system_state* state, system_font_lookup* base_font, u16 size, b8 auto_create, u64* out_resource_index);
+static vec2 measure_string(font_data* font, const char* text);
+static void setup_tab_xadvance(font_data* font);
 static void cleanup_font_data(font_data* font);
-static b8 create_system_font_variant(system_font_lookup* lookup, u16 size, const char* font_name, font_data* out_variant);
-static b8 rebuild_system_font_variant_atlas(system_font_lookup* lookup, font_data* variant);
-static b8 verify_system_font_size_variant(system_font_lookup* lookup, font_data* variant, const char* text);
-
-static font_system_state* state_ptr;
+static b8 create_system_font_variant(system_font_lookup* lookup, u16 size, bname font_name, system_font_variant_data* out_variant);
+static b8 rebuild_system_font_variant_atlas(system_font_lookup* lookup, system_font_variant_data* variant);
+static b8 verify_system_font_size_variant(system_font_lookup* lookup, system_font_variant_data* variant, const char* text);
+static void bitmap_font_release(font_system_state* state, bitmap_font_lookup* lookup);
+static void system_font_release(font_system_state* state, system_font_lookup* lookup);
+static font_glyph* glyph_from_codepoint(const font_data* font, i32 codepoint);
+static font_kerning* kerning_from_codepoints(const font_data* font, i32 codepoint_0, i32 codepoint_1);
+static b8 generate_font_geometry(const font_data* data, font_type type, const char* text, font_geometry* pending_data);
 
 b8 font_system_deserialize_config(const char* config_str, font_system_config* out_config)
 {
@@ -90,71 +141,118 @@ b8 font_system_deserialize_config(const char* config_str, font_system_config* ou
         return false;
     }
 
-    // Auto-release property. Optional, defaults to true if not provided
-    if (!bson_object_property_value_get_bool(&tree.root, "auto_release", &out_config->auto_release))
-        out_config->auto_release = true;
-
-    // default_bitmap_font object is required
-    bson_object default_bitmap_font_obj;
-    if (!bson_object_property_value_get_object(&tree.root, "default_bitmap_font", &default_bitmap_font_obj))
+    // Get max bitmap font count
     {
-        BERROR("font_system_deserialize_config: config does not contain default_bitmap_font object, which is required");
-        return false;
-    }
-    else
-    {
-        // Font name
-        if (!bson_object_property_value_get_string(&default_bitmap_font_obj, "name", &out_config->default_bitmap_font.name))
-        {
-            BERROR("Default bitmap font requires a 'name'");
-            return false;
-        }
-
-        // Font size is required for bitmap fonts
-        i64 font_size = 0;
-        if (!bson_object_property_value_get_int(&default_bitmap_font_obj, "size", &font_size))
-        {
-            BERROR("'size' is a required field for bitmap fonts");
-            return false;
-        }
-        out_config->default_bitmap_font.size = (u16)font_size;
-
-        // Resource name.
-        if (!bson_object_property_value_get_string(&default_bitmap_font_obj, "resource_name", &out_config->default_bitmap_font.resource_name))
-        {
-            BERROR("Default bitmap font requires a 'resource_name'");
-            return false;
-        }
+        i64 max_bitmap_font_count = 25; // default is 25
+        bson_object_property_value_get_int(&tree.root, "max_bitmap_font_count", &max_bitmap_font_count);
+        if (max_bitmap_font_count < BITMAP_FONT_MAX_COUNT_MIN || max_bitmap_font_count > BITMAP_FONT_MAX_COUNT_MAX)
+            BWARN("Max bitmap font count is outside acceptable range of %u-%u and will be clamped", BITMAP_FONT_MAX_COUNT_MIN, BITMAP_FONT_MAX_COUNT_MAX);
+        out_config->max_bitmap_font_count = (u8)BCLAMP(max_bitmap_font_count, BITMAP_FONT_MAX_COUNT_MIN, BITMAP_FONT_MAX_COUNT_MAX);
     }
 
-    // default_system_font object is required
-    bson_object default_system_font_obj;
-    if (!bson_object_property_value_get_object(&tree.root, "default_system_font", &default_system_font_obj))
+    // Get max system font count
     {
-        BERROR("font_system_deserialize_config: config does not contain default_system_font object, which is required");
-        return false;
+        i64 max_system_font_count = 25; // default is 25
+        if (max_system_font_count < SYSTEM_FONT_MAX_COUNT_MIN || max_system_font_count > SYSTEM_FONT_MAX_COUNT_MAX)
+            BWARN("Max system font count is outside acceptable range of %u-%u and will be clamped", SYSTEM_FONT_MAX_COUNT_MIN, SYSTEM_FONT_MAX_COUNT_MAX);
+        bson_object_property_value_get_int(&tree.root, "max_system_font_count", &max_system_font_count);
+        out_config->max_system_font_count = (u8)BCLAMP(max_system_font_count, SYSTEM_FONT_MAX_COUNT_MIN, SYSTEM_FONT_MAX_COUNT_MAX);
     }
-    else
+
+    // Get configured bitmap fonts
     {
-        // Font name
-        if (!bson_object_property_value_get_string(&default_system_font_obj, "name", &out_config->default_system_font.name))
+        bson_array bitmap_fonts_array;
+        if (bson_object_property_value_get_array(&tree.root, "bitmap_fonts", &bitmap_fonts_array))
         {
-            BERROR("Default system font requires a 'name'");
-            return false;
+            u32 bitmap_font_count = 0;
+            bson_array_element_count_get(&bitmap_fonts_array, &bitmap_font_count);
+
+            if (bitmap_font_count)
+            {
+                if (bitmap_font_count < BITMAP_FONT_COUNT_MIN || bitmap_font_count > BITMAP_FONT_COUNT_MAX)
+                    BWARN("Bitmap font configured count is outside acceptable range of %u-%u and will be clamped, meaning only the list may be clipped", BITMAP_FONT_COUNT_MIN, BITMAP_FONT_COUNT_MAX);
+
+                out_config->bitmap_font_count = (u8)BCLAMP(bitmap_font_count, BITMAP_FONT_COUNT_MIN, BITMAP_FONT_COUNT_MAX);
+                out_config->bitmap_fonts = BALLOC_TYPE_CARRAY(font_system_bitmap_font_config, out_config->bitmap_font_count);
+                for (u8 i = 0; i < out_config->bitmap_font_count; ++i)
+                {
+                    bson_object src = {0};
+                    if (!bson_array_element_value_get_object(&bitmap_fonts_array, i, &src))
+                    {
+                        BWARN("Failed to get object at array index %u. Skipping...", i);
+                        continue;
+                    }
+                    font_system_bitmap_font_config* target = &out_config->bitmap_fonts[i];
+
+                    // Resource name is required
+                    if (!bson_object_property_value_get_string_as_bname(&src, "resource_name", &target->resource_name))
+                    {
+                        BERROR("resource_name is required. Bitmap font config will be skipped");
+                        continue;
+                    }
+
+                    // Package name is required
+                    if (!bson_object_property_value_get_string_as_bname(&src, "package_name", &target->package_name))
+                    {
+                        BERROR("package_name is required. Bitmap font config will be skipped");
+                        continue;
+                    }
+                }
+            }
         }
+    }
 
-        // Font size is optional for system fonts. Use a default of 20 if not provided
-        i64 font_size = 0;
-        if (!bson_object_property_value_get_int(&default_system_font_obj, "size", &font_size))
-            font_size = 20;
-
-        out_config->default_system_font.default_size = (u16)font_size;
-
-        // Resource name
-        if (!bson_object_property_value_get_string(&default_system_font_obj, "resource_name", &out_config->default_system_font.resource_name))
+    // Get configured system fonts
+    {
+        bson_array system_fonts_array;
+        if (bson_object_property_value_get_array(&tree.root, "system_fonts", &system_fonts_array))
         {
-            BERROR("Default system font requires a 'resource_name'");
-            return false;
+            u32 system_font_count = 0;
+            bson_array_element_count_get(&system_fonts_array, &system_font_count);
+
+            if (system_font_count)
+            {
+                if (system_font_count < SYSTEM_FONT_COUNT_MIN || system_font_count > SYSTEM_FONT_COUNT_MAX)
+                    BWARN("System font configured count is outside acceptable range of %u-%u and will be clamped, meaning only the list may be clipped", SYSTEM_FONT_COUNT_MIN, SYSTEM_FONT_COUNT_MAX);
+
+                out_config->system_font_count = (u8)BCLAMP(system_font_count, SYSTEM_FONT_COUNT_MIN, SYSTEM_FONT_COUNT_MAX);
+                out_config->system_fonts = BALLOC_TYPE_CARRAY(font_system_system_font_config, out_config->system_font_count);
+                for (u8 i = 0; i < out_config->system_font_count; ++i)
+                {
+                    bson_object src = {0};
+                    if (!bson_array_element_value_get_object(&system_fonts_array, i, &src))
+                    {
+                        BWARN("Failed to get object at array index %u. Skipping...", i);
+                        continue;
+                    }
+                    font_system_system_font_config* target = &out_config->system_fonts[i];
+
+                    // Resource name is required
+                    if (!bson_object_property_value_get_string_as_bname(&src, "resource_name", &target->resource_name))
+                    {
+                        BERROR("resource_name is required. System font config will be skipped");
+                        continue;
+                    }
+
+                    // Package name is required
+                    if (!bson_object_property_value_get_string_as_bname(&src, "package_name", &target->package_name))
+                    {
+                        BERROR("package_name is required. System font config will be skipped");
+                        continue;
+                    }
+
+                    // Default size is not required
+                    target->default_size = SYSTEM_FONT_DEFAULT_SIZE;
+                    i64 default_size = 0;
+                    if (bson_object_property_value_get_int(&src, "default_size", &default_size))
+                    {
+                        if (default_size < SYSTEM_FONT_SIZE_MIN || default_size > SYSTEM_FONT_SIZE_MAX)
+                            BWARN("System font default size is outside acceptable range of %u-%u and will be clamped", SYSTEM_FONT_SIZE_MIN, SYSTEM_FONT_SIZE_MAX);
+
+                        target->default_size = (u16)BCLAMP(default_size, SYSTEM_FONT_SIZE_MIN, SYSTEM_FONT_SIZE_MAX);
+                    }
+                }
+            }
         }
     }
 
@@ -169,387 +267,588 @@ b8 font_system_initialize(u64* memory_requirement, void* memory, font_system_con
 
     // Block of memory will contain state structure, then blocks for arrays, then blocks for hashtables
     u64 struct_requirement = sizeof(font_system_state);
-    u64 bmp_array_requirement = sizeof(bitmap_font_lookup) * max_font_count;
-    u64 sys_array_requirement = sizeof(system_font_lookup) * max_font_count;
-    u64 bmp_hashtable_requirement = sizeof(u16) * max_font_count;
-    u64 sys_hashtable_requirement = sizeof(u16) * max_font_count;
-    *memory_requirement = struct_requirement + bmp_array_requirement + sys_array_requirement + bmp_hashtable_requirement + sys_hashtable_requirement;
+    u64 bmp_array_requirement = sizeof(bitmap_font_lookup) * config->max_bitmap_font_count;
+    u64 sys_array_requirement = sizeof(system_font_lookup) * config->max_system_font_count;
+    *memory_requirement = struct_requirement + bmp_array_requirement + sys_array_requirement;
 
     if (!memory)
         return true;
 
-    state_ptr = (font_system_state*)memory;
-    state_ptr->config = *typed_config;
+    font_system_state* state = (font_system_state*)memory;
+    bzero_memory(state, sizeof(font_system_state));
+    state->config = *typed_config;
 
     // Array blocks are after the state. Already allocated, so just set the pointer
     void* bmp_array_block = (void*)(((u8*)memory) + struct_requirement);
     void* sys_array_block = (void*)(((u8*)bmp_array_block) + bmp_array_requirement);
 
-    state_ptr->bitmap_fonts = bmp_array_block;
-    state_ptr->system_fonts = sys_array_block;
-
-    // Hashtable blocks are after arrays
-    void* bmp_hashtable_block = (void*)(((u8*)sys_array_block) + sys_array_requirement);
-    void* sys_hashtable_block = (void*)(((u8*)bmp_hashtable_block) + bmp_hashtable_requirement);
-
-    // Create hashtables for font lookups
-    hashtable_create(sizeof(u16), max_font_count, bmp_hashtable_block, false, &state_ptr->bitmap_font_lookup);
-    hashtable_create(sizeof(u16), max_font_count, sys_hashtable_block, false, &state_ptr->system_font_lookup);
-
-    // Fill both hashtables with invalid references to use as default
-    u16 invalid_id = INVALID_ID_U16;
-    hashtable_fill(&state_ptr->bitmap_font_lookup, &invalid_id);
-    hashtable_fill(&state_ptr->system_font_lookup, &invalid_id);
+    state->bitmap_fonts = bmp_array_block;
+    state->system_fonts = sys_array_block;
 
     // Invalidate all entries in both arrays
-    for (u32 i = 0; i < max_font_count; ++i)
+    bzero_memory(state->bitmap_fonts, sizeof(bitmap_font_lookup) * config->max_bitmap_font_count);
+    for (u32 i = 0; i < config->max_bitmap_font_count; ++i)
+        state->bitmap_fonts[i].uniqueid = INVALID_ID_U64;
+
+    bzero_memory(state->system_fonts, sizeof(system_font_lookup) * config->max_system_font_count);
+    for (u32 i = 0; i < config->max_system_font_count; ++i)
+        state->system_fonts[i].uniqueid = INVALID_ID_U64;
+
+    // Load configured bitmap fonts
     {
-        state_ptr->bitmap_fonts[i].id = INVALID_ID_U16;
-        state_ptr->bitmap_fonts[i].reference_count = 0;
-    }
-    for (u32 i = 0; i < max_font_count; ++i)
-    {
-        state_ptr->system_fonts[i].id = INVALID_ID_U16;
-        state_ptr->system_fonts[i].reference_count = 0;
-    }
-
-    // Load up default bitmap font
-    if (!font_system_bitmap_font_load(&state_ptr->config.default_bitmap_font))
-        BERROR("Failed to load bitmap font: %s", state_ptr->config.default_bitmap_font.name);
-
-    // System font
-    if (!font_system_system_font_load(&state_ptr->config.default_system_font))
-        BERROR("Failed to load system font: %s", state_ptr->config.default_system_font.name);
-
-    return true;
-}
-
-void font_system_shutdown(void* memory)
-{
-    if (memory)
-    {
-        // Cleanup bitmap fonts
-        for (u16 i = 0; i < max_font_count; ++i)
+        for (u32 i = 0; i < state->config.bitmap_font_count; ++i)
         {
-            if (state_ptr->bitmap_fonts[i].id != INVALID_ID_U16)
-            {
-                font_data* data = &state_ptr->bitmap_fonts[i].font.resource_data->data;
-                cleanup_font_data(data);
-                state_ptr->bitmap_fonts[i].id = INVALID_ID_U16;
-            }
-        }
-
-        // Cleanup system fonts
-        for (u16 i = 0; i < max_font_count; ++i)
-        {
-            if (state_ptr->system_fonts[i].id != INVALID_ID_U16)
-            {
-                // Cleanup each variant
-                u32 variant_count = darray_length(state_ptr->system_fonts[i].size_variants);
-                for (u32 j = 0; j < variant_count; ++j)
-                {
-                    font_data* data = &state_ptr->system_fonts[i].size_variants[j];
-                    cleanup_font_data(data);
-                }
-                state_ptr->bitmap_fonts[i].id = INVALID_ID_U16;
-
-                darray_destroy(state_ptr->system_fonts[i].size_variants);
-                state_ptr->system_fonts[i].size_variants = 0;
-            }
+            font_system_bitmap_font_config* c = &state->config.bitmap_fonts[i];
+            if (!font_system_bitmap_font_load(state, c->resource_name, c->package_name))
+                BERROR("Failed to load configured bitmap font (resource_name='%s', package_name='%s'. See logs for details)", bname_string_get(c->resource_name), bname_string_get(c->package_name));
         }
     }
-}
 
-b8 font_system_system_font_load(system_font_config* config)
-{
-    resource loaded_resource;
-    if (!resource_system_load(config->resource_name, RESOURCE_TYPE_SYSTEM_FONT, 0, &loaded_resource))
+    // Load configured system fonts
     {
-        BERROR("Failed to load system font");
-        return false;
-    }
-
-    // Keep casted pointer to resource data
-    system_font_resource_data* resource_data = (system_font_resource_data*)loaded_resource.data;
-
-    // Loop through faces and create one lookup for each, as well as default size variant for each lookup
-    u32 font_face_count = darray_length(resource_data->fonts);
-    for (u32 i = 0; i < font_face_count; ++i)
-    {
-        system_font_face* face = &resource_data->fonts[i];
-
-        // Make sure font with this name doesn't already exist
-        u16 id = INVALID_ID_U16;
-        if (!hashtable_get(&state_ptr->system_font_lookup, face->name, &id))
+        for (u32 i = 0; i < state->config.system_font_count; ++i)
         {
-            BERROR("Hashtable lookup failed. Font will not be loaded");
-            return false;
-        }
-        if (id != INVALID_ID_U16)
-        {
-            BWARN("A font named '%s' already exists and will not be loaded again", config->name);
-            return true;
-        }
-
-        // Get new id
-        for (u16 j = 0; j < max_font_count; ++j)
-        {
-            if (state_ptr->system_fonts[j].id == INVALID_ID_U16)
-            {
-                id = j;
-                break;
-            }
-        }
-        if (id == INVALID_ID_U16)
-        {
-            BERROR("No space left to allocate a new font. Increase maximum number allowed in font system config");
-            return false;
-        }
-
-        // Obtain lookup
-        system_font_lookup* lookup = &state_ptr->system_fonts[id];
-        lookup->binary_size = resource_data->binary_size;
-        lookup->font_binary = resource_data->font_binary;
-        lookup->face = string_duplicate(face->name);
-        lookup->index = i;
-        // To hold size variants
-        lookup->size_variants = darray_create(font_data);
-
-        // Offset
-        lookup->offset = stbtt_GetFontOffsetForIndex(lookup->font_binary, i);
-        i32 result = stbtt_InitFont(&lookup->info, lookup->font_binary, lookup->offset);
-        if (result == 0)
-        {
-            // Zero indicates failure
-            BERROR("Failed to init system font %s at index %i", loaded_resource.full_path, i);
-            return false;
-        }
-
-        // Create default size variant
-        font_data variant = {0};
-        if (!create_system_font_variant(lookup, config->default_size, face->name, &variant))
-        {
-            BERROR("Failed to create variant: %s, index %i", face->name, i);
-            continue;
-        }
-
-        // Also perform setup for variant
-        if (!setup_font_data(&variant))
-        {
-            BERROR("Failed to setup font data");
-            continue;
-        }
-
-        // Add to lookup's size variants
-        darray_push(lookup->size_variants, variant);
-
-        // Set entry id here last before updating hashtable
-        lookup->id = id;
-        if (!hashtable_set(&state_ptr->system_font_lookup, face->name, &id))
-        {
-            BERROR("Hashtable set failed on font load");
-            return false;
+            font_system_system_font_config* c = &state->config.system_fonts[i];
+            if (!font_system_system_font_load(state, c->resource_name, c->package_name, c->default_size))
+                BERROR("Failed to load configured system font (resource_name='%s', package_name='%s'. See logs for details)", bname_string_get(c->resource_name), bname_string_get(c->package_name));
         }
     }
 
     return true;
 }
 
-b8 font_system_bitmap_font_load(bitmap_font_config* config)
+void font_system_shutdown(font_system_state* state)
 {
-    // Make sure font with this name doesn't already exist
-    u16 id = INVALID_ID_U16;
-    if (!hashtable_get(&state_ptr->bitmap_font_lookup, config->name, &id))
+    if (!state)
+        return;
+
+    // Cleanup bitmap fonts
+    for (u16 i = 0; i < state->config.max_bitmap_font_count; ++i)
     {
-        BERROR("Hashtable lookup failed. Font will not be loaded");
+        bitmap_font_lookup* lookup = &state->bitmap_fonts[i];
+        if (lookup->uniqueid != INVALID_ID_U64)
+            bitmap_font_release(state, lookup);
+    }
+    BFREE_TYPE_CARRAY(state->bitmap_fonts, bitmap_font_lookup, state->config.max_bitmap_font_count);
+    state->bitmap_fonts = 0;
+
+    // Cleanup system fonts
+    for (u16 i = 0; i < state->config.max_system_font_count; ++i)
+    {
+        system_font_lookup* lookup = &state->system_fonts[i];
+        if (lookup->uniqueid != INVALID_ID_U64)
+            system_font_release(state, lookup);
+    }
+
+    BFREE_TYPE_CARRAY(state->system_fonts, system_font_lookup, state->config.max_system_font_count);
+    state->system_fonts = 0;
+}
+
+b8 font_system_bitmap_font_acquire(font_system_state* state, bname font_name, bhandle* out_font)
+{
+    if (!out_font)
+    {
+        BERROR("A valid pointer to hold a system font variant is required");
         return false;
     }
-    if (id != INVALID_ID_U16)
+
+    // Return if it exists
+    u64 resource_index = INVALID_ID_U64;
+    bitmap_font_lookup* lookup = get_bitmap_font_lookup_by_name(state, font_name, &resource_index);
+    if (lookup)
     {
-        BWARN("A font named '%s' already exists and will not be loaded again", config->name);
-        // Not a hard error, return success since it already exists and can be used
+        *out_font = bhandle_create_with_u64_identifier(resource_index, state->bitmap_fonts[resource_index].uniqueid);
         return true;
     }
 
-    // Get new id
-    for (u16 i = 0; i < max_font_count; ++i)
-    {
-        if (state_ptr->bitmap_fonts[i].id == INVALID_ID_U16)
-        {
-            id = i;
-            break;
-        }
-    }
-    if (id == INVALID_ID_U16)
-    {
-        BERROR("No space left to allocate a new bitmap font. Increase maximum number allowed in font system config");
-        return false;
-    }
-
-    // Obtain lookup
-    bitmap_font_lookup* lookup = &state_ptr->bitmap_fonts[id];
-
-    // TODO: Change to new resource system
-    if (!resource_system_load(config->resource_name, RESOURCE_TYPE_BITMAP_FONT, 0, &lookup->font.loaded_resource))
-    {
-        BERROR("Failed to load bitmap font");
-        return false;
-    }
-
-    // Keep casted pointer to resource data
-    lookup->font.resource_data = (bitmap_font_resource_data*)lookup->font.loaded_resource.data;
-
-    font_data* font = &lookup->font.resource_data->data;
-
-    // Acquire texture
-    // lookup->font.resource_data->data.atlas.texture = texture_system_acquire(lookup->font.resource_data->pages[0].file, true);
-
-    // Font atlas texture
-    font->atlas_texture = texture_system_request(
-        // NOTE: Might have to address this by using the new font resource type
-        bname_create(lookup->font.resource_data->pages[0].file),
-        bname_create(PACKAGE_NAME_RUNTIME), // TODO: configurable
-        0,
-        0);
-    if (!font->atlas_texture)
-    {
-        BWARN("Failed to request bitmap font texture. Using a default texture instead, but text will not render correctly");
-        // Use default texture instead
-        font->atlas_texture = texture_system_request(bname_create(DEFAULT_TEXTURE_NAME), INVALID_BNAME, 0, 0);
-    }
-
-    b8 result = setup_font_data(&lookup->font.resource_data->data);
-
-    // Set entry id here last before updating hashtable
-    if (!hashtable_set(&state_ptr->bitmap_font_lookup, config->name, &id))
-    {
-        BERROR("Hashtable set failed on font load");
-        return false;
-    }
-
-    lookup->id = id;
-
-    return result;
-}
-
-font_data* font_system_acquire(const char* font_name, u16 font_size, font_type type)
-{
-    if (type == FONT_TYPE_BITMAP)
-    {
-        u16 id = INVALID_ID_U16;
-        if (!hashtable_get(&state_ptr->bitmap_font_lookup, font_name, &id))
-        {
-            BERROR("Bitmap font lookup failed on acquire");
-            return false;
-        }
-
-        if (id == INVALID_ID_U16)
-        {
-            BERROR("A bitmap font named '%s' was not found. Font acquisition failed", font_name);
-            return false;
-        }
-
-        // Get lookup
-        bitmap_font_lookup* lookup = &state_ptr->bitmap_fonts[id];
-
-        // Increment reference
-        lookup->reference_count++;
-
-        return &lookup->font.resource_data->data;
-    }
-    else if (type == FONT_TYPE_SYSTEM)
-    {
-        u16 id = INVALID_ID_U16;
-        if (!hashtable_get(&state_ptr->system_font_lookup, font_name, &id))
-        {
-            BERROR("System font lookup failed on acquire");
-            return false;
-        }
-
-        if (id == INVALID_ID_U16)
-        {
-            BERROR("A system font named '%s' was not found. Font acquisition failed", font_name);
-            return false;
-        }
-
-        // Get lookup
-        system_font_lookup* lookup = &state_ptr->system_fonts[id];
-
-        // Search size variants for the correct size
-        u32 count = darray_length(lookup->size_variants);
-        for (u32 i = 0; i < count; ++i)
-        {
-            if (lookup->size_variants[i].size == font_size)
-            {
-                // Increment reference
-                lookup->reference_count++;
-                return &lookup->size_variants[i];
-            }
-        }
-
-        // If we reach this point size variant doesn't exist. Create it
-        font_data variant;
-        if (!create_system_font_variant(lookup, font_size, font_name, &variant))
-        {
-            BERROR("Failed to create variant: %s, index %i, size %i", lookup->face, lookup->index, font_size);
-            return false;
-        }
-
-        // Also perform setup for the variant
-        if (!setup_font_data(&variant))
-            BERROR("Failed to setup font data");
-
-        // Add to lookup's size variants
-        darray_push(lookup->size_variants, variant);
-        u32 length = darray_length(lookup->size_variants);
-        // Increment reference
-        lookup->reference_count++;
-        return &lookup->size_variants[length - 1];
-    }
-
-    BERROR("Unrecognized font type: %d", type);
-    return 0;
-}
-
-b8 font_system_release(const char* font_name)
-{
-    // TODO: Lookup font by name in appropriate hashtable
-    return true;
-}
-
-b8 font_system_verify_atlas(font_data* font, const char* text)
-{
-    if (font->type == FONT_TYPE_BITMAP)
-    {
-        // Bitmaps don't need verification since they are already generated
-        return true;
-    }
-    else if (font->type == FONT_TYPE_SYSTEM)
-    {
-        u16 id = INVALID_ID_U16;
-        if (!hashtable_get(&state_ptr->system_font_lookup, font->face, &id))
-        {
-            BERROR("System font lookup failed on acquire");
-            return false;
-        }
-
-        if (id == INVALID_ID_U16)
-        {
-            BERROR("A system font named '%s' was not found. Font atlas verification failed", font->face);
-            return false;
-        }
-
-        // Get lookup
-        system_font_lookup* lookup = &state_ptr->system_fonts[id];
-
-        return verify_system_font_size_variant(lookup, font, text);
-    }
-
-    BERROR("font_system_verify_atlas failed: Unknown font type");
+    BERROR("A bitmap font named '%s' is not registered with the font system. Did you add it to your app_config's systems.font.config.bitmap_fonts array?", bname_string_get(font_name));
     return false;
 }
 
-vec2 font_system_measure_string(font_data* font, const char* text)
+b8 font_system_bitmap_font_load(font_system_state* state, bname resource_name, bname package_name)
+{
+    bhandle out_handle = bhandle_invalid();
+    // Font not found, need to load, so start by finding a free slot
+    for (u32 i = 0; i < state->config.max_bitmap_font_count; ++i)
+    {
+        if (state->bitmap_fonts[i].uniqueid == INVALID_ID_U64)
+        {
+            out_handle = bhandle_create(i);
+            state->bitmap_fonts[i].uniqueid = out_handle.unique_id.uniqueid;
+            break;
+        }
+    }
+
+    if (bhandle_is_invalid(out_handle))
+    {
+        BERROR("A new bitmap font could not be loaded since all slots are occupied. Increase your app_config's systems.font.config.max_bitmap_font_count to allow more to be loaded");
+        return false;
+    }
+
+    // Get the lookup
+    bitmap_font_lookup* lookup = get_bitmap_font_lookup(state, out_handle);
+
+    // Request the resource synchronously
+    bresource_bitmap_font_request_info request = {0};
+    request.base.type = BRESOURCE_TYPE_BITMAP_FONT;
+    request.base.synchronous = true; // Always load fonts synchronously
+    request.base.assets = array_bresource_asset_info_create(1);
+    bresource_asset_info* asset = &request.base.assets.data[0];
+    asset->type = BASSET_TYPE_BITMAP_FONT;
+    asset->asset_name = resource_name;
+    asset->package_name = package_name;
+    asset->watch_for_hot_reload = false;
+    bresource_bitmap_font* font_resource = (bresource_bitmap_font*)bresource_system_request(engine_systems_get()->bresource_state, resource_name, (bresource_request_info*)&request);
+    if (!font_resource)
+    {
+        BERROR("Failed to load bitmap font resource. See logs for details");
+        return false;
+    }
+
+    BTRACE("Loading bitmap font '%s'...", bname_string_get(font_resource->face));
+
+    lookup->data.face_name = font_resource->face;
+
+    // Take a copy of the glyphs
+    lookup->data.glyph_count = font_resource->glyphs.base.length;
+    if (font_resource->glyphs.base.length)
+    {
+        lookup->data.glyphs = BALLOC_TYPE_CARRAY(font_glyph, font_resource->glyphs.base.length);
+        bcopy_memory(lookup->data.glyphs, font_resource->glyphs.data, sizeof(font_glyph) * font_resource->glyphs.base.length);
+    }
+
+    // Take a copy of the kernings
+    lookup->data.kerning_count = font_resource->kernings.base.length;
+    if (font_resource->kernings.base.length)
+    {
+        lookup->data.kernings = BALLOC_TYPE_CARRAY(font_kerning, font_resource->kernings.base.length);
+        bcopy_memory(lookup->data.kernings, font_resource->kernings.data, sizeof(font_kerning) * font_resource->kernings.base.length);
+    }
+
+    // Setup pages, request atlas textures for each
+    lookup->page_count = font_resource->pages.base.length;
+    if (font_resource->pages.base.length)
+    {
+        lookup->pages = BALLOC_TYPE_CARRAY(bitmap_font_page, font_resource->pages.base.length);
+        for (u32 i = 0; i < lookup->page_count; ++i)
+        {
+            lookup->pages[i].atlas = texture_system_request(font_resource->pages.data[i].image_asset_name, INVALID_BNAME, 0, 0);
+            // If lookup fails, use default texture instead
+            if (!lookup->pages[i].atlas)
+            {
+                BWARN("Failed to request bitmap font atlas texture. Using a default texture instead, but text will not render correctly");
+                lookup->pages[i].atlas = texture_system_request(bname_create(DEFAULT_TEXTURE_NAME), INVALID_BNAME, 0, 0);
+            }
+        }
+    }
+
+    // Setup the font data
+    setup_tab_xadvance(&lookup->data);
+
+    // Release the font resource
+    bresource_system_release(engine_systems_get()->bresource_state, font_resource->base.name);
+
+    return true;
+}
+
+b8 font_system_bitmap_font_measure_string(struct font_system_state* state, bhandle font, const char* text, vec2* out_size)
+{
+    if (!out_size)
+    {
+        BERROR("font_system_bitmap_font_measure_string requires a valid pointer to out_size");
+        return false;
+    }
+
+    bitmap_font_lookup* base_font = get_bitmap_font_lookup(state, font);
+    if (!base_font)
+    {
+        BERROR("font_system_bitmap_font_measure_string: Unable to find bitmap font. Cannot measure");
+        return false;
+    }
+
+    *out_size = measure_string(&base_font->data, text);
+    return true;
+}
+
+bresource_texture* font_system_bitmap_font_atlas_get(struct font_system_state* state, bhandle font)
+{
+    bitmap_font_lookup* base_font = get_bitmap_font_lookup(state, font);
+    if (!base_font)
+    {
+        BERROR("font_system_bitmap_font_measure_string: Unable to find bitmap font. Cannot measure");
+        return 0;
+    }
+
+    // FIXME: Need to handle multiple pages... eventually
+    return base_font->pages[0].atlas;
+}
+
+f32 font_system_bitmap_font_line_height_get(struct font_system_state* state, bhandle font)
+{
+    bitmap_font_lookup* base_font = get_bitmap_font_lookup(state, font);
+    if (!base_font)
+    {
+        BERROR("font_system_bitmap_font_measure_string: Unable to find bitmap font. Cannot measure");
+        return 0;
+    }
+
+    return (f32)base_font->data.line_height;
+}
+
+b8 font_system_bitmap_font_generate_geometry(struct font_system_state* state, bhandle font, const char* text, font_geometry* out_geometry)
+{
+    bitmap_font_lookup* base_font = get_bitmap_font_lookup(state, font);
+    if (!base_font)
+        return false;
+
+    return generate_font_geometry(&base_font->data, FONT_TYPE_BITMAP, text, out_geometry);
+}
+
+b8 font_system_system_font_acquire(font_system_state* state, bname font_name, u16 font_size, system_font_variant* out_variant)
+{
+    if (!out_variant)
+    {
+        BERROR("A valid pointer to hold a system font variant is required");
+        return false;
+    }
+
+    // See if the base font exists first
+    u64 base_font_resource_index = INVALID_ID_U64;
+    system_font_lookup* base_font = get_system_font_lookup_by_name(state, font_name, &base_font_resource_index);
+    if (base_font)
+    {
+        u64 variant_resource_index = INVALID_ID_U64;
+        // Attempt to get the size variant. Create if does not exist
+        system_font_variant_data* variant = get_system_font_variant_by_size(state, base_font, font_size, true, &variant_resource_index);
+        if (!variant)
+        {
+            BERROR("Failed to find and/or create size variant within system font '%s', font_size=%hu", bname_string_get(font_name), font_size);
+            return false;
+        }
+
+        // Setup the handles
+        out_variant->base_font = bhandle_create_with_u64_identifier(base_font_resource_index, base_font->uniqueid);
+        out_variant->variant = bhandle_create_with_u64_identifier(variant_resource_index, variant->uniqueid);
+        return true;
+    }
+
+    BERROR("A base system font named '%s' was not found nor could it be loaded. Font acquisition failed", bname_string_get(font_name));
+
+    return false;
+}
+
+b8 font_system_system_font_load(font_system_state* state, bname resource_name, bname package_name, u16 default_size)
+{
+    // Request the resource synchronously
+    bresource_system_font_request_info request = {0};
+    request.base.type = BRESOURCE_TYPE_SYSTEM_FONT;
+    request.base.synchronous = true; // Always load fonts synchronously
+    request.base.assets = array_bresource_asset_info_create(1);
+    bresource_asset_info* asset = &request.base.assets.data[0];
+    asset->type = BASSET_TYPE_SYSTEM_FONT;
+    asset->asset_name = resource_name;
+    asset->package_name = package_name;
+    asset->watch_for_hot_reload = false;
+    bresource_system_font* font_resource = (bresource_system_font*)bresource_system_request(engine_systems_get()->bresource_state, resource_name, (bresource_request_info*)&request);
+    if (!font_resource)
+    {
+        BERROR("Failed to load system font resource. See logs for details.");
+        return false;
+    }
+
+    // Loop through the faces and create one lookup for each, as well as a default size variant for each lookup
+    for (u32 source_face_idx = 0; source_face_idx < font_resource->face_count; ++source_face_idx)
+    {
+        u32 sys_font_count = darray_length(state->system_fonts);
+        bname source_face = font_resource->faces[source_face_idx];
+        b8 face_already_exists = false;
+        for (u32 f = 0; f < sys_font_count; ++f)
+        {
+            // Make sure a font with this name doesn't already exist. If it does move on to the next
+            if (state->system_fonts[f].face == source_face)
+            {
+                BWARN("A font named '%s' already exists and will not be loaded again", bname_string_get(source_face));
+                face_already_exists = true;
+                break;
+            }
+        }
+
+        // Proceed with the load otherwise
+        if (!face_already_exists)
+        {
+            system_font_lookup* lookup = 0;
+
+            // Start by finding a free slot
+            for (u32 i = 0; i < state->config.max_system_font_count; ++i)
+            {
+                if (state->system_fonts[i].uniqueid == INVALID_ID_U64)
+                {
+                    lookup = &state->system_fonts[i];
+                    break;
+                }
+            }
+
+            if (lookup)
+            {
+                BTRACE("Loading system font '%s'...", bname_string_get(source_face));
+                lookup->face = source_face;
+                lookup->binary_size = font_resource->font_binary_size;
+                lookup->index = source_face_idx;
+                // Take a copy of the binary data
+                // FIXME: Maybe only keep one copy of this in a table, with an id, and look it up
+                lookup->font_binary = ballocate(lookup->binary_size, MEMORY_TAG_SYSTEM_FONT);
+                bcopy_memory(lookup->font_binary, font_resource->font_binary, lookup->binary_size);
+                // The offset
+                lookup->offset = stbtt_GetFontOffsetForIndex(lookup->font_binary, lookup->index);
+                i32 result = stbtt_InitFont(&lookup->info, lookup->font_binary, lookup->offset);
+                // Zero indicates failure
+                if (result == 0)
+                {
+                    BERROR("Failed to init system font face '%s' at index %i. Skipping it", bname_string_get(lookup->face), lookup->index);
+                    // Reset the lookup before moving on
+                    bzero_memory(lookup, sizeof(system_font_lookup));
+                    lookup->uniqueid = INVALID_ID_U64;
+                    continue;
+                }
+
+                // Create a default size variant
+                {
+                    system_font_variant_data default_variant = {0};
+                    if (!create_system_font_variant(lookup, default_size, lookup->face, &default_variant))
+                    {
+                        BERROR("Failed to create system font '%s' default size variant: %hu, index %u. Skipping it", bname_string_get(lookup->face), default_size, lookup->index);
+
+                        // Reset the lookup before moving on
+                        bzero_memory(lookup, sizeof(system_font_lookup));
+                        lookup->uniqueid = INVALID_ID_U64;
+                        continue;
+                    }
+
+                    // To hold the size variants
+                    lookup->size_variants = darray_create(system_font_variant_data);
+
+                    // Add to the lookup's size variants
+                    darray_push(lookup->size_variants, default_variant);
+                }
+
+                // Create a handle for the lookup and sync ids
+                bhandle face_handle = bhandle_create(lookup->index);
+                lookup->uniqueid = face_handle.unique_id.uniqueid;
+            }
+            else
+            {
+                BERROR("Failed to find an empty slot for a new system font. Increase app_config.systems.font.config.max_system_font_count to fit more");
+                return false;
+            }
+        }
+    }
+
+    // Release the resource
+    bresource_system_release(engine_systems_get()->bresource_state, font_resource->base.name);
+
+    return true;
+}
+
+b8 font_system_system_font_verify_atlas(font_system_state* state, system_font_variant variant, const char* text)
+{
+    system_font_lookup* base_font = get_system_font_lookup(state, variant.base_font);
+    if (!base_font)
+    {
+        BERROR("font_system_verify_system_font_atlas: Unable to find base system font. Cannot verify");
+        return false;
+    }
+
+    system_font_variant_data* v = get_system_font_variant_by_handle(state, base_font, variant.variant);
+    if (!v)
+    {
+        BERROR("font_system_verify_system_font_atlas: Unable to find system font size variant. Cannot verify");
+        return false;
+    }
+
+    return verify_system_font_size_variant(base_font, v, text);
+}
+
+b8 font_system_system_font_measure_string(struct font_system_state* state, system_font_variant variant, const char* text, vec2* out_size)
+{
+    if (!out_size)
+    {
+        BERROR("font_system_system_font_measure_string requires a valid pointer to out_size");
+        return false;
+    }
+
+    system_font_lookup* base_font = get_system_font_lookup(state, variant.base_font);
+    if (!base_font)
+    {
+        BERROR("font_system_system_font_measure_string: Unable to find base system font. Cannot measure");
+        return false;
+    }
+
+    system_font_variant_data* v = get_system_font_variant_by_handle(state, base_font, variant.variant);
+    if (!v)
+    { 
+        BERROR("font_system_system_font_measure_string: Unable to find system font size variant. Cannot verify");
+        return false;
+    }
+
+    *out_size = measure_string(&v->data, text);
+    return true;
+}
+
+f32 font_system_system_font_line_height_get(struct font_system_state* state, system_font_variant variant)
+{
+    system_font_lookup* base_font = get_system_font_lookup(state, variant.base_font);
+    if (!base_font)
+        return 0;
+
+    system_font_variant_data* var = get_system_font_variant_by_handle(state, base_font, variant.variant);
+    if (!var)
+        return 0;
+
+    return var->data.line_height;
+}
+
+b8 font_system_system_font_generate_geometry(struct font_system_state* state, system_font_variant variant, const char* text, font_geometry* out_geometry)
+{
+    system_font_lookup* base_font = get_system_font_lookup(state, variant.base_font);
+    if (!base_font)
+        return false;
+
+    system_font_variant_data* var = get_system_font_variant_by_handle(state, base_font, variant.variant);
+    if (!var)
+        return false;
+
+    return generate_font_geometry(&var->data, FONT_TYPE_SYSTEM, text, out_geometry);
+}
+
+bresource_texture* font_system_system_font_atlas_get(struct font_system_state* state, system_font_variant variant)
+{
+    system_font_lookup* base_font = get_system_font_lookup(state, variant.base_font);
+    if (!base_font)
+        return 0;
+
+    system_font_variant_data* var = get_system_font_variant_by_handle(state, base_font, variant.variant);
+    if (!var)
+        return 0;
+
+    return var->atlas;
+}
+
+static bitmap_font_lookup* get_bitmap_font_lookup(font_system_state* state, bhandle base_font)
+{
+    BASSERT_MSG(state, "state is required");
+
+    if (bhandle_is_valid(base_font) && bhandle_is_pristine(base_font, state->bitmap_fonts[base_font.handle_index].uniqueid))
+        return &state->bitmap_fonts[base_font.handle_index];
+
+    BERROR("Attempted to get bitmap font lookup using an invalid or stale handle. Null will be returned. (handle_index=%llu, unique_id=%llu)", base_font.handle_index, base_font.unique_id.uniqueid);
+    return 0;
+}
+
+static bitmap_font_lookup* get_bitmap_font_lookup_by_name(font_system_state* state, bname font_name, u64* out_resource_index)
+{
+    BASSERT_MSG(state, "state is required");
+    BASSERT_MSG(out_resource_index, "out_resource_index is required");
+
+    for (u32 i = 0; i < state->config.max_bitmap_font_count; ++i)
+    {
+        bitmap_font_lookup* lookup = &state->bitmap_fonts[i];
+        if (lookup->data.face_name == font_name)
+        {
+            *out_resource_index = i;
+            return lookup;
+        }
+    }
+
+    *out_resource_index = INVALID_ID_U64;
+    BERROR("Failed to find a bitmap font named '%s'. Null will be returned", bname_string_get(font_name));
+    return 0;
+}
+
+static system_font_lookup* get_system_font_lookup(font_system_state* state, bhandle base_font)
+{
+    BASSERT_MSG(state, "state is required");
+
+    if (bhandle_is_valid(base_font) && bhandle_is_pristine(base_font, state->system_fonts[base_font.handle_index].uniqueid))
+        return &state->system_fonts[base_font.handle_index];
+
+    BERROR("Attempted to get system font lookup using an invalid or stale handle. Null will be returned. (handle_index=%llu, unique_id=%llu)", base_font.handle_index, base_font.unique_id.uniqueid);
+    return 0;
+}
+
+static system_font_lookup* get_system_font_lookup_by_name(font_system_state* state, bname font_name, u64* out_resource_index)
+{
+    BASSERT_MSG(state, "state is required");
+    BASSERT_MSG(out_resource_index, "out_resource_index is required");
+
+    for (u32 i = 0; i < state->config.max_system_font_count; ++i)
+    {
+        system_font_lookup* lookup = &state->system_fonts[i];
+        if (lookup->face == font_name)
+        {
+            *out_resource_index = i;
+            return lookup;
+        }
+    }
+
+    *out_resource_index = INVALID_ID_U64;
+    BERROR("Failed to find a base system font named '%s'. Null will be returned", bname_string_get(font_name));
+    return 0;
+}
+
+static system_font_variant_data* get_system_font_variant_by_handle(font_system_state* state, system_font_lookup* base_font, bhandle variant)
+{
+    BASSERT_MSG(state, "state is required");
+    BASSERT_MSG(base_font, "base_font is required");
+
+    if (bhandle_is_valid(variant) && bhandle_is_pristine(variant, base_font->size_variants[variant.handle_index].uniqueid))
+        return &base_font->size_variants[variant.handle_index];
+
+    BERROR("Attempted to get system font variant using an invalid or stale handle. Null will be returned. (handle_index=%llu, unique_id=%llu)", variant.handle_index, variant.unique_id.uniqueid);
+    return 0;
+}
+
+static system_font_variant_data* get_system_font_variant_by_size(font_system_state* state, system_font_lookup* base_font, u16 size, b8 auto_create, u64* out_resource_index)
+{
+    BASSERT_MSG(state, "state is required");
+    BASSERT_MSG(base_font, "base_font is required");
+    BASSERT_MSG(out_resource_index, "out_resource_index is required");
+
+    // Found the font, attempt to get the variant
+    u32 variant_count = darray_length(base_font->size_variants);
+    for (u32 v = 0; v < variant_count; ++v)
+    {
+        system_font_variant_data* variant = &base_font->size_variants[v];
+        if (variant->data.size == size)
+        {
+            // Found the right variant
+            *out_resource_index = v;
+            return variant;
+        }
+    }
+
+    // No variant exists for that size. Create one
+    if (auto_create)
+    {
+        system_font_variant_data variant;
+        if (!create_system_font_variant(base_font, size, base_font->face, &variant))
+        {
+            BERROR("Failed to create system_font size variant - nothing will be returned. (face='%s', index=%u, size=%u)", base_font->face, base_font->index, size);
+            return 0;
+        }
+
+        *out_resource_index = darray_length(base_font->size_variants);
+        // Add to the lookup's size variants
+        darray_push(base_font->size_variants, variant);
+
+        return &base_font->size_variants[(*out_resource_index)];
+    }
+
+    *out_resource_index = INVALID_ID_U64;
+    BERROR("Attempted to get system font variant which was not found. Null will be returned. (face='%s', size=%hu, auto_create=%s)", bname_string_get(base_font->face), size, bool_to_string(auto_create));
+    return 0;
+}
+
+static vec2 measure_string(font_data* font, const char* text)
 {
     vec2 extents = {0};
 
@@ -664,17 +963,8 @@ vec2 font_system_measure_string(font_data* font, const char* text)
     return extents;
 }
 
-static b8 setup_font_data(font_data* font)
+static void setup_tab_xadvance(font_data* font)
 {
-    // Create map resources
-    // font->atlas.filter_magnify = font->atlas.filter_minify = TEXTURE_FILTER_MODE_LINEAR;
-    // font->atlas.repeat_u = font->atlas.repeat_v = font->atlas.repeat_w = TEXTURE_REPEAT_CLAMP_TO_EDGE;
-    // if (!renderer_texture_map_resources_acquire(&font->atlas))
-    // {
-    //     BERROR("Unable to acquire resources for font atlas texture map");
-    //     return false;
-    // }
-
     // Check for a tab glyph, as there may not always be exported. If there is, store its
     // x_advance and just use that. If there is not, then create one based off spacex4
     if (!font->tab_x_advance)
@@ -706,59 +996,57 @@ static b8 setup_font_data(font_data* font)
             }
         }
     }
-
-    return true;
 }
 
 static void cleanup_font_data(font_data* font)
 {
-    // If bitmap font, release reference to the texture
-    if (font->type == FONT_TYPE_BITMAP && font->atlas_texture)
-        texture_system_release_resource((bresource_texture*)font->atlas_texture);
-    font->atlas_texture = 0;
+    if (font->glyphs && font->glyph_count)
+        BFREE_TYPE_CARRAY(font->glyphs, font_glyph, font->glyph_count);
+
+    if (font->kernings && font->kerning_count)
+        BFREE_TYPE_CARRAY(font->kernings, font_kerning, font->kerning_count);
 }
 
-static b8 create_system_font_variant(system_font_lookup* lookup, u16 size, const char* font_name, font_data* out_variant)
+static b8 create_system_font_variant(system_font_lookup* lookup, u16 size, bname font_name, system_font_variant_data* out_variant)
 {
-    bzero_memory(out_variant, sizeof(font_data));
-    out_variant->atlas_size_x = 1024;  // TODO: configurable size
-    out_variant->atlas_size_y = 1024;
-    out_variant->size = size;
-    out_variant->type = FONT_TYPE_SYSTEM;
-    string_ncopy(out_variant->face, font_name, 255);
-    out_variant->internal_data_size = sizeof(system_font_variant_data);
-    out_variant->internal_data = ballocate(out_variant->internal_data_size, MEMORY_TAG_SYSTEM_FONT);
-
-    system_font_variant_data* internal_data = (system_font_variant_data*)out_variant->internal_data;
+    bzero_memory(out_variant, sizeof(system_font_variant_data));
+    out_variant->data.atlas_size_x = 1024; // TODO: configurable size
+    out_variant->data.atlas_size_y = 1024;
+    out_variant->data.size = size;
+    out_variant->data.face_name = font_name;
 
     // Push default codepoints (ascii 32-127) always, plus -1 for unknown
-    internal_data->codepoints = darray_reserve(i32, 96);
-    darray_push(internal_data->codepoints, -1);  // push invalid char
+    out_variant->codepoints = darray_reserve(i32, 96);
+    darray_push(out_variant->codepoints, -1);  // push invalid char
     for (i32 i = 0; i < 95; ++i)
-        internal_data->codepoints[i + 1] = i + 32;
-    darray_length_set(internal_data->codepoints, 96);
+        out_variant->codepoints[i + 1] = i + 32;
+    darray_length_set(out_variant->codepoints, 96);
 
     // Create texture
-    const char* font_tex_name = string_format("__system_text_atlas_%s_i%i_sz%i__", font_name, lookup->index, size);
+    const char* font_tex_name = string_format("__system_text_atlas_%s_i%i_sz%i__", bname_string_get(font_name), lookup->index, size);
 
-    out_variant->atlas_texture = texture_system_request_writeable(
+    out_variant->atlas = texture_system_request_writeable(
         bname_create(font_tex_name),
-        out_variant->atlas_size_x,
-        out_variant->atlas_size_y,
+        out_variant->data.atlas_size_x,
+        out_variant->data.atlas_size_y,
         BRESOURCE_TEXTURE_FORMAT_RGB8,
         true,
         false);
     string_free(font_tex_name);
     font_tex_name = 0;
 
-    if (out_variant->atlas_texture)
+    if (out_variant->atlas)
     {
         // Obtain some metrics
-        internal_data->scale = stbtt_ScaleForPixelHeight(&lookup->info, (f32)size);
+        out_variant->scale = stbtt_ScaleForPixelHeight(&lookup->info, (f32)size);
         i32 ascent, descent, line_gap;
         stbtt_GetFontVMetrics(&lookup->info, &ascent, &descent, &line_gap);
-        out_variant->line_height = (ascent - descent + line_gap) * internal_data->scale;
+        out_variant->data.line_height = (ascent - descent + line_gap) * out_variant->scale;
 
+        // Also perform tab xadvance setup for the variant
+        setup_tab_xadvance(&out_variant->data);
+
+        // Build the variant atlas
         return rebuild_system_font_variant_atlas(lookup, out_variant);
     }
 
@@ -766,18 +1054,18 @@ static b8 create_system_font_variant(system_font_lookup* lookup, u16 size, const
     return false;
 }
 
-static b8 rebuild_system_font_variant_atlas(system_font_lookup* lookup, font_data* variant)
+static b8 rebuild_system_font_variant_atlas(system_font_lookup* lookup, system_font_variant_data* variant)
 {
-    system_font_variant_data* internal_data = (system_font_variant_data*)variant->internal_data;
+    system_font_variant_data* internal_data = variant;
 
-    u32 pack_image_size = variant->atlas_size_x * variant->atlas_size_y * sizeof(u8);
+    u32 pack_image_size = variant->data.atlas_size_x * variant->data.atlas_size_y * sizeof(u8);
     u8* pixels = ballocate(pack_image_size, MEMORY_TAG_ARRAY);
     u32 codepoint_count = darray_length(internal_data->codepoints);
     stbtt_packedchar* packed_chars = ballocate(sizeof(stbtt_packedchar) * codepoint_count, MEMORY_TAG_ARRAY);
 
     // Begin packing all known characters into atlas
     stbtt_pack_context context;
-    if (!stbtt_PackBegin(&context, pixels, variant->atlas_size_x, variant->atlas_size_y, 0, 1, 0))
+    if (!stbtt_PackBegin(&context, pixels, variant->data.atlas_size_x, variant->data.atlas_size_y, 0, 1, 0))
     {
         BERROR("stbtt_PackBegin failed");
         return false;
@@ -786,7 +1074,7 @@ static b8 rebuild_system_font_variant_atlas(system_font_lookup* lookup, font_dat
     // Fit all codepoints into a single range for packing
     stbtt_pack_range range;
     range.first_unicode_codepoint_in_range = 0;
-    range.font_size = variant->size;
+    range.font_size = variant->data.size;
     range.num_chars = codepoint_count;
     range.chardata_for_range = packed_chars;
     range.array_of_unicode_codepoints = internal_data->codepoints;
@@ -812,7 +1100,7 @@ static b8 rebuild_system_font_variant_atlas(system_font_lookup* lookup, font_dat
     // Write texture data to atlas
     if (!renderer_texture_write_data(
             engine_systems_get()->renderer_system,
-            variant->atlas_texture->renderer_texture_handle,
+            variant->atlas->renderer_texture_handle,
             0, pack_image_size * 4, rgba_pixels))
     {
         BERROR("Failed to write data to system font variant texture");
@@ -824,14 +1112,14 @@ static b8 rebuild_system_font_variant_atlas(system_font_lookup* lookup, font_dat
     bfree(rgba_pixels, pack_image_size * 4, MEMORY_TAG_ARRAY);
 
     // Regenerate glyphs
-    if (variant->glyphs && variant->glyph_count)
-        bfree(variant->glyphs, sizeof(font_glyph) * variant->glyph_count, MEMORY_TAG_ARRAY);
-    variant->glyph_count = codepoint_count;
-    variant->glyphs = ballocate(sizeof(font_glyph) * codepoint_count, MEMORY_TAG_ARRAY);
-    for (u16 i = 0; i < variant->glyph_count; ++i)
+    if (variant->data.glyphs && variant->data.glyph_count)
+        bfree(variant->data.glyphs, sizeof(font_glyph) * variant->data.glyph_count, MEMORY_TAG_ARRAY);
+    variant->data.glyph_count = codepoint_count;
+    variant->data.glyphs = ballocate(sizeof(font_glyph) * codepoint_count, MEMORY_TAG_ARRAY);
+    for (u16 i = 0; i < variant->data.glyph_count; ++i)
     {
         stbtt_packedchar* pc = &packed_chars[i];
-        font_glyph* g = &variant->glyphs[i];
+        font_glyph* g = &variant->data.glyphs[i];
         g->codepoint = internal_data->codepoints[i];
         g->page_id = 0;
         g->x_offset = pc->xoff;
@@ -844,42 +1132,42 @@ static b8 rebuild_system_font_variant_atlas(system_font_lookup* lookup, font_dat
     }
 
     // Regenerate kernings
-    if (variant->kernings && variant->kerning_count)
-        bfree(variant->kernings, sizeof(font_kerning) * variant->kerning_count, MEMORY_TAG_ARRAY);
-    variant->kerning_count = stbtt_GetKerningTableLength(&lookup->info);
-    if (variant->kerning_count)
+    if (variant->data.kernings && variant->data.kerning_count)
+        bfree(variant->data.kernings, sizeof(font_kerning) * variant->data.kerning_count, MEMORY_TAG_ARRAY);
+    variant->data.kerning_count = stbtt_GetKerningTableLength(&lookup->info);
+    if (variant->data.kerning_count)
     {
-        variant->kernings = ballocate(sizeof(font_kerning) * variant->kerning_count, MEMORY_TAG_ARRAY);
+        variant->data.kernings = ballocate(sizeof(font_kerning) * variant->data.kerning_count, MEMORY_TAG_ARRAY);
         // Get kerning table for current font
-        stbtt_kerningentry* kerning_table = ballocate(sizeof(stbtt_kerningentry) * variant->kerning_count, MEMORY_TAG_ARRAY);
-        u32 entry_count = stbtt_GetKerningTable(&lookup->info, kerning_table, variant->kerning_count);
-        if (entry_count != variant->kerning_count)
+        stbtt_kerningentry* kerning_table = ballocate(sizeof(stbtt_kerningentry) * variant->data.kerning_count, MEMORY_TAG_ARRAY);
+        u32 entry_count = stbtt_GetKerningTable(&lookup->info, kerning_table, variant->data.kerning_count);
+        if (entry_count != variant->data.kerning_count)
         {
             BERROR("Kerning entry count mismatch: %u->%u", entry_count, variant->kerning_count);
             return false;
         }
 
-        for (u32 i = 0; i < variant->kerning_count; ++i)
+        for (u32 i = 0; i < variant->data.kerning_count; ++i)
         {
-            font_kerning* k = &variant->kernings[i];
+            font_kerning* k = &variant->data.kernings[i];
             k->codepoint_0 = kerning_table[i].glyph1;
             k->codepoint_1 = kerning_table[i].glyph2;
             k->amount = kerning_table[i].advance;
         }
 
-        bfree(kerning_table, sizeof(stbtt_kerningentry) * variant->kerning_count, MEMORY_TAG_ARRAY);
+        bfree(kerning_table, sizeof(stbtt_kerningentry) * variant->data.kerning_count, MEMORY_TAG_ARRAY);
     }
     else
     {
-        variant->kernings = 0;
+        variant->data.kernings = 0;
     }
 
     return true;
 }
 
-static b8 verify_system_font_size_variant(system_font_lookup* lookup, font_data* variant, const char* text)
+static b8 verify_system_font_size_variant(system_font_lookup* lookup, system_font_variant_data* variant, const char* text)
 {
-    system_font_variant_data* internal_data = (system_font_variant_data*)variant->internal_data;
+    system_font_variant_data* internal_data = variant;
 
     u32 char_length = string_length(text);
     u32 added_codepoint_count = 0;
@@ -922,5 +1210,226 @@ static b8 verify_system_font_size_variant(system_font_lookup* lookup, font_data*
         return rebuild_system_font_variant_atlas(lookup, variant);
 
     // Otherwise, proceed as normal
+    return true;
+}
+
+static void bitmap_font_release(font_system_state* state, bitmap_font_lookup* lookup)
+{
+    if (state)
+    {
+        // Destroy pages
+        if (lookup->pages && lookup->page_count)
+        {
+            for (u32 i = 0; i < lookup->page_count; ++i)
+            {
+                // Release atlas
+                if (lookup->pages[i].atlas)
+                    texture_system_release_resource(lookup->pages[i].atlas);
+            }
+            BFREE_TYPE_CARRAY(lookup->pages, bitmap_font_page, lookup->page_count);
+            lookup->pages = 0;
+            lookup->page_count = 0;
+        }
+
+        cleanup_font_data(&lookup->data);
+
+        lookup->uniqueid = INVALID_ID_U64;
+    }
+}
+
+static void system_font_release(font_system_state* state, system_font_lookup* lookup)
+{
+    if (state)
+    {
+        // Destroy all size variants
+        u32 variant_count = darray_length(lookup->size_variants);
+        for (u32 i = 0; i < variant_count; ++i)
+        {
+            system_font_variant_data* v = &lookup->size_variants[i];
+            if (v->atlas)
+                texture_system_release_resource(v->atlas);
+
+            if (v->codepoints)
+                darray_destroy(v->codepoints);
+
+            cleanup_font_data(&v->data);
+        }
+
+        if (lookup->binary_size && lookup->font_binary)
+        {
+            bfree(lookup->font_binary, lookup->binary_size, MEMORY_TAG_SYSTEM_FONT);
+        }
+    }
+}
+
+static font_glyph* glyph_from_codepoint(const font_data* font, i32 codepoint)
+{
+    for (u32 i = 0; i < font->glyph_count; ++i)
+    {
+        if (font->glyphs[i].codepoint == codepoint)
+            return &font->glyphs[i];
+    }
+
+    BERROR("Unable to find font glyph for codepoint: %s", codepoint);
+    return 0;
+}
+
+static font_kerning* kerning_from_codepoints(const font_data* font, i32 codepoint_0, i32 codepoint_1)
+{
+    for (u32 i = 0; i < font->kerning_count; ++i)
+    {
+        font_kerning* k = &font->kernings[i];
+        if (k->codepoint_0 == codepoint_0 && k->codepoint_1 == codepoint_1)
+            return k;
+    }
+
+    // No kerning found. This is okay, not necessarily an error
+    return 0;
+}
+
+static b8 generate_font_geometry(const font_data* data, font_type type, const char* text, font_geometry* out_geometry)
+{
+    // Get the UTF-8 string length
+    u32 text_length_utf8 = string_utf8_length(text);
+    u32 char_length = string_length(text);
+
+    // Iterate the string once and count how many quads are required. This allows
+    // characters which don't require rendering (spaces, tabs, etc.) to be skipped
+    out_geometry->quad_count = 0;
+
+    // If text is empty, resetting quad count is enough
+    if (text_length_utf8 < 1)
+        return true;
+
+    i32* codepoints = ballocate(sizeof(i32) * text_length_utf8, MEMORY_TAG_ARRAY);
+    for (u32 c = 0, cp_idx = 0; c < char_length;)
+    {
+        i32 codepoint = text[c];
+        u8 advance = 1;
+
+        // Ensure the propert UTF-8 codepoint is being used
+        if (!bytes_to_codepoint(text, c, &codepoint, &advance))
+        {
+            BWARN("Invalid UTF-8 found in string, using unknown codepoint of -1");
+            codepoint = -1;
+        }
+
+        // Whitespace codepoints do not need to be included in the quad count
+        if (!codepoint_is_whitespace(codepoint))
+            out_geometry->quad_count++;
+
+        c += advance;
+
+        // Add to the codepoint list
+        codepoints[cp_idx] = codepoint;
+        cp_idx++;
+    }
+
+    // Calculate buffer sizes
+    static const u64 verts_per_quad = 4;
+    static const u8 indices_per_quad = 6;
+
+    // Save the data off to a pending structure
+    out_geometry->vertex_buffer_size = sizeof(vertex_2d) * verts_per_quad * out_geometry->quad_count;
+    out_geometry->index_buffer_size = sizeof(u32) * indices_per_quad * out_geometry->quad_count;
+    // Temp arrays to hold vertex/index data
+    out_geometry->vertex_buffer_data = ballocate(out_geometry->vertex_buffer_size, MEMORY_TAG_ARRAY);
+    out_geometry->index_buffer_data = ballocate(out_geometry->index_buffer_size, MEMORY_TAG_ARRAY);
+
+    // Generate new geometry for each character
+    f32 x = 0;
+    f32 y = 0;
+
+    // Iterate the codepoints list
+    for (u32 c = 0, q_idx = 0; c < text_length_utf8; ++c)
+    {
+        i32 codepoint = codepoints[c];
+
+        // Whitespace doesn't get a quad created for it
+        if (codepoint == '\n')
+        {
+            // Newline needs to move to the next line and restart x position
+            x = 0;
+            y += data->line_height;
+            // No further processing needed
+            continue;
+        }
+        else if (codepoint == '\t')
+        {
+            // Manually move over by the configured tab advance amount
+            x += data->tab_x_advance;
+            // No further processing needed
+            continue;
+        }
+
+        // Obtain the glyph
+        font_glyph* g = glyph_from_codepoint(data, codepoint);
+        if (!g)
+        {
+            BERROR("Unable to find unknown codepoint. Using '?' instead");
+            g = glyph_from_codepoint(data, '?');
+        }
+
+        // If not on the last codepoint, try to find kerning between this and the next codepoint
+        i32 kerning_amount = 0;
+        if (c < text_length_utf8 - 1)
+        {
+            i32 next_codepoint = codepoints[c + 1];
+            // Try to find kerning
+            font_kerning* kerning = kerning_from_codepoints(data, codepoint, next_codepoint);
+            if (kerning)
+                kerning_amount = kerning->amount;
+        }
+
+        // Only generate a quad for non-whitespace characters
+        if (!codepoint_is_whitespace(codepoint))
+        {
+            // Generate points for the quad
+            f32 minx = x + g->x_offset;
+            f32 miny = y + g->y_offset;
+            f32 maxx = minx + g->width;
+            f32 maxy = miny + g->height;
+            f32 tminx = (f32)g->x / data->atlas_size_x;
+            f32 tmaxx = (f32)(g->x + g->width) / data->atlas_size_x;
+            f32 tminy = (f32)g->y / data->atlas_size_y;
+            f32 tmaxy = (f32)(g->y + g->height) / data->atlas_size_y;
+            // Flip the y axis for system text
+            if (type == FONT_TYPE_SYSTEM)
+            {
+                tminy = 1.0f - tminy;
+                tmaxy = 1.0f - tmaxy;
+            }
+
+            vertex_2d p0 = (vertex_2d){vec2_create(minx, miny), vec2_create(tminx, tminy)};
+            vertex_2d p1 = (vertex_2d){vec2_create(maxx, miny), vec2_create(tmaxx, tminy)};
+            vertex_2d p2 = (vertex_2d){vec2_create(maxx, maxy), vec2_create(tmaxx, tmaxy)};
+            vertex_2d p3 = (vertex_2d){vec2_create(minx, maxy), vec2_create(tminx, tmaxy)};
+
+            // Vertex data
+            out_geometry->vertex_buffer_data[(q_idx * 4) + 0] = p0; // 0    3
+            out_geometry->vertex_buffer_data[(q_idx * 4) + 1] = p2; //
+            out_geometry->vertex_buffer_data[(q_idx * 4) + 2] = p3; //
+            out_geometry->vertex_buffer_data[(q_idx * 4) + 3] = p1; // 2    1
+
+            // Index data 210301
+            out_geometry->index_buffer_data[(q_idx * 6) + 0] = (q_idx * 4) + 2;
+            out_geometry->index_buffer_data[(q_idx * 6) + 1] = (q_idx * 4) + 1;
+            out_geometry->index_buffer_data[(q_idx * 6) + 2] = (q_idx * 4) + 0;
+            out_geometry->index_buffer_data[(q_idx * 6) + 3] = (q_idx * 4) + 3;
+            out_geometry->index_buffer_data[(q_idx * 6) + 4] = (q_idx * 4) + 0;
+            out_geometry->index_buffer_data[(q_idx * 6) + 5] = (q_idx * 4) + 1;
+
+            // Increment quad index
+            q_idx++;
+        }
+
+        // Advance by the glyph's advance and kerning
+        x += g->x_advance + kerning_amount;
+    }
+
+    // Clean up
+    if (codepoints)
+        bfree(codepoints, sizeof(i32) * text_length_utf8, MEMORY_TAG_ARRAY);
+
     return true;
 }

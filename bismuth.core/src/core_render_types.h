@@ -158,6 +158,8 @@ typedef struct shader_uniform
      * which is used to lookup texture index within the internal array at the given scope (global/instance)
      */
     u16 location;
+    /** @brief Index into the internal sampler/texture array depending on type */
+    u16 tex_samp_index;
     /** @brief Index into the internal uniform array */
     u16 index;
     /** @brief The size of the uniform, or 0 for samplers */
@@ -258,8 +260,6 @@ typedef struct shader_attribute_config
 /** @brief Configuration for a uniform */
 typedef struct shader_uniform_config
 {
-    /** @brief The length of the name */
-    u8 name_length;
     /** @brief The name of the uniform */
     bname name;
     /** @brief The size of the uniform. If arrayed, this is the per-element size */

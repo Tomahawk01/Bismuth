@@ -6,8 +6,6 @@
 #include "strings/bname.h"
 #include "strings/bstring.h"
 
-#include <stdio.h>
-
 typedef struct bitmap_font_header
 {
     // The base binary asset header. Must always be the first member
@@ -119,7 +117,101 @@ void* basset_bitmap_font_serialize(const basset* asset, u64* out_size)
     return block;
 }
 
-b8 basset_bitmap_font_deserialize(const void* data, basset* out_asset)
+b8 basset_bitmap_font_deserialize(u64 size, const void* block, basset* out_asset)
 {
-    //
+    if (!size || !block || !out_asset)
+    {
+        BERROR("Cannot deserialize without a nonzero size, block of memory and an static_mesh to write to");
+        return false;
+    }
+
+    const bitmap_font_header* header = block;
+    if (header->base.magic != ASSET_MAGIC)
+    {
+        BERROR("Memory is not a Bismuth binary asset");
+        return false;
+    }
+
+    basset_type type = (basset_type)header->base.type;
+    if (type != BASSET_TYPE_BITMAP_FONT)
+    {
+        BERROR("Memory is not a Bismuth bitmap font asset");
+        return false;
+    }
+
+    out_asset->meta.version = header->base.version;
+    out_asset->type = type;
+
+    basset_bitmap_font* typed_asset = (basset_bitmap_font*)out_asset;
+    typed_asset->baseline = header->baseline;
+    typed_asset->line_height = header->line_height;
+    typed_asset->size = header->font_size;
+    typed_asset->atlas_size_x = header->atlas_size_x;
+    typed_asset->atlas_size_y = header->atlas_size_y;
+    if (header->kerning_count)
+    {
+        typed_asset->kernings = array_basset_bitmap_font_kerning_create(header->kerning_count);
+    }
+    if (header->page_count)
+    {
+        typed_asset->pages = array_basset_bitmap_font_page_create(header->page_count);
+    }
+
+    u64 offset = sizeof(bitmap_font_header);
+
+    // Face name
+    char* face_str = ballocate(header->face_name_len + 1, MEMORY_TAG_STRING);
+    bcopy_memory(face_str, block + offset, header->face_name_len);
+    typed_asset->face = bname_create(face_str);
+    string_free(face_str);
+    offset += header->face_name_len;
+
+    // Glyphs - at least one is required
+    if (header->glyph_count)
+    {
+        typed_asset->glyphs = array_basset_bitmap_font_glyph_create(header->glyph_count);
+        BCOPY_TYPE_CARRAY(typed_asset->glyphs.data, block + offset, basset_bitmap_font_glyph, header->glyph_count);
+        offset += sizeof(basset_bitmap_font_glyph) * header->glyph_count;
+    }
+    else
+    {
+        BERROR("Attempting to load a bitmap font asset that has no glyphs");
+        return false;
+    }
+
+    // Kernings - optional
+    if (header->kerning_count)
+    {
+        typed_asset->kernings = array_basset_bitmap_font_kerning_create(header->kerning_count);
+        BCOPY_TYPE_CARRAY(typed_asset->kernings.data, block + offset, basset_bitmap_font_kerning, header->kerning_count);
+        offset += sizeof(basset_bitmap_font_kerning) * header->kerning_count;
+    }
+
+    // Pages - at least one is required
+    if (header->page_count)
+    {
+        typed_asset->pages = array_basset_bitmap_font_page_create(header->page_count);
+        for (u32 i = 0; i < header->page_count; ++i)
+        {
+            // String length
+            u32 len = 0;
+            bcopy_memory(&len, block + offset, sizeof(u32));
+            offset += sizeof(u32);
+
+            char* str = ballocate(sizeof(char) * len, MEMORY_TAG_STRING);
+            bcopy_memory(str, block + offset, sizeof(char) * len);
+            offset += len;
+
+            typed_asset->pages.data[i].id = i;
+            typed_asset->pages.data[i].image_asset_name = bname_create(str);
+            string_free(str);
+        }
+    }
+    else
+    {
+        BERROR("Attempting to load a bitmap font asset that has no pages");
+        return false;
+    }
+
+    return true;
 }

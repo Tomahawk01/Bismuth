@@ -8,6 +8,7 @@
 #include "strings/bname.h"
 #include "systems/shader_system.h"
 #include "systems/texture_system.h"
+#include <runtime_defines.h>
 
 b8 skybox_create(skybox_config config, skybox* out_skybox)
 {
@@ -58,7 +59,7 @@ b8 skybox_load(skybox* sb)
 
     sb->skybox_shader_group_data_generation = INVALID_ID_U16;
 
-    bhandle skybox_shader = shader_system_get(bname_create("Shader.DefaultSkybox")); // TODO: allow configurable shader
+    bhandle skybox_shader = shader_system_get(bname_create(SHADER_NAME_RUNTIME_SKYBOX), bname_create(PACKAGE_NAME_RUNTIME)); // TODO: allow configurable shader
     if (!renderer_shader_per_group_resources_acquire(engine_systems_get()->renderer_system, skybox_shader, &sb->group_id))
     {
         BFATAL("Unable to acquire shader group resources for skybox");
@@ -78,7 +79,7 @@ b8 skybox_unload(skybox* sb)
     }
     sb->state = SKYBOX_STATE_UNDEFINED;
 
-    bhandle skybox_shader = shader_system_get(bname_create("Shader.DefaultSkybox")); // TODO: allow configurable shader
+    bhandle skybox_shader = shader_system_get(bname_create(SHADER_NAME_RUNTIME_SKYBOX), bname_create(PACKAGE_NAME_RUNTIME)); // TODO: allow configurable shader
     if (!renderer_shader_per_group_resources_release(engine_systems_get()->renderer_system, skybox_shader, sb->group_id))
     {
         BWARN("Unable to release shader group resources for skybox");

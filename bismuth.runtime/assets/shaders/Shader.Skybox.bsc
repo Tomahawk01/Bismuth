@@ -6,13 +6,13 @@ depth_write=true
 stages = [
     {
         type = "vertex"
-        source_asset_name = "Skybox_vert"
-        package_name = "Runtime"
+        source_asset_name = "Shader.Skybox_vert"
+        package_name = "Bismuth.Runtime"
     }
     {
         type = "fragment"
-        source_asset_name = "Skybox_frag"
-        package_name = "Runtime"
+        source_asset_name = "Shader.Skybox_frag"
+        package_name = "Bismuth.Runtime"
     }
 ]
 
@@ -39,29 +39,29 @@ attributes = [
     }
 ]
 
-# Uniforms: type,scope,name
-# NOTE: For scope: 0=global, 1=instance, 2=local
-uniform=mat4,0,projection
-uniform=mat4,0,view
-uniform=samplerCube,1,cube_texture
-
 uniforms = {
-    global = [
+    per_frame = [
         {
             name = "projections"
-            type = "mat4[4]"
+            type = "mat4"
+            array_size = 4
         }
         {
             name = "views"
-            type = "mat4[4]"
+            type = "mat4"
+            array_size = 4
         }
     ]
-    instance = [
+    per_group = [
         {
             name = "cube_texture"
-            type = "samplerCube"
+            type = "texture2D"
+        }
+        {
+            name = "cube_sampler"
+            type = "sampler"
         }
     ]
-    local = [
+    per_draw = [
     ]
 }

@@ -1,6 +1,6 @@
 info face="Open Sans" size=21 bold=0 italic=0 charset="" unicode=1 stretchH=100 smooth=1 aa=1 padding=0,0,0,0 spacing=1,1 outline=0
 common lineHeight=21 base=16 scaleW=128 scaleH=128 pages=1 packed=0 alphaChnl=1 redChnl=0 greenChnl=0 blueChnl=0
-page id=0 file="OpenSans21px_0.png"
+page id=0 file="Texture.BitmapFont.OpenSans21px_0"
 chars count=98
 char id=-1   x=40    y=70    width=3     height=1     xoffset=-1    yoffset=20    xadvance=9     page=0  chnl=15
 char id=0    x=126   y=25    width=1     height=1     xoffset=0     yoffset=0     xadvance=0     page=0  chnl=15

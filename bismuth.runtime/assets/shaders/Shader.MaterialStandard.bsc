@@ -5,7 +5,7 @@ depth_test=true
 depth_write=true
 supports_wireframe=true
 max_groups=69
-max_instances=69
+max_groups=69
 cull_mode = "back"
 
 topology_types [
@@ -15,13 +15,13 @@ topology_types [
 stages = [
     {
         type = "vertex"
-        source_asset_name = "MaterialStandard_vert"
-        package_name = "Runtime"
+        source_asset_name = "Shader.MaterialStandard_vert"
+        package_name = "Bismuth.Runtime"
     }
     {
         type = "fragment"
-        source_asset_name = "MaterialStandard_frag"
-        package_name = "Runtime"
+        source_asset_name = "Shader.MaterialStandard_frag"
+        package_name = "Bismuth.Runtime"
     }
 ]
 

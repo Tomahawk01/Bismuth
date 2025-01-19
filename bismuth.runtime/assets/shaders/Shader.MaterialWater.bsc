@@ -12,13 +12,13 @@ topology_types [
 stages = [
     {
         type = "vertex"
-        source_asset_name = "MaterialWater_vert"
-        package_name = "Runtime"
+        source_asset_name = "Shader.MaterialWater_vert"
+        package_name = "Bismuth.Runtime"
     }
     {
         type = "fragment"
-        source_asset_name = "MaterialWater_frag"
-        package_name = "Runtime"
+        source_asset_name = "Shader.MaterialWater_frag"
+        package_name = "Bismuth.Runtime"
     }
 ]
 

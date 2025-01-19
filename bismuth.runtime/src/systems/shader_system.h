@@ -44,9 +44,10 @@ BAPI b8 shader_system_reload(bhandle shader);
  * Attempts to load the shader if not already loaded
  * 
  * @param shader_name The bname to search for
+ * @param package_name The package to get the shader from if not already loaded. Pass INVALID_BNAME to search all packages
  * @return A handle to a shader, if found/loaded; otherwise an invalid handle
  */
-BAPI bhandle shader_system_get(bname name);
+BAPI bhandle shader_system_get(bname name, bname package_name);
 
 /**
  * @brief Returns a handle to a shader with the given name based on the provided config source.

@@ -88,7 +88,7 @@ static b8 internal_attribute_add(bshader* shader, const shader_attribute_config*
 static b8 internal_texture_add(bshader* shader, shader_uniform_config* config);
 static b8 internal_sampler_add(bshader* shader, shader_uniform_config* config);
 static bhandle generate_new_shader_handle(void);
-static b8 internal_uniform_add(bshader* shader, const shader_uniform_config* config, u32 location);
+static b8 internal_uniform_add(bshader* shader, const shader_uniform_config* config, u16 tex_samp_index);
 static bhandle shader_create(const bresource_shader* shader_resource);
 
 // Verify the name is valid and unique
@@ -233,7 +233,7 @@ b8 shader_system_reload(bhandle shader_handle)
     return renderer_shader_reload(state_ptr->renderer, shader_handle, shader->shader_stage_count, shader->stage_configs);
 }
 
-bhandle shader_system_get(bname name)
+bhandle shader_system_get(bname name, bname package_name)
 {
     if (name == INVALID_BNAME)
         return bhandle_invalid();
@@ -257,7 +257,7 @@ bhandle shader_system_get(bname name)
     request_info.base.assets = array_bresource_asset_info_create(1);
     bresource_asset_info* asset = &request_info.base.assets.data[0];
     asset->asset_name = name; // Resource name should match the asset name
-    asset->package_name = INVALID_BNAME;
+    asset->package_name = package_name;
     asset->type = BASSET_TYPE_SHADER;
     asset->watch_for_hot_reload = false;
 
@@ -569,28 +569,26 @@ static b8 internal_texture_add(bshader* shader, shader_uniform_config* config)
         return false;
     }
 
-    // If per-draw, push into per-frame list
-    u32 location = 0;
+    // If per-frame, push into per-frame list
+    u32 tex_samp_index = 0;
     if (config->frequency == SHADER_UPDATE_FREQUENCY_PER_FRAME)
     {
-        location = shader->per_frame.uniform_texture_count;
+        tex_samp_index = shader->per_frame.uniform_texture_count;
         shader->per_frame.uniform_texture_count++;
     }
     else if (config->frequency == SHADER_UPDATE_FREQUENCY_PER_GROUP)
     {
-        location = shader->per_group.uniform_texture_count;
+        tex_samp_index = shader->per_group.uniform_texture_count;
         shader->per_group.uniform_texture_count++;
     }
     else if (config->frequency == SHADER_UPDATE_FREQUENCY_PER_DRAW)
     {
-        location = shader->per_draw.uniform_texture_count;
+        tex_samp_index = shader->per_draw.uniform_texture_count;
         shader->per_draw.uniform_texture_count++;
     }
 
     // Treat it like a uniform
-    // NOTE: In the case of textures, location is used to determine the entry's 'location' field value directly, and is then set to the index of the uniform array.
-    // This allows location lookups for textures as if they were uniforms as well (since technically they are)
-    if (!internal_uniform_add(shader, config, location))
+    if (!internal_uniform_add(shader, config, tex_samp_index))
     {
         BERROR("Unable to add texture uniform");
         return false;
@@ -613,28 +611,26 @@ static b8 internal_sampler_add(bshader* shader, shader_uniform_config* config)
         return false;
     }
 
-    // If per-frame, push into the per-frame list
-    u32 location = 0;
+    // Get the appropriate index
+    u32 tex_samp_index = 0;
     if (config->frequency == SHADER_UPDATE_FREQUENCY_PER_FRAME)
     {
-        location = shader->per_frame.uniform_sampler_count;
+        tex_samp_index = shader->per_frame.uniform_sampler_count;
         shader->per_frame.uniform_sampler_count++;
     }
     else if (config->frequency == SHADER_UPDATE_FREQUENCY_PER_GROUP)
     {
-        location = shader->per_group.uniform_sampler_count;
+        tex_samp_index = shader->per_group.uniform_sampler_count;
         shader->per_group.uniform_sampler_count++;
     }
     else if (config->frequency == SHADER_UPDATE_FREQUENCY_PER_DRAW)
     {
-        location = shader->per_draw.uniform_sampler_count;
+        tex_samp_index = shader->per_draw.uniform_sampler_count;
         shader->per_draw.uniform_sampler_count++;
     }
 
     // Treat it like a uniform
-    // NOTE: In the case of samplers, location is used to determine the entry's 'location' field value directly, and is then set to the index of the uniform array.
-    // This allows location lookups for samplers as if they were uniforms as well (since technically they are)
-    if (!internal_uniform_add(shader, config, location))
+    if (!internal_uniform_add(shader, config, tex_samp_index))
     {
         BERROR("Unable to add sampler uniform");
         return false;
@@ -653,7 +649,7 @@ static bhandle generate_new_shader_handle(void)
     return bhandle_invalid();
 }
 
-static b8 internal_uniform_add(bshader* shader, const shader_uniform_config* config, u32 location)
+static b8 internal_uniform_add(bshader* shader, const shader_uniform_config* config, u16 tex_samp_index)
 {
     if (!shader_uniform_add_state_valid(shader) || !uniform_name_valid(shader, config->name))
         return false;
@@ -665,21 +661,14 @@ static b8 internal_uniform_add(bshader* shader, const shader_uniform_config* con
         return false;
     }
     b8 is_sampler_or_texture = uniform_type_is_sampler(config->type) || uniform_type_is_texture(config->type);
-    shader_uniform entry;
+    shader_uniform entry = {0};
     entry.frequency = config->frequency;
     entry.type = config->type;
     entry.array_length = config->array_length;
+    entry.location = uniform_count;
+    entry.tex_samp_index = tex_samp_index;
+
     b8 is_per_frame = (config->frequency == SHADER_UPDATE_FREQUENCY_PER_FRAME);
-    if (is_sampler_or_texture)
-    {
-        // Use passed in location
-        entry.location = location;
-    }
-    else
-    {
-        // Otherwise for regular non-texture/non-sampler uniforms, the location is just the index in the array
-        entry.location = uniform_count;
-    }
 
     if (config->frequency == SHADER_UPDATE_FREQUENCY_PER_DRAW)
     {
@@ -692,6 +681,8 @@ static b8 internal_uniform_add(bshader* shader, const shader_uniform_config* con
                                                                 : shader->per_group.ubo_size;
         entry.size = is_sampler_or_texture ? 0 : config->size;
     }
+
+    entry.name = config->name;
 
     darray_push(shader->uniforms, entry);
 
@@ -775,33 +766,10 @@ static bhandle shader_create(const bresource_shader* shader_resource)
     out_shader->uniforms = darray_create(shader_uniform);
     out_shader->attributes = darray_create(shader_attribute);
 
-    // Per-frame frequency
+    // Invalidate frequency bound ids
     out_shader->per_frame.bound_id = INVALID_ID; // NOTE: per-frame doesn't have a bound id, but invalidate it anyway
-    out_shader->per_frame.uniform_count = 0;
-    out_shader->per_frame.uniform_sampler_count = 0;
-    out_shader->per_frame.sampler_indices = 0;
-    out_shader->per_frame.uniform_texture_count = 0;
-    out_shader->per_frame.texture_indices = 0;
-    out_shader->per_frame.ubo_size = 0;
-
-    // Per-group frequency
     out_shader->per_group.bound_id = INVALID_ID;
-    out_shader->per_group.uniform_count = 0;
-    out_shader->per_group.uniform_sampler_count = 0;
-    out_shader->per_group.sampler_indices = 0;
-    out_shader->per_group.uniform_texture_count = 0;
-    out_shader->per_group.texture_indices = 0;
-    out_shader->per_group.ubo_size = 0;
-
-    // Per-draw frequency
     out_shader->per_draw.bound_id = INVALID_ID;
-    out_shader->per_draw.uniform_count = 0;
-    out_shader->per_group.uniform_sampler_count = 0;
-    out_shader->per_group.sampler_indices = 0;
-    out_shader->per_group.uniform_texture_count = 0;
-    out_shader->per_group.texture_indices = 0;
-    // TODO: per-draw frequency does not have a UBO. To provided by the renderer
-    out_shader->per_draw.ubo_size = 0;
 
     // Take a copy of the flags
     out_shader->flags = shader_resource->flags;
@@ -856,7 +824,7 @@ static bhandle shader_create(const bresource_shader* shader_resource)
         }
         else
         {
-            uniform_add_result = internal_uniform_add(out_shader, uc, INVALID_ID);
+            uniform_add_result = internal_uniform_add(out_shader, uc, INVALID_ID_U16);
         }
 
         if (!uniform_add_result)

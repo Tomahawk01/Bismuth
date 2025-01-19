@@ -73,7 +73,7 @@ texture_repeat string_to_texture_repeat(const char* str)
     }
     else
     {
-        BASSERT_MSG(false, "Unrecognized texture repeat");
+        BERROR("Unrecognized texture repeat '%s'. Defaulting to TEXTURE_REPEAT_REPEAT", str);
         return TEXTURE_REPEAT_REPEAT;
     }
 }
@@ -104,7 +104,7 @@ texture_filter string_to_texture_filter_mode(const char* str)
     }
     else
     {
-        BASSERT_MSG(false, "Unrecognized texture filter type");
+        BERROR("Unrecognized texture filter type '%s'. Defaulting to TEXTURE_FILTER_MODE_LINEAR", str);
         return TEXTURE_FILTER_MODE_LINEAR;
     }
 }
@@ -145,7 +145,7 @@ texture_channel string_to_texture_channel(const char* str)
     }
     else
     {
-        BASSERT_MSG(false, "Texture channel not supported");
+        BERROR("Texture channel not supported: '%s'. Defaulting to TEXTURE_CHANNEL_R", str);
         return TEXTURE_CHANNEL_R;
     }
 }
@@ -269,7 +269,7 @@ shader_uniform_type string_to_shader_uniform_type(const char* str)
     }
     else
     {
-        BERROR(false, "Unrecognized uniform type '%s'. Defaulting to float");
+        BERROR("Unrecognized uniform type '%s'. Defaulting to float", str);
         return SHADER_UNIFORM_TYPE_FLOAT32;
     }
 }
@@ -452,7 +452,7 @@ face_cull_mode string_to_face_cull_mode(const char* str)
     }
     else
     {
-        BERROR("Unknown face cull mode '%s'. Defaulting to FACE_CULL_MODE_NONE");
+        BERROR("Unknown face cull mode '%s'. Defaulting to FACE_CULL_MODE_NONE", str);
         return FACE_CULL_MODE_NONE;
     }
 }
@@ -622,7 +622,7 @@ bmaterial_type string_to_bmaterial_type(const char* str)
     }
     else
     {
-        BASSERT_MSG(false, "Unrecognized material type");
+        BERROR("Unrecognized material type '%s'. Defaulting to BMATERIAL_TYPE_STANDARD", str);
         return BMATERIAL_TYPE_STANDARD;
     }
 }
@@ -661,7 +661,7 @@ bmaterial_model string_to_bmaterial_model(const char* str)
     }
     else
     {
-        BASSERT_MSG(false, "Unrecognized material model");
+        BERROR("Unrecognized material model '%s'. Defaulting to BMATERIAL_MODEL_PBR", str);
         return BMATERIAL_MODEL_PBR;
     }
 }

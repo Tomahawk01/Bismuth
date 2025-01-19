@@ -2,7 +2,7 @@
 
 #include "standard_ui_system.h"
 
-#include <resources/font_types.h>
+#include "systems/font_system.h"
 
 typedef struct sui_label_internal_data
 {
@@ -14,7 +14,11 @@ typedef struct sui_label_internal_data
     u16 draw_generation;
 
     font_type type;
-    struct font_data* data;
+    // Only used when set to use a bitmap font
+    bhandle bitmap_font;
+    // Only used when set to use a system font
+    system_font_variant system_font;
+
     u64 vertex_buffer_offset;
     u64 index_buffer_offset;
     u64 vertex_buffer_size;
@@ -27,7 +31,7 @@ typedef struct sui_label_internal_data
     b8 is_dirty;
 } sui_label_internal_data;
 
-BAPI b8 sui_label_control_create(standard_ui_state* state, const char* name, font_type type, const char* font_name, u16 font_size, const char* text, struct sui_control* out_control);
+BAPI b8 sui_label_control_create(standard_ui_state* state, const char* name, font_type type, bname font_name, u16 font_size, const char* text, struct sui_control* out_control);
 BAPI void sui_label_control_destroy(standard_ui_state* state, struct sui_control* self);
 BAPI b8 sui_label_control_load(standard_ui_state* state, struct sui_control* self);
 BAPI void sui_label_control_unload(standard_ui_state* state, struct sui_control* self);
@@ -38,3 +42,5 @@ BAPI void sui_label_text_set(standard_ui_state* state, struct sui_control* self,
 
 BAPI const char* sui_label_text_get(standard_ui_state* state, struct sui_control* self);
 BAPI void sui_label_color_set(standard_ui_state* state, struct sui_control* self, vec4 color);
+
+BAPI f32 sui_label_line_height_get(standard_ui_state* state, struct sui_control* self);

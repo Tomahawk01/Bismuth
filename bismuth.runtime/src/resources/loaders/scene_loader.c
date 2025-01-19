@@ -220,7 +220,7 @@ b8 scene_node_config_deserialize_bson(const bson_object* node_object, scene_node
 
     // Process attachments, if any
     bson_object attachments_array = {0};
-    if (bson_object_property_value_get_object(node_object, "attachments", &attachments_array))
+    if (bson_object_property_value_get_array(node_object, "attachments", &attachments_array))
     {
         // Make sure it is actually an array
         if (attachments_array.type == BSON_OBJECT_TYPE_ARRAY)
@@ -337,7 +337,7 @@ b8 scene_node_config_deserialize_bson(const bson_object* node_object, scene_node
 
     // Process children, if any
     bson_object children_array = {0};
-    if (bson_object_property_value_get_object(node_object, "children", &children_array))
+    if (bson_object_property_value_get_array(node_object, "children", &children_array))
     {
         // Make sure it is actually an array
         if (children_array.type == BSON_OBJECT_TYPE_ARRAY)
@@ -415,7 +415,7 @@ b8 scene_config_deserialize_bson(const bson_tree* source_tree, scene_config* sce
 
     // Extract and process nodes
     bson_object scene_nodes_array;
-    if (bson_object_property_value_get_object(&source_tree->root, "nodes", &scene_nodes_array))
+    if (bson_object_property_value_get_array(&source_tree->root, "nodes", &scene_nodes_array))
     {
         // Only process if array
         if (scene_nodes_array.type != BSON_OBJECT_TYPE_ARRAY)

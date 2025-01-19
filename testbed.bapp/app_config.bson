@@ -12,8 +12,8 @@ windows = [
 ]
 package_config = {
     packages = [
-        "Runtime"
-        "PluginStandardUi"
+        "Bismuth.Runtime"
+        "Bismuth.Plugin.Ui.Standard"
         "Testbed"
     ]
     process_as_text [
@@ -52,17 +52,21 @@ systems = [
     {
         name = "font"
         config = {
-            auto_release = false
-            default_bitmap_font = {
-                name = "Open Sans 21px"
-                size = 21
-                resource_name = "BitmapFont.OpenSans21px"
-            }
-            default_system_font = {
-                name = "Noto Sans"
-                size = 20
-                resource_name = "SystemFont.NotoSansCJK"
-            }
+            max_bitmap_font_count = 5
+            max_system_font_count = 25
+            bitmap_fonts = [
+                {
+                    resource_name = "BitmapFont.OpenSans21px"
+                    package_name = "Bismuth.Runtime"
+                }
+            ]
+            system_fonts = [
+                {
+                    resource_name = "SystemFont.NotoSansCJK"
+                    package_name = "Bismuth.Runtime"
+                    default_size = 20
+                }
+            ]
         }
     }
     {

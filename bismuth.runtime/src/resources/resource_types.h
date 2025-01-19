@@ -46,20 +46,6 @@ typedef struct resource
     void* data;
 } resource;
 
-typedef struct image_resource_data
-{
-    u8 channel_count;
-    u32 width;
-    u32 height;
-    u8* pixels;
-    u32 mip_levels;
-} image_resource_data;
-
-typedef struct image_resource_params
-{
-    b8 flip_y;
-} image_resource_params;
-
 typedef enum texture_flag
 {
     TEXTURE_FLAG_HAS_TRANSPARENCY = 0x01,
@@ -79,64 +65,6 @@ typedef enum texture_type
     TEXTURE_TYPE_CUBE_ARRAY, // NOTE: Cube array texture, used for arrays of cubemaps
     TEXTURE_TYPE_COUNT
 } texture_type;
-
-#define TEXTURE_NAME_MAX_LENGTH 512
-#define MATERIAL_NAME_MAX_LENGTH 256
-
-struct material;
-
-struct geometry_config;
-typedef struct mesh_config
-{
-    char* resource_name;
-    u16 geometry_count;
-    struct geometry_config* g_configs;
-} mesh_config;
-
-typedef enum mesh_state
-{
-    MESH_STATE_UNDEFINED,
-    MESH_STATE_CREATED,
-    MESH_STATE_INITIALIZED,
-    MESH_STATE_LOADING,
-    MESH_STATE_LOADED
-} mesh_state;
-
-struct geometry;
-typedef struct mesh
-{
-    char* name;
-    char* resource_name;
-    mesh_state state;
-    identifier id;
-    u8 generation;
-    u16 geometry_count;
-    bgeometry* geometries;
-    extents_3d extents;
-    void* debug_data;
-} mesh;
-
-typedef struct material
-{
-    u32 id;
-    u32 generation;
-    u32 internal_id;
-    bname name;
-    /** @brief The name of the package containing this material */
-    bname package_name;
-
-    struct bresource_texture_map* maps;
-
-    u32 property_struct_size;
-
-    /** @brief array of material property structures, which varies based on material type. e.g. material_phong_properties */
-    void* properties;
-
-    /** @brief Explicitly-set irradiance texture for this material */
-    bresource_texture* irradiance_texture;
-
-    u32 shader_id;
-} material;
 
 typedef enum scene_node_attachment_type
 {

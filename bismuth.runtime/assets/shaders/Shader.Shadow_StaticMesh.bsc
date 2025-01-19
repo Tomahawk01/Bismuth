@@ -1,0 +1,77 @@
+version = 1
+depth_test=true
+depth_write=true
+color_write=false
+cull_mode="none"
+max_groups=256
+
+stages = [
+    {
+        type = "vertex"
+        source_asset_name = "Shader.Shadow_StaticMesh_vert"
+        package_name = "Bismuth.Runtime"
+    }
+    {
+        type = "fragment"
+        source_asset_name = "Shader.Shadow_StaticMesh_frag"
+        package_name = "Bismuth.Runtime"
+    }
+]
+
+attributes = [
+    {
+        name = "in_position"
+        type = "vec3"
+    }
+    {
+        name = "in_normal"
+        type = "vec3"
+    }
+    {
+        name = "in_texcoord"
+        type = "vec2"
+    }
+    {
+        name = "in_color"
+        type = "vec4"
+    }
+    {
+        name = "in_tangent"
+        type = "vec3"
+    }
+]
+
+uniforms = {
+    per_frame = [
+        {
+            name = "projections"
+            type = "mat4"
+            array_size = 4
+        }
+        {
+            name = "views"
+            type = "mat4"
+            array_size = 4
+        }
+    ]
+    per_group = [
+        {
+            name = "base_color_texture"
+            type = "texture2D"
+        }
+        {
+            name = "base_color_sampler"
+            type = "sampler"
+        }
+    ]
+    per_draw = [
+        {
+            name = "model"
+            type = "mat4"
+        }
+        {
+            name = "cascade_index"
+            type = "u32"
+        }
+    ]
+}

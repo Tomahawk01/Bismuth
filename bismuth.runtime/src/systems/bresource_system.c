@@ -4,9 +4,11 @@
 #include "core/engine.h"
 #include "debug/bassert.h"
 #include "defines.h"
+#include "bresources/handlers/bresource_handler_bitmap_font.h"
 #include "bresources/handlers/bresource_handler_material.h"
 #include "bresources/handlers/bresource_handler_shader.h"
 #include "bresources/handlers/bresource_handler_static_mesh.h"
+#include "bresources/handlers/bresource_handler_system_font.h"
 #include "bresources/handlers/bresource_handler_text.h"
 #include "bresources/handlers/bresource_handler_texture.h"
 #include "bresources/bresource_types.h"
@@ -120,6 +122,32 @@ b8 bresource_system_initialize(u64* memory_requirement, struct bresource_system_
         if (!bresource_system_handler_register(state, BRESOURCE_TYPE_SHADER, handler))
         {
             BERROR("Failed to register shader resource handler");
+            return false;
+        }
+    }
+
+    // Bitmap font handler
+    {
+        bresource_handler handler = {0};
+        handler.allocate = bresource_handler_bitmap_font_allocate;
+        handler.release = bresource_handler_bitmap_font_release;
+        handler.request = bresource_handler_bitmap_font_request;
+        if (!bresource_system_handler_register(state, BRESOURCE_TYPE_BITMAP_FONT, handler))
+        {
+            BERROR("Failed to register bitmap font resource handler");
+            return false;
+        }
+    }
+
+    // System font handler
+    {
+        bresource_handler handler = {0};
+        handler.allocate = bresource_handler_system_font_allocate;
+        handler.release = bresource_handler_system_font_release;
+        handler.request = bresource_handler_system_font_request;
+        if (!bresource_system_handler_register(state, BRESOURCE_TYPE_SYSTEM_FONT, handler))
+        {
+            BERROR("Failed to register system font resource handler");
             return false;
         }
     }

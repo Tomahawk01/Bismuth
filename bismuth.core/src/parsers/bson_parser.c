@@ -1083,7 +1083,7 @@ static void bson_tree_object_to_string(const bson_object* obj, char* out_source,
             // If named, it is a property being defined. Otherwise it is an array element
             if (p->name)
             {
-                // Try as a stringid first, then kname if nothing is returned
+                // Try as a stringid first, then bname if nothing is returned
                 const char* name_str = bstring_id_string_get(p->name);
                 if (!name_str)
                     name_str = bname_string_get(p->name);
@@ -1718,7 +1718,7 @@ b8 bson_array_element_value_get_int(const bson_array* array, u32 index, i64* out
     if (!out_value || !bson_array_index_in_range(array, index))
         return false;
 
-    BASSERT_MSG(array->properties[index].type != BSON_PROPERTY_TYPE_INT, "Array element is not an int");
+    BASSERT_MSG(array->properties[index].type == BSON_PROPERTY_TYPE_INT, "Array element is not an int");
 
     *out_value = array->properties[index].value.i;
     return true;
@@ -1729,7 +1729,7 @@ b8 bson_array_element_value_get_float(const bson_array* array, u32 index, f32* o
     if (!out_value || !bson_array_index_in_range(array, index))
         return false;
 
-    BASSERT_MSG(array->properties[index].type != BSON_PROPERTY_TYPE_FLOAT, "Array element is not a float");
+    BASSERT_MSG(array->properties[index].type == BSON_PROPERTY_TYPE_FLOAT, "Array element is not a float");
 
     *out_value = array->properties[index].value.f;
     return true;
@@ -1740,7 +1740,7 @@ b8 bson_array_element_value_get_bool(const bson_array* array, u32 index, b8* out
     if (!out_value || !bson_array_index_in_range(array, index))
         return false;
 
-    BASSERT_MSG(array->properties[index].type != BSON_PROPERTY_TYPE_BOOLEAN, "Array element is not a boolean");
+    BASSERT_MSG(array->properties[index].type == BSON_PROPERTY_TYPE_BOOLEAN, "Array element is not a boolean");
 
     *out_value = array->properties[index].value.b;
     return true;
@@ -1767,7 +1767,7 @@ b8 bson_array_element_value_get_mat4(const bson_array* array, u32 index, mat4* o
     if (!out_value || !bson_array_index_in_range(array, index))
         return false;
 
-    BASSERT_MSG(array->properties[index].type != BSON_PROPERTY_TYPE_STRING, "Array element is not stored as a string");
+    BASSERT_MSG(array->properties[index].type == BSON_PROPERTY_TYPE_STRING, "Array element is not stored as a string");
 
     const char* str = array->properties[index].value.s;
     return string_to_mat4(str, out_value);
@@ -1778,7 +1778,7 @@ b8 bson_array_element_value_get_vec4(const bson_array* array, u32 index, vec4* o
     if (!out_value || !bson_array_index_in_range(array, index))
         return false;
 
-    BASSERT_MSG(array->properties[index].type != BSON_PROPERTY_TYPE_STRING, "Array element is not stored as a string");
+    BASSERT_MSG(array->properties[index].type == BSON_PROPERTY_TYPE_STRING, "Array element is not stored as a string");
 
     const char* str = array->properties[index].value.s;
     return string_to_vec4(str, out_value);
@@ -1789,7 +1789,7 @@ b8 bson_array_element_value_get_vec3(const bson_array* array, u32 index, vec3* o
     if (!out_value || !bson_array_index_in_range(array, index))
         return false;
 
-    BASSERT_MSG(array->properties[index].type != BSON_PROPERTY_TYPE_STRING, "Array element is not stored as a string");
+    BASSERT_MSG(array->properties[index].type == BSON_PROPERTY_TYPE_STRING, "Array element is not stored as a string");
 
     const char* str = array->properties[index].value.s;
     return string_to_vec3(str, out_value);
@@ -1800,7 +1800,7 @@ b8 bson_array_element_value_get_vec2(const bson_array* array, u32 index, vec2* o
     if (!out_value || !bson_array_index_in_range(array, index))
         return false;
 
-    BASSERT_MSG(array->properties[index].type != BSON_PROPERTY_TYPE_STRING, "Array element is not stored as a string");
+    BASSERT_MSG(array->properties[index].type == BSON_PROPERTY_TYPE_STRING, "Array element is not stored as a string");
 
     const char* str = array->properties[index].value.s;
     return string_to_vec2(str, out_value);
@@ -1811,7 +1811,7 @@ b8 bson_array_element_value_get_string_as_bname(const bson_array* array, u32 ind
     if (!out_value || !bson_array_index_in_range(array, index))
         return false;
 
-    BASSERT_MSG(array->properties[index].type != BSON_PROPERTY_TYPE_STRING, "Array element is not stored as a string");
+    BASSERT_MSG(array->properties[index].type == BSON_PROPERTY_TYPE_STRING, "Array element is not stored as a string");
 
     const char* str = array->properties[index].value.s;
     *out_value = bname_create(str);
@@ -1823,7 +1823,7 @@ b8 bson_array_element_value_get_string_as_bstring_id(const bson_array* array, u3
     if (!out_value || !bson_array_index_in_range(array, index))
         return false;
 
-    BASSERT_MSG(array->properties[index].type != BSON_PROPERTY_TYPE_STRING, "Array element is not stored as a string");
+    BASSERT_MSG(array->properties[index].type == BSON_PROPERTY_TYPE_STRING, "Array element is not stored as a string");
 
     const char* str = array->properties[index].value.s;
     *out_value = bstring_id_create(str);

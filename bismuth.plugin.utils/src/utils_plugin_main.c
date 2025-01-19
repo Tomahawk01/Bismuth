@@ -1,5 +1,6 @@
 #include "utils_plugin_main.h"
 
+#include "importers/basset_importer_bitmap_font_fnt.h"
 #include "importers/basset_importer_image.h"
 #include "importers/basset_importer_static_mesh_obj.h"
 
@@ -45,6 +46,17 @@ b8 bplugin_create(struct bruntime_plugin* out_plugin)
         if (!basset_importer_registry_register(BASSET_TYPE_IMAGE, "obj", obj_importer))
         {
             BERROR("Failed to register static mesh Wavefront OBJ asset importer!");
+            return false;
+        }
+    }
+
+    // Bitmaps fonts - FNT
+    {
+        basset_importer fnt_importer = {0};
+        fnt_importer.import = basset_importer_bitmap_font_fnt;
+        if (!basset_importer_registry_register(BASSET_TYPE_BITMAP_FONT, "fnt", fnt_importer))
+        {
+            BERROR("Failed to register bitmap font FNT asset importer!");
             return false;
         }
     }

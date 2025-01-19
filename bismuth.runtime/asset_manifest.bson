@@ -3,113 +3,113 @@ references = [
 ]
 assets = [
     {
-        name = "Color3D"
-        path = "assets/shaders/Color3D.bsc"
+        name = "Shader.Color3D"
+        path = "assets/shaders/Shader.Color3D.bsc"
     }
     {
-        name = "Color3D_frag"
-        path = "assets/shaders/Color3D_frag.glsl"
+        name = "Shader.Color3D_frag"
+        path = "assets/shaders/Shader.Color3D_frag.glsl"
     }
     {
-        name = "Color3D_vert"
-        path = "assets/shaders/Color3D_vert.glsl"
+        name = "Shader.Color3D_vert"
+        path = "assets/shaders/Shader.Color3D_vert.glsl"
     }
     {
         name = "Shader.MaterialStandard"
         path = "assets/shaders/MaterialStandard.bsc"
     }
     {
-        name = "MaterialStandard_frag"
-        path = "assets/shaders/MaterialStandard_frag.glsl"
+        name = "Shader.MaterialStandard_frag"
+        path = "assets/shaders/Shader.MaterialStandard_frag.glsl"
     }
     {
-        name = "MaterialStandard_vert"
-        path = "assets/shaders/MaterialStandard_vert.glsl"
+        name = "Shader.MaterialStandard_vert"
+        path = "assets/shaders/Shader.MaterialStandard_vert.glsl"
     }
     {
-        name = "PBR_Terrain"
-        path = "assets/shaders/PBR_Terrain.bsc"
+        name = "Shader.PBR_Terrain"
+        path = "assets/shaders/Shader.PBR_Terrain.bsc"
     }
     {
-        name = "PBR_Terrain_frag"
-        path = "assets/shaders/PBR_Terrain_frag.glsl"
+        name = "Shader.PBR_Terrain_frag"
+        path = "assets/shaders/Shader.PBR_Terrain_frag.glsl"
     }
     {
-        name = "PBR_Terrain_vert"
-        path = "assets/shaders/PBR_Terrain_vert.glsl"
+        name = "Shader.PBR_Terrain_vert"
+        path = "assets/shaders/Shader.PBR_Terrain_vert.glsl"
     }
     {
-        name = "Pick_StaticMesh"
-        path = "assets/shaders/Pick_StaticMesh.bsc"
+        name = "Shader.Pick_StaticMesh"
+        path = "assets/shaders/Shader.Pick_StaticMesh.bsc"
     }
     {
-        name = "Pick_StaticMesh_frag"
-        path = "assets/shaders/Pick_StaticMesh_frag.glsl"
+        name = "Shader.Pick_StaticMesh_frag"
+        path = "assets/shaders/Shader.Pick_StaticMesh_frag.glsl"
     }
     {
-        name = "Pick_StaticMesh_vert"
-        path = "assets/shaders/Pick_StaticMesh_vert.glsl"
+        name = "Shader.Pick_StaticMesh_vert"
+        path = "assets/shaders/Shader.Pick_StaticMesh_vert.glsl"
     }
     {
-        name = "Pick_Terrain"
-        path = "assets/shaders/Pick_Terrain.bsc"
+        name = "Shader.Pick_Terrain"
+        path = "assets/shaders/Shader.Pick_Terrain.bsc"
     }
     {
-        name = "Pick_Terrain_frag"
-        path = "assets/shaders/Pick_Terrain_frag.glsl"
+        name = "Shader.Pick_Terrain_frag"
+        path = "assets/shaders/Shader.Pick_Terrain_frag.glsl"
     }
     {
-        name = "Pick_Terrain_vert"
-        path = "assets/shaders/Pick_Terrain_vert.glsl"
+        name = "Shader.Pick_Terrain_vert"
+        path = "assets/shaders/Shader.Pick_Terrain_vert.glsl"
     }
 
     {
-        name = "Shadow_StaticMesh"
-        path = "assets/shaders/Shadow_StaticMesh.bsc"
+        name = "Shader.Shadow_StaticMesh"
+        path = "assets/shaders/Shader.Shadow_StaticMesh.bsc"
     }
     {
-        name = "Shadow_StaticMesh_frag"
-        path = "assets/shaders/Shadow_StaticMesh_frag.glsl"
+        name = "Shader.Shadow_StaticMesh_frag"
+        path = "assets/shaders/Shader.Shadow_StaticMesh_frag.glsl"
     }
     {
-        name = "Shadow_StaticMesh_vert"
-        path = "assets/shaders/Shadow_StaticMesh_vert.glsl"
+        name = "Shader.Shadow_StaticMesh_vert"
+        path = "assets/shaders/Shader.Shadow_StaticMesh_vert.glsl"
     }
     {
-        name = "Shadow_Terrain"
-        path = "assets/shaders/Shadow_Terrain.bsc"
+        name = "Shader.Shadow_Terrain"
+        path = "assets/shaders/Shader.Shadow_Terrain.bsc"
     }
     {
-        name = "Shadow_Terrain_frag"
-        path = "assets/shaders/Shadow_Terrain_frag.glsl"
+        name = "Shader.Shadow_Terrain_frag"
+        path = "assets/shaders/Shader.Shadow_Terrain_frag.glsl"
     }
     {
-        name = "Shadow_Terrain_vert"
-        path = "assets/shaders/Shadow_Terrain_vert.glsl"
+        name = "Shader.Shadow_Terrain_vert"
+        path = "assets/shaders/Shader.Shadow_Terrain_vert.glsl"
     }
     {
-        name = "Skybox"
-        path = "assets/shaders/Skybox.bsc"
+        name = "Shader.Skybox"
+        path = "assets/shaders/Shader.Skybox.bsc"
     }
     {
-        name = "Skybox_frag"
-        path = "assets/shaders/Skybox_frag.glsl"
+        name = "Shader.Skybox_frag"
+        path = "assets/shaders/Shader.Skybox_frag.glsl"
     }
     {
-        name = "Skybox_vert"
-        path = "assets/shaders/Skybox_vert.glsl"
+        name = "Shader.Skybox_vert"
+        path = "assets/shaders/Shader.Skybox_vert.glsl"
     }
     {
-        name = "MaterialWater"
-        path = "assets/shaders/MaterialWater.bsc"
+        name = "Shader.MaterialWater"
+        path = "assets/shaders/Shader.MaterialWater.bsc"
     }
     {
-        name = "MaterialWater_frag"
-        path = "assets/shaders/MaterialWater_frag.glsl"
+        name = "Shader.MaterialWater_frag"
+        path = "assets/shaders/Shader.MaterialWater_frag.glsl"
     }
     {
-        name = "MaterialWater_vert"
-        path = "assets/shaders/MaterialWater_vert.glsl"
+        name = "Shader.MaterialWater_vert"
+        path = "assets/shaders/Shader.MaterialWater_vert.glsl"
     }
     {
         name = "Texture.DefaultWaterDUDV"

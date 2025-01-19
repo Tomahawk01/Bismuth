@@ -58,6 +58,7 @@ typedef struct asset_system_state
     asset_handler handlers[BASSET_TYPE_MAX];
 } asset_system_state;
 
+/* static void on_asset_loaded_callback(struct vfs_state* vfs, vfs_asset_data asset_data); */
 static void asset_system_release_internal(struct asset_system_state* state, bname asset_name, bname package_name, b8 force_release);
 
 b8 asset_system_deserialize_config(const char* config_str, asset_system_config* out_config)
@@ -228,7 +229,7 @@ void asset_system_request(struct asset_system_state* state, asset_request_info i
                     request_info.context = &context;
                     request_info.context_size = sizeof(asset_handler_request_context);
                     request_info.get_source = false;
-                    request_info.vfs_callback = 0;
+                    request_info.vfs_callback = asset_handler_base_on_asset_loaded;
                     if (info.synchronous)
                     {
                         vfs_asset_data out_data = vfs_request_asset_sync(state->vfs, request_info);
@@ -305,6 +306,44 @@ void asset_system_release(struct asset_system_state* state, bname asset_name, bn
 {
     asset_system_release_internal(state, asset_name, package_name, false);
 }
+
+/* static void on_asset_loaded_callback(struct vfs_state* vfs, vfs_asset_data asset_data)
+{
+    asset_handler_request_context* context = asset_data.context;
+    if (asset_data.result == VFS_REQUEST_RESULT_SUCCESS)
+    {
+        asset_request_result result = ASSET_REQUEST_RESULT_SUCCESS;
+        if (context->handler->text_deserialize)
+        {
+            if (!context->handler->text_deserialize(asset_data.text, context->asset))
+            {
+                BERROR("Text deserialization of asset failed. See logs for details");
+                result = ASSET_REQUEST_RESULT_PARSE_FAILED;
+            }
+        }
+        else if (context->handler->binary_deserialize)
+        {
+            if (!context->handler->binary_deserialize(asset_data.size, asset_data.bytes, context->asset))
+            {
+                BERROR("Binary deserialization of asset failed. See logs for details");
+                result = ASSET_REQUEST_RESULT_PARSE_FAILED;
+            }
+        }
+        else
+        {
+            // TODO: pass on as-is?
+        }
+        if (context->user_callback)
+        {
+            // TODO: Should this always be success?
+            context->user_callback(result, context->asset, context->listener_instance);
+        }
+    }
+    else if (asset_data.result == VFS_REQUEST_RESULT_FILE_DOES_NOT_EXIST)
+    {
+        // TODO: load source asset
+    }
+} */
 
 void asset_system_on_handler_result(struct asset_system_state* state, asset_request_result result, basset* asset, void* listener_instance, PFN_basset_on_result callback)
 {

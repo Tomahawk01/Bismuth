@@ -63,7 +63,7 @@ b8 sui_panel_control_load(standard_ui_state* state, struct sui_control* self)
         return false;
     }
 
-    bhandle sui_shader = shader_system_get(bname_create(STANDARD_UI_SHADER_NAME));
+    bhandle sui_shader = shader_system_get(bname_create(STANDARD_UI_SHADER_NAME), bname_create(PACKAGE_NAME_STANDARD_UI));
     // Acquire group resources for this control
     if (!shader_system_shader_group_acquire(sui_shader, &typed_data->group_id))
     {

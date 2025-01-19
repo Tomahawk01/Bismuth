@@ -15,6 +15,7 @@
 #include "systems/material_system.h"
 #include "systems/shader_system.h"
 #include "systems/xform_system.h"
+#include <runtime_defines.h>
 
 typedef struct debug_shader_locations
 {
@@ -122,7 +123,7 @@ b8 editor_gizmo_rendergraph_node_initialize(struct rendergraph_node* self)
 
     // Load debug color3d shader and get shader uniform locations
     // Get a pointer to the shader
-    internal_data->color_shader = shader_system_get(bname_create("Color3D"));
+    internal_data->color_shader = shader_system_get(bname_create(SHADER_NAME_RUNTIME_COLOR_3D), bname_create(PACKAGE_NAME_RUNTIME));
     internal_data->debug_locations.projection = shader_system_uniform_location(internal_data->color_shader, bname_create("projection"));
     internal_data->debug_locations.view = shader_system_uniform_location(internal_data->color_shader, bname_create("view"));
     internal_data->debug_locations.model = shader_system_uniform_location(internal_data->color_shader, bname_create("model"));
