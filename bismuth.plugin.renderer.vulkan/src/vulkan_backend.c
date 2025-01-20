@@ -4915,11 +4915,11 @@ static void* vulkan_alloc_reallocation(void* user_data, void* original, size_t s
         return 0;
     }
 
-    if (alloc_alignment != alignment)
-    {
-        BERROR("Attempted realloc using a different alignment of %llu than the original of %hu", alignment, alloc_alignment);
-        return 0;
-    }
+    // if (alloc_alignment != alignment)
+    // {
+    //     BERROR("Attempted realloc using a different alignment of %llu than the original of %hu", alignment, alloc_alignment);
+    //     return 0;
+    // }
 
 #ifdef BVULKAN_ALLOCATOR_TRACE
     BTRACE("Attempting to realloc block %p...", original);

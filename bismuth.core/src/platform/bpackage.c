@@ -271,7 +271,7 @@ static bpackage_result asset_get_data(const bpackage* package, b8 is_binary, bna
 
 bpackage_result bpackage_asset_bytes_get(const bpackage* package, bname name, b8 get_source, u64* out_size, const void** out_data)
 {
-    if (!package || !name || !out_size)
+    if (!package || !name || !out_size || !out_data)
     {
         BERROR("bpackage_asset_bytes_get requires valid pointers to package, name, out_size, and out_data");
         return 0;

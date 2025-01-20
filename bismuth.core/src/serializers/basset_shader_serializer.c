@@ -33,7 +33,7 @@ const char* basset_shader_serialize(const basset* asset)
 
     const char* out_str = 0;
 
-    // Setup the KSON tree to serialize below
+    // Setup the BSON tree to serialize below
     bson_tree tree = {0};
     tree.root = bson_object_create();
 
@@ -240,6 +240,7 @@ b8 basset_shader_deserialize(const char* file_text, basset* out_asset)
         // max_groups
         i64 max_groups = 0;
         bson_object_property_value_get_int(&tree.root, "max_groups", &max_groups);
+        typed_asset->max_groups = (u16)max_groups;
        
         // max_draw_ids
         i64 max_draw_ids = 0;

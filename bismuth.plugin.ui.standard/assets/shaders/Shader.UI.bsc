@@ -12,12 +12,12 @@ stages = [
     {
         type = "vertex"
         source_asset_name = "Shader.UI_vert"
-        package_name = "Bismth.Plugin.Ui.Standard"
+        package_name = "Bismuth.Plugin.Ui.Standard"
     }
     {
         type = "fragment"
         source_asset_name = "Shader.UI_frag"
-        package_name = "Bismth.Plugin.Ui.Standard"
+        package_name = "Bismuth.Plugin.Ui.Standard"
     }
 ]
 
