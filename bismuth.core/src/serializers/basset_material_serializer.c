@@ -121,7 +121,7 @@ const char* basset_material_serialize(const basset* asset)
             bson_object_value_add_object(&inputs, INPUT_METALLIC, metallic);
         }
 
-        // Roughness
+        // Ambient Occlusion
         {
             bson_object roughness = bson_object_create();
             if (material->roughness_map.resource_name)
@@ -152,12 +152,16 @@ const char* basset_material_serialize(const basset* asset)
             bson_object_value_add_object(&inputs, INPUT_AO, ao);
         }
 
-        // Metallic/roughness/ao combined value (mra)
+        // Metallic/roughness/ao combined value (mra) - only written out if used
+        if (material->use_mra)
         {
             bson_object mra = bson_object_create();
-            if (material->mra_map.resource_name) {
+            if (material->mra_map.resource_name)
+            {
                 add_map_obj(&mra, 0, &material->mra_map);
-            } else {
+            }
+            else
+            {
                 bson_object_value_add_vec3(&mra, INPUT_VALUE, material->mra);
             }
             bson_object_value_add_object(&inputs, INPUT_MRA, mra);

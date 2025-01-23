@@ -157,8 +157,15 @@ b8 basset_importer_static_mesh_obj_import(const struct basset_importer* self, u6
                         // Imports do not use a custom shader
                         new_material.custom_shader_name = 0;
 
-                        new_material.model = m_src->model;
                         new_material.type = m_src->type;
+                        new_material.model = m_src->model;
+
+                        // Force defaults for things not considered in OBJ MTL files
+                        new_material.casts_shadow = true;
+                        new_material.recieves_shadow = true;
+
+                        // NOTE: Transparency for Bismuth materials is determined by the base_color transparency, and must be enabled manually after import if it is wanted
+                        new_material.has_transparency = false;
 
                         // Material maps
                         // Base color
