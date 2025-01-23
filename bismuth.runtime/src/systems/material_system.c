@@ -943,6 +943,12 @@ b8 material_system_acquire(material_system_state* state, bname name, material_in
     request.base.type = BRESOURCE_TYPE_MATERIAL;
     request.base.user_callback = material_resource_loaded;
     request.base.listener_inst = listener;
+    request.base.assets = array_bresource_asset_info_create(1);
+    bresource_asset_info* asset = &request.base.assets.data[0];
+    asset->type = BASSET_TYPE_MATERIAL;
+    asset->asset_name = name;
+    asset->package_name = INVALID_BNAME; // TODO: Allow this to be configurable
+    asset->watch_for_hot_reload = false;
     bresource* r = bresource_system_request(state->resource_system, name, (bresource_request_info*)&request);
     return r != 0;
 }

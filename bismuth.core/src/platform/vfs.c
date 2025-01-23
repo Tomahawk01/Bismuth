@@ -220,16 +220,17 @@ vfs_asset_data vfs_request_asset_sync(vfs_state* state, vfs_request_info info)
             else
             {
                 out_data.result = VFS_REQUEST_RESULT_SUCCESS;
-                // Include a copy of the asset path
+                // Keep the package name in case an importer needs it later
+                out_data.package_name = package->name;
                 if (info.get_source)
                 {
-                    // Keep the package name in case an importer needs it later
-                    out_data.package_name = package->name;
                     out_data.path = bpackage_source_path_for_asset(package, info.asset_name);
+                    out_data.source_asset_path = bpackage_source_path_for_asset(package, info.asset_name);
                 }
                 else
                 {
                     out_data.path = bpackage_path_for_asset(package, info.asset_name);
+                    out_data.source_asset_path = bpackage_source_path_for_asset(package, info.asset_name);
                 }
             }
 

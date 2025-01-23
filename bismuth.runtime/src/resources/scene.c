@@ -1039,6 +1039,11 @@ b8 scene_raycast(scene* scene, const struct ray* r, struct raycast_result* out_r
     for (u32 i = 0; i < mesh_count; ++i)
     {
         static_mesh_instance* m = &scene->static_meshes[i];
+
+        // Only count loaded meshes
+        if (m->mesh_resource->base.state < BRESOURCE_STATE_LOADED)
+            continue;
+
         // Perform a lookup into the attachments array to get the hierarchy node
         scene_attachment* attachment = &scene->mesh_attachments[i];
         bhandle xform_handle = hierarchy_graph_xform_handle_get(&scene->hierarchy, attachment->hierarchy_node_handle);
@@ -1232,6 +1237,11 @@ b8 scene_mesh_render_data_query_from_line(const scene* scene, vec3 direction, ve
     for (u32 i = 0; i < mesh_count; ++i)
     {
         static_mesh_instance* m = &scene->static_meshes[i];
+
+        // Only count loaded meshes
+        if (m->mesh_resource->base.state < BRESOURCE_STATE_LOADED)
+            continue;
+
         scene_attachment* attachment = &scene->mesh_attachments[i];
         bhandle xform_handle = hierarchy_graph_xform_handle_get(&scene->hierarchy, attachment->hierarchy_node_handle);
         mat4 model = xform_world_get(xform_handle);
@@ -1263,7 +1273,7 @@ b8 scene_mesh_render_data_query_from_line(const scene* scene, vec3 direction, ve
                 // Add it to the list to be rendered
                 geometry_render_data data = {0};
                 data.model = model;
-                data.material = m->material_instances[j];
+                data.material = m->material_instances ? m->material_instances[j] : (material_instance){bhandle_invalid(), bhandle_invalid()};
                 data.vertex_count = g->vertex_count;
                 data.vertex_buffer_offset = g->vertex_buffer_offset;
                 data.index_count = g->index_count;
@@ -1273,7 +1283,9 @@ b8 scene_mesh_render_data_query_from_line(const scene* scene, vec3 direction, ve
 
                 // Check if transparent. If so, put into a separate, temp array to be
                 // sorted by distance from the camera. Otherwise, put into the out_geometries array directly
-                b8 has_transparency = material_flag_get(engine_systems_get()->material_system, m->material_instances[j].material, BMATERIAL_FLAG_HAS_TRANSPARENCY_BIT);
+                b8 has_transparency = false;
+                if (m->material_instances)
+                    has_transparency = material_flag_get(engine_systems_get()->material_system, m->material_instances[j].material, BMATERIAL_FLAG_HAS_TRANSPARENCY_BIT);
 
                 if (has_transparency)
                 {
@@ -1384,6 +1396,11 @@ b8 scene_mesh_render_data_query(const scene* scene, const frustum* f, vec3 cente
     for (u32 resource_index = 0; resource_index < mesh_count; ++resource_index)
     {
         static_mesh_instance* m = &scene->static_meshes[resource_index];
+
+        // Only count loaded meshes
+        if (m->mesh_resource->base.state < BRESOURCE_STATE_LOADED)
+            continue;
+
         // Attachment lookup - by resource index
         scene_attachment* attachment = &scene->mesh_attachments[resource_index];
         bhandle xform_handle = hierarchy_graph_xform_handle_get(&scene->hierarchy, attachment->hierarchy_node_handle);
@@ -1417,7 +1434,7 @@ b8 scene_mesh_render_data_query(const scene* scene, const frustum* f, vec3 cente
                     // Add it to the list to be rendered
                     geometry_render_data data = {0};
                     data.model = model;
-                    data.material = m->material_instances[j];
+                    data.material = m->material_instances ? m->material_instances[j] : (material_instance){bhandle_invalid(), bhandle_invalid()};
                     data.vertex_count = g->vertex_count;
                     data.vertex_buffer_offset = g->vertex_buffer_offset;
                     data.index_count = g->index_count;
@@ -1427,7 +1444,10 @@ b8 scene_mesh_render_data_query(const scene* scene, const frustum* f, vec3 cente
 
                     // Check if transparent. If so, put into a separate, temp array to be
                     // sorted by distance from the camera. Otherwise, put into the out_geometries array directly
-                    b8 has_transparency = material_flag_get(engine_systems_get()->material_system, m->material_instances[j].material, BMATERIAL_FLAG_HAS_TRANSPARENCY_BIT);
+                    b8 has_transparency = false;
+                    if (m->material_instances)
+                        has_transparency = material_flag_get(engine_systems_get()->material_system, m->material_instances[j].material, BMATERIAL_FLAG_HAS_TRANSPARENCY_BIT);
+
                     if (has_transparency)
                     {
                         // NOTE: This isn't perfect for translucent meshes that intersect, but is enough for our purposes now

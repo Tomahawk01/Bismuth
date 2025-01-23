@@ -8,7 +8,6 @@
 #include "parsers/bson_parser.h"
 #include "platform/filesystem.h"
 #include "platform/platform.h"
-#include "platform/vfs.h"
 #include "strings/bname.h"
 #include "strings/bstring.h"
 

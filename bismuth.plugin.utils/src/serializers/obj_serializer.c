@@ -230,7 +230,7 @@ b8 obj_serializer_deserialize(const char* obj_file_text, obj_source_asset* out_s
         prev_first_chars[0] = first_char;
     } // each line
 
-    // Process the remaining group since the last one will not have been trigged by the finding of a new name
+    // Process the remaining group since the last one will not have been triggered by the finding of a new name
     // Process each group as a subobject
     u64 group_count = darray_length(groups);
     for (u64 i = 0; i < group_count; ++i)

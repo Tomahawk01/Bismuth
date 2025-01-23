@@ -43,7 +43,7 @@ b8 bplugin_create(struct bruntime_plugin* out_plugin)
     {
         basset_importer obj_importer = {0};
         obj_importer.import = basset_importer_static_mesh_obj_import;
-        if (!basset_importer_registry_register(BASSET_TYPE_IMAGE, "obj", obj_importer))
+        if (!basset_importer_registry_register(BASSET_TYPE_STATIC_MESH, "obj", obj_importer))
         {
             BERROR("Failed to register static mesh Wavefront OBJ asset importer!");
             return false;

@@ -9,6 +9,7 @@
 #include "platform/vfs.h"
 #include "strings/bname.h"
 #include "strings/bstring.h"
+#include "strings/bstring_id.h"
 
 // Static lookup table for basset type strings
 static const char* basset_type_strs[BASSET_TYPE_MAX] = {
@@ -93,6 +94,8 @@ void asset_handler_base_on_asset_loaded(struct vfs_state* vfs, vfs_asset_data as
 
             context.asset->package_name = asset_data.package_name;
             context.asset->name = asset_data.asset_name;
+            context.asset->meta.asset_path = bstring_id_create(asset_data.path);
+            context.asset->meta.source_asset_path = bstring_id_create(asset_data.source_asset_path);
             if (!importer->import(importer, asset_data.size, asset_data.bytes, asset_data.import_params, context.asset))
             {
                 BERROR("Automatic asset import failed. See logs for details");

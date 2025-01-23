@@ -66,7 +66,7 @@ b8 basset_importer_image_import(const struct basset_importer* self, u64 data_siz
     typed_asset->channel_count = required_channel_count;
     if (!pixels)
     {
-        BERROR("Image importer failed to import image '%s'", out_asset->meta.source_asset_path);
+        BERROR("Image importer failed to import image '%s'", bstring_id_string_get(out_asset->meta.source_asset_path));
         return false;
     }
 
