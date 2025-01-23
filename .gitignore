@@ -5,4 +5,7 @@ obj/
 # Bismuth Binary Image
 *.bbi
 
+# Bismuth Static Mesh
+*.bsm
+
 *version.h

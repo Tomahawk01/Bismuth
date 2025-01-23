@@ -6,54 +6,6 @@
 #include <math/math_types.h>
 #include <resources/resource_types.h>
 
-typedef enum obj_texture_map_channel
-{
-    OBJ_TEXTURE_MAP_CHANNEL_PBR_ALBEDO,
-    OBJ_TEXTURE_MAP_CHANNEL_PBR_NORMAL,
-    OBJ_TEXTURE_MAP_CHANNEL_PBR_METALLIC,
-    OBJ_TEXTURE_MAP_CHANNEL_PBR_ROUGHNESS,
-    OBJ_TEXTURE_MAP_CHANNEL_PBR_AO,
-    OBJ_TEXTURE_MAP_CHANNEL_PBR_EMISSIVE,
-    OBJ_TEXTURE_MAP_CHANNEL_PBR_CLEAR_COAT,
-    OBJ_TEXTURE_MAP_CHANNEL_PBR_CLEAR_COAT_ROUGHNESS,
-    OBJ_TEXTURE_MAP_CHANNEL_PBR_WATER,
-    OBJ_TEXTURE_MAP_CHANNEL_PHONG_DIFFUSE,
-    OBJ_TEXTURE_MAP_CHANNEL_PHONG_NORMAL,
-    OBJ_TEXTURE_MAP_CHANNEL_PHONG_SPECULAR,
-    OBJ_TEXTURE_MAP_CHANNEL_UNLIT_COLOR
-} obj_texture_map_channel;
-
-typedef struct obj_mtl_source_texture_map
-{
-    // Name of the texture map
-    bname name;
-    // Name of the image asset
-    bname image_asset_name;
-    // The texture channel to be used
-    obj_texture_map_channel channel;
-} obj_mtl_source_texture_map;
-
-typedef struct obj_mtl_source_property
-{
-    bname name;
-    shader_uniform_type type;
-    u32 size;
-    union
-    {
-        vec4 v4;
-        vec3 v3;
-        vec2 v2;
-        f32 f32;
-        u32 u32;
-        u16 u16;
-        u8 u8;
-        i32 i32;
-        i16 i16;
-        i8 i8;
-        mat4 mat4;
-    } value;
-} obj_mtl_source_property;
-
 typedef struct obj_mtl_source_material
 {
     // Name of the material
@@ -62,12 +14,38 @@ typedef struct obj_mtl_source_material
     bmaterial_type type;
     // Material lighting model
     bmaterial_model model;
-    // Texture maps
-    u32 texture_map_count;
-    obj_mtl_source_texture_map* maps;
 
-    u32 property_count;
-    obj_mtl_source_property* properties;
+    vec3 ambient_color;
+    bname ambient_image_asset_name;
+    vec3 diffuse_color;
+    bname diffuse_image_asset_name;
+
+    f32 roughness;
+    bname roughness_image_asset_name;
+    f32 metallic;
+    bname metallic_image_asset_name;
+    f32 sheen;
+    bname sheen_image_asset_name;
+
+    bname normal_image_asset_name;
+
+    bname displacement_image_asset_name;
+
+    vec3 specular_color;
+    f32 specular_exponent;
+    bname specular_image_asset_name;
+
+    // 0-1, 1=fully opaque, 0=fully transparent
+    f32 transparency;
+    bname alpha_image_asset_name;
+
+    bname mra_image_asset_name;
+
+    vec3 emissive_color;
+    bname emissive_image_asset_name;
+    
+    // Index of refraction/optical density. [0.001-10]. 1.0 means light does not bend as it passes through. Glass should be ~1.5. Values < 1.0 are strange
+    f32 ior;
 } obj_mtl_source_material;
 
 typedef struct obj_mtl_source_asset

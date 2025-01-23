@@ -11,6 +11,7 @@
 #include <strings/bname.h>
 #include <strings/bstring.h>
 
+#include "math/bmath.h"
 #include "serializers/obj_mtl_serializer.h"
 #include "serializers/obj_serializer.h"
 #include "strings/bstring_id.h"
@@ -156,79 +157,112 @@ b8 basset_importer_static_mesh_obj_import(const struct basset_importer* self, u6
                         // Imports do not use a custom shader
                         new_material.custom_shader_name = 0;
 
+                        new_material.model = m_src->model;
                         new_material.type = m_src->type;
 
                         // Material maps
-                        for (u32 j = 0; j < m_src->texture_map_count; ++j)
+                        // Base color
+                        if (new_material.model == BMATERIAL_MODEL_PBR)
                         {
-                            obj_mtl_source_texture_map* map_src = &m_src->maps[j];
-
-                            bmaterial_texture_input* texture_input = 0;
-
-                            // Map channel. NOTE: OBJ format _can_ specify different channels per material type. Bismuth doesn't, so just use the "base" type
-                            switch (map_src->channel)
+                            // Base color translates from diffuse only for PBR
+                            if (m_src->diffuse_image_asset_name)
                             {
-                            case OBJ_TEXTURE_MAP_CHANNEL_PBR_NORMAL:
-                            case OBJ_TEXTURE_MAP_CHANNEL_PHONG_NORMAL:
-                                texture_input = &new_material.normal_map;
-                                new_material.normal_enabled = true;
-                                break;
-                            case OBJ_TEXTURE_MAP_CHANNEL_PBR_ALBEDO:
-                                case OBJ_TEXTURE_MAP_CHANNEL_PHONG_DIFFUSE:
-                                case OBJ_TEXTURE_MAP_CHANNEL_UNLIT_COLOR:
-                                texture_input = &new_material.base_color_map;
-                                break;
-                            case OBJ_TEXTURE_MAP_CHANNEL_PBR_METALLIC:
-                                texture_input = &new_material.metallic_map;
-                                texture_input->channel = TEXTURE_CHANNEL_R;
-                                break;
-                            case OBJ_TEXTURE_MAP_CHANNEL_PBR_ROUGHNESS:
-                                texture_input = &new_material.roughness_map;
-                                texture_input->channel = TEXTURE_CHANNEL_R;
-                                break;
-                            case OBJ_TEXTURE_MAP_CHANNEL_PBR_AO:
-                                texture_input = &new_material.ambient_occlusion_map;
-                                texture_input->channel = TEXTURE_CHANNEL_R;
+                                new_material.base_color_map.resource_name = m_src->diffuse_image_asset_name;
+                                new_material.base_color_map.package_name = out_asset->package_name;
+                            }
+                            new_material.base_color = vec4_from_vec3(m_src->diffuse_color, 1.0f);
+
+                            // Metallic
+                            if (m_src->metallic_image_asset_name)
+                            {
+                                new_material.metallic_map.resource_name = m_src->metallic_image_asset_name;
+                                new_material.metallic_map.package_name = out_asset->package_name;
+                                // NOTE: Always assume red channel for OBJ MTL imports
+                                new_material.metallic_map.channel = TEXTURE_CHANNEL_R;
+                            }
+                            new_material.metallic = m_src->metallic;
+
+                            // Roughness
+                            if (m_src->roughness_image_asset_name)
+                            {
+                                new_material.roughness_map.resource_name = m_src->roughness_image_asset_name;
+                                new_material.roughness_map.package_name = out_asset->package_name;
+                                // NOTE: Always assume red channel for OBJ MTL imports
+                                new_material.roughness_map.channel = TEXTURE_CHANNEL_R;
+                            }
+                            new_material.roughness = m_src->roughness;
+
+                            // Ambient occlusion NOTE: not supported for OBJ MTL imports
+                            new_material.ambient_occlusion_enabled = false;
+                            new_material.ambient_occlusion = 1.0;
+
+                            // MRA (combined Metallic/Roughness/AO maps)
+                            if (m_src->mra_image_asset_name)
+                            {
+                                new_material.mra_map.resource_name = m_src->mra_image_asset_name;
+                                new_material.mra_map.package_name = out_asset->package_name;
+                                new_material.use_mra = true;
+
+                                // In this one scenario, enable AO since the MRA map can provide it
                                 new_material.ambient_occlusion_enabled = true;
-                                break;
-                            case OBJ_TEXTURE_MAP_CHANNEL_PBR_EMISSIVE:
-                                texture_input = &new_material.emissive_map;
-                                new_material.emissive_enabled = true;
-                                break;
-                            case OBJ_TEXTURE_MAP_CHANNEL_PBR_CLEAR_COAT:
-                                // TODO: support clear coat
-                                // texture_input = &new_material.clear_coat_map;
-                                BWARN("PBR clear coat not supported. Skipping...");
-                                break;
-                            case OBJ_TEXTURE_MAP_CHANNEL_PBR_CLEAR_COAT_ROUGHNESS:
-                                // TODO: support clear coat roughness
-                                // texture_input = &new_material.clear_coat_roughness_map;
-                                BWARN("PBR clear coat roughness not supported. Skipping...");
-                                break;
-                            case OBJ_TEXTURE_MAP_CHANNEL_PBR_WATER:
-                                texture_input = &new_material.dudv_map;
-                                break;
-                            case OBJ_TEXTURE_MAP_CHANNEL_PHONG_SPECULAR:
-                                // TODO: Phong/specular support
-                                // texture_input = &new_material.specular;
-                                BWARN("Phong specular not supported. Skipping...");
-                                break;
                             }
-
-                            if (texture_input)
+                            else if (new_material.metallic_map.resource_name == new_material.roughness_map.resource_name == new_material.ambient_occlusion_map.resource_name)
                             {
-                                texture_input->resource_name = map_src->image_asset_name;
-                                // Assume the same package name
-                                texture_input->package_name = out_asset->package_name;
+                                // If metallic, roughness and ao all point to the same texture, switch to MRA instead
+                                new_material.mra_map.resource_name = new_material.metallic_map.resource_name;
+                                new_material.mra_map.package_name = new_material.metallic_map.resource_name;
+                                new_material.use_mra = true;
+
+                                // In this one scenario, enable AO since the MRA map can provide it
+                                new_material.ambient_occlusion_enabled = true;
+                            }
+                            else
+                            {
+                                new_material.use_mra = false;
                             }
                         }
-
-                        // If metallic, roughness and ao all point to the same texture, switch to MRA instead
-                        if (new_material.metallic_map.resource_name == new_material.roughness_map.resource_name == new_material.ambient_occlusion_map.resource_name)
+                        else if (new_material.model == BMATERIAL_MODEL_PHONG)
                         {
-                            new_material.mra_map.resource_name = new_material.metallic_map.resource_name;
-                            new_material.mra_map.package_name = new_material.metallic_map.resource_name;
+                            // TODO: make use of the ambient color map
+                            if (m_src->ambient_image_asset_name)
+                                BWARN("Material has ambient color map set, but will not be imported due to engine limitations");
+
+                            if (m_src->diffuse_image_asset_name)
+                            {
+                                new_material.base_color_map.resource_name = m_src->diffuse_image_asset_name;
+                                new_material.base_color_map.package_name = out_asset->package_name;
+                            }
+                            // For phong, base color is ambient + diffuse
+                            new_material.base_color = vec4_from_vec3(vec3_add(m_src->ambient_color, m_src->diffuse_color), 1.0f);
+
+                            // Specular - only used for phong
+                            if (m_src->specular_image_asset_name)
+                            {
+                                new_material.specular_color_map.resource_name = m_src->specular_image_asset_name;
+                                new_material.specular_color_map.package_name = out_asset->package_name;
+                            }
+                            new_material.specular_color = vec4_from_vec3(m_src->specular_color, 1.0f);
                         }
+
+                        // Normal
+                        if (m_src->normal_image_asset_name)
+                        {
+                            new_material.normal_map.resource_name = m_src->normal_image_asset_name;
+                            new_material.normal_map.package_name = out_asset->package_name;
+                            new_material.normal_enabled = true;
+                        }
+                        else
+                        {
+                            new_material.normal_enabled = false;
+                        }
+
+                        // Emissive
+                        if (m_src->emissive_image_asset_name)
+                        {
+                            new_material.emissive_map.resource_name = m_src->emissive_image_asset_name;
+                            new_material.emissive_map.package_name = out_asset->package_name;
+                        }
+                        new_material.emissive = vec4_from_vec3(m_src->emissive_color, 1.0f);
 
                         // Serialize the material
                         const char* serialized_text = basset_material_serialize((basset*)&new_material);
@@ -238,16 +272,13 @@ b8 basset_importer_static_mesh_obj_import(const struct basset_importer* self, u6
                         // Write out bmt file
                         if (!vfs_asset_write(vfs, (basset*)&new_material, false, string_length(serialized_text), serialized_text))
                             BERROR("Failed to write serialized material to disk");
-
-                        // Cleanup MTL asset
-                        {
-                            // Maps
-                            bfree(m_src->maps, sizeof(obj_mtl_source_material) * m_src->texture_map_count, MEMORY_TAG_ARRAY);
-
-                            // Properties
-                            bfree(m_src->properties, sizeof(obj_mtl_source_property) * m_src->property_count, MEMORY_TAG_ARRAY);
-                        }
                     } // each material
+
+                    // Cleanup materials
+                    if (mtl_asset.material_count)
+                    {
+                        BFREE_TYPE_CARRAY(mtl_asset.materials, obj_mtl_source_material, mtl_asset.material_count);
+                    }
                 }
             } // success
         }

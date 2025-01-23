@@ -235,6 +235,9 @@ typedef struct basset_material
     vec4 base_color;
     bmaterial_texture_input base_color_map;
 
+    vec4 specular_color;
+    bmaterial_texture_input specular_color_map;
+
     b8 normal_enabled;
     vec3 normal;
     bmaterial_texture_input normal_map;
