@@ -78,7 +78,6 @@ b8 static_mesh_system_instance_acquire(struct static_mesh_system_state* state, b
         &request);
     out_instance->instance_id = brandom_u64();
     out_instance->tint = vec4_one(); // white
-    out_instance->material_instances = 0;
 
     return true;
 }
@@ -156,6 +155,7 @@ static void static_mesh_on_resource_loaded(bresource* resource, void* listener)
 
     // Request material instances for this static mesh instance
     typed_listener->instance->material_instances = BALLOC_TYPE_CARRAY(material_instance, typed_listener->instance->mesh_resource->submesh_count);
+    BTRACE("Material instances array created");
 
     // Process submeshes
     for (u32 i = 0; i < typed_resource->submesh_count; ++i)
