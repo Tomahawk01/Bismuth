@@ -188,278 +188,278 @@ b8 bson_parser_tokenize(bson_parser* parser, const char* source)
         // Not part of a string, identifier, numeric, etc., so try to figure out what to do next
         switch (codepoint)
         {
-            case '\n':
+        case '\n':
+        {
+            push_token(&current_token, parser);
+
+            // Just create a new token and insert it
+            bson_token newline_token = {BSON_TOKEN_TYPE_NEWLINE, c, c + advance};
+
+            push_token(&newline_token, parser);
+
+            reset_current_token_and_mode(&current_token, &mode);
+        } break;
+        case '\t':
+        case '\r':
+        case ' ':
+        {
+            if (mode == BSON_TOKENIZE_MODE_WHITESPACE)
             {
+                // Tack it onto the whitespace
+                current_token.end++;
+            }
+            else
+            {
+                // Before switching to whitespace mode, push the current token
                 push_token(&current_token, parser);
-
-                // Just create a new token and insert it
-                bson_token newline_token = {BSON_TOKEN_TYPE_NEWLINE, c, c + advance};
-
-                push_token(&newline_token, parser);
-
-                reset_current_token_and_mode(&current_token, &mode);
-            } break;
-            case '\t':
-            case '\r':
-            case ' ':
-            {
-                if (mode == BSON_TOKENIZE_MODE_WHITESPACE)
-                {
-                    // Tack it onto the whitespace
-                    current_token.end++;
-                }
-                else
-                {
-                    // Before switching to whitespace mode, push the current token
-                    push_token(&current_token, parser);
-                    mode = BSON_TOKENIZE_MODE_WHITESPACE;
-                    current_token.type = BSON_TOKEN_TYPE_WHITESPACE;
-                    current_token.start = c;
-                    current_token.end = c + advance;
-                }
-            } break;
-            case '{':
-            {
-                push_token(&current_token, parser);
-
-                // Create and push a new token for this
-                bson_token open_brace_token = {BSON_TOKEN_TYPE_CURLY_BRACE_OPEN, c, c + advance};
-                push_token(&open_brace_token, parser);
-
-                reset_current_token_and_mode(&current_token, &mode);
-            } break;
-            case '}':
-            {
-                push_token(&current_token, parser);
-
-                // Create and push a new token for this
-                bson_token close_brace_token = {BSON_TOKEN_TYPE_CURLY_BRACE_CLOSE, c, c + advance};
-                push_token(&close_brace_token, parser);
-
-                reset_current_token_and_mode(&current_token, &mode);
-            } break;
-            case '[':
-            {
-                push_token(&current_token, parser);
-
-                // Create and push a new token for this
-                bson_token open_bracket_token = {BSON_TOKEN_TYPE_BRACKET_OPEN, c, c + advance};
-                push_token(&open_bracket_token, parser);
-
-                reset_current_token_and_mode(&current_token, &mode);
-            } break;
-            case ']':
-            {
-                push_token(&current_token, parser);
-
-                // Create and push a new token for this
-                bson_token close_bracket_token = {BSON_TOKEN_TYPE_BRACKET_CLOSE, c, c + advance};
-                push_token(&close_bracket_token, parser);
-
-                reset_current_token_and_mode(&current_token, &mode);
-            } break;
-            case '"':
-            {
-                push_token(&current_token, parser);
-
-                reset_current_token_and_mode(&current_token, &mode);
-
-                // Change to string parsing mode
-                mode = BSON_TOKENIZE_MODE_STRING_LITERAL;
-                current_token.type = BSON_TOKEN_TYPE_STRING_LITERAL;
-                current_token.start = c + advance;
+                mode = BSON_TOKENIZE_MODE_WHITESPACE;
+                current_token.type = BSON_TOKEN_TYPE_WHITESPACE;
+                current_token.start = c;
                 current_token.end = c + advance;
-            } break;
-            case '0':
-            case '1':
-            case '2':
-            case '3':
-            case '4':
-            case '5':
-            case '6':
-            case '7':
-            case '8':
-            case '9':
+            }
+        } break;
+        case '{':
+        {
+            push_token(&current_token, parser);
+
+            // Create and push a new token for this
+            bson_token open_brace_token = {BSON_TOKEN_TYPE_CURLY_BRACE_OPEN, c, c + advance};
+            push_token(&open_brace_token, parser);
+
+            reset_current_token_and_mode(&current_token, &mode);
+        } break;
+        case '}':
+        {
+            push_token(&current_token, parser);
+
+            // Create and push a new token for this
+            bson_token close_brace_token = {BSON_TOKEN_TYPE_CURLY_BRACE_CLOSE, c, c + advance};
+            push_token(&close_brace_token, parser);
+
+            reset_current_token_and_mode(&current_token, &mode);
+        } break;
+        case '[':
+        {
+            push_token(&current_token, parser);
+
+            // Create and push a new token for this
+            bson_token open_bracket_token = {BSON_TOKEN_TYPE_BRACKET_OPEN, c, c + advance};
+            push_token(&open_bracket_token, parser);
+
+            reset_current_token_and_mode(&current_token, &mode);
+        } break;
+        case ']':
+        {
+            push_token(&current_token, parser);
+
+            // Create and push a new token for this
+            bson_token close_bracket_token = {BSON_TOKEN_TYPE_BRACKET_CLOSE, c, c + advance};
+            push_token(&close_bracket_token, parser);
+
+            reset_current_token_and_mode(&current_token, &mode);
+        } break;
+        case '"':
+        {
+            push_token(&current_token, parser);
+
+            reset_current_token_and_mode(&current_token, &mode);
+
+            // Change to string parsing mode
+            mode = BSON_TOKENIZE_MODE_STRING_LITERAL;
+            current_token.type = BSON_TOKEN_TYPE_STRING_LITERAL;
+            current_token.start = c + advance;
+            current_token.end = c + advance;
+        } break;
+        case '0':
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7':
+        case '8':
+        case '9':
+        {
+            if (mode == BSON_TOKENIZE_MODE_NUMERIC_LITERAL)
             {
-                if (mode == BSON_TOKENIZE_MODE_NUMERIC_LITERAL)
+                current_token.end++;
+            }
+            else
+            {
+                // Push the existing token
+                push_token(&current_token, parser);
+
+                // Switch to numeric parsing mode
+                mode = BSON_TOKENIZE_MODE_NUMERIC_LITERAL;
+                current_token.type = BSON_TOKEN_TYPE_NUMERIC_LITERAL;
+                current_token.start = c;
+                current_token.end = c + advance;
+            }
+        } break;
+        case '-':
+        {
+            push_token(&current_token, parser);
+
+            // Create and push a new token for this
+            bson_token minus_token = {BSON_TOKEN_TYPE_OPERATOR_MINUS, c, c + advance};
+            push_token(&minus_token, parser);
+
+            reset_current_token_and_mode(&current_token, &mode);
+        } break;
+        case '+':
+        {
+            push_token(&current_token, parser);
+
+            // Create and push a new token for this
+            bson_token plus_token = {BSON_TOKEN_TYPE_OPERATOR_PLUS, c, c + advance};
+            push_token(&plus_token, parser);
+
+            reset_current_token_and_mode(&current_token, &mode);
+        } break;
+        case '/':
+        {
+            push_token(&current_token, parser);
+            reset_current_token_and_mode(&current_token, &mode);
+
+            // Look ahead and see if another slash follows. If so, the rest of the line is a comment.
+            // Skip forward until a newline is found.
+            if (source[c + 1] == '/')
+            {
+                i32 cm = c + 2;
+                char ch = source[cm];
+                while (ch != '\n' && ch != '\0')
                 {
-                    current_token.end++;
+                    cm++;
+                    ch = source[cm];
+                }
+                if (cm > 0)
+                {
+                    // Skip to one char before the newline so the newline gets processed.
+                    // This is done because the comment shouldn't be tokenized, but should instead be ignored.
+                    c = cm;
+                }
+                continue;
+            }
+            else
+            {
+                // Otherwise it should be treated as a slash operator
+                bson_token slash_token = {BSON_TOKEN_TYPE_OPERATOR_SLASH, c, c + advance};
+                push_token(&slash_token, parser);
+            }
+
+            reset_current_token_and_mode(&current_token, &mode);
+        } break;
+        case '*':
+        {
+            push_token(&current_token, parser);
+
+            // Create and push a new token for this
+            bson_token asterisk_token = {BSON_TOKEN_TYPE_OPERATOR_ASTERISK, c, c + advance};
+            push_token(&asterisk_token, parser);
+
+            reset_current_token_and_mode(&current_token, &mode);
+        } break;
+        case '=':
+        {
+            push_token(&current_token, parser);
+
+            // Create and push a new token for this
+            bson_token equal_token = {BSON_TOKEN_TYPE_OPERATOR_EQUAL, c, c + advance};
+            push_token(&equal_token, parser);
+
+            reset_current_token_and_mode(&current_token, &mode);
+        } break;
+        case '.':
+        {
+            push_token(&current_token, parser);
+
+            // Create and push a new token for this
+            bson_token dot_token = {BSON_TOKEN_TYPE_OPERATOR_DOT, c, c + advance};
+            push_token(&dot_token, parser);
+
+            reset_current_token_and_mode(&current_token, &mode);
+        } break;
+        case '\0':
+        {
+            // Reached the end of the file
+            push_token(&current_token, parser);
+
+            // Create and push a new token for this
+            bson_token eof_token = {BSON_TOKEN_TYPE_EOF, c, c + advance};
+            push_token(&eof_token, parser);
+
+            reset_current_token_and_mode(&current_token, &mode);
+
+            eof_reached = true;
+        } break;
+
+        default:
+        {
+            // Identifiers may be made up of upper/lowercase a-z, underscores and numbers (number cannot be the first character of an identifier).
+            // NOTE: Number cases are handled above as numeric literals, and will be combined into identifiers if there are identifiers without whitespace next to numerics
+            if ((codepoint >= 'A' && codepoint <= 'z') || codepoint == '_')
+            {
+                if (mode == BSON_TOKENIZE_MODE_DEFINING_IDENTIFIER)
+                {
+                    // Start a new identifier token
+                    if (current_token.type == BSON_TOKEN_TYPE_UNKNOWN)
+                    {
+                        current_token.type = BSON_TOKEN_TYPE_IDENTIFIER;
+                        current_token.start = c;
+                        current_token.end = c;
+                    }
+                    // Tack onto the existing identifier
+                    current_token.end += advance;
                 }
                 else
                 {
-                    // Push the existing token
-                    push_token(&current_token, parser);
+                    // Check first to see if it's possibly a boolean definition
+                    const char* str = source + c;
+                    u8 bool_advance = 0;
+                    if (strings_nequali(str, "true", 4))
+                        bool_advance = 4;
+                    else if (strings_nequali(str, "false", 5))
+                        bool_advance = 5;
 
-                    // Switch to numeric parsing mode
-                    mode = BSON_TOKENIZE_MODE_NUMERIC_LITERAL;
-                    current_token.type = BSON_TOKEN_TYPE_NUMERIC_LITERAL;
-                    current_token.start = c;
-                    current_token.end = c + advance;
-                }
-            } break;
-            case '-':
-            {
-                push_token(&current_token, parser);
-
-                // Create and push a new token for this
-                bson_token minus_token = {BSON_TOKEN_TYPE_OPERATOR_MINUS, c, c + advance};
-                push_token(&minus_token, parser);
-
-                reset_current_token_and_mode(&current_token, &mode);
-            } break;
-            case '+':
-            {
-                push_token(&current_token, parser);
-
-                // Create and push a new token for this
-                bson_token plus_token = {BSON_TOKEN_TYPE_OPERATOR_PLUS, c, c + advance};
-                push_token(&plus_token, parser);
-
-                reset_current_token_and_mode(&current_token, &mode);
-            } break;
-            case '/':
-            {
-                push_token(&current_token, parser);
-                reset_current_token_and_mode(&current_token, &mode);
-
-                // Look ahead and see if another slash follows. If so, the rest of the line is a comment.
-                // Skip forward until a newline is found.
-                if (source[c + 1] == '/')
-                {
-                    i32 cm = c + 2;
-                    char ch = source[cm];
-                    while (ch != '\n' && ch != '\0')
+                    if (bool_advance)
                     {
-                        cm++;
-                        ch = source[cm];
-                    }
-                    if (cm > 0)
-                    {
-                        // Skip to one char before the newline so the newline gets processed.
-                        // This is done because the comment shouldn't be tokenized, but should instead be ignored.
-                        c = cm;
-                    }
-                    continue;
-                }
-                else
-                {
-                    // Otherwise it should be treated as a slash operator
-                    bson_token slash_token = {BSON_TOKEN_TYPE_OPERATOR_SLASH, c, c + advance};
-                    push_token(&slash_token, parser);
-                }
+                        push_token(&current_token, parser);
 
-                reset_current_token_and_mode(&current_token, &mode);
-            } break;
-            case '*':
-            {
-                push_token(&current_token, parser);
+                        // Create and push boolean token
+                        bson_token bool_token = {BSON_TOKEN_TYPE_BOOLEAN, c, c + bool_advance};
+                        push_token(&bool_token, parser);
 
-                // Create and push a new token for this
-                bson_token asterisk_token = {BSON_TOKEN_TYPE_OPERATOR_ASTERISK, c, c + advance};
-                push_token(&asterisk_token, parser);
+                        reset_current_token_and_mode(&current_token, &mode);
 
-                reset_current_token_and_mode(&current_token, &mode);
-            } break;
-            case '=':
-            {
-                push_token(&current_token, parser);
-
-                // Create and push a new token for this
-                bson_token equal_token = {BSON_TOKEN_TYPE_OPERATOR_EQUAL, c, c + advance};
-                push_token(&equal_token, parser);
-
-                reset_current_token_and_mode(&current_token, &mode);
-            } break;
-            case '.':
-            {
-                push_token(&current_token, parser);
-
-                // Create and push a new token for this
-                bson_token dot_token = {BSON_TOKEN_TYPE_OPERATOR_DOT, c, c + advance};
-                push_token(&dot_token, parser);
-
-                reset_current_token_and_mode(&current_token, &mode);
-            } break;
-            case '\0':
-            {
-                // Reached the end of the file
-                push_token(&current_token, parser);
-
-                // Create and push a new token for this
-                bson_token eof_token = {BSON_TOKEN_TYPE_EOF, c, c + advance};
-                push_token(&eof_token, parser);
-
-                reset_current_token_and_mode(&current_token, &mode);
-
-                eof_reached = true;
-            } break;
-
-            default:
-            {
-                // Identifiers may be made up of upper/lowercase a-z, underscores and numbers (number cannot be the first character of an identifier).
-                // NOTE: Number cases are handled above as numeric literals, and will be combined into identifiers if there are identifiers without whitespace next to numerics
-                if ((codepoint >= 'A' && codepoint <= 'z') || codepoint == '_')
-                {
-                    if (mode == BSON_TOKENIZE_MODE_DEFINING_IDENTIFIER)
-                    {
-                        // Start a new identifier token
-                        if (current_token.type == BSON_TOKEN_TYPE_UNKNOWN)
-                        {
-                            current_token.type = BSON_TOKEN_TYPE_IDENTIFIER;
-                            current_token.start = c;
-                            current_token.end = c;
-                        }
-                        // Tack onto the existing identifier
-                        current_token.end += advance;
+                        // Move forward by the size of the token
+                        advance = bool_advance;
                     }
                     else
                     {
-                        // Check first to see if it's possibly a boolean definition
-                        const char* str = source + c;
-                        u8 bool_advance = 0;
-                        if (strings_nequali(str, "true", 4))
-                            bool_advance = 4;
-                        else if (strings_nequali(str, "false", 5))
-                            bool_advance = 5;
+                        // Treat as the start of an identifier definition
+                        // Push the existing token
+                        push_token(&current_token, parser);
 
-                        if (bool_advance)
-                        {
-                            push_token(&current_token, parser);
-
-                            // Create and push boolean token
-                            bson_token bool_token = {BSON_TOKEN_TYPE_BOOLEAN, c, c + bool_advance};
-                            push_token(&bool_token, parser);
-
-                            reset_current_token_and_mode(&current_token, &mode);
-
-                            // Move forward by the size of the token
-                            advance = bool_advance;
-                        }
-                        else
-                        {
-                            // Treat as the start of an identifier definition
-                            // Push the existing token
-                            push_token(&current_token, parser);
-
-                            // Switch to identifier parsing mode
-                            mode = BSON_TOKENIZE_MODE_DEFINING_IDENTIFIER;
-                            current_token.type = BSON_TOKEN_TYPE_IDENTIFIER;
-                            current_token.start = c;
-                            current_token.end = c + advance;
-                        }
+                        // Switch to identifier parsing mode
+                        mode = BSON_TOKENIZE_MODE_DEFINING_IDENTIFIER;
+                        current_token.type = BSON_TOKEN_TYPE_IDENTIFIER;
+                        current_token.start = c;
+                        current_token.end = c + advance;
                     }
                 }
-                else
-                {
-                    // If any other character is come across here that isn't part of a string, it's unknown what should happen here.
-                    // Throw an error regarding this and boot if this is the case.
-                    BERROR("Unexpected character '%c' at position %u. Tokenization failed", codepoint, c + advance);
-                    // Clear the tokens array, as there is nothing that can be done with them in this case
-                    darray_clear(parser->tokens);
-                    return false;
-                }
+            }
+            else
+            {
+                // If any other character is come across here that isn't part of a string, it's unknown what should happen here.
+                // Throw an error regarding this and boot if this is the case.
+                BERROR("Unexpected character '%c' at position %u. Tokenization failed", codepoint, c + advance);
+                // Clear the tokens array, as there is nothing that can be done with them in this case
+                darray_clear(parser->tokens);
+                return false;
+            }
 
-            } break;
+        } break;
         }
 
         // Now advance c
@@ -578,400 +578,400 @@ b8 bson_parser_parse(bson_parser* parser, bson_tree* out_tree)
     {
         switch (current_token->type)
         {
-            case BSON_TOKEN_TYPE_CURLY_BRACE_OPEN:
+        case BSON_TOKEN_TYPE_CURLY_BRACE_OPEN:
+        {
+            // TODO: may be needed to verify object starts at correct place
+            // ENSURE_IDENTIFIER("{")
+            // Starting a block
+            bson_object new_obj = {0};
+            new_obj.type = BSON_OBJECT_TYPE_OBJECT;
+            new_obj.properties = darray_create(bson_property);
+
+            if (current_object->type == BSON_OBJECT_TYPE_ARRAY)
             {
-                // TODO: may be needed to verify object starts at correct place
-                // ENSURE_IDENTIFIER("{")
-                // Starting a block
-                bson_object new_obj = {0};
-                new_obj.type = BSON_OBJECT_TYPE_OBJECT;
-                new_obj.properties = darray_create(bson_property);
-
-                if (current_object->type == BSON_OBJECT_TYPE_ARRAY)
-                {
-                    // Apply the value directly to a newly-created, non-named property that gets added to current_object
-                    bson_property unnamed_array_prop = {0};
-                    unnamed_array_prop.type = BSON_PROPERTY_TYPE_OBJECT;
-                    unnamed_array_prop.value.o = new_obj;
-                    unnamed_array_prop.name = INVALID_BSTRING_ID;
-                    // Add the array property to the current object
-                    darray_push(current_object->properties, unnamed_array_prop);
-                    // The current object is now new_obj
-                    u32 prop_length = darray_length(current_object->properties);
-                    current_object = &current_object->properties[prop_length - 1].value.o;
-                }
-                else
-                {
-                    // The object becomes the value of the current property
-                    current_property->value.o = new_obj;
-                    // The current object is now new_obj
-                    current_object = &current_property->value.o;
-
-                    // This also means that the current property is being assigned an object as its value, so mark the property as type object
-                    current_property->type = BSON_PROPERTY_TYPE_OBJECT;
-                }
-
-                // Add the newly-updated current_object to the stack.
-                stack_push(&scope, &current_object);
-
-                expect_identifier = true;
-            } break;
-            case BSON_TOKEN_TYPE_CURLY_BRACE_CLOSE:
+                // Apply the value directly to a newly-created, non-named property that gets added to current_object
+                bson_property unnamed_array_prop = {0};
+                unnamed_array_prop.type = BSON_PROPERTY_TYPE_OBJECT;
+                unnamed_array_prop.value.o = new_obj;
+                unnamed_array_prop.name = INVALID_BSTRING_ID;
+                // Add the array property to the current object
+                darray_push(current_object->properties, unnamed_array_prop);
+                // The current object is now new_obj
+                u32 prop_length = darray_length(current_object->properties);
+                current_object = &current_object->properties[prop_length - 1].value.o;
+            }
+            else
             {
-                // TODO: may be needed to verify object ends at correct place
-                // ENSURE_IDENTIFIER("}")
-                // Ending a block
-                bson_object* popped_obj = 0;
-                if (!stack_pop(&scope, &popped_obj))
-                {
-                    BERROR("Failed to pop from scope stack");
-                    return false;
-                }
+                // The object becomes the value of the current property
+                current_property->value.o = new_obj;
+                // The current object is now new_obj
+                current_object = &current_property->value.o;
 
-                // Peek the next object on the stack and make it the current object
-                if (!stack_peek(&scope, &current_object))
-                {
-                    BERROR("Failed to peek scope stack");
-                    return false;
-                }
+                // This also means that the current property is being assigned an object as its value, so mark the property as type object
+                current_property->type = BSON_PROPERTY_TYPE_OBJECT;
+            }
 
-                expect_value = current_object->type == BSON_OBJECT_TYPE_ARRAY;
-            } break;
-            case BSON_TOKEN_TYPE_BRACKET_OPEN:
+            // Add the newly-updated current_object to the stack.
+            stack_push(&scope, &current_object);
+
+            expect_identifier = true;
+        } break;
+        case BSON_TOKEN_TYPE_CURLY_BRACE_CLOSE:
+        {
+            // TODO: may be needed to verify object ends at correct place
+            // ENSURE_IDENTIFIER("}")
+            // Ending a block
+            bson_object* popped_obj = 0;
+            if (!stack_pop(&scope, &popped_obj))
             {
-                // TODO: may be needed to verify array starts at correct place
-                // ENSURE_IDENTIFIER("[")
+                BERROR("Failed to pop from scope stack");
+                return false;
+            }
 
-                // Starting an array
-                bson_object new_arr = {0};
-                new_arr.type = BSON_OBJECT_TYPE_ARRAY;
-                new_arr.properties = darray_create(bson_property);
-
-                if (current_object->type == BSON_OBJECT_TYPE_ARRAY)
-                {
-                    // Apply the value directly to a newly-created, non-named property that gets added to current_object
-                    bson_property unnamed_array_prop = {0};
-                    unnamed_array_prop.type = BSON_PROPERTY_TYPE_ARRAY;
-                    unnamed_array_prop.value.o = new_arr;
-                    unnamed_array_prop.name = INVALID_BSTRING_ID;
-                    // Add the property to the current object
-                    darray_push(current_object->properties, unnamed_array_prop);
-                    // The current object is now new_arr. This will always be the first entry in that array
-                    u32 prop_length = darray_length(current_object->properties);
-                    current_object = &current_object->properties[prop_length - 1].value.o;
-                }
-                else
-                {
-                    // The object becomes the value of the current property
-                    current_property->value.o = new_arr;
-                    // The current object is now new_obj
-                    current_object = &current_property->value.o;
-
-                    // This also means that the current property is being assigned an array as its value, so mark the property as type array
-                    current_property->type = BSON_PROPERTY_TYPE_ARRAY;
-                }
-
-                // Add the object to the stack
-                stack_push(&scope, &current_object);
-
-                expect_value = true;
-
-            } break;
-            case BSON_TOKEN_TYPE_BRACKET_CLOSE:
+            // Peek the next object on the stack and make it the current object
+            if (!stack_peek(&scope, &current_object))
             {
-                // TODO: may be needed to verify array ends at correct place
-                // ENSURE_IDENTIFIER("]")
-                // Ending an array
-                bson_object* popped_obj = 0;
-                if (!stack_pop(&scope, &popped_obj))
-                {
-                    BERROR("Failed to pop from scope stack");
-                    return false;
-                }
+                BERROR("Failed to peek scope stack");
+                return false;
+            }
 
-                // Peek the next object on the stack and make it the current object
-                if (!stack_peek(&scope, &current_object))
-                {
-                    BERROR("Failed to peek scope stack");
-                    return false;
-                }
+            expect_value = current_object->type == BSON_OBJECT_TYPE_ARRAY;
+        } break;
+        case BSON_TOKEN_TYPE_BRACKET_OPEN:
+        {
+            // TODO: may be needed to verify array starts at correct place
+            // ENSURE_IDENTIFIER("[")
 
-                expect_value = current_object->type == BSON_OBJECT_TYPE_ARRAY;
-            } break;
-            case BSON_TOKEN_TYPE_IDENTIFIER:
+            // Starting an array
+            bson_object new_arr = {0};
+            new_arr.type = BSON_OBJECT_TYPE_ARRAY;
+            new_arr.properties = darray_create(bson_property);
+
+            if (current_object->type == BSON_OBJECT_TYPE_ARRAY)
             {
-                char buf[512] = {0};
-                string_mid(buf, parser->file_content, current_token->start, current_token->end - current_token->start);
-                if (!expect_identifier)
-                {
-                    BERROR("Unexpected identifier '%s' at position %u", buf, current_token->start);
-                    return false;
-                }
-                // Start a new property
-                bson_property prop = {0};
-                prop.type = BSON_PROPERTY_TYPE_UNKNOWN;
-                prop.name = bstring_id_create(buf);
+                // Apply the value directly to a newly-created, non-named property that gets added to current_object
+                bson_property unnamed_array_prop = {0};
+                unnamed_array_prop.type = BSON_PROPERTY_TYPE_ARRAY;
+                unnamed_array_prop.value.o = new_arr;
+                unnamed_array_prop.name = INVALID_BSTRING_ID;
+                // Add the property to the current object
+                darray_push(current_object->properties, unnamed_array_prop);
+                // The current object is now new_arr. This will always be the first entry in that array
+                u32 prop_length = darray_length(current_object->properties);
+                current_object = &current_object->properties[prop_length - 1].value.o;
+            }
+            else
+            {
+                // The object becomes the value of the current property
+                current_property->value.o = new_arr;
+                // The current object is now new_obj
+                current_object = &current_property->value.o;
+
+                // This also means that the current property is being assigned an array as its value, so mark the property as type array
+                current_property->type = BSON_PROPERTY_TYPE_ARRAY;
+            }
+
+            // Add the object to the stack
+            stack_push(&scope, &current_object);
+
+            expect_value = true;
+
+        } break;
+        case BSON_TOKEN_TYPE_BRACKET_CLOSE:
+        {
+            // TODO: may be needed to verify array ends at correct place
+            // ENSURE_IDENTIFIER("]")
+            // Ending an array
+            bson_object* popped_obj = 0;
+            if (!stack_pop(&scope, &popped_obj))
+            {
+                BERROR("Failed to pop from scope stack");
+                return false;
+            }
+
+            // Peek the next object on the stack and make it the current object
+            if (!stack_peek(&scope, &current_object))
+            {
+                BERROR("Failed to peek scope stack");
+                return false;
+            }
+
+            expect_value = current_object->type == BSON_OBJECT_TYPE_ARRAY;
+        } break;
+        case BSON_TOKEN_TYPE_IDENTIFIER:
+        {
+            char buf[512] = {0};
+            string_mid(buf, parser->file_content, current_token->start, current_token->end - current_token->start);
+            if (!expect_identifier)
+            {
+                BERROR("Unexpected identifier '%s' at position %u", buf, current_token->start);
+                return false;
+            }
+            // Start a new property
+            bson_property prop = {0};
+            prop.type = BSON_PROPERTY_TYPE_UNKNOWN;
+            prop.name = bstring_id_create(buf);
 #ifdef BISMUTH_DEBUG
-                prop.name_str = string_duplicate(buf);
+             prop.name_str = string_duplicate(buf);
 #endif
 
-                // Push the new property and set the current property to it
-                if (!current_object->properties)
-                    current_object->properties = darray_create(bson_property);
+            // Push the new property and set the current property to it
+            if (!current_object->properties)
+                current_object->properties = darray_create(bson_property);
 
-                darray_push(current_object->properties, prop);
-                u32 prop_count = darray_length(current_object->properties);
-                current_property = &current_object->properties[prop_count - 1];
+            darray_push(current_object->properties, prop);
+            u32 prop_count = darray_length(current_object->properties);
+            current_property = &current_object->properties[prop_count - 1];
 
-                // No longer expecting an identifier
-                expect_identifier = false;
-                expect_operator = true;
-            } break;
-            case BSON_TOKEN_TYPE_WHITESPACE:
-            case BSON_TOKEN_TYPE_COMMENT:
+            // No longer expecting an identifier
+            expect_identifier = false;
+            expect_operator = true;
+        } break;
+        case BSON_TOKEN_TYPE_WHITESPACE:
+        case BSON_TOKEN_TYPE_COMMENT:
+        {
+            NEXT_TOKEN();
+            continue;
+        }
+        case BSON_TOKEN_TYPE_UNKNOWN:
+        default:
+        {
+            BERROR("Unexpected and unknown token found. Parse failed");
+            return false;
+        }
+        case BSON_TOKEN_TYPE_OPERATOR_EQUAL:
+        {
+            if (!ensure_identifier(expect_identifier, current_token, "="))
+                return false;
+
+            // Previous token must be an identifier
+            bson_token* t = get_last_non_whitespace_token(parser, index);
+            if (!t)
             {
-                NEXT_TOKEN();
-                continue;
-            }
-            case BSON_TOKEN_TYPE_UNKNOWN:
-            default:
-            {
-                BERROR("Unexpected and unknown token found. Parse failed");
+                BERROR("Unexpected token before assignment operator. Position: %u", current_token->start);
                 return false;
             }
-            case BSON_TOKEN_TYPE_OPERATOR_EQUAL:
+            else if (t->type != BSON_TOKEN_TYPE_IDENTIFIER)
             {
-                if (!ensure_identifier(expect_identifier, current_token, "="))
-                    return false;
+                BERROR("Expected identifier before assignment operator. Position: %u", current_token->start);
+                return false;
+            }
 
-                // Previous token must be an identifier
-                bson_token* t = get_last_non_whitespace_token(parser, index);
-                if (!t)
-                {
-                    BERROR("Unexpected token before assignment operator. Position: %u", current_token->start);
-                    return false;
-                }
-                else if (t->type != BSON_TOKEN_TYPE_IDENTIFIER)
-                {
-                    BERROR("Expected identifier before assignment operator. Position: %u", current_token->start);
-                    return false;
-                }
+            expect_operator = false;
 
-                expect_operator = false;
-
-                // The next non-whitespace token should be a value of some kind
-                expect_value = true;
-            } break;
-            case BSON_TOKEN_TYPE_OPERATOR_MINUS:
+            // The next non-whitespace token should be a value of some kind
+            expect_value = true;
+        } break;
+        case BSON_TOKEN_TYPE_OPERATOR_MINUS:
+        {
+            if (expect_numeric)
             {
-                if (expect_numeric)
-                {
-                    BERROR("Already parsing a numeric, negatives are invalid within a numeric. Position: %u", current_token->start);
-                    return false;
-                }
+                BERROR("Already parsing a numeric, negatives are invalid within a numeric. Position: %u", current_token->start);
+                return false;
+            }
 
-                // If the next token is a numeric literal, process this as a numeric
-                // NOTE: Negative is only valid for the first character of a numeric literal
-                if (parser->tokens[index + 1].type == BSON_TOKEN_TYPE_NUMERIC_LITERAL ||
-                    (parser->tokens[index + 1].type == BSON_TOKEN_TYPE_OPERATOR_DOT && parser->tokens[index + 2].type == BSON_TOKEN_TYPE_NUMERIC_LITERAL))
+            // If the next token is a numeric literal, process this as a numeric
+            // NOTE: Negative is only valid for the first character of a numeric literal
+            if (parser->tokens[index + 1].type == BSON_TOKEN_TYPE_NUMERIC_LITERAL ||
+                (parser->tokens[index + 1].type == BSON_TOKEN_TYPE_OPERATOR_DOT && parser->tokens[index + 2].type == BSON_TOKEN_TYPE_NUMERIC_LITERAL))
+            {
+                // Start of a numeric process
+                expect_numeric = true;
+                bzero_memory(numeric_literal_str, sizeof(char) * NUMERIC_LITERAL_STR_MAX_LENGTH);
+
+                numeric_literal_str[0] = '-';
+                numeric_literal_str_pos++;
+            }
+            else
+            {
+                // TODO: This should be treated as a subtraction operator. Ensure previous token is valid, etc.
+                BERROR("subtraction is not supported at this time");
+                return false;
+            }
+        } break;
+        case BSON_TOKEN_TYPE_OPERATOR_PLUS:
+            BERROR("Addition is not supported at this time");
+            return false;
+            break;
+        case BSON_TOKEN_TYPE_OPERATOR_DOT:
+            // This could be the first in a string of tokens of a numeric literal
+            if (!expect_numeric)
+            {
+                // Check the next token to see if it is a numeric. It must be in order for this to be part of it.
+                // Whitespace in between is not supported
+                if (parser->tokens[index + 1].type == BSON_TOKEN_TYPE_NUMERIC_LITERAL)
                 {
-                    // Start of a numeric process
+                    // Start a numeric literal
+                    numeric_literal_str[0] = '.';
                     expect_numeric = true;
                     bzero_memory(numeric_literal_str, sizeof(char) * NUMERIC_LITERAL_STR_MAX_LENGTH);
-
-                    numeric_literal_str[0] = '-';
+                    numeric_decimal_pos = 0;
                     numeric_literal_str_pos++;
                 }
                 else
                 {
-                    // TODO: This should be treated as a subtraction operator. Ensure previous token is valid, etc.
-                    BERROR("subtraction is not supported at this time");
+                    // TODO: Support named object properties such as "sponza.name"
+                    BERROR("Dot property operator not supported. Position: %u", current_token->start);
                     return false;
                 }
-            } break;
-            case BSON_TOKEN_TYPE_OPERATOR_PLUS:
-                BERROR("Addition is not supported at this time");
-                return false;
-                break;
-            case BSON_TOKEN_TYPE_OPERATOR_DOT:
-                // This could be the first in a string of tokens of a numeric literal
-                if (!expect_numeric)
+            }
+            else
+            {
+                // Just verify that a decimal doesn't already exist
+                if (numeric_decimal_pos != -1)
                 {
-                    // Check the next token to see if it is a numeric. It must be in order for this to be part of it.
-                    // Whitespace in between is not supported
-                    if (parser->tokens[index + 1].type == BSON_TOKEN_TYPE_NUMERIC_LITERAL)
+                    BERROR("Cannot include more than once decimal in a numeric literal. First occurrance: %i, Position: %u", numeric_decimal_pos, current_token->start);
+                    return false;
+                }
+
+                // Append it to the string
+                numeric_literal_str[numeric_literal_str_pos] = '.';
+                numeric_decimal_pos = numeric_literal_str_pos;
+                numeric_literal_str_pos++;
+            }
+            break;
+        case BSON_TOKEN_TYPE_OPERATOR_ASTERISK:
+        case BSON_TOKEN_TYPE_OPERATOR_SLASH:
+            BERROR("Unexpected token at position %u. Parse failed", current_token->start);
+            return false;
+        case BSON_TOKEN_TYPE_NUMERIC_LITERAL:
+        {
+            if (!expect_numeric)
+            {
+                expect_numeric = true;
+                bzero_memory(numeric_literal_str, sizeof(char) * NUMERIC_LITERAL_STR_MAX_LENGTH);
+            }
+            u32 length = current_token->end - current_token->start;
+            string_ncopy(numeric_literal_str + numeric_literal_str_pos, parser->file_content + current_token->start, length);
+            numeric_literal_str_pos += length;
+        } break;
+        case BSON_TOKEN_TYPE_STRING_LITERAL:
+            if (!expect_value)
+            {
+                BERROR("Unexpected string token at position: %u", current_token->start);
+                return false;
+            }
+
+            if (current_object->type == BSON_OBJECT_TYPE_ARRAY)
+            {
+                // Apply the value directly to a newly-created, non-named property that gets added to current_object
+                bson_property p = {0};
+                p.type = BSON_PROPERTY_TYPE_STRING;
+                p.value.s = string_from_bson_token(parser->file_content, current_token);
+                p.name = INVALID_BSTRING_ID;
+                darray_push(current_object->properties, p);
+            }
+            else
+            {
+                current_property->type = BSON_PROPERTY_TYPE_STRING;
+                current_property->value.s = string_from_bson_token(parser->file_content, current_token);
+            }
+
+            expect_value = current_object->type == BSON_OBJECT_TYPE_ARRAY;
+            break;
+        case BSON_TOKEN_TYPE_BOOLEAN:
+        {
+            if (!expect_value)
+            {
+                BERROR("Unexpected boolean token at position: %u", current_token->start);
+                return false;
+            }
+
+            char* token_string = string_from_bson_token(parser->file_content, current_token);
+            b8 bool_value = false;
+            if (!string_to_bool(token_string, &bool_value))
+                BERROR("Failed to parse boolean from token. Position: %u", current_token->start);
+            string_free(token_string);
+
+            if (current_object->type == BSON_OBJECT_TYPE_ARRAY)
+            {
+                // Apply the value directly to a newly-created, non-named property that gets added to current_object
+                bson_property p = {0};
+                p.type = BSON_PROPERTY_TYPE_BOOLEAN;
+                p.value.b = bool_value;
+                p.name = INVALID_BSTRING_ID;
+                darray_push(current_object->properties, p);
+            }
+            else
+            {
+                current_property->type = BSON_PROPERTY_TYPE_BOOLEAN;
+                current_property->value.b = bool_value;
+            }
+
+            expect_value = current_object->type == BSON_OBJECT_TYPE_ARRAY;
+        } break;
+        case BSON_TOKEN_TYPE_NEWLINE:
+            if (expect_numeric)
+            {
+                // Terminate the numeric and set the current property's value to it
+                bson_property p = {0};
+                p.name = INVALID_BSTRING_ID;
+                // Determine whether it is a float or a int
+                if (string_index_of(numeric_literal_str, '.') != -1)
+                {
+                    f32 f_value = 0;
+                    if (!string_to_f32(numeric_literal_str, &f_value))
                     {
-                        // Start a numeric literal
-                        numeric_literal_str[0] = '.';
-                        expect_numeric = true;
-                        bzero_memory(numeric_literal_str, sizeof(char) * NUMERIC_LITERAL_STR_MAX_LENGTH);
-                        numeric_decimal_pos = 0;
-                        numeric_literal_str_pos++;
-                    }
-                    else
-                    {
-                        // TODO: Support named object properties such as "sponza.name"
-                        BERROR("Dot property operator not supported. Position: %u", current_token->start);
+                        BERROR("Failed to parse string to float: '%s', Position: %u", numeric_literal_str, current_token->start);
                         return false;
                     }
+                    p.value.f = f_value;
+                    p.type = BSON_PROPERTY_TYPE_FLOAT;
                 }
                 else
                 {
-                    // Just verify that a decimal doesn't already exist
-                    if (numeric_decimal_pos != -1)
+                    i64 i_value = 0;
+                    if (!string_to_i64(numeric_literal_str, &i_value))
                     {
-                        BERROR("Cannot include more than once decimal in a numeric literal. First occurrance: %i, Position: %u", numeric_decimal_pos, current_token->start);
+                        BERROR("Failed to parse string to signed int: '%s', Position: %u", numeric_literal_str, current_token->start);
                         return false;
                     }
-
-                    // Append it to the string
-                    numeric_literal_str[numeric_literal_str_pos] = '.';
-                    numeric_decimal_pos = numeric_literal_str_pos;
-                    numeric_literal_str_pos++;
-                }
-                break;
-            case BSON_TOKEN_TYPE_OPERATOR_ASTERISK:
-            case BSON_TOKEN_TYPE_OPERATOR_SLASH:
-                BERROR("Unexpected token at position %u. Parse failed", current_token->start);
-                return false;
-            case BSON_TOKEN_TYPE_NUMERIC_LITERAL:
-            {
-                if (!expect_numeric)
-                {
-                    expect_numeric = true;
-                    bzero_memory(numeric_literal_str, sizeof(char) * NUMERIC_LITERAL_STR_MAX_LENGTH);
-                }
-                u32 length = current_token->end - current_token->start;
-                string_ncopy(numeric_literal_str + numeric_literal_str_pos, parser->file_content + current_token->start, length);
-                numeric_literal_str_pos += length;
-            } break;
-            case BSON_TOKEN_TYPE_STRING_LITERAL:
-                if (!expect_value)
-                {
-                    BERROR("Unexpected string token at position: %u", current_token->start);
-                    return false;
+                    p.value.i = i_value;
+                    p.type = BSON_PROPERTY_TYPE_INT;
                 }
 
                 if (current_object->type == BSON_OBJECT_TYPE_ARRAY)
                 {
                     // Apply the value directly to a newly-created, non-named property that gets added to current_object
-                    bson_property p = {0};
-                    p.type = BSON_PROPERTY_TYPE_STRING;
-                    p.value.s = string_from_bson_token(parser->file_content, current_token);
-                    p.name = INVALID_BSTRING_ID;
                     darray_push(current_object->properties, p);
                 }
                 else
                 {
-                    current_property->type = BSON_PROPERTY_TYPE_STRING;
-                    current_property->value.s = string_from_bson_token(parser->file_content, current_token);
+                    current_property->type = p.type;
+                    current_property->value = p.value;
                 }
 
-                expect_value = current_object->type == BSON_OBJECT_TYPE_ARRAY;
-                break;
-            case BSON_TOKEN_TYPE_BOOLEAN:
+                // Reset the numeric parse string state
+                u32 num_lit_len = string_length(numeric_literal_str);
+                bzero_memory(numeric_literal_str, sizeof(char) * num_lit_len);
+                expect_numeric = false;
+                numeric_decimal_pos = -1;
+                numeric_literal_str_pos = 0;
+
+                // Current value is set, so now expect another identifier or array element
+            }
+
+            // Don't expect a value after a newline
+            expect_value = current_object->type == BSON_OBJECT_TYPE_ARRAY;
+            expect_identifier = !expect_value;
+            break;
+        case BSON_TOKEN_TYPE_EOF:
+        {
+            b8 valid = true;
+            // Verify that we are not in the middle of assignment
+            if (expect_value || expect_operator || expect_numeric)
+                valid = false;
+            // Verify that the current depth is now 1 (to account for the base object)
+            if (scope.element_count > 1)
+                valid = false;
+
+            if (!valid)
             {
-                if (!expect_value)
-                {
-                    BERROR("Unexpected boolean token at position: %u", current_token->start);
-                    return false;
-                }
+                BERROR("Unexpected end of file at position: %u", current_token->start);
+                return false;
+            }
 
-                char* token_string = string_from_bson_token(parser->file_content, current_token);
-                b8 bool_value = false;
-                if (!string_to_bool(token_string, &bool_value))
-                    BERROR("Failed to parse boolean from token. Position: %u", current_token->start);
-                string_free(token_string);
-
-                if (current_object->type == BSON_OBJECT_TYPE_ARRAY)
-                {
-                    // Apply the value directly to a newly-created, non-named property that gets added to current_object
-                    bson_property p = {0};
-                    p.type = BSON_PROPERTY_TYPE_BOOLEAN;
-                    p.value.b = bool_value;
-                    p.name = INVALID_BSTRING_ID;
-                    darray_push(current_object->properties, p);
-                }
-                else
-                {
-                    current_property->type = BSON_PROPERTY_TYPE_BOOLEAN;
-                    current_property->value.b = bool_value;
-                }
-
-                expect_value = current_object->type == BSON_OBJECT_TYPE_ARRAY;
-            } break;
-            case BSON_TOKEN_TYPE_NEWLINE:
-                if (expect_numeric)
-                {
-                    // Terminate the numeric and set the current property's value to it
-                    bson_property p = {0};
-                    p.name = INVALID_BSTRING_ID;
-                    // Determine whether it is a float or a int
-                    if (string_index_of(numeric_literal_str, '.') != -1)
-                    {
-                        f32 f_value = 0;
-                        if (!string_to_f32(numeric_literal_str, &f_value))
-                        {
-                            BERROR("Failed to parse string to float: '%s', Position: %u", numeric_literal_str, current_token->start);
-                            return false;
-                        }
-                        p.value.f = f_value;
-                        p.type = BSON_PROPERTY_TYPE_FLOAT;
-                    }
-                    else
-                    {
-                        i64 i_value = 0;
-                        if (!string_to_i64(numeric_literal_str, &i_value))
-                        {
-                            BERROR("Failed to parse string to signed int: '%s', Position: %u", numeric_literal_str, current_token->start);
-                            return false;
-                        }
-                        p.value.i = i_value;
-                        p.type = BSON_PROPERTY_TYPE_INT;
-                    }
-
-                    if (current_object->type == BSON_OBJECT_TYPE_ARRAY)
-                    {
-                        // Apply the value directly to a newly-created, non-named property that gets added to current_object
-                        darray_push(current_object->properties, p);
-                    }
-                    else
-                    {
-                        current_property->type = p.type;
-                        current_property->value = p.value;
-                    }
-
-                    // Reset the numeric parse string state
-                    u32 num_lit_len = string_length(numeric_literal_str);
-                    bzero_memory(numeric_literal_str, sizeof(char) * num_lit_len);
-                    expect_numeric = false;
-                    numeric_decimal_pos = -1;
-                    numeric_literal_str_pos = 0;
-
-                    // Current value is set, so now expect another identifier or array element
-                }
-
-                // Don't expect a value after a newline
-                expect_value = current_object->type == BSON_OBJECT_TYPE_ARRAY;
-                expect_identifier = !expect_value;
-                break;
-            case BSON_TOKEN_TYPE_EOF:
-            {
-                b8 valid = true;
-                // Verify that we are not in the middle of assignment
-                if (expect_value || expect_operator || expect_numeric)
-                    valid = false;
-                // Verify that the current depth is now 1 (to account for the base object)
-                if (scope.element_count > 1)
-                    valid = false;
-
-                if (!valid)
-                {
-                    BERROR("Unexpected end of file at position: %u", current_token->start);
-                    return false;
-                }
-
-            } break;
+        } break;
         }
         index++;
         current_token = &parser->tokens[index];
@@ -1102,59 +1102,59 @@ static void bson_tree_object_to_string(const bson_object* obj, char* out_source,
             // Write the value
             switch (p->type)
             {
-                case BSON_PROPERTY_TYPE_OBJECT:
-                case BSON_PROPERTY_TYPE_ARRAY:
-                {
-                    // Opener/closer and newline based on type
-                    const char* opener = p->type == BSON_PROPERTY_TYPE_OBJECT ? "{\n" : "[\n";
-                    const char* closer = p->type == BSON_PROPERTY_TYPE_OBJECT ? "}\n" : "]\n";
-                    write_string(out_source, position, opener);
+            case BSON_PROPERTY_TYPE_OBJECT:
+            case BSON_PROPERTY_TYPE_ARRAY:
+            {
+                // Opener/closer and newline based on type
+                const char* opener = p->type == BSON_PROPERTY_TYPE_OBJECT ? "{\n" : "[\n";
+                const char* closer = p->type == BSON_PROPERTY_TYPE_OBJECT ? "}\n" : "]\n";
+                write_string(out_source, position, opener);
 
-                    bson_tree_object_to_string(&p->value.o, out_source, position, indent_level, indent_spaces);
+                bson_tree_object_to_string(&p->value.o, out_source, position, indent_level, indent_spaces);
 
-                    // Indent the closer
-                    write_spaces(out_source, position, indent_level * indent_spaces);
-                    write_string(out_source, position, closer);
-                } break;
-                case BSON_PROPERTY_TYPE_STRING:
+                // Indent the closer
+                write_spaces(out_source, position, indent_level * indent_spaces);
+                write_string(out_source, position, closer);
+            } break;
+            case BSON_PROPERTY_TYPE_STRING:
+            {
+                if (p->value.s)
                 {
-                    if (p->value.s)
-                    {
-                        // Surround the string with quotes and put a newline after
-                        write_string(out_source, position, "\"");
-                        write_string(out_source, position, p->value.s);
-                        write_string(out_source, position, "\"\n");
-                    }
-                    else
-                    {
-                        // Write an empty string
-                        write_string(out_source, position, "\"\"\n");
-                    }
-                } break;
-                case BSON_PROPERTY_TYPE_BOOLEAN:
+                    // Surround the string with quotes and put a newline after
+                    write_string(out_source, position, "\"");
+                    write_string(out_source, position, p->value.s);
+                    write_string(out_source, position, "\"\n");
+                }
+                else
                 {
-                    write_string(out_source, position, p->value.b ? "true" : "false");
-                    write_string(out_source, position, "\n");
-                } break;
-                case BSON_PROPERTY_TYPE_INT:
-                {
-                    char buffer[30] = {0};
-                    string_append_int(buffer, "", p->value.i);
-                    write_string(out_source, position, buffer);
-                    write_string(out_source, position, "\n");
-                } break;
-                case BSON_PROPERTY_TYPE_FLOAT:
-                {
-                    char buffer[30] = {0};
-                    string_append_float(buffer, "", p->value.f);
-                    write_string(out_source, position, buffer);
-                    write_string(out_source, position, "\n");
-                } break;
-                default:
-                case BSON_PROPERTY_TYPE_UNKNOWN:
-                {
-                    BWARN("bson_tree_object_to_string encountered an unknown property type");
-                } break;
+                    // Write an empty string
+                    write_string(out_source, position, "\"\"\n");
+                }
+            } break;
+            case BSON_PROPERTY_TYPE_BOOLEAN:
+            {
+                write_string(out_source, position, p->value.b ? "true" : "false");
+                write_string(out_source, position, "\n");
+            } break;
+            case BSON_PROPERTY_TYPE_INT:
+            {
+                char buffer[30] = {0};
+                string_append_int(buffer, "", p->value.i);
+                write_string(out_source, position, buffer);
+                write_string(out_source, position, "\n");
+            } break;
+            case BSON_PROPERTY_TYPE_FLOAT:
+            {
+                char buffer[30] = {0};
+                string_append_float(buffer, "", p->value.f);
+                write_string(out_source, position, buffer);
+                write_string(out_source, position, "\n");
+            } break;
+            default:
+            case BSON_PROPERTY_TYPE_UNKNOWN:
+            {
+                BWARN("bson_tree_object_to_string encountered an unknown property type");
+            } break;
             }
         }
     }
@@ -1185,34 +1185,34 @@ void bson_object_cleanup(bson_object* obj)
             bson_property* p = &obj->properties[i];
             switch (p->type)
             {
-                case BSON_PROPERTY_TYPE_OBJECT:
+            case BSON_PROPERTY_TYPE_OBJECT:
+            {
+                bson_object_cleanup(&p->value.o);
+            } break;
+            case BSON_PROPERTY_TYPE_ARRAY:
+            {
+                bson_object_cleanup(&p->value.o);
+            } break;
+            case BSON_PROPERTY_TYPE_STRING:
+            {
+                if (p->value.s)
                 {
-                    bson_object_cleanup(&p->value.o);
-                } break;
-                case BSON_PROPERTY_TYPE_ARRAY:
-                {
-                    bson_object_cleanup(&p->value.o);
-                } break;
-                case BSON_PROPERTY_TYPE_STRING:
-                {
-                    if (p->value.s)
-                    {
-                        string_free((char*)p->value.s);
-                        p->value.s = 0;
-                    }
-                } break;
-                case BSON_PROPERTY_TYPE_BOOLEAN:
-                case BSON_PROPERTY_TYPE_FLOAT:
-                case BSON_PROPERTY_TYPE_INT:
-                {
-                    // no-op
-                } break;
-                default:
-                case BSON_PROPERTY_TYPE_UNKNOWN:
-                {
-                    BWARN("bson_tree_object_cleanup encountered an unknown property type");
-                    BWARN("Ensure the same object wasn't added more than once somewhere in code");
-                } break;
+                    string_free((char*)p->value.s);
+                    p->value.s = 0;
+                }
+            } break;
+            case BSON_PROPERTY_TYPE_BOOLEAN:
+            case BSON_PROPERTY_TYPE_FLOAT:
+            case BSON_PROPERTY_TYPE_INT:
+            {
+                // no-op
+            } break;
+            default:
+            case BSON_PROPERTY_TYPE_UNKNOWN:
+            {
+                BWARN("bson_tree_object_cleanup encountered an unknown property type");
+                BWARN("Ensure the same object wasn't added more than once somewhere in code");
+            } break;
             }
         }
         darray_destroy(obj->properties);

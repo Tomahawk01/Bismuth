@@ -1266,109 +1266,109 @@ b8 material_system_apply(material_system_state* state, bhandle material, frame_d
     }
         return true;
     case BMATERIAL_TYPE_WATER: {
-            shader = state->material_water_shader;
-            shader_system_use(shader);
+        shader = state->material_water_shader;
+        shader_system_use(shader);
 
-            // per-group - ensure this is done once per frame per material
+        // per-group - ensure this is done once per frame per material
 
-            // bind per-group
-            if (!shader_system_bind_group(material, base_material->group_id))
-            {
-                BERROR("Failed to bind water material shader group");
-                return false;
-            }
-
-            // Setup frame data UBO structure to send over
-            material_water_group_uniform_data group_ubo = {0};
-            group_ubo.flags = base_material->flags;
-
-            group_ubo.lighting_model = (u32)base_material->model;
-
-            // FIXME: Light data should be per-frame, and for the entire scene, then indexed at the per-draw level. Light count and list of indices into the light array would be per-draw
-            // TODO: These should be stored in a SSBO
-
-            // Directional light
-            directional_light* dir_light = light_system_directional_light_get();
-            if (dir_light)
-            {
-                group_ubo.dir_light = dir_light->data;
-            }
-            else
-            {
-                BERROR("Failed to bind material shader group.");
-                return false;
-                bzero_memory(&group_ubo.dir_light, sizeof(directional_light_data));
-            }
-            // Point lights
-            group_ubo.num_p_lights = BMIN(light_system_point_light_count(), MATERIAL_MAX_POINT_LIGHTS);
-            if (group_ubo.num_p_lights)
-            {
-                point_light p_lights[MATERIAL_MAX_POINT_LIGHTS];
-                bzero_memory(p_lights, sizeof(point_light) * MATERIAL_MAX_POINT_LIGHTS);
-                light_system_point_lights_get(p_lights);
-                for (u32 i = 0; i < group_ubo.num_p_lights; ++i)
-                {
-                    group_ubo.p_lights[i] = p_lights[i].data;
-                }
-            }
-
-            // Reflection texture
-            if (base_material->reflection_texture)
-            {
-                shader_system_uniform_set_by_location_arrayed(shader, state->water_material_locations.material_textures, MAT_WATER_IDX_REFLECTION, &base_material->reflection_texture);
-            }
-            else
-            {
-                BFATAL("Water material shader requires a reflection texture");
-            }
-
-            // Refraction texture
-            if (base_material->refraction_texture)
-            {
-                shader_system_uniform_set_by_location_arrayed(shader, state->water_material_locations.material_textures, MAT_WATER_IDX_REFRACTION, &base_material->refraction_texture);
-            }
-            else
-            {
-                BFATAL("Water material shader requires a refraction texture");
-            }
-
-            // Refraction depth texture
-            if (base_material->refraction_depth_texture)
-            {
-                shader_system_uniform_set_by_location_arrayed(shader, state->water_material_locations.material_textures, MAT_WATER_IDX_REFRACTION_DEPTH, &base_material->refraction_depth_texture);
-            }
-            else
-            {
-                BFATAL("Water material shader requires a refraction depth texture");
-            }
-
-            // DUDV texture
-            if (base_material->dudv_texture)
-            {
-                shader_system_uniform_set_by_location_arrayed(shader, state->water_material_locations.material_textures, MAT_WATER_IDX_DUDV, &base_material->dudv_texture);
-            }
-            else
-            {
-                BFATAL("Water material shader requires a dudv texture");
-            }
-
-            // Normal texture
-            if (base_material->normal_texture)
-            {
-                shader_system_uniform_set_by_location_arrayed(shader, state->water_material_locations.material_textures, MAT_WATER_IDX_NORMAL, &base_material->normal_texture);
-            }
-            else
-            {
-                BFATAL("Water material shader requires a normal texture");
-            }
-
-            // Set the whole thing at once
-            shader_system_uniform_set_by_location(shader, state->water_material_locations.material_group_ubo, &group_ubo);
-
-            // Apply/upload them to the GPU
-            shader_system_apply_per_group(shader, base_material->generation);
+        // bind per-group
+        if (!shader_system_bind_group(material, base_material->group_id))
+        {
+            BERROR("Failed to bind water material shader group");
+            return false;
         }
-        return false;
+
+        // Setup frame data UBO structure to send over
+        material_water_group_uniform_data group_ubo = {0};
+        group_ubo.flags = base_material->flags;
+
+        group_ubo.lighting_model = (u32)base_material->model;
+
+        // FIXME: Light data should be per-frame, and for the entire scene, then indexed at the per-draw level. Light count and list of indices into the light array would be per-draw
+        // TODO: These should be stored in a SSBO
+
+        // Directional light
+        directional_light* dir_light = light_system_directional_light_get();
+        if (dir_light)
+        {
+            group_ubo.dir_light = dir_light->data;
+        }
+        else
+        {
+            BERROR("Failed to bind material shader group.");
+            return false;
+            bzero_memory(&group_ubo.dir_light, sizeof(directional_light_data));
+        }
+        // Point lights
+        group_ubo.num_p_lights = BMIN(light_system_point_light_count(), MATERIAL_MAX_POINT_LIGHTS);
+        if (group_ubo.num_p_lights)
+        {
+            point_light p_lights[MATERIAL_MAX_POINT_LIGHTS];
+            bzero_memory(p_lights, sizeof(point_light) * MATERIAL_MAX_POINT_LIGHTS);
+            light_system_point_lights_get(p_lights);
+            for (u32 i = 0; i < group_ubo.num_p_lights; ++i)
+            {
+                group_ubo.p_lights[i] = p_lights[i].data;
+            }
+        }
+
+        // Reflection texture
+        if (base_material->reflection_texture)
+        {
+            shader_system_uniform_set_by_location_arrayed(shader, state->water_material_locations.material_textures, MAT_WATER_IDX_REFLECTION, &base_material->reflection_texture);
+        }
+        else
+        {
+            BFATAL("Water material shader requires a reflection texture");
+        }
+
+        // Refraction texture
+        if (base_material->refraction_texture)
+        {
+            shader_system_uniform_set_by_location_arrayed(shader, state->water_material_locations.material_textures, MAT_WATER_IDX_REFRACTION, &base_material->refraction_texture);
+        }
+        else
+        {
+            BFATAL("Water material shader requires a refraction texture");
+        }
+
+        // Refraction depth texture
+        if (base_material->refraction_depth_texture)
+        {
+            shader_system_uniform_set_by_location_arrayed(shader, state->water_material_locations.material_textures, MAT_WATER_IDX_REFRACTION_DEPTH, &base_material->refraction_depth_texture);
+        }
+        else
+        {
+            BFATAL("Water material shader requires a refraction depth texture");
+        }
+
+        // DUDV texture
+        if (base_material->dudv_texture)
+        {
+            shader_system_uniform_set_by_location_arrayed(shader, state->water_material_locations.material_textures, MAT_WATER_IDX_DUDV, &base_material->dudv_texture);
+        }
+        else
+        {
+            BFATAL("Water material shader requires a dudv texture");
+        }
+
+        // Normal texture
+        if (base_material->normal_texture)
+        {
+            shader_system_uniform_set_by_location_arrayed(shader, state->water_material_locations.material_textures, MAT_WATER_IDX_NORMAL, &base_material->normal_texture);
+        }
+        else
+        {
+            BFATAL("Water material shader requires a normal texture");
+        }
+
+        // Set the whole thing at once
+        shader_system_uniform_set_by_location(shader, state->water_material_locations.material_group_ubo, &group_ubo);
+
+        // Apply/upload them to the GPU
+        shader_system_apply_per_group(shader, base_material->generation);
+    }
+    return false;
     case BMATERIAL_TYPE_BLENDED:
         shader = state->material_blended_shader;
         return false;
@@ -1421,36 +1421,36 @@ b8 material_system_apply_instance(material_system_state* state, const material_i
         // apply per-draw
         shader_system_apply_per_draw(shader, mat_inst_data->generation);
     }
-        return true;
+    return true;
     case BMATERIAL_TYPE_WATER: {
-            shader = state->material_water_shader;
+        shader = state->material_water_shader;
 
-            // per-draw - this gets run every time apply is called
+        // per-draw - this gets run every time apply is called
 
-            // bind per-draw
-            if (!shader_system_bind_draw_id(shader, mat_inst_data->per_draw_id))
-            {
-                BERROR("Failed to bind water material shader draw id");
-                return false;
-            }
-
-            // Update uniform data
-            material_water_draw_uniform_data draw_ubo = {0};
-            draw_ubo.model = draw_data.model;
-            draw_ubo.irradiance_cubemap_index = draw_data.irradiance_cubemap_index;
-            draw_ubo.view_index = draw_data.view_index;
-            // TODO: Pull in instance-specific overrides for these, if set
-            draw_ubo.tiling = base_material->tiling;
-            draw_ubo.wave_speed = base_material->wave_speed;
-            draw_ubo.wave_strength = base_material->wave_strength;
-
-            // Set the whole thing at once
-            shader_system_uniform_set_by_location(shader, state->water_material_locations.material_draw_ubo, &draw_ubo);
-
-            // apply per-draw
-            shader_system_apply_per_draw(shader, mat_inst_data->generation);
+        // bind per-draw
+        if (!shader_system_bind_draw_id(shader, mat_inst_data->per_draw_id))
+        {
+            BERROR("Failed to bind water material shader draw id");
+            return false;
         }
-        return false;
+
+        // Update uniform data
+        material_water_draw_uniform_data draw_ubo = {0};
+        draw_ubo.model = draw_data.model;
+        draw_ubo.irradiance_cubemap_index = draw_data.irradiance_cubemap_index;
+        draw_ubo.view_index = draw_data.view_index;
+        // TODO: Pull in instance-specific overrides for these, if set
+        draw_ubo.tiling = base_material->tiling;
+        draw_ubo.wave_speed = base_material->wave_speed;
+        draw_ubo.wave_strength = base_material->wave_strength;
+
+        // Set the whole thing at once
+        shader_system_uniform_set_by_location(shader, state->water_material_locations.material_draw_ubo, &draw_ubo);
+
+        // apply per-draw
+        shader_system_apply_per_draw(shader, mat_inst_data->generation);
+    }
+    return false;
     case BMATERIAL_TYPE_BLENDED:
         shader = state->material_blended_shader;
         return false;

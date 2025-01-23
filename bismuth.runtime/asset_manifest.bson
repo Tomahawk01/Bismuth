@@ -62,7 +62,6 @@ assets = [
         name = "Shader.Pick_Terrain_vert"
         path = "assets/shaders/Shader.Pick_Terrain_vert.glsl"
     }
-
     {
         name = "Shader.Shadow_StaticMesh"
         path = "assets/shaders/Shader.Shadow_StaticMesh.bsc"

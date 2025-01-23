@@ -31,10 +31,10 @@ struct point_light
 
 // Used to convert from NDC -> UVW by taking the x/y components and transforming them: xy *= 0.5 + 0.5
 const mat4 ndc_to_uvw = mat4( 
-	0.5, 0.0, 0.0, 0.0,
-	0.0, 0.5, 0.0, 0.0,
-	0.0, 0.0, 1.0, 0.0,
-	0.5, 0.5, 0.0, 1.0 
+    0.5, 0.0, 0.0, 0.0,
+    0.0, 0.5, 0.0, 0.0,
+    0.0, 0.0, 1.0, 0.0,
+    0.5, 0.5, 0.0, 1.0 
 );
 
 // =========================================================
@@ -51,10 +51,10 @@ layout(location = 4) in vec3 in_tangent;
 // per-frame
 layout(set = 0, binding = 0) uniform per_frame_ubo
 {
-	// Light space for shadow mapping. Per cascade
+    // Light space for shadow mapping. Per cascade
     mat4 directional_light_spaces[MATERIAL_MAX_SHADOW_CASCADES]; // 256 bytes
     mat4 projection;
-	mat4 views[MATERIAL_MAX_VIEWS];
+    mat4 views[MATERIAL_MAX_VIEWS];
     vec4 view_positions[MATERIAL_MAX_VIEWS];
     float cascade_splits[MATERIAL_MAX_SHADOW_CASCADES];
     float shadow_bias;
@@ -115,14 +115,14 @@ layout(push_constant) uniform per_draw_ubo
 // Data Transfer Object to fragment shader
 layout(location = 0) out dto
 {
-	vec4 frag_position;
-	vec4 light_space_frag_pos[MATERIAL_MAX_SHADOW_CASCADES];
+    vec4 frag_position;
+    vec4 light_space_frag_pos[MATERIAL_MAX_SHADOW_CASCADES];
     vec4 vertex_color;
-	vec3 normal;
-	uint metallic_texture_channel;
-	vec3 tangent;
-	uint roughness_texture_channel;
-	vec2 tex_coord;
+    vec3 normal;
+    uint metallic_texture_channel;
+    vec3 tangent;
+    uint roughness_texture_channel;
+    vec2 tex_coord;
     uint ao_texture_channel;
     uint unused_texture_channel;
 } out_dto;
@@ -131,27 +131,27 @@ void unpack_u32(uint n, out uint x, out uint y, out uint z, out uint w);
 
 void main()
 {
-	out_dto.tex_coord = in_texcoord;
-	out_dto.vertex_color = in_color;
-	// Fragment position in world space
-	out_dto.frag_position = material_draw_ubo.model * vec4(in_position, 1.0);
-	// Copy the normal over
-	mat3 m3_model = mat3(material_draw_ubo.model);
-	out_dto.normal = normalize(m3_model * in_normal);
-	out_dto.tangent = normalize(m3_model * in_tangent);
-	gl_Position = material_frame_ubo.projection * material_frame_ubo.views[material_draw_ubo.view_index] * material_draw_ubo.model * vec4(in_position, 1.0);
+    out_dto.tex_coord = in_texcoord;
+    out_dto.vertex_color = in_color;
+    // Fragment position in world space
+    out_dto.frag_position = material_draw_ubo.model * vec4(in_position, 1.0);
+    // Copy the normal over
+    mat3 m3_model = mat3(material_draw_ubo.model);
+    out_dto.normal = normalize(m3_model * in_normal);
+    out_dto.tangent = normalize(m3_model * in_tangent);
+    gl_Position = material_frame_ubo.projection * material_frame_ubo.views[material_draw_ubo.view_index] * material_draw_ubo.model * vec4(in_position, 1.0);
 
-	// Apply clipping plane
-	vec4 world_position = material_draw_ubo.model * vec4(in_position, 1.0);
-	gl_ClipDistance[0] = dot(world_position, material_draw_ubo.clipping_plane);
+    // Apply clipping plane
+    vec4 world_position = material_draw_ubo.model * vec4(in_position, 1.0);
+    gl_ClipDistance[0] = dot(world_position, material_draw_ubo.clipping_plane);
 
-	// Get a light-space-transformed fragment positions
-	for(int i = 0; i < MATERIAL_MAX_SHADOW_CASCADES; ++i)
-	{
-	    out_dto.light_space_frag_pos[i] = (ndc_to_uvw * material_frame_ubo.directional_light_spaces[i]) * out_dto.frag_position;
+    // Get a light-space-transformed fragment positions
+    for(int i = 0; i < MATERIAL_MAX_SHADOW_CASCADES; ++i)
+    {
+        out_dto.light_space_frag_pos[i] = (ndc_to_uvw * material_frame_ubo.directional_light_spaces[i]) * out_dto.frag_position;
     }
 
-	// Unpack texture map channels
+    // Unpack texture map channels
     unpack_u32(material_group_ubo.texture_channels, out_dto.metallic_texture_channel, out_dto.roughness_texture_channel, out_dto.ao_texture_channel, out_dto.unused_texture_channel);
 }
 

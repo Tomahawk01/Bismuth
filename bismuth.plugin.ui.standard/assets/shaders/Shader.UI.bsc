@@ -1,6 +1,6 @@
 version = 1
 
-cull_mode=none
+cull_mode="none"
 depth_test=false
 depth_write=false
 stencil_test=true
