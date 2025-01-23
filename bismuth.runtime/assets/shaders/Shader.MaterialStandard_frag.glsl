@@ -80,7 +80,7 @@ layout(set = 0, binding = 0) uniform per_frame_ubo
     uint use_pcf;
     float delta_time;
     float game_time;
-    vec3 padding;
+    vec2 padding;
 } material_frame_ubo;
 layout(set = 0, binding = 1) uniform texture2DArray shadow_texture;
 layout(set = 0, binding = 2) uniform textureCube irradiance_textures[MATERIAL_MAX_IRRADIANCE_CUBEMAP_COUNT];
@@ -188,6 +188,10 @@ void main()
         if(flag_get(material_group_ubo.tex_flags, MATERIAL_STANDARD_FLAG_USE_BASE_COLOR_TEX))
         {
             base_color_samp = texture(sampler2D(material_textures[MAT_STANDARD_IDX_BASE_COLOR], material_samplers[MAT_STANDARD_IDX_BASE_COLOR]), in_dto.tex_coord);
+        }
+        else
+        {
+            base_color_samp = material_group_ubo.base_color;
         }
     }
     vec3 albedo = pow(base_color_samp.rgb, vec3(2.2));

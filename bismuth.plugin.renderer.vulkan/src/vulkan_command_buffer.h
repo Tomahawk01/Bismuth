@@ -7,7 +7,8 @@ void vulkan_command_buffer_allocate(
     VkCommandPool pool,
     b8 is_primary,
     const char* name,
-    vulkan_command_buffer* out_command_buffer);
+    vulkan_command_buffer* out_command_buffer,
+    u32 secondary_buffer_count);
 
 void vulkan_command_buffer_free(
     vulkan_context* context,
@@ -22,7 +23,16 @@ void vulkan_command_buffer_begin(
 
 void vulkan_command_buffer_end(vulkan_command_buffer* command_buffer);
 
-void vulkan_command_buffer_update_submitted(vulkan_command_buffer* command_buffer);
+b8 vulkan_command_buffer_submit(
+    vulkan_command_buffer* command_buffer,
+    VkQueue queue,
+    u32 signal_semaphore_count,
+    VkSemaphore* signal_semaphores,
+    u32 wait_semaphore_count,
+    VkSemaphore* wait_semaphores,
+    VkFence fence);
+
+void vulkan_command_buffer_execute_secondary(vulkan_command_buffer* secondary);
 
 void vulkan_command_buffer_reset(vulkan_command_buffer* command_buffer);
 

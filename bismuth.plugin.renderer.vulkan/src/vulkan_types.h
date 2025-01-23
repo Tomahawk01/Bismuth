@@ -144,8 +144,6 @@ typedef struct vulkan_swapchain
 {
     VkSurfaceFormatKHR image_format;
 
-    u8 max_frames_in_flight;
-
     renderer_config_flags flags;
 
     VkSwapchainKHR handle;
@@ -175,6 +173,11 @@ typedef struct vulkan_command_buffer
 {
     VkCommandBuffer handle;
 
+#ifdef BISMUTH_DEBUG
+    // Name, kept for debugging purposes
+    const char* name;
+#endif
+
     // Command buffer state
     vulkan_command_buffer_state state;
 
@@ -188,8 +191,8 @@ typedef struct vulkan_command_buffer
 
     // The currently selected secondary buffer index
     u16 secondary_buffer_index;
-    // Indicates if the command buffer selected secondary buffer index
-    b8 in_render;
+    // Indicates if a secondary command buffer is currently being recorded to
+    b8 in_secondary;
 
     // A pointer to the parent (primary) command buffer, if there is one. Only applies to secondary buffers
     struct vulkan_command_buffer* parent;
@@ -427,6 +430,9 @@ typedef struct bwindow_renderer_backend_state
     /** @brief The current frame index ( % by max_frames_in_flight) */
     u32 current_frame;
 
+    /** @brief Indicates the max number of frames in flight. 1 for double-buffering, 2 for triple-buffering */
+    u8 max_frames_in_flight;
+
     /** @brief Indicates if the swapchain is currently being recreated */
     b8 recreating_swapchain;
 
@@ -523,6 +529,9 @@ typedef struct vulkan_context
     b8 validation_enabled;
 
     b8 multithreading_enabled;
+
+    /** @brief Indicates if triple-buffering is enabled (requested) */
+    b8 triple_buffering_enabled;
 
     // Collection of samplers. darray
     vulkan_sampler_handle_data* samplers;

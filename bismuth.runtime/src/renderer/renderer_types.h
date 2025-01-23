@@ -175,6 +175,7 @@ typedef struct renderer_backend_config
     renderer_config_flags flags;
 
     u16 max_shader_count;
+    b8 use_triple_buffering;
 } renderer_backend_config;
 
 typedef enum renderer_winding

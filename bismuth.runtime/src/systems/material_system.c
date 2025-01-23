@@ -198,7 +198,7 @@ typedef struct material_standard_frame_uniform_data
     u32 use_pcf;
     f32 delta_time;
     f32 game_time;
-    vec3 padding;
+    vec2 padding;
 } material_standard_frame_uniform_data;
 
 // Standard Material Per-group UBO data
@@ -456,49 +456,59 @@ b8 material_system_initialize(u64* memory_requirement, material_system_state* st
         mat_std_shader.uniforms = BALLOC_TYPE_CARRAY(basset_shader_uniform, mat_std_shader.uniform_count);
 
         // per_frame
-        mat_std_shader.uniforms[0].name = "material_frame_ubo";
-        mat_std_shader.uniforms[0].type = SHADER_UNIFORM_TYPE_STRUCT;
-        mat_std_shader.uniforms[0].size = sizeof(material_standard_frame_uniform_data);
-        mat_std_shader.uniforms[0].frequency = SHADER_UPDATE_FREQUENCY_PER_FRAME;
+        u32 uidx = 0;
+        mat_std_shader.uniforms[uidx].name = "material_frame_ubo";
+        mat_std_shader.uniforms[uidx].type = SHADER_UNIFORM_TYPE_STRUCT;
+        mat_std_shader.uniforms[uidx].size = sizeof(material_standard_frame_uniform_data);
+        mat_std_shader.uniforms[uidx].frequency = SHADER_UPDATE_FREQUENCY_PER_FRAME;
+        uidx++;
 
-        mat_std_shader.uniforms[1].name = "shadow_texture";
-        mat_std_shader.uniforms[1].type = SHADER_UNIFORM_TYPE_TEXTURE_2D_ARRAY;
-        mat_std_shader.uniforms[1].frequency = SHADER_UPDATE_FREQUENCY_PER_FRAME;
+        mat_std_shader.uniforms[uidx].name = "shadow_texture";
+        mat_std_shader.uniforms[uidx].type = SHADER_UNIFORM_TYPE_TEXTURE_2D_ARRAY;
+        mat_std_shader.uniforms[uidx].frequency = SHADER_UPDATE_FREQUENCY_PER_FRAME;
+        uidx++;
 
-        mat_std_shader.uniforms[2].name = "irradiance_cube_textures";
-        mat_std_shader.uniforms[2].type = SHADER_UNIFORM_TYPE_TEXTURE_CUBE;
-        mat_std_shader.uniforms[2].array_size = MATERIAL_MAX_IRRADIANCE_CUBEMAP_COUNT;
-        mat_std_shader.uniforms[2].frequency = SHADER_UPDATE_FREQUENCY_PER_FRAME;
+        mat_std_shader.uniforms[uidx].name = "irradiance_cube_textures";
+        mat_std_shader.uniforms[uidx].type = SHADER_UNIFORM_TYPE_TEXTURE_CUBE;
+        mat_std_shader.uniforms[uidx].array_size = MATERIAL_MAX_IRRADIANCE_CUBEMAP_COUNT;
+        mat_std_shader.uniforms[uidx].frequency = SHADER_UPDATE_FREQUENCY_PER_FRAME;
+        uidx++;
 
-        mat_std_shader.uniforms[3].name = "shadow_sampler";
-        mat_std_shader.uniforms[3].type = SHADER_UNIFORM_TYPE_SAMPLER;
-        mat_std_shader.uniforms[3].frequency = SHADER_UPDATE_FREQUENCY_PER_FRAME;
+        mat_std_shader.uniforms[uidx].name = "shadow_sampler";
+        mat_std_shader.uniforms[uidx].type = SHADER_UNIFORM_TYPE_SAMPLER;
+        mat_std_shader.uniforms[uidx].frequency = SHADER_UPDATE_FREQUENCY_PER_FRAME;
+        uidx++;
 
-        mat_std_shader.uniforms[4].name = "irradiance_sampler";
-        mat_std_shader.uniforms[4].type = SHADER_UNIFORM_TYPE_SAMPLER;
-        mat_std_shader.uniforms[4].frequency = SHADER_UPDATE_FREQUENCY_PER_FRAME;
+        mat_std_shader.uniforms[uidx].name = "irradiance_sampler";
+        mat_std_shader.uniforms[uidx].type = SHADER_UNIFORM_TYPE_SAMPLER;
+        mat_std_shader.uniforms[uidx].frequency = SHADER_UPDATE_FREQUENCY_PER_FRAME;
+        uidx++;
 
         // per_group
-        mat_std_shader.uniforms[5].name = "material_textures";
-        mat_std_shader.uniforms[5].type = SHADER_UNIFORM_TYPE_TEXTURE_2D;
-        mat_std_shader.uniforms[5].array_size = MATERIAL_STANDARD_TEXTURE_COUNT;
-        mat_std_shader.uniforms[5].frequency = SHADER_UPDATE_FREQUENCY_PER_GROUP;
+        mat_std_shader.uniforms[uidx].name = "material_group_ubo";
+        mat_std_shader.uniforms[uidx].type = SHADER_UNIFORM_TYPE_STRUCT;
+        mat_std_shader.uniforms[uidx].size = sizeof(material_standard_group_uniform_data);
+        mat_std_shader.uniforms[uidx].frequency = SHADER_UPDATE_FREQUENCY_PER_GROUP;
+        uidx++;
 
-        mat_std_shader.uniforms[6].name = "material_samplers";
-        mat_std_shader.uniforms[6].type = SHADER_UNIFORM_TYPE_SAMPLER;
-        mat_std_shader.uniforms[6].array_size = MATERIAL_STANDARD_SAMPLER_COUNT;
-        mat_std_shader.uniforms[6].frequency = SHADER_UPDATE_FREQUENCY_PER_GROUP;
+        mat_std_shader.uniforms[uidx].name = "material_textures";
+        mat_std_shader.uniforms[uidx].type = SHADER_UNIFORM_TYPE_TEXTURE_2D;
+        mat_std_shader.uniforms[uidx].array_size = MATERIAL_STANDARD_TEXTURE_COUNT;
+        mat_std_shader.uniforms[uidx].frequency = SHADER_UPDATE_FREQUENCY_PER_GROUP;
+        uidx++;
 
-        mat_std_shader.uniforms[7].name = "material_group_ubo";
-        mat_std_shader.uniforms[7].type = SHADER_UNIFORM_TYPE_STRUCT;
-        mat_std_shader.uniforms[7].size = sizeof(material_standard_group_uniform_data);
-        mat_std_shader.uniforms[7].frequency = SHADER_UPDATE_FREQUENCY_PER_GROUP;
+        mat_std_shader.uniforms[uidx].name = "material_samplers";
+        mat_std_shader.uniforms[uidx].type = SHADER_UNIFORM_TYPE_SAMPLER;
+        mat_std_shader.uniforms[uidx].array_size = MATERIAL_STANDARD_SAMPLER_COUNT;
+        mat_std_shader.uniforms[uidx].frequency = SHADER_UPDATE_FREQUENCY_PER_GROUP;
+        uidx++;
 
         // per_draw
-        mat_std_shader.uniforms[8].name = "material_draw_ubo";
-        mat_std_shader.uniforms[8].type = SHADER_UNIFORM_TYPE_STRUCT;
-        mat_std_shader.uniforms[8].size = sizeof(material_standard_draw_uniform_data);
-        mat_std_shader.uniforms[8].frequency = SHADER_UPDATE_FREQUENCY_PER_DRAW;
+        mat_std_shader.uniforms[uidx].name = "material_draw_ubo";
+        mat_std_shader.uniforms[uidx].type = SHADER_UNIFORM_TYPE_STRUCT;
+        mat_std_shader.uniforms[uidx].size = sizeof(material_standard_draw_uniform_data);
+        mat_std_shader.uniforms[uidx].frequency = SHADER_UPDATE_FREQUENCY_PER_DRAW;
+        uidx++;
 
         // Serialize
         const char* config_source = basset_shader_serialize((basset*)&mat_std_shader);
@@ -1179,6 +1189,13 @@ b8 material_system_apply(material_system_state* state, bhandle material, frame_d
         }
 
         // Inputs - Bind the texture if used
+        const char* n = bname_string_get(base_material->name);
+        if (n)
+        {
+            // TODO: remove this
+            // base_material->name == 9915642719336865037 || base_material-> name == 768219666871114128
+        }
+
         // Base color
         if (base_material->base_color_texture)
         {
@@ -2278,9 +2295,9 @@ static b8 material_on_event(u16 code, void* sender, void* listener_inst, event_c
             if (!texture_system_resize(material->refraction_texture, width, height, true))
                 BERROR("Failed to resize refraction color texture for material");
         }
-        if (material->reflection_depth_texture->base.generation != INVALID_ID_U8)
+        if (material->refraction_depth_texture->base.generation != INVALID_ID_U8)
         {
-            if (!texture_system_resize(material->reflection_depth_texture, width, height, true))
+            if (!texture_system_resize(material->refraction_depth_texture, width, height, true))
                 BERROR("Failed to resize refraction depth texture for material");
         }
     }

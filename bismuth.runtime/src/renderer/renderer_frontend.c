@@ -117,6 +117,12 @@ b8 renderer_system_deserialize_config(const char* config_str, renderer_system_co
         out_config->power_saving = true;
     }
 
+    if (!bson_object_property_value_get_bool(&tree.root, "triple_buffering_enabled", &out_config->triple_buffering_enabled))
+    {
+        // Default to false if not defined
+        out_config->triple_buffering_enabled = false;
+    }
+
     i64 max_shader_count = 0;
     if (!bson_object_property_value_get_int(&tree.root, "max_shader_count", &max_shader_count))
     {
@@ -175,6 +181,7 @@ b8 renderer_system_initialize(u64* memory_requirement, renderer_system_state* st
     renderer_backend_config renderer_config = {};
     renderer_config.application_name = config->application_name;
     renderer_config.flags = 0;
+    renderer_config.use_triple_buffering = config->triple_buffering_enabled;
     renderer_config.max_shader_count = config->max_shader_count;
     if (config->vsync)
         renderer_config.flags |= RENDERER_CONFIG_FLAG_VSYNC_ENABLED_BIT;

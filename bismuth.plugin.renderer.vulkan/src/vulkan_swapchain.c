@@ -127,8 +127,6 @@ static b8 create(renderer_backend_interface* backend, bwindow* window, renderer_
     u32 image_count = context->device.swapchain_support.capabilities.minImageCount + 1;
     if (context->device.swapchain_support.capabilities.maxImageCount > 0 && image_count > context->device.swapchain_support.capabilities.maxImageCount)
         image_count = context->device.swapchain_support.capabilities.maxImageCount;
-    
-    swapchain->max_frames_in_flight = image_count - 1;
 
     // Swapchain create info
     VkSwapchainCreateInfoKHR swapchain_create_info = {VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR};
