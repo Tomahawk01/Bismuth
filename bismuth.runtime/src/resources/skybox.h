@@ -27,7 +27,10 @@ typedef struct skybox
     bgeometry geometry;
     u32 group_id;
     u16 skybox_shader_group_data_generation;
-    u8 draw_index;
+    
+    u32 draw_id;
+    /** @brief The skybox shader's draw data generation */
+    u16 skybox_shader_draw_data_generation;
 } skybox;
 
 BAPI b8 skybox_create(skybox_config config, skybox* out_skybox);

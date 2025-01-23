@@ -153,6 +153,12 @@ typedef struct vulkan_swapchain
 
     // Track the owning window in case something is needed from it
     struct bwindow* owning_window;
+
+    /** @brief Supports being used as a blit destination */
+    b8 supports_blit_dest;
+
+    /** @brief Supports being used as a blit source */
+    b8 supports_blit_src;
 } vulkan_swapchain;
 
 typedef enum vulkan_command_buffer_state

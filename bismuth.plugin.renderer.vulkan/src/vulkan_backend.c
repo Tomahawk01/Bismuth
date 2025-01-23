@@ -2001,18 +2001,22 @@ b8 vulkan_renderer_shader_create(renderer_backend_interface* backend, bhandle sh
             break;
         }
 
+        u32 tex_samp_index = 0;
         if (is_texture)
         {
+            tex_samp_index = info->uniform_texture_count;
             info->uniform_texture_count++;
             darray_push(info->texture_indices, i);
         }
         else if (is_sampler)
         {
+            tex_samp_index = info->uniform_sampler_count;
             info->uniform_sampler_count++;
             darray_push(info->sampler_indices, i);
         }
         else
         {
+            tex_samp_index = info->uniform_count;
             uniform_size = (u_config->size * (u_config->array_length ? u_config->array_length : 1));
             info->uniform_count++;
         }
@@ -2022,6 +2026,7 @@ b8 vulkan_renderer_shader_create(renderer_backend_interface* backend, bhandle sh
         uniform->name =  u_config->name;
         uniform->offset = info->ubo_size;
         uniform->location = u_config->location;
+        uniform->tex_samp_index = tex_samp_index;
         uniform->size = u_config->size;
         uniform->frequency = u_config->frequency;
         uniform->type = u_config->type;
@@ -2900,32 +2905,6 @@ b8 vulkan_renderer_shader_per_draw_resources_release(renderer_backend_interface*
     return release_shader_frequency_state(context, &context->shaders[shader.handle_index], SHADER_UPDATE_FREQUENCY_PER_DRAW, per_draw_id);
 }
 
-static b8 texture_state_try_set(vulkan_uniform_texture_state* texture_uniforms, u32 texture_count, u16 uniform_location, u32 array_index, bhandle value)
-{
-    // Find the texture uniform state to update
-    for (u32 i = 0; i < texture_count; ++i)
-    {
-        vulkan_uniform_texture_state* texture_state = &texture_uniforms[i];
-        if (texture_state->uniform.location == uniform_location)
-        {
-            u32 index = (texture_state->uniform.array_length > 1) ? array_index : 0;
-            if (index && index >= texture_state->uniform.array_length)
-            {
-                BERROR("vulkan_renderer_uniform_set error: index (%u) is out of range (0-%u)", index, texture_state->uniform.array_length);
-                return false;
-            }
-
-            if (!texture_state->texture_handles)
-                BFATAL("Textures array not setup. Check implementation");
-
-            texture_state->texture_handles[array_index] = value;
-            return true;
-        }
-    }
-    BERROR("texture_state_try_set: Unable to find uniform location %u. Sampler uniform not set", uniform_location);
-    return false;
-}
-
 b8 vulkan_renderer_shader_uniform_set(renderer_backend_interface* backend, bhandle shader, shader_uniform* uniform, u32 array_index, const void* value)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
@@ -2974,7 +2953,28 @@ b8 vulkan_renderer_shader_uniform_set(renderer_backend_interface* backend, bhand
     if (uniform_type_is_texture(uniform->type))
     {
         bresource_texture* tex_value = (bresource_texture*)value;
-        return texture_state_try_set(frequency_state->texture_states, frequency_info->uniform_texture_count, uniform->tex_samp_index, array_index, tex_value->renderer_texture_handle);
+        
+        for (u32 i = 0; i < frequency_info->uniform_texture_count; ++i)
+        {
+            vulkan_uniform_texture_state* texture_state = &frequency_state->texture_states[i];
+            if (texture_state->uniform.tex_samp_index == uniform->tex_samp_index)
+            {
+                u32 index = (texture_state->uniform.array_length > 1) ? array_index : 0;
+                if (index && index >= texture_state->uniform.array_length)
+                {
+                    BERROR("vulkan_renderer_shader_uniform_set error: index (%u) is out of range (0-%u)", index, texture_state->uniform.array_length);
+                    return false;
+                }
+
+                if (!texture_state->texture_handles)
+                    BFATAL("Textures array not setup. Check implementation");
+
+                texture_state->texture_handles[array_index] = tex_value->renderer_texture_handle;
+                return true;
+            }
+        }
+        BERROR("texture_state_try_set: Unable to find uniform tex/samp_index %u. Sampler uniform not set", uniform->tex_samp_index);
+        return false;
     }
     else if (uniform_type_is_sampler(uniform->type))
     {
@@ -4658,9 +4658,10 @@ static b8 vulkan_descriptorset_update_and_bind(
 
         // Sync the generation
         frequency_state->ubo_descriptor_state.generations[image_index] = ubo_generation;
+
+        binding_index++;
     }
-    
-    binding_index++;
+
     /* } */
 
     // TODO: Should cache this count and sorted array when done the first time
@@ -4778,17 +4779,19 @@ static b8 vulkan_descriptorset_update_and_bind(
                 }
             }
 
-            VkWriteDescriptorSet desc_set_write = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
-            desc_set_write.dstSet = frequency_state->descriptor_sets[image_index];
-            desc_set_write.dstBinding = binding_index;
-            desc_set_write.descriptorType = type;
-            desc_set_write.descriptorCount = update_count;
-            desc_set_write.pImageInfo = binding_image_infos[i];
-
-            descriptor_writes[descriptor_write_count] = desc_set_write;
-            descriptor_write_count++;
-
-            binding_index++;
+            // Only include if there is actually an update.
+            if (update_count > 0)
+            {
+                VkWriteDescriptorSet desc_set_write = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+                desc_set_write.dstSet = frequency_state->descriptor_sets[image_index];
+                desc_set_write.dstBinding = binding_index;
+                desc_set_write.descriptorType = type;
+                desc_set_write.descriptorCount = update_count;
+                desc_set_write.pImageInfo = binding_image_infos[i];
+                
+                descriptor_writes[descriptor_write_count] = desc_set_write;
+                descriptor_write_count++;
+            }
         }
     }
 

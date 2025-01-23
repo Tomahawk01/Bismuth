@@ -344,6 +344,9 @@ typedef struct material_system_state
 
     bhandle material_blended_shader;
 
+    // Pointer to a default cubemap to fall back on if no IBL cubemaps are present
+    bresource_texture* default_ibl_cubemap;
+
     // Keep a pointer to the renderer state for quick access
     struct renderer_system_state* renderer;
     struct texture_system_state* texture_system;
@@ -407,6 +410,8 @@ b8 material_system_initialize(u64* memory_requirement, material_system_state* st
     state->materials = darray_reserve(material_data, config->max_material_count);
     // An array for each material will be created when a material is created
     state->instances = darray_reserve(material_instance_data*, config->max_material_count);
+
+    state->default_ibl_cubemap = texture_system_request_cube(bname_create(DEFAULT_CUBE_TEXTURE_NAME), false, false, 0, 0);
 
     // Get default material shaders
     
@@ -1023,8 +1028,9 @@ b8 material_system_prepare_frame(material_system_state* state, material_frame_da
         // Irradience textures provided by probes around in the world
         for (u32 i = 0; i < MATERIAL_MAX_IRRADIANCE_CUBEMAP_COUNT; ++i)
         {
-            if (mat_frame_data.irradiance_cubemap_textures[i])
-                shader_system_texture_set_by_location_arrayed(shader, state->standard_material_locations.shadow_texture, i, mat_frame_data.irradiance_cubemap_textures[i]);
+            bresource_texture* t = mat_frame_data.irradiance_cubemap_textures[i] ? mat_frame_data.irradiance_cubemap_textures[i] : state->default_ibl_cubemap;
+            if (!shader_system_texture_set_by_location_arrayed(shader, state->standard_material_locations.irradiance_cube_textures, i, t))
+                BERROR("Failed to set ibl cubemap at index %i", i);
         }
         // Apply/upload everything to the GPU
         if (!shader_system_apply_per_frame(shader))

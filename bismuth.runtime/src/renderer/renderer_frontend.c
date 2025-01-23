@@ -557,7 +557,7 @@ b8 renderer_texture_write_data(struct renderer_system_state* state, bhandle rend
 {
     if (state && !bhandle_is_invalid(renderer_texture_handle))
     {
-        b8 include_in_frame_workload = (state->frame_number > 0);
+        b8 include_in_frame_workload = false; // (state->frame_number > 0);
         b8 result = state->backend->texture_write_data(state->backend, renderer_texture_handle, offset, size, pixels, include_in_frame_workload);
         if (!include_in_frame_workload)
         {
