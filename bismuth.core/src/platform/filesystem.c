@@ -39,7 +39,7 @@ b8 filesystem_open(const char* path, file_modes mode, b8 binary, file_handle* ou
     }
     else
     {
-        BERROR("Invalid mode passed while typing to open file: '%s'", path);
+        BERROR("Invalid mode passed while trying to open file: '%s'", path);
         return false;
     }
 

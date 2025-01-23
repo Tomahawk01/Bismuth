@@ -110,25 +110,25 @@ void bpackage_destroy(bpackage* package)
                 if (entry->path)
                     string_free(entry->path);
             }
+            darray_destroy(package->internal_data->entries);
         }
-        darray_destroy(package->internal_data->entries);
+
+        // Unwatch watched files
+        if (package->watch_ids)
+        {
+            u32 watch_count = darray_length(package->watch_ids);
+            for (u32 i = 0; i < watch_count; ++i)
+                platform_unwatch_file(package->watch_ids[i]);
+
+            darray_destroy(package->watch_ids);
+            package->watch_ids = 0;
+        }
+
+        if (package->internal_data)
+            bfree(package->internal_data, sizeof(bpackage_internal), MEMORY_TAG_RESOURCE);
+
+        bzero_memory(package, sizeof(bpackage_internal));
     }
-
-    // Unwatch watched files
-    if (package->watch_ids)
-    {
-        u32 watch_count = darray_length(package->watch_ids);
-        for (u32 i = 0; i < watch_count; ++i)
-            platform_unwatch_file(package->watch_ids[i]);
-
-        darray_destroy(package->watch_ids);
-        package->watch_ids = 0;
-    }
-
-    if (package->internal_data)
-        bfree(package->internal_data, sizeof(bpackage_internal), MEMORY_TAG_RESOURCE);
-
-    bzero_memory(package, sizeof(bpackage_internal));
 }
 
 static asset_entry* asset_entry_get(const bpackage* package, bname name)
