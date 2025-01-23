@@ -155,8 +155,8 @@ BAPI b8 shader_system_bind_group(bhandle shader, u32 group_id);
 BAPI b8 shader_system_bind_draw_id(bhandle shader, u32 draw_id);
 
 BAPI b8 shader_system_apply_per_frame(bhandle shader);
-BAPI b8 shader_system_apply_per_group(bhandle shader, u16 generation);
-BAPI b8 shader_system_apply_per_draw(bhandle shader, u16 generation);
+BAPI b8 shader_system_apply_per_group(bhandle shader);
+BAPI b8 shader_system_apply_per_draw(bhandle shader);
 
 BAPI b8 shader_system_shader_group_acquire(bhandle shader, u32* out_group_id);
 BAPI b8 shader_system_shader_group_release(bhandle shader, u32 instance_id);

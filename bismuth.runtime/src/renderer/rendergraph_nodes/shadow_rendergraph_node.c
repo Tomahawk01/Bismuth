@@ -36,13 +36,11 @@ typedef struct shadow_shader_group_data
 {
     bhandle base_material;
     u32 group_id;
-    u16 generation;
 } shadow_shader_group_data;
 
 typedef struct shader_per_draw_data
 {
     u32 draw_id;
-    u16 generation;
 } shader_per_draw_data;
 
 typedef struct shadow_terrain_shader_locations
@@ -330,7 +328,6 @@ b8 shadow_rendergraph_node_execute(struct rendergraph_node* self, struct frame_d
                 for (u32 i = current_per_draw_count; i < required_per_draw_count; ++i)
                 {
                     shader_per_draw_data new_per_draw = {0};
-                    new_per_draw.generation = INVALID_ID_U16;
                     if (!shader_system_shader_per_draw_acquire(internal_data->shadow_staticmesh_shader, &new_per_draw.draw_id))
                     {
                         BERROR("Failed to acquire per-draw resources from the static mesh shadow shader. See logs for details");
@@ -352,7 +349,6 @@ b8 shadow_rendergraph_node_execute(struct rendergraph_node* self, struct frame_d
                 for (u32 i = current_per_draw_count; i < required_per_draw_count; ++i)
                 {
                     shader_per_draw_data new_per_draw = {0};
-                    new_per_draw.generation = INVALID_ID_U16;
                     if (!shader_system_shader_per_draw_acquire(internal_data->shadow_terrain_shader, &new_per_draw.draw_id))
                     {
                         BERROR("Failed to acquire per-draw resources from the terrain shadow shader. See logs for details");
@@ -409,7 +405,6 @@ b8 shadow_rendergraph_node_execute(struct rendergraph_node* self, struct frame_d
                     {
                         shadow_shader_group_data new_group = {0};
                         new_group.base_material = mat_inst.material;
-                        new_group.generation = INVALID_ID_U16;
                         if (!shader_system_shader_group_acquire(internal_data->shadow_staticmesh_shader, &new_group.group_id))
                         {
                             BERROR("Failed to obtain group resources for rendering a transparent material. See logs for details");
@@ -444,15 +439,14 @@ b8 shadow_rendergraph_node_execute(struct rendergraph_node* self, struct frame_d
                 base_color_texture = internal_data->default_base_color_texture;
             }
             
-            // Since this can (and likely will) change every frame, set this every time and increment the generation.
+            // Since this can (and likely will) change every frame, set this every time
             if (!shader_system_uniform_set_by_location(internal_data->shadow_staticmesh_shader, internal_data->staticmesh_shader_locations.base_color_texture, base_color_texture))
             {
                 BERROR("Failed to apply static mesh shadowmap base_color_texture uniform to static geometry");
                 return false;
             }
-            selected_group->generation++;
 
-            if (!shader_system_apply_per_group(internal_data->shadow_staticmesh_shader, selected_group->generation))
+            if (!shader_system_apply_per_group(internal_data->shadow_staticmesh_shader))
             {
                 BERROR("Failed to apply static mesh shadowmap group id %u", selected_group->group_id);
                 return false;
@@ -462,9 +456,7 @@ b8 shadow_rendergraph_node_execute(struct rendergraph_node* self, struct frame_d
             shader_system_bind_draw_id(internal_data->shadow_staticmesh_shader, selected_per_draw->draw_id);
             shader_system_uniform_set_by_location(internal_data->shadow_staticmesh_shader, internal_data->staticmesh_shader_locations.model, &geometry->model);
             shader_system_uniform_set_by_location(internal_data->shadow_staticmesh_shader, internal_data->staticmesh_shader_locations.cascade_index, &p);
-            shader_system_apply_per_draw(internal_data->shadow_staticmesh_shader, selected_per_draw->generation);
-            // Always update the generation since this is always needed
-            selected_per_draw->generation++;
+            shader_system_apply_per_draw(internal_data->shadow_staticmesh_shader);
 
             // Invert if needed
             if (geometry->winding_inverted)
@@ -489,10 +481,7 @@ b8 shadow_rendergraph_node_execute(struct rendergraph_node* self, struct frame_d
                 shader_system_bind_draw_id(internal_data->shadow_terrain_shader, selected_per_draw->draw_id);
                 shader_system_uniform_set_by_location(internal_data->shadow_terrain_shader, internal_data->terrain_shader_locations.model, &terrain->model);
                 shader_system_uniform_set_by_location(internal_data->shadow_terrain_shader, internal_data->terrain_shader_locations.cascade_index, &p);
-                shader_system_apply_per_draw(internal_data->shadow_terrain_shader, selected_per_draw->generation);
-
-                // Always update the generation since this is always needed
-                selected_per_draw->generation++;
+                shader_system_apply_per_draw(internal_data->shadow_terrain_shader);
 
                 // Draw it
                 renderer_geometry_draw(terrain);

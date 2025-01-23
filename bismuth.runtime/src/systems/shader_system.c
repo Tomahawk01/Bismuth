@@ -480,14 +480,14 @@ b8 shader_system_apply_per_frame(bhandle shader)
     return renderer_shader_apply_per_frame(state_ptr->renderer, shader);
 }
 
-b8 shader_system_apply_per_group(bhandle shader, u16 generation)
+b8 shader_system_apply_per_group(bhandle shader)
 {
-    return renderer_shader_apply_per_group(state_ptr->renderer, shader, generation);
+    return renderer_shader_apply_per_group(state_ptr->renderer, shader);
 }
 
-b8 shader_system_apply_per_draw(bhandle shader, u16 generation)
+b8 shader_system_apply_per_draw(bhandle shader)
 {
-    return renderer_shader_apply_per_draw(state_ptr->renderer, shader, generation);
+    return renderer_shader_apply_per_draw(state_ptr->renderer, shader);
 }
 
 b8 shader_system_shader_group_acquire(bhandle shader, u32* out_group_id)

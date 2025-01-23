@@ -1783,11 +1783,11 @@ b8 vulkan_renderer_texture_write_data(renderer_backend_interface* backend, bhand
         vulkan_buffer_load_range(backend, staging, staging_offset, size, pixels, include_in_frame_workload);
 
         // Need a temp command buffer if not included in frame workload
-        if (!include_in_frame_workload)
-        {
-            vulkan_command_buffer_allocate_and_begin_single_use(context, context->device.graphics_command_pool, &temp_command_buffer);
-            command_buffer = &temp_command_buffer;
-        }
+        // HACK: Not doing this breaks things...
+        // if (!include_in_frame_workload) {
+        vulkan_command_buffer_allocate_and_begin_single_use(context, context->device.graphics_command_pool, &temp_command_buffer);
+        command_buffer = &temp_command_buffer;
+        // }
 
         // Transition the layout from whatever it is currently to optimal for recieving data
         vulkan_image_transition_layout(context, command_buffer, image, image->format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
@@ -1803,11 +1803,11 @@ b8 vulkan_renderer_texture_write_data(renderer_backend_interface* backend, bhand
         }
 
         // Need to submit temp command buffer
-        if (!include_in_frame_workload)
-        {
-            vulkan_command_buffer_end_single_use(context, context->device.graphics_command_pool, command_buffer, context->device.graphics_queue);
-            command_buffer = 0;
-        }
+        // HACK: Not doing this breaks things...
+        // if (!include_in_frame_workload) {
+        vulkan_command_buffer_end_single_use(context, context->device.graphics_command_pool, command_buffer, context->device.graphics_queue);
+        command_buffer = 0;
+        // }
     }
     
     if (!include_in_frame_workload)
@@ -2617,7 +2617,7 @@ b8 vulkan_renderer_shader_apply_per_frame(renderer_backend_interface* backend, b
     return true;
 }
 
-b8 vulkan_renderer_shader_apply_per_group(renderer_backend_interface* backend, bhandle shader, u16 generation)
+b8 vulkan_renderer_shader_apply_per_group(renderer_backend_interface* backend, bhandle shader, u16 renderer_frame_number)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
     vulkan_shader* internal_shader = &context->shaders[shader.handle_index];
@@ -2645,7 +2645,7 @@ b8 vulkan_renderer_shader_apply_per_group(renderer_backend_interface* backend, b
 
     if (!vulkan_descriptorset_update_and_bind(
             context,
-            generation,
+            renderer_frame_number,
             internal_shader,
             frequency_info,
             group_state,
@@ -2658,7 +2658,7 @@ b8 vulkan_renderer_shader_apply_per_group(renderer_backend_interface* backend, b
     return true;
 }
 
-b8 vulkan_renderer_shader_apply_per_draw(renderer_backend_interface* backend, bhandle shader, u16 generation)
+b8 vulkan_renderer_shader_apply_per_draw(renderer_backend_interface* backend, bhandle shader, u16 renderer_frame_number)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
     vulkan_shader* internal_shader = &context->shaders[shader.handle_index];
@@ -2699,7 +2699,7 @@ b8 vulkan_renderer_shader_apply_per_draw(renderer_backend_interface* backend, bh
 
         if (!vulkan_descriptorset_update_and_bind(
                 context,
-                generation,
+                renderer_frame_number,
                 internal_shader,
                 frequency_info,
                 per_draw_state,
@@ -3018,8 +3018,6 @@ static b8 create_shader_module(vulkan_context* context, vulkan_shader* internal_
     }
 
     BDEBUG("Compiling stage '%s' for shader '%s'...", shader_stage_to_string(stage), bname_string_get(internal_shader->name));
-
-    BTRACE("Source:\n%s", source);
                 
     // Attempt to compile the shader
     shaderc_compile_options_t options = shaderc_compile_options_initialize();
@@ -4109,11 +4107,11 @@ static b8 setup_frequency_state(renderer_backend_interface* backend, vulkan_shad
                 bhandle default_sampler = renderer_generic_sampler_get(backend->frontend_state, SHADER_GENERIC_SAMPLER_LINEAR_REPEAT);
                 sampler_state->sampler_handles[d] = default_sampler;
 
-                sampler_state->descriptor_states[d].generations = BALLOC_TYPE_CARRAY(u16, image_count);
+                sampler_state->descriptor_states[d].renderer_frame_number = BALLOC_TYPE_CARRAY(u16, image_count);
                 // Per swapchain image
                 for (u32 j = 0; j < image_count; ++j)
                 {
-                    sampler_state->descriptor_states[d].generations[j] = INVALID_ID_U16;
+                    sampler_state->descriptor_states[d].renderer_frame_number[j] = INVALID_ID_U16;
                 }
             }
         }
@@ -4141,11 +4139,11 @@ static b8 setup_frequency_state(renderer_backend_interface* backend, vulkan_shad
                 // TODO: Make this configurable
                 texture_state->texture_handles[d] = renderer_default_texture_get(backend->frontend_state, RENDERER_DEFAULT_TEXTURE_BASE_COLOR);
 
-                texture_state->descriptor_states[d].generations = BALLOC_TYPE_CARRAY(u16, image_count);
+                texture_state->descriptor_states[d].renderer_frame_number = BALLOC_TYPE_CARRAY(u16, image_count);
                 // Per swapchain image
                 for (u32 j = 0; j < image_count; ++j)
                 {
-                    texture_state->descriptor_states[d].generations[j] = INVALID_ID_U16;
+                    texture_state->descriptor_states[d].renderer_frame_number[j] = INVALID_ID_U16;
                 }
             }
         }
@@ -4170,7 +4168,7 @@ static b8 setup_frequency_state(renderer_backend_interface* backend, vulkan_shad
         }
 
         // NOTE: really only matters where there are frequency uniforms, but set them anyway
-        frequency_state->ubo_descriptor_state.generations = BALLOC_TYPE_CARRAY(u16, image_count);
+        frequency_state->ubo_descriptor_state.renderer_frame_number = BALLOC_TYPE_CARRAY(u16, image_count);
         frequency_state->descriptor_sets = BALLOC_TYPE_CARRAY(VkDescriptorSet, image_count);
 
         // Temp array for descriptor set layouts
@@ -4179,7 +4177,7 @@ static b8 setup_frequency_state(renderer_backend_interface* backend, vulkan_shad
         for (u32 j = 0; j < image_count; ++j)
         {
             // Invalidate descriptor state
-            frequency_state->ubo_descriptor_state.generations[j] = INVALID_ID_U16;
+            frequency_state->ubo_descriptor_state.renderer_frame_number[j] = INVALID_ID_U16;
 
             // Set descriptor set layout for this index
             layouts[j] = internal->descriptor_set_layouts[descriptor_set_index];
@@ -4258,8 +4256,8 @@ static b8 release_shader_frequency_state(vulkan_context* context, vulkan_shader*
     if (destroy_ubo)
     {
         // Destroy UBO descriptor state
-        BFREE_TYPE_CARRAY(frequency_state->ubo_descriptor_state.generations, u16, image_count);
-        frequency_state->ubo_descriptor_state.generations = 0;
+        BFREE_TYPE_CARRAY(frequency_state->ubo_descriptor_state.renderer_frame_number, u16, image_count);
+        frequency_state->ubo_descriptor_state.renderer_frame_number = 0;
 
         // Release renderbuffer ranges
         if (frequency_info->ubo_stride != 0)
@@ -4614,7 +4612,7 @@ static void setup_frequency_descriptors(b8 do_ubo, vulkan_shader_frequency_info*
 
 static b8 vulkan_descriptorset_update_and_bind(
     vulkan_context* context,
-    u16 ubo_generation,
+    u16 renderer_frame_number,
     vulkan_shader* internal_shader,
     const vulkan_shader_frequency_info* info,
     vulkan_shader_frequency_state* frequency_state,
@@ -4638,31 +4636,31 @@ static b8 vulkan_descriptorset_update_and_bind(
     VkDescriptorBufferInfo ubo_buffer_info = {0};
     if (info->uniform_count > 0)
     {
-        /* if (frequency_state->ubo_descriptor_state.generations[image_index] != ubo_generation) { */
-        // Only do this if the descriptor has not yet been updated
-        ubo_buffer_info.buffer = ((vulkan_buffer*)internal_shader->uniform_buffers[image_index].internal_data)->handle;
-        // HACK: Verify this - the next 2 lines were using info->ubo_offset previously
-        BASSERT_MSG((frequency_state->offset % context->device.properties.limits.minUniformBufferOffsetAlignment) == 0, "Ubo offset must be a multiple of device.properties.limits.minUniformBufferOffsetAlignment");
-        ubo_buffer_info.offset = frequency_state->offset;
-        ubo_buffer_info.range = info->ubo_stride;
+        u16* freq_gen = &frequency_state->ubo_descriptor_state.renderer_frame_number[image_index];
+        if ((*freq_gen) == INVALID_ID_U16 || (*freq_gen) != renderer_frame_number)
+        {
+            // Only do this if the descriptor has not yet been updated
+            ubo_buffer_info.buffer = ((vulkan_buffer*)internal_shader->uniform_buffers[image_index].internal_data)->handle;
+            BASSERT_MSG((frequency_state->offset % context->device.properties.limits.minUniformBufferOffsetAlignment) == 0, "Ubo offset must be a multiple of device.properties.limits.minUniformBufferOffsetAlignment");
+            ubo_buffer_info.offset = frequency_state->offset;
+            ubo_buffer_info.range = info->ubo_stride;
 
-        VkWriteDescriptorSet ubo_descriptor = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
-        ubo_descriptor.dstSet = frequency_state->descriptor_sets[image_index];
-        ubo_descriptor.dstBinding = binding_index;
-        ubo_descriptor.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        ubo_descriptor.descriptorCount = 1;
-        ubo_descriptor.pBufferInfo = &ubo_buffer_info;
+            VkWriteDescriptorSet ubo_descriptor = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+            ubo_descriptor.dstSet = frequency_state->descriptor_sets[image_index];
+            ubo_descriptor.dstBinding = binding_index;
+            ubo_descriptor.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            ubo_descriptor.descriptorCount = 1;
+            ubo_descriptor.pBufferInfo = &ubo_buffer_info;
 
-        descriptor_writes[descriptor_write_count] = ubo_descriptor;
-        descriptor_write_count++;
-
-        // Sync the generation
-        frequency_state->ubo_descriptor_state.generations[image_index] = ubo_generation;
+            descriptor_writes[descriptor_write_count] = ubo_descriptor;
+            descriptor_write_count++;
+            
+            // Sync the generation
+            *freq_gen = renderer_frame_number == INVALID_ID_U16 ? 0 : renderer_frame_number;
+        }
 
         binding_index++;
     }
-
-    /* } */
 
     // TODO: Should cache this count and sorted array when done the first time
     // Need to iterate these in uniform order, which can mix the order between samplers and images if configured that way.
@@ -4709,6 +4707,18 @@ static b8 vulkan_descriptorset_update_and_bind(
             // Build image infos for the binding, enough for all of them to have descriptor updates
             binding_image_infos[i] = p_frame_data->allocator.allocate(sizeof(VkDescriptorImageInfo) * binding_descriptor_count);
 
+            // Get the appropriate binding state
+            vulkan_uniform_texture_state* binding_texture_state = 0;
+            vulkan_uniform_sampler_state* binding_sampler_state = 0;
+            if (is_texture)
+            {
+                binding_texture_state = &frequency_state->texture_states[texture_binding_index];
+            }
+            else
+            {
+                binding_sampler_state = &frequency_state->sampler_states[sampler_binding_index];
+            }
+
             // Each descriptor within the binding
             for (u32 d = 0; d < binding_descriptor_count; ++d)
             {
@@ -4716,7 +4726,6 @@ static b8 vulkan_descriptorset_update_and_bind(
                 vulkan_descriptor_state* descriptor_state = 0;
                 if (is_texture)
                 {
-                    vulkan_uniform_texture_state* binding_texture_state = &frequency_state->texture_states[texture_binding_index];
                     resource_handle = binding_texture_state->texture_handles[d];
                     descriptor_state = &binding_texture_state->descriptor_states[d];
 
@@ -4731,25 +4740,23 @@ static b8 vulkan_descriptorset_update_and_bind(
                     u32 image_index = texture->image_count > 1 ? get_current_image_index(context) : 0;
                     vulkan_image* image = &texture->images[image_index];
 
-                    // Only update if the texture generations don't match
-                    // FIXME: Only update this when actually needed. The generation logic below never passes
-                    /* if (texture->generation != descriptor_state->generations[image_index]) { */
-                    binding_image_infos[i][update_count].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-                    binding_image_infos[i][update_count].imageView = image->view;
-                    // NOTE: Not using sampler in this descriptor
-                    binding_image_infos[i][update_count].sampler = 0;
+                    // Only update if the descriptor has not been updated this frame
+                    u16* desc_gen = &descriptor_state->renderer_frame_number[image_index];
+                    if ((*desc_gen) == INVALID_ID_U16 || (*desc_gen) != renderer_frame_number)
+                    {
+                        binding_image_infos[i][update_count].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                        binding_image_infos[i][update_count].imageView = image->view;
+                        // NOTE: Not using sampler in this descriptor.
+                        binding_image_infos[i][update_count].sampler = 0;
 
-                    update_count++;
+                        update_count++;
 
-                    // Sync the generation
-                    descriptor_state->generations[image_index] = texture->generation;
-                    /* } */
-
-                    texture_binding_index++;
+                        // Sync the generation
+                        (*desc_gen) = renderer_frame_number == INVALID_ID_U16 ? 0 : renderer_frame_number;
+                    }
                 }
                 else
                 {
-                    vulkan_uniform_sampler_state* binding_sampler_state = &frequency_state->sampler_states[sampler_binding_index];
                     resource_handle = binding_sampler_state->sampler_handles[d];
                     descriptor_state = &binding_sampler_state->descriptor_states[d];
 
@@ -4761,22 +4768,32 @@ static b8 vulkan_descriptorset_update_and_bind(
 
                     vulkan_sampler_handle_data* sampler = &context->samplers[resource_handle.handle_index];
 
-                    // Only update if the sampler generations don't match
-                    /* if (sampler->generation != descriptor_state->generations[image_index]) { */
-                    // Not using image for sampler updates
-                    binding_image_infos[i][update_count].imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-                    binding_image_infos[i][update_count].imageView = 0;
-                    // NOTE: Only the sampler is set here
-                    binding_image_infos[i][update_count].sampler = sampler->sampler;
+                    // Only update if the descriptor has not been updated this frame
+                    u16* desc_gen = &descriptor_state->renderer_frame_number[image_index];
+                    if ((*desc_gen) == INVALID_ID_U16 || (*desc_gen) != renderer_frame_number)
+                    {
+                        // Not using image for sampler updates
+                        binding_image_infos[i][update_count].imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+                        binding_image_infos[i][update_count].imageView = 0;
+                        // NOTE: Only the sampler is set here
+                        binding_image_infos[i][update_count].sampler = sampler->sampler;
 
-                    update_count++;
+                        update_count++;
 
-                    // Sync the generation
-                    descriptor_state->generations[image_index] = sampler->generation;
-                    /* } */
-
-                    sampler_binding_index++;
+                        // Sync the generation
+                        (*desc_gen) = renderer_frame_number == INVALID_ID_U16 ? 0 : renderer_frame_number;
+                    }
                 }
+            }
+
+            // Move to the next binding
+            if (is_texture)
+            {
+                texture_binding_index++;
+            }
+            else
+            {
+                sampler_binding_index++;
             }
 
             // Only include if there is actually an update.

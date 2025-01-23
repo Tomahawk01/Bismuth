@@ -38,10 +38,6 @@ typedef struct geometry_render_data
 
     // The per-draw id to be used when applying this data. Used for draws that don't use materials
     u32 draw_id;
-    // The per-draw generation.
-    // This should be incremented by the owner of the data that is fed into this structure to indicate when an update is required.
-    // Used for draws that don't use materials
-    u16 draw_generation;
 
     u64 unique_id;
     b8 winding_inverted;

@@ -21,9 +21,7 @@ typedef struct standard_ui_system_config
 typedef struct standard_ui_renderable
 {
     u32* group_id;
-    u16* group_generation;
     u32* per_draw_id;
-    u16* per_draw_generation;
     bresource_texture* atlas_override;
     geometry_render_data render_data;
     geometry_render_data* clip_mask_render_data;

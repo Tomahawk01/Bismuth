@@ -126,8 +126,8 @@ BAPI b8 renderer_shader_bind_per_group(struct renderer_system_state* state, bhan
 BAPI b8 renderer_shader_bind_per_draw(struct renderer_system_state* state, bhandle shader, u32 draw_id);
 
 BAPI b8 renderer_shader_apply_per_frame(struct renderer_system_state* state, bhandle shader);
-BAPI b8 renderer_shader_apply_per_group(struct renderer_system_state* state, bhandle shader, u16 generation);
-BAPI b8 renderer_shader_apply_per_draw(struct renderer_system_state* state, bhandle shader, u16 generation);
+BAPI b8 renderer_shader_apply_per_group(struct renderer_system_state* state, bhandle shader);
+BAPI b8 renderer_shader_apply_per_draw(struct renderer_system_state* state, bhandle shader);
 
 BAPI b8 renderer_shader_per_group_resources_acquire(struct renderer_system_state* state, bhandle shader, u32* out_group_id);
 BAPI b8 renderer_shader_per_group_resources_release(struct renderer_system_state* state, bhandle shader, u32 group_id);

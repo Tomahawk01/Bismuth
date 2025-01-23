@@ -76,8 +76,8 @@ b8 vulkan_renderer_shader_bind_per_group(renderer_backend_interface* backend, bh
 b8 vulkan_renderer_shader_bind_per_draw(renderer_backend_interface* backend, bhandle shader, u32 draw_id);
 
 b8 vulkan_renderer_shader_apply_per_frame(renderer_backend_interface* backend, bhandle shader, u16 renderer_frame_number);
-b8 vulkan_renderer_shader_apply_per_group(renderer_backend_interface* backend, bhandle shader, u16 generation);
-b8 vulkan_renderer_shader_apply_per_draw(renderer_backend_interface* backend, bhandle shader, u16 generation);
+b8 vulkan_renderer_shader_apply_per_group(renderer_backend_interface* backend, bhandle shader, u16 renderer_frame_number);
+b8 vulkan_renderer_shader_apply_per_draw(renderer_backend_interface* backend, bhandle shader, u16 renderer_frame_number);
 
 b8 vulkan_renderer_shader_per_group_resources_acquire(renderer_backend_interface* backend, bhandle shader, u32* out_group_id);
 b8 vulkan_renderer_shader_per_group_resources_release(renderer_backend_interface* backend, bhandle shader, u32 group_id);
