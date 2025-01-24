@@ -7,7 +7,6 @@
 #include <math/math_types.h>
 #include <strings/bname.h>
 
-#include "resources/resource_types.h"
 #include "systems/material_system.h"
 
 struct shader_uniform;
@@ -17,6 +16,9 @@ struct viewport;
 struct camera;
 struct material;
 struct bwindow_renderer_backend_state;
+
+// The max number of "frames" for which data can exist. This would be 2 if only double-buffering was supported, but since triple-buffering is supported this must be always taken into account
+#define RENDERER_MAX_FRAME_COUNT 3
 
 typedef struct renderbuffer_data
 {
@@ -145,6 +147,14 @@ typedef enum renderbuffer_track_type
     RENDERBUFFER_TRACK_TYPE_LINEAR = 2
 } renderbuffer_track_type;
 
+typedef struct renderbuffer_queued_deletion
+{
+    /** @brief The number of frames remaining until the deletion occurs */
+    u8 frames_until_delete;
+    /** @brief The range to be deleted. Considered a "free" slot if range's values are 0 */
+    brange range;
+} renderbuffer_queued_deletion;
+
 typedef struct renderbuffer
 {
     char* name;
@@ -156,6 +166,8 @@ typedef struct renderbuffer
     void* freelist_block;
     void* internal_data;
     u64 offset;
+
+    renderbuffer_queued_deletion* delete_queue;
 } renderbuffer;
 
 typedef enum renderer_config_flag_bits
@@ -183,6 +195,18 @@ typedef enum renderer_winding
     RENDERER_WINDING_COUNTER_CLOCKWISE = 0,
     RENDERER_WINDING_CLOCKWISE = 1
 } renderer_winding;
+
+typedef enum renderer_cull_mode
+{
+    /** @brief No faces are culled */
+    RENDERER_CULL_MODE_NONE = 0,
+    /** @brief Only front faces are culled */
+    RENDERER_CULL_MODE_FRONT = 1,
+    /** @brief Only back faces are culled */
+    RENDERER_CULL_MODE_BACK = 2,
+    /** @brief Both front and back faces are culled */
+    RENDERER_CULL_MODE_FRONT_AND_BACK = 3
+} renderer_cull_mode;
 
 typedef struct bwindow_renderer_state
 {
@@ -234,6 +258,8 @@ typedef struct renderer_backend_interface
 
     void (*winding_set)(struct renderer_backend_interface* backend, renderer_winding winding);
 
+    void (*cull_mode_set)(struct renderer_backend_interface* backend, renderer_cull_mode cull_mode);
+
     void (*set_stencil_test_enabled)(struct renderer_backend_interface* backend, b8 enabled);
     void (*set_depth_test_enabled)(struct renderer_backend_interface* backend, b8 enabled);
     void (*set_depth_write_enabled)(struct renderer_backend_interface* backend, b8 enabled);
@@ -255,7 +281,7 @@ typedef struct renderer_backend_interface
     void (*color_texture_prepare_for_present)(struct renderer_backend_interface* backend, bhandle renderer_texture_handle);
     void (*texture_prepare_for_sampling)(struct renderer_backend_interface* backend, bhandle renderer_texture_handle, texture_flag_bits flags);
 
-    b8 (*texture_resources_acquire)(struct renderer_backend_interface* backend, const char* name, bresource_texture_type type, u32 width, u32 height, u8 channel_count, u8 mip_levels, u16 array_size, bresource_texture_flag_bits flags, bhandle* out_renderer_texture_handle);
+    b8 (*texture_resources_acquire)(struct renderer_backend_interface* backend, const char* name, texture_type type, u32 width, u32 height, u8 channel_count, u8 mip_levels, u16 array_size, texture_flag_bits flags, bhandle* out_renderer_texture_handle);
     void (*texture_resources_release)(struct renderer_backend_interface* backend, bhandle* renderer_texture_handle);
 
     b8 (*texture_resize)(struct renderer_backend_interface* backend, bhandle renderer_texture_handle, u32 new_width, u32 new_height);

@@ -114,6 +114,7 @@ typedef struct vulkan_image
     u32 height;
     u16 layer_count;
     char* name;
+    texture_flag_bits flags;
     u32 mip_levels;
     b8 has_view;
 } vulkan_image;
@@ -208,7 +209,7 @@ typedef struct vulkan_pipeline_config
     face_cull_mode cull_mode;
     u32 shader_flags;
     u32 push_constant_range_count;
-    range* push_constant_ranges;
+    brange* push_constant_ranges;
     u32 topology_types;
     renderer_winding winding;
 
@@ -333,7 +334,7 @@ typedef struct vulkan_shader
 
     u8 descriptor_set_count;
     /** @brief Descriptor sets, max of 3. Index 0=per_frame, 1=per_group, 2=per_draw */
-    vulkan_descriptor_set_config descriptor_sets[VULKAN_SHADER_DESCRIPTOR_SET_LAYOUT_COUNT];
+    vulkan_descriptor_set_config descriptor_set_configs[VULKAN_SHADER_DESCRIPTOR_SET_LAYOUT_COUNT];
     
     /** @brief The number of vertex attributes in the shader */
     u8 attribute_count;
@@ -528,6 +529,7 @@ typedef struct vulkan_context
 
     PFN_vkCmdSetPrimitiveTopologyEXT vkCmdSetPrimitiveTopologyEXT;
     PFN_vkCmdSetFrontFaceEXT vkCmdSetFrontFaceEXT;
+    PFN_vkCmdSetCullModeEXT vkCmdSetCullModeEXT;
     PFN_vkCmdSetStencilTestEnableEXT vkCmdSetStencilTestEnableEXT;
     PFN_vkCmdSetDepthTestEnableEXT vkCmdSetDepthTestEnableEXT;
     PFN_vkCmdSetDepthWriteEnableEXT vkCmdSetDepthWriteEnableEXT;

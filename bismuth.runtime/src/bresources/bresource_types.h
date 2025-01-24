@@ -116,42 +116,44 @@ typedef struct bresource_request_info
 } bresource_request_info;
 
 /** @brief Represents various types of textures */
-typedef enum bresource_texture_type
+typedef enum texture_type
 {
     /** @brief A standard two-dimensional texture */
-    BRESOURCE_TEXTURE_TYPE_2D,
+    TEXTURE_TYPE_2D,
     /** @brief A 2d array texture */
-    BRESOURCE_TEXTURE_TYPE_2D_ARRAY,
+    TEXTURE_TYPE_2D_ARRAY,
     /** @brief A cube texture, used for cubemaps */
-    BRESOURCE_TEXTURE_TYPE_CUBE,
+    TEXTURE_TYPE_CUBE,
     /** @brief A cube array texture, used for arrays of cubemaps */
-    BRESOURCE_TEXTURE_TYPE_CUBE_ARRAY,
-    BRESOURCE_TEXTURE_TYPE_COUNT
-} bresource_texture_type;
+    TEXTURE_TYPE_CUBE_ARRAY,
+    TEXTURE_TYPE_COUNT
+} texture_type;
 
-typedef enum bresource_texture_format
+typedef enum texture_format
 {
-    BRESOURCE_TEXTURE_FORMAT_UNKNOWN,
-    BRESOURCE_TEXTURE_FORMAT_RGBA8,
-    BRESOURCE_TEXTURE_FORMAT_RGB8,
-} bresource_texture_format;
+    TEXTURE_FORMAT_UNKNOWN,
+    TEXTURE_FORMAT_RGBA8,
+    TEXTURE_FORMAT_RGB8,
+} texture_format;
 
-typedef enum bresource_texture_flag
+typedef enum texture_flag
 {
     /** @brief Indicates if the texture has transparency */
-    BRESOURCE_TEXTURE_FLAG_HAS_TRANSPARENCY = 0x01,
+    TEXTURE_FLAG_HAS_TRANSPARENCY = 0x01,
     /** @brief Indicates if the texture can be written (rendered) to */
-    BRESOURCE_TEXTURE_FLAG_IS_WRITEABLE = 0x02,
+    TEXTURE_FLAG_IS_WRITEABLE = 0x02,
     /** @brief Indicates if the texture was created via wrapping vs traditional creation */
-    BRESOURCE_TEXTURE_FLAG_IS_WRAPPED = 0x04,
+    TEXTURE_FLAG_IS_WRAPPED = 0x04,
     /** @brief Indicates the texture is a depth texture */
-    BRESOURCE_TEXTURE_FLAG_DEPTH = 0x08,
+    TEXTURE_FLAG_DEPTH = 0x08,
+    /** @brief Indicates the texture is a stencil texture */
+    TEXTURE_FLAG_STENCIL = 0x10,
     /** @brief Indicates that this texture should account for renderer buffering (i.e. double/triple buffering) */
-    BRESOURCE_TEXTURE_FLAG_RENDERER_BUFFERING = 0x10,
-} bresource_texture_flag;
+    TEXTURE_FLAG_RENDERER_BUFFERING = 0x20,
+} texture_flag;
 
 /** @brief Holds bit flags for textures */
-typedef u32 bresource_texture_flag_bits;
+typedef u8 texture_flag_bits;
 
 #define BRESOURCE_TYPE_NAME_TEXTURE "Texture"
 
@@ -159,17 +161,17 @@ typedef struct bresource_texture
 {
     bresource base;
     /** @brief The texture type */
-    bresource_texture_type type;
+    texture_type type;
     /** @brief The texture width */
     u32 width;
     /** @brief The texture height */
     u32 height;
     /** @brief The format of the texture data */
-    bresource_texture_format format;
+    texture_format format;
     /** @brief For arrayed textures, how many "layers" there are. Otherwise this is 1 */
     u16 array_size;
     /** @brief Holds various flags for this texture */
-    bresource_texture_flag_bits flags;
+    texture_flag_bits flags;
     /** @brief The number of mip maps the internal texture has. Must always be at least 1 */
     u8 mip_levels;
     /** @brief The the handle to renderer-specific texture data */
@@ -183,7 +185,7 @@ typedef struct bresource_texture_pixel_data
     u32 width;
     u32 height;
     u32 channel_count;
-    bresource_texture_format format;
+    texture_format format;
     u8 mip_levels;
 } bresource_texture_pixel_data;
 
@@ -193,9 +195,9 @@ typedef struct bresource_texture_request_info
 {
     bresource_request_info base;
 
-    bresource_texture_type texture_type;
+    texture_type texture_type;
     u8 array_size;
-    bresource_texture_flag_bits flags;
+    texture_flag_bits flags;
 
     // Optionally provide pixel data per layer. Must match array_size in length.
     // Only used where asset at index has type of undefined
@@ -207,7 +209,7 @@ typedef struct bresource_texture_request_info
     u32 height;
 
     // Texture format. Ignored unless there are no assets or pixel data
-    bresource_texture_format format;
+    texture_format format;
 
     // The number of mip levels. Ignored unless there are no assets or pixel data
     u8 mip_levels;

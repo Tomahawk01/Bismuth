@@ -8,7 +8,6 @@
 #include "core/frame_data.h"
 #include "core_render_types.h"
 #include "renderer_types.h"
-#include "resources/resource_types.h"
 
 struct shader_uniform;
 struct frame_data;
@@ -60,6 +59,8 @@ BAPI void renderer_scissor_reset(void);
 
 BAPI void renderer_winding_set(renderer_winding winding);
 
+BAPI void renderer_cull_mode_set(renderer_cull_mode cull_mode);
+
 BAPI void renderer_set_stencil_test_enabled(b8 enabled);
 
 BAPI void renderer_set_stencil_reference(u32 reference);
@@ -75,7 +76,7 @@ BAPI void renderer_end_rendering(struct renderer_system_state* state, struct fra
 BAPI void renderer_set_stencil_compare_mask(u32 compare_mask);
 BAPI void renderer_set_stencil_write_mask(u32 write_mask);
 
-BAPI b8 renderer_bresource_texture_resources_acquire(struct renderer_system_state* state, bname name, bresource_texture_type type, u32 width, u32 height, u8 channel_count, u8 mip_levels, u16 array_size, bresource_texture_flag_bits flags, bhandle* out_renderer_texture_handle);
+BAPI b8 renderer_bresource_texture_resources_acquire(struct renderer_system_state* state, bname name, texture_type type, u32 width, u32 height, u8 channel_count, u8 mip_levels, u16 array_size, texture_flag_bits flags, bhandle* out_renderer_texture_handle);
 BAPI void renderer_texture_resources_release(struct renderer_system_state* state, bhandle* handle);
 
 BAPI b8 renderer_texture_resize(struct renderer_system_state* state, bhandle renderer_texture_handle, u32 new_width, u32 new_height);

@@ -25,7 +25,7 @@ b8 debug_line3d_create(vec3 point_0, vec3 point_1, bhandle parent_xform, debug_l
     out_line->id = identifier_create();
     out_line->color = vec4_one();  // white
 
-    out_line->geometry.type = BGEOMETRY_TYPE_3D_STATIC;
+    out_line->geometry.type = BGEOMETRY_TYPE_3D_STATIC_COLOR_ONLY;
     out_line->geometry.generation = INVALID_ID_U16;
     out_line->is_dirty = true;
 
@@ -133,8 +133,8 @@ static void recalculate_points(debug_line3d* line)
 {
     if (line)
     {
-        ((vertex_3d*)line->geometry.vertices)[0].position = line->point_0;
-        ((vertex_3d*)line->geometry.vertices)[1].position = line->point_1;
+        ((color_vertex_3d*)line->geometry.vertices)[0].position = vec4_from_vec3(line->point_0, 1.0f);
+        ((color_vertex_3d*)line->geometry.vertices)[1].position = vec4_from_vec3(line->point_1, 1.0f);
     }
 }
 
@@ -145,7 +145,7 @@ static void update_vert_color(debug_line3d* line)
         if (line->geometry.vertex_count && line->geometry.vertices)
         {
             for (u32 i = 0; i < line->geometry.vertex_count; ++i)
-                ((vertex_3d*)line->geometry.vertices)[i].color = line->color;
+                ((color_vertex_3d*)line->geometry.vertices)[i].color = line->color;
         }
     }
 }

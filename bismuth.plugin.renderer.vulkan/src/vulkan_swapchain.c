@@ -211,7 +211,7 @@ static b8 create(renderer_backend_interface* backend, bwindow* window, renderer_
         if (!renderer_bresource_texture_resources_acquire(
                 backend->frontend_state,
                 bname_create("__swapchain_color_texture__"),
-                BRESOURCE_TEXTURE_TYPE_2D,
+                TEXTURE_TYPE_2D,
                 swapchain_extent.width,
                 swapchain_extent.height,
                 4,

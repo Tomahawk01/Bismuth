@@ -76,7 +76,7 @@ static void invalidate_texture(bresource_texture* t);
 static b8 is_default_texture(texture_system_state* state, bresource_texture* t);
 
 static bresource_texture* default_texture_by_name(texture_system_state* state, bname name);
-static bresource_texture* request_writeable_arrayed(bname name, u32 width, u32 height, bresource_texture_format format, b8 has_transparency, bresource_texture_type type, u16 array_size, b8 is_depth, b8 multiframe_buffering);
+static bresource_texture* request_writeable_arrayed(bname name, u32 width, u32 height, texture_format format, b8 has_transparency, texture_type type, u16 array_size, b8 is_depth, b8 is_stencil, b8 multiframe_buffering);
 
 b8 texture_system_initialize(u64* memory_requirement, void* state, void* config)
 {
@@ -144,7 +144,7 @@ bresource_texture* texture_system_request(bname name, bname package_name, void* 
     request.base.assets.data[0].asset_name = name;
 
     request.array_size = 1;
-    request.texture_type = BRESOURCE_TEXTURE_TYPE_2D;
+    request.texture_type = TEXTURE_TYPE_2D;
     request.flags = 0;
     request.flip_y = true;
 
@@ -199,8 +199,8 @@ bresource_texture* texture_system_request_cube(bname name, b8 auto_release, b8 m
     }
 
     request.array_size = 6;
-    request.texture_type = BRESOURCE_TEXTURE_TYPE_CUBE;
-    request.flags = multiframe_buffering ? BRESOURCE_TEXTURE_FLAG_RENDERER_BUFFERING : 0;
+    request.texture_type = TEXTURE_TYPE_CUBE;
+    request.flags = multiframe_buffering ? TEXTURE_FLAG_RENDERER_BUFFERING : 0;
     request.flip_y = false;
 
     bresource_texture* t = (bresource_texture*)bresource_system_request(state->bresource_system, name, (bresource_request_info*)&request);
@@ -222,10 +222,10 @@ bresource_texture* texture_system_request_cube_writeable(bname name, u32 dimensi
         BWARN("texture_system_request_cube - name supplied is invalid. Returning default cubemap instead");
         return state->default_bresource_cube_texture;
     }
-    return request_writeable_arrayed(name, dimension, dimension, BRESOURCE_TEXTURE_FORMAT_RGBA8, false, BRESOURCE_TEXTURE_TYPE_CUBE, 6, false, multiframe_buffering);
+    return request_writeable_arrayed(name, dimension, dimension, TEXTURE_FORMAT_RGBA8, false, TEXTURE_TYPE_CUBE, 6, false, false, multiframe_buffering);
 }
 
-bresource_texture* texture_system_request_cube_depth(bname name, u32 dimension, b8 auto_release, b8 multiframe_buffering)
+bresource_texture* texture_system_request_cube_depth(bname name, u32 dimension, b8 auto_release, b8 include_stencil, b8 multiframe_buffering)
 {
     texture_system_state* state = engine_systems_get()->texture_system;
     // If requesting the default cube texture name, just return it
@@ -237,27 +237,27 @@ bresource_texture* texture_system_request_cube_depth(bname name, u32 dimension, 
         BWARN("texture_system_request_cube - name supplied is invalid. Returning default cubemap instead");
         return state->default_bresource_cube_texture;
     }
-    return request_writeable_arrayed(name, dimension, dimension, BRESOURCE_TEXTURE_FORMAT_RGBA8, false, BRESOURCE_TEXTURE_TYPE_CUBE, 6, true, multiframe_buffering);
+    return request_writeable_arrayed(name, dimension, dimension, TEXTURE_FORMAT_RGBA8, false, TEXTURE_TYPE_CUBE, 6, true, include_stencil, multiframe_buffering);
 }
 
-bresource_texture* texture_system_request_writeable(bname name, u32 width, u32 height, bresource_texture_format format, b8 has_transparency, b8 multiframe_buffering)
+bresource_texture* texture_system_request_writeable(bname name, u32 width, u32 height, texture_format format, b8 has_transparency, b8 multiframe_buffering)
 {
-    return request_writeable_arrayed(name, width, height, format, has_transparency, BRESOURCE_TEXTURE_TYPE_2D, 1, false, multiframe_buffering);
+    return request_writeable_arrayed(name, width, height, format, has_transparency, TEXTURE_TYPE_2D, 1, false, false, multiframe_buffering);
 }
 
-bresource_texture* texture_system_request_writeable_arrayed(bname name, u32 width, u32 height, bresource_texture_format format, b8 has_transparency, b8 multiframe_buffering, bresource_texture_type type, u16 array_size)
+bresource_texture* texture_system_request_writeable_arrayed(bname name, u32 width, u32 height, texture_format format, b8 has_transparency, b8 multiframe_buffering, texture_type type, u16 array_size)
 {
-    return request_writeable_arrayed(name, width, height, format, has_transparency, type, array_size, false, multiframe_buffering);
+    return request_writeable_arrayed(name, width, height, format, has_transparency, type, array_size, false, false, multiframe_buffering);
 }
 
-bresource_texture* texture_system_request_depth(bname name, u32 width, u32 height, b8 multiframe_buffering)
+bresource_texture* texture_system_request_depth(bname name, u32 width, u32 height, b8 include_stencil, b8 multiframe_buffering)
 {
-    return request_writeable_arrayed(name, width, height, BRESOURCE_TEXTURE_FORMAT_RGBA8, false, BRESOURCE_TEXTURE_TYPE_2D, 1, true, multiframe_buffering);
+    return request_writeable_arrayed(name, width, height, TEXTURE_FORMAT_RGBA8, false, TEXTURE_TYPE_2D, 1, true, include_stencil, multiframe_buffering);
 }
 
-bresource_texture* texture_system_request_depth_arrayed(bname name, u32 width, u32 height, u16 array_size, b8 multiframe_buffering)
+bresource_texture* texture_system_request_depth_arrayed(bname name, u32 width, u32 height, u16 array_size, b8 include_stencil, b8 multiframe_buffering)
 {
-    return request_writeable_arrayed(name, width, height, BRESOURCE_TEXTURE_FORMAT_RGBA8, false, BRESOURCE_TEXTURE_TYPE_2D_ARRAY, array_size, true, multiframe_buffering);
+    return request_writeable_arrayed(name, width, height, TEXTURE_FORMAT_RGBA8, false, TEXTURE_TYPE_2D_ARRAY, array_size, true, include_stencil, multiframe_buffering);
 }
 
 bresource_texture* texture_system_acquire_textures_as_arrayed(bname name, bname package_name, u32 layer_count, bname* layer_asset_names, b8 auto_release, b8 multiframe_buffering, void* listener, PFN_resource_loaded_user_callback callback)
@@ -294,7 +294,7 @@ bresource_texture* texture_system_acquire_textures_as_arrayed(bname name, bname 
     }
 
     request.array_size = layer_count;
-    request.texture_type = BRESOURCE_TEXTURE_TYPE_2D_ARRAY;
+    request.texture_type = TEXTURE_TYPE_2D_ARRAY;
     request.flags = 0;
     request.flip_y = true;
 
@@ -376,13 +376,13 @@ static b8 is_default_texture(texture_system_state* state, bresource_texture* t)
            (t == state->default_bresource_water_dudv_texture);
 }
 
-bresource_texture* create_default_bresource_texture(texture_system_state* state, bname name, bresource_texture_type type, u32 tex_dimension, u8 layer_count, u8 channel_count, u32 pixel_array_size, u8* pixels)
+bresource_texture* create_default_bresource_texture(texture_system_state* state, bname name, texture_type type, u32 tex_dimension, u8 layer_count, u8 channel_count, u32 pixel_array_size, u8* pixels)
 {
     bresource_texture_request_info request = {0};
     bzero_memory(&request, sizeof(bresource_texture_request_info));
     request.texture_type = type;
     request.array_size = layer_count;
-    request.flags = BRESOURCE_TEXTURE_FLAG_IS_WRITEABLE;
+    request.flags = TEXTURE_FLAG_IS_WRITEABLE;
     request.pixel_data = array_bresource_texture_pixel_data_create(1);
     bresource_texture_pixel_data* px = &request.pixel_data.data[0];
     px->pixel_array_size = pixel_array_size;
@@ -390,7 +390,7 @@ bresource_texture* create_default_bresource_texture(texture_system_state* state,
     px->width = tex_dimension;
     px->height = tex_dimension;
     px->channel_count = channel_count;
-    px->format = BRESOURCE_TEXTURE_FORMAT_RGBA8;
+    px->format = TEXTURE_FORMAT_RGBA8;
     px->mip_levels = 1;
     request.base.type = BRESOURCE_TYPE_TEXTURE;
     request.flip_y = false;
@@ -443,7 +443,7 @@ static b8 create_default_textures(texture_system_state* state)
 
         // Request new resource texture
         u32 pixel_array_size = sizeof(u8) * pixel_count * channels;
-        state->default_bresource_texture = create_default_bresource_texture(state, bname_create(DEFAULT_TEXTURE_NAME), BRESOURCE_TEXTURE_TYPE_2D, tex_dimension, 1, channels, pixel_array_size, pixels);
+        state->default_bresource_texture = create_default_bresource_texture(state, bname_create(DEFAULT_TEXTURE_NAME), TEXTURE_TYPE_2D, tex_dimension, 1, channels, pixel_array_size, pixels);
         if (!state->default_bresource_texture)
         {
             BERROR("Failed to request resources for default texture");
@@ -461,7 +461,7 @@ static b8 create_default_textures(texture_system_state* state)
 
         // Request new resource texture
         u32 pixel_array_size = sizeof(u8) * pixel_count * channels;
-        state->default_bresource_base_color_texture = create_default_bresource_texture(state, bname_create(DEFAULT_BASE_COLOR_TEXTURE_NAME), BRESOURCE_TEXTURE_TYPE_2D, tex_dimension, 1, channels, pixel_array_size, diff_pixels);
+        state->default_bresource_base_color_texture = create_default_bresource_texture(state, bname_create(DEFAULT_BASE_COLOR_TEXTURE_NAME), TEXTURE_TYPE_2D, tex_dimension, 1, channels, pixel_array_size, diff_pixels);
         if (!state->default_bresource_base_color_texture)
         {
             BERROR("Failed to request resources for default base color texture");
@@ -478,7 +478,7 @@ static b8 create_default_textures(texture_system_state* state)
 
         // Request new resource texture
         u32 pixel_array_size = sizeof(u8) * pixel_count * channels;
-        state->default_bresource_specular_texture = create_default_bresource_texture(state, bname_create(DEFAULT_SPECULAR_TEXTURE_NAME), BRESOURCE_TEXTURE_TYPE_2D, tex_dimension, 1, channels, pixel_array_size, spec_pixels);
+        state->default_bresource_specular_texture = create_default_bresource_texture(state, bname_create(DEFAULT_SPECULAR_TEXTURE_NAME), TEXTURE_TYPE_2D, tex_dimension, 1, channels, pixel_array_size, spec_pixels);
         if (!state->default_bresource_specular_texture)
         {
             BERROR("Failed to request resources for default specular texture");
@@ -507,7 +507,7 @@ static b8 create_default_textures(texture_system_state* state)
 
         // Request new resource texture
         u32 pixel_array_size = sizeof(u8) * pixel_count * channels;
-        state->default_bresource_normal_texture = create_default_bresource_texture(state, bname_create(DEFAULT_NORMAL_TEXTURE_NAME), BRESOURCE_TEXTURE_TYPE_2D, tex_dimension, 1, channels, pixel_array_size, normal_pixels);
+        state->default_bresource_normal_texture = create_default_bresource_texture(state, bname_create(DEFAULT_NORMAL_TEXTURE_NAME), TEXTURE_TYPE_2D, tex_dimension, 1, channels, pixel_array_size, normal_pixels);
         if (!state->default_bresource_normal_texture)
         {
             BERROR("Failed to request resources for default normal texture");
@@ -536,7 +536,7 @@ static b8 create_default_textures(texture_system_state* state)
 
         // Request new resource texture
         u32 pixel_array_size = sizeof(u8) * pixel_count * channels;
-        state->default_bresource_mra_texture = create_default_bresource_texture(state, bname_create(DEFAULT_MRA_TEXTURE_NAME), BRESOURCE_TEXTURE_TYPE_2D, tex_dimension, 1, channels, pixel_array_size, mra_pixels);
+        state->default_bresource_mra_texture = create_default_bresource_texture(state, bname_create(DEFAULT_MRA_TEXTURE_NAME), TEXTURE_TYPE_2D, tex_dimension, 1, channels, pixel_array_size, mra_pixels);
         if (!state->default_bresource_mra_texture)
         {
             BERROR("Failed to request resources for default MRA texture");
@@ -591,7 +591,7 @@ static b8 create_default_textures(texture_system_state* state)
 
         // Request new resource texture
         u32 pixel_array_size = image_size;
-        state->default_bresource_cube_texture = create_default_bresource_texture(state, bname_create(DEFAULT_CUBE_TEXTURE_NAME), BRESOURCE_TEXTURE_TYPE_CUBE, tex_dimension, 6, channels, pixel_array_size, pixels);
+        state->default_bresource_cube_texture = create_default_bresource_texture(state, bname_create(DEFAULT_CUBE_TEXTURE_NAME), TEXTURE_TYPE_CUBE, tex_dimension, 6, channels, pixel_array_size, pixels);
         if (!state->default_bresource_cube_texture)
         {
             BERROR("Failed to request resources for default cube texture");
@@ -620,7 +620,7 @@ static b8 create_default_textures(texture_system_state* state)
         }
 
         // Request new resource texture
-        state->default_bresource_terrain_texture = create_default_bresource_texture(state, bname_create(DEFAULT_TERRAIN_TEXTURE_NAME), BRESOURCE_TEXTURE_TYPE_2D_ARRAY, tex_dimension, layer_count, channels, layer_size * layer_count, terrain_pixels);
+        state->default_bresource_terrain_texture = create_default_bresource_texture(state, bname_create(DEFAULT_TERRAIN_TEXTURE_NAME), TEXTURE_TYPE_2D_ARRAY, tex_dimension, layer_count, channels, layer_size * layer_count, terrain_pixels);
         if (!state->default_bresource_terrain_texture)
         {
             BERROR("Failed to request resources for default terrain texture");
@@ -697,17 +697,18 @@ static bresource_texture* default_texture_by_name(texture_system_state* state, b
     return 0;
 }
 
-static bresource_texture* request_writeable_arrayed(bname name, u32 width, u32 height, bresource_texture_format format, b8 has_transparency, bresource_texture_type type, u16 array_size, b8 is_depth, b8 multiframe_buffering)
+static bresource_texture* request_writeable_arrayed(bname name, u32 width, u32 height, texture_format format, b8 has_transparency, texture_type type, u16 array_size, b8 is_depth, b8 is_stencil, b8 multiframe_buffering)
 {
     struct bresource_system_state* bresource_system = engine_systems_get()->bresource_state;
     bresource_texture_request_info request = {0};
     bzero_memory(&request, sizeof(bresource_texture_request_info));
     request.texture_type = type;
     request.array_size = array_size;
-    request.flags = BRESOURCE_TEXTURE_FLAG_IS_WRITEABLE;
-    request.flags |= has_transparency ? BRESOURCE_TEXTURE_FLAG_HAS_TRANSPARENCY : 0;
-    request.flags |= is_depth ? BRESOURCE_TEXTURE_FLAG_DEPTH : 0;
-    request.flags |= multiframe_buffering ? BRESOURCE_TEXTURE_FLAG_RENDERER_BUFFERING : 0;
+    request.flags = TEXTURE_FLAG_IS_WRITEABLE;
+    request.flags |= has_transparency ? TEXTURE_FLAG_HAS_TRANSPARENCY : 0;
+    request.flags |= is_depth ? TEXTURE_FLAG_DEPTH : 0;
+    request.flags |= is_stencil ? TEXTURE_FLAG_STENCIL : 0;
+    request.flags |= multiframe_buffering ? TEXTURE_FLAG_RENDERER_BUFFERING : 0;
     request.width = width;
     request.height = height;
     request.format = format;

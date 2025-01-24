@@ -48,18 +48,18 @@ b8 bresource_handler_texture_request(struct bresource_handler* self, bresource* 
     b8 assets_required = true;
 
     // Assets are not required for these texture types
-    if (typed_request->flags & BRESOURCE_TEXTURE_FLAG_IS_WRITEABLE || typed_request->flags & BRESOURCE_TEXTURE_FLAG_DEPTH)
+    if (typed_request->flags & TEXTURE_FLAG_IS_WRITEABLE || typed_request->flags & TEXTURE_FLAG_DEPTH)
         assets_required = false;
 
     // Some type-specific validation
     if (assets_required)
     {
-        if (typed_request->texture_type == BRESOURCE_TEXTURE_TYPE_2D && typed_request->base.assets.base.length != 1)
+        if (typed_request->texture_type == TEXTURE_TYPE_2D && typed_request->base.assets.base.length != 1)
         {
             BERROR("Non-writeable 2d textures must have exactly one texture asset. Instead, %u was provided", typed_request->base.assets.base.length);
             return false;
         }
-        else if (typed_request->texture_type == BRESOURCE_TEXTURE_TYPE_CUBE && typed_request->base.assets.base.length != 6)
+        else if (typed_request->texture_type == TEXTURE_TYPE_CUBE && typed_request->base.assets.base.length != 6)
         {
             BERROR("Non-writeable cube textures must have exactly 6 texture assets. Instead, %u was provided", typed_request->base.assets.base.length);
             return false;

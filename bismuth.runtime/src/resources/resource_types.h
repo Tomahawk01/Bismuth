@@ -3,7 +3,6 @@
 #include "identifiers/identifier.h"
 #include "bresources/bresource_types.h"
 #include "math/math_types.h"
-#include "strings/bname.h"
 
 #include <core_render_types.h>
 
@@ -45,26 +44,6 @@ typedef struct resource
     u64 data_size;
     void* data;
 } resource;
-
-typedef enum texture_flag
-{
-    TEXTURE_FLAG_HAS_TRANSPARENCY = 0x01,
-    TEXTURE_FLAG_IS_WRITEABLE = 0x02,
-    TEXTURE_FLAG_IS_WRAPPED = 0x04,
-    TEXTURE_FLAG_DEPTH = 0x08,
-    TEXTURE_FLAG_RENDERER_BUFFERING = 0x10
-} texture_flag;
-
-typedef u8 texture_flag_bits;
-
-typedef enum texture_type
-{
-    TEXTURE_TYPE_2D,
-    TEXTURE_TYPE_2D_ARRAY,
-    TEXTURE_TYPE_CUBE,
-    TEXTURE_TYPE_CUBE_ARRAY, // NOTE: Cube array texture, used for arrays of cubemaps
-    TEXTURE_TYPE_COUNT
-} texture_type;
 
 typedef enum scene_node_attachment_type
 {

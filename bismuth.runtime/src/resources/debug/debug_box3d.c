@@ -21,6 +21,7 @@ b8 debug_box3d_create(vec3 size, bhandle parent_xform, debug_box3d* out_box)
     out_box->id = identifier_create();
     out_box->color = vec4_one();  // white
 
+    out_box->geometry.type = BGEOMETRY_TYPE_3D_STATIC_COLOR_ONLY;
     out_box->geometry.generation = INVALID_ID_U16;
     out_box->is_dirty = true;
 
@@ -46,7 +47,7 @@ void debug_box3d_color_set(debug_box3d* box, vec4 color)
         if (color.a == 0)
             color.a = 1.0f;
         box->color = color;
-        if (box->geometry.generation != INVALID_ID_U16 && box->geometry.vertex_count && ((vertex_3d*)box->geometry.vertices))
+        if (box->geometry.generation != INVALID_ID_U16 && box->geometry.vertex_count && ((color_vertex_3d*)box->geometry.vertices))
         {
             update_vert_color(box);
             box->is_dirty = true;
@@ -58,7 +59,7 @@ void debug_box3d_extents_set(debug_box3d* box, extents_3d extents)
 {
     if (box)
     {
-        if (box->geometry.generation != INVALID_ID_U16 && box->geometry.vertex_count && ((vertex_3d*)box->geometry.vertices))
+        if (box->geometry.generation != INVALID_ID_U16 && box->geometry.vertex_count && ((color_vertex_3d*)box->geometry.vertices))
         {
             geometry_recalculate_line_box3d_by_extents(&box->geometry, extents);
             box->is_dirty = true;
@@ -140,7 +141,7 @@ static void update_vert_color(debug_box3d* box)
         if (box->geometry.vertex_count && box->geometry.vertices)
         {
             for (u32 i = 0; i < box->geometry.vertex_count; ++i)
-                ((vertex_3d*)box->geometry.vertices)[i].color = box->color;
+                ((color_vertex_3d*)box->geometry.vertices)[i].color = box->color;
         }
     }
 }

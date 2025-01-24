@@ -164,7 +164,7 @@ typedef struct vertex_3d
     vec3 normal;
     vec2 texcoord;
     vec4 color;
-    vec3 tangent;
+    vec4 tangent;
 } vertex_3d;
 
 typedef struct vertex_2d

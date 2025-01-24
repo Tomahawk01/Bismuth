@@ -26,11 +26,11 @@ BAPI bresource_texture* texture_system_request(bname name, bname package_name, v
 
 BAPI bresource_texture* texture_system_request_cube(bname name, b8 auto_release, b8 multiframe_buffering, void* listener, PFN_resource_loaded_user_callback callback);
 BAPI bresource_texture* texture_system_request_cube_writeable(bname name, u32 dimension, b8 auto_release, b8 multiframe_buffering);
-BAPI bresource_texture* texture_system_request_cube_depth(bname name, u32 dimension, b8 auto_release, b8 multiframe_buffering);
-BAPI bresource_texture* texture_system_request_writeable(bname name, u32 width, u32 height, bresource_texture_format format, b8 has_transparency, b8 multiframe_buffering);
-BAPI bresource_texture* texture_system_request_writeable_arrayed(bname name, u32 width, u32 height, bresource_texture_format format, b8 has_transparency, b8 multiframe_buffering, bresource_texture_type type, u16 array_size);
-BAPI bresource_texture* texture_system_request_depth(bname name, u32 width, u32 height, b8 multiframe_buffering);
-BAPI bresource_texture* texture_system_request_depth_arrayed(bname name, u32 width, u32 height, u16 array_size, b8 multiframe_buffering);
+BAPI bresource_texture* texture_system_request_cube_depth(bname name, u32 dimension, b8 auto_release, b8 include_stencil, b8 multiframe_buffering);
+BAPI bresource_texture* texture_system_request_writeable(bname name, u32 width, u32 height, texture_format format, b8 has_transparency, b8 multiframe_buffering);
+BAPI bresource_texture* texture_system_request_writeable_arrayed(bname name, u32 width, u32 height, texture_format format, b8 has_transparency, b8 multiframe_buffering, texture_type type, u16 array_size);
+BAPI bresource_texture* texture_system_request_depth(bname name, u32 width, u32 height, b8 include_stencil, b8 multiframe_buffering);
+BAPI bresource_texture* texture_system_request_depth_arrayed(bname name, u32 width, u32 height, u16 array_size, b8 include_stencil, b8 multiframe_buffering);
 BAPI bresource_texture* texture_system_acquire_textures_as_arrayed(bname name, bname package_name, u32 layer_count, bname* layer_asset_names, b8 auto_release, b8 multiframe_buffering, void* listener, PFN_resource_loaded_user_callback callback);
 BAPI void texture_system_release_resource(bresource_texture* t);
 

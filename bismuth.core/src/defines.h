@@ -20,13 +20,13 @@ typedef double f64;
 typedef int b32;
 typedef _Bool b8;
 
-typedef struct range
+typedef struct brange
 {
     // offset in bytes
     u64 offset;
     // size in bytes
     u64 size;
-} range;
+} brange;
 
 typedef struct range32
 {
@@ -164,9 +164,9 @@ BINLINE u64 get_aligned(u64 operand, u64 granularity)
     return ((operand + (granularity - 1)) & ~(granularity - 1));
 }
 
-BINLINE range get_aligned_range(u64 offset, u64 size, u64 granularity)
+BINLINE brange get_aligned_range(u64 offset, u64 size, u64 granularity)
 {
-    return (range){get_aligned(offset, granularity), get_aligned(size, granularity)};
+    return (brange){get_aligned(offset, granularity), get_aligned(size, granularity)};
 }
 
 #define BMIN(x, y) (x < y ? x : y)

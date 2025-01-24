@@ -176,7 +176,7 @@ b8 vulkan_device_create(vulkan_context* context)
     // VK_EXT_descriptor_indexing
     VkPhysicalDeviceDescriptorIndexingFeatures descriptor_indexing_features = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES_EXT};
     // Partial binding is required for descriptor aliasing
-    descriptor_indexing_features.descriptorBindingPartiallyBound = VK_FALSE; // TODO: Check if supported
+    descriptor_indexing_features.descriptorBindingPartiallyBound = VK_FALSE; // Don't use this
     extended_dynamic_state.pNext = &descriptor_indexing_features;
 
     // Smooth line rasterisation
@@ -221,6 +221,9 @@ b8 vulkan_device_create(vulkan_context* context)
 
         // Dynamic front-face
         context->vkCmdSetFrontFaceEXT = (PFN_vkCmdSetFrontFaceEXT)vkGetInstanceProcAddr(context->instance, "vkCmdSetFrontFaceEXT");
+
+        // Dynamic cull mode
+        context->vkCmdSetCullModeEXT = (PFN_vkCmdSetFrontFaceEXT)vkGetInstanceProcAddr(context->instance, "vkCmdSetCullModeEXT");
 
         // Dynamic depth/stencil state
         context->vkCmdSetStencilOpEXT = (PFN_vkCmdSetStencilOpEXT)vkGetInstanceProcAddr(context->instance, "vkCmdSetStencilOpEXT");
