@@ -22,6 +22,7 @@
 #include "strings/bname.h"
 #include "strings/bstring.h"
 #include "systems/plugin_system.h"
+#include "systems/texture_system.h"
 
 typedef struct renderer_dynamic_state
 {
@@ -211,24 +212,24 @@ b8 renderer_system_initialize(u64* memory_requirement, renderer_system_state* st
     // Create "generic" samplers for reuse WITH anisotropy
     // NOTE: This should probably be configurable instead of just maxing out anisotropy
     f32 max_aniotropy = renderer_max_anisotropy_get();
-    state->generic_samplers[SHADER_GENERIC_SAMPLER_LINEAR_REPEAT] = renderer_sampler_acquire(state, TEXTURE_FILTER_MODE_LINEAR, TEXTURE_REPEAT_REPEAT, max_aniotropy);
-    state->generic_samplers[SHADER_GENERIC_SAMPLER_LINEAR_REPEAT_MIRRORED] = renderer_sampler_acquire(state, TEXTURE_FILTER_MODE_LINEAR, TEXTURE_REPEAT_MIRRORED_REPEAT, max_aniotropy);
-    state->generic_samplers[SHADER_GENERIC_SAMPLER_LINEAR_CLAMP] = renderer_sampler_acquire(state, TEXTURE_FILTER_MODE_LINEAR, TEXTURE_REPEAT_CLAMP_TO_EDGE, max_aniotropy);
-    state->generic_samplers[SHADER_GENERIC_SAMPLER_LINEAR_CLAMP_BORDER] = renderer_sampler_acquire(state, TEXTURE_FILTER_MODE_LINEAR, TEXTURE_REPEAT_CLAMP_TO_BORDER, max_aniotropy);
-    state->generic_samplers[SHADER_GENERIC_SAMPLER_NEAREST_REPEAT] = renderer_sampler_acquire(state, TEXTURE_FILTER_MODE_NEAREST, TEXTURE_REPEAT_REPEAT, max_aniotropy);
-    state->generic_samplers[SHADER_GENERIC_SAMPLER_NEAREST_REPEAT_MIRRORED] = renderer_sampler_acquire(state, TEXTURE_FILTER_MODE_NEAREST, TEXTURE_REPEAT_MIRRORED_REPEAT, max_aniotropy);
-    state->generic_samplers[SHADER_GENERIC_SAMPLER_LINEAR_CLAMP] = renderer_sampler_acquire(state, TEXTURE_FILTER_MODE_NEAREST, TEXTURE_REPEAT_CLAMP_TO_EDGE, max_aniotropy);
-    state->generic_samplers[SHADER_GENERIC_SAMPLER_LINEAR_CLAMP_BORDER] = renderer_sampler_acquire(state, TEXTURE_FILTER_MODE_NEAREST, TEXTURE_REPEAT_CLAMP_TO_BORDER, max_aniotropy);
+    state->generic_samplers[SHADER_GENERIC_SAMPLER_LINEAR_REPEAT] = renderer_sampler_acquire(state, bname_create("SHADER_GENERIC_SAMPLER_LINEAR_REPEAT"), TEXTURE_FILTER_MODE_LINEAR, TEXTURE_REPEAT_REPEAT, max_aniotropy);
+    state->generic_samplers[SHADER_GENERIC_SAMPLER_LINEAR_REPEAT_MIRRORED] = renderer_sampler_acquire(state, bname_create("SHADER_GENERIC_SAMPLER_LINEAR_REPEAT_MIRRORED"), TEXTURE_FILTER_MODE_LINEAR, TEXTURE_REPEAT_MIRRORED_REPEAT, max_aniotropy);
+    state->generic_samplers[SHADER_GENERIC_SAMPLER_LINEAR_CLAMP] = renderer_sampler_acquire(state, bname_create("SHADER_GENERIC_SAMPLER_LINEAR_CLAMP"), TEXTURE_FILTER_MODE_LINEAR, TEXTURE_REPEAT_CLAMP_TO_EDGE, max_aniotropy);
+    state->generic_samplers[SHADER_GENERIC_SAMPLER_LINEAR_CLAMP_BORDER] = renderer_sampler_acquire(state, bname_create("SHADER_GENERIC_SAMPLER_LINEAR_CLAMP_BORDER"), TEXTURE_FILTER_MODE_LINEAR, TEXTURE_REPEAT_CLAMP_TO_BORDER, max_aniotropy);
+    state->generic_samplers[SHADER_GENERIC_SAMPLER_NEAREST_REPEAT] = renderer_sampler_acquire(state, bname_create("SHADER_GENERIC_SAMPLER_NEAREST_REPEAT"), TEXTURE_FILTER_MODE_NEAREST, TEXTURE_REPEAT_REPEAT, max_aniotropy);
+    state->generic_samplers[SHADER_GENERIC_SAMPLER_NEAREST_REPEAT_MIRRORED] = renderer_sampler_acquire(state, bname_create("SHADER_GENERIC_SAMPLER_NEAREST_REPEAT_MIRRORED"), TEXTURE_FILTER_MODE_NEAREST, TEXTURE_REPEAT_MIRRORED_REPEAT, max_aniotropy);
+    state->generic_samplers[SHADER_GENERIC_SAMPLER_NEAREST_CLAMP] = renderer_sampler_acquire(state, bname_create("SHADER_GENERIC_SAMPLER_NEAREST_CLAMP"), TEXTURE_FILTER_MODE_NEAREST, TEXTURE_REPEAT_CLAMP_TO_EDGE, max_aniotropy);
+    state->generic_samplers[SHADER_GENERIC_SAMPLER_NEAREST_CLAMP_BORDER] = renderer_sampler_acquire(state, bname_create("SHADER_GENERIC_SAMPLER_NEAREST_CLAMP_BORDER"), TEXTURE_FILTER_MODE_NEAREST, TEXTURE_REPEAT_CLAMP_TO_BORDER, max_aniotropy);
 
     // Same as above, but variants WITHOUT anisotropy. Used for sampling depth textures, for example
-    state->generic_samplers[SHADER_GENERIC_SAMPLER_LINEAR_REPEAT_NO_ANISOTROPY] = renderer_sampler_acquire(state, TEXTURE_FILTER_MODE_LINEAR, TEXTURE_REPEAT_REPEAT, 0);
-    state->generic_samplers[SHADER_GENERIC_SAMPLER_LINEAR_REPEAT_MIRRORED_NO_ANISOTROPY] = renderer_sampler_acquire(state, TEXTURE_FILTER_MODE_LINEAR, TEXTURE_REPEAT_MIRRORED_REPEAT, 0);
-    state->generic_samplers[SHADER_GENERIC_SAMPLER_LINEAR_CLAMP_NO_ANISOTROPY] = renderer_sampler_acquire(state, TEXTURE_FILTER_MODE_LINEAR, TEXTURE_REPEAT_CLAMP_TO_EDGE, 0);
-    state->generic_samplers[SHADER_GENERIC_SAMPLER_LINEAR_CLAMP_BORDER_NO_ANISOTROPY] = renderer_sampler_acquire(state, TEXTURE_FILTER_MODE_LINEAR, TEXTURE_REPEAT_CLAMP_TO_BORDER, 0);
-    state->generic_samplers[SHADER_GENERIC_SAMPLER_NEAREST_REPEAT_NO_ANISOTROPY] = renderer_sampler_acquire(state, TEXTURE_FILTER_MODE_NEAREST, TEXTURE_REPEAT_REPEAT, 0);
-    state->generic_samplers[SHADER_GENERIC_SAMPLER_NEAREST_REPEAT_MIRRORED_NO_ANISOTROPY] = renderer_sampler_acquire(state, TEXTURE_FILTER_MODE_NEAREST, TEXTURE_REPEAT_MIRRORED_REPEAT, 0);
-    state->generic_samplers[SHADER_GENERIC_SAMPLER_LINEAR_CLAMP_NO_ANISOTROPY] = renderer_sampler_acquire(state, TEXTURE_FILTER_MODE_NEAREST, TEXTURE_REPEAT_CLAMP_TO_EDGE, 0);
-    state->generic_samplers[SHADER_GENERIC_SAMPLER_LINEAR_CLAMP_BORDER_NO_ANISOTROPY] = renderer_sampler_acquire(state, TEXTURE_FILTER_MODE_NEAREST, TEXTURE_REPEAT_CLAMP_TO_BORDER, 0);
+    state->generic_samplers[SHADER_GENERIC_SAMPLER_LINEAR_REPEAT_NO_ANISOTROPY] = renderer_sampler_acquire(state, bname_create("SHADER_GENERIC_SAMPLER_LINEAR_REPEAT_NO_ANISOTROPY"), TEXTURE_FILTER_MODE_LINEAR, TEXTURE_REPEAT_REPEAT, 0);
+    state->generic_samplers[SHADER_GENERIC_SAMPLER_LINEAR_REPEAT_MIRRORED_NO_ANISOTROPY] = renderer_sampler_acquire(state, bname_create("SHADER_GENERIC_SAMPLER_LINEAR_REPEAT_MIRRORED_NO_ANISOTROPY"), TEXTURE_FILTER_MODE_LINEAR, TEXTURE_REPEAT_MIRRORED_REPEAT, 0);
+    state->generic_samplers[SHADER_GENERIC_SAMPLER_LINEAR_CLAMP_NO_ANISOTROPY] = renderer_sampler_acquire(state, bname_create("SHADER_GENERIC_SAMPLER_LINEAR_CLAMP_NO_ANISOTROPY"), TEXTURE_FILTER_MODE_LINEAR, TEXTURE_REPEAT_CLAMP_TO_EDGE, 0);
+    state->generic_samplers[SHADER_GENERIC_SAMPLER_LINEAR_CLAMP_BORDER_NO_ANISOTROPY] = renderer_sampler_acquire(state, bname_create("SHADER_GENERIC_SAMPLER_LINEAR_CLAMP_BORDER_NO_ANISOTROPY"), TEXTURE_FILTER_MODE_LINEAR, TEXTURE_REPEAT_CLAMP_TO_BORDER, 0);
+    state->generic_samplers[SHADER_GENERIC_SAMPLER_NEAREST_REPEAT_NO_ANISOTROPY] = renderer_sampler_acquire(state, bname_create("SHADER_GENERIC_SAMPLER_NEAREST_REPEAT_NO_ANISOTROPY"), TEXTURE_FILTER_MODE_NEAREST, TEXTURE_REPEAT_REPEAT, 0);
+    state->generic_samplers[SHADER_GENERIC_SAMPLER_NEAREST_REPEAT_MIRRORED_NO_ANISOTROPY] = renderer_sampler_acquire(state, bname_create("SHADER_GENERIC_SAMPLER_NEAREST_REPEAT_MIRRORED_NO_ANISOTROPY"), TEXTURE_FILTER_MODE_NEAREST, TEXTURE_REPEAT_MIRRORED_REPEAT, 0);
+    state->generic_samplers[SHADER_GENERIC_SAMPLER_NEAREST_CLAMP_NO_ANISOTROPY] = renderer_sampler_acquire(state, bname_create("SHADER_GENERIC_SAMPLER_NEAREST_CLAMP_NO_ANISOTROPY"), TEXTURE_FILTER_MODE_NEAREST, TEXTURE_REPEAT_CLAMP_TO_EDGE, 0);
+    state->generic_samplers[SHADER_GENERIC_SAMPLER_NEAREST_CLAMP_BORDER_NO_ANISOTROPY] = renderer_sampler_acquire(state, bname_create("SHADER_GENERIC_SAMPLER_NEAREST_CLAMP_BORDER_NO_ANISOTROPY"), TEXTURE_FILTER_MODE_NEAREST, TEXTURE_REPEAT_CLAMP_TO_BORDER, 0);
 
     // Invalidate default texture handles, the should be registered from the texture system via renderer_default_texture_register()
     for (u32 i = 0; i < RENDERER_DEFAULT_TEXTURE_COUNT; ++i)
@@ -316,18 +317,16 @@ b8 renderer_on_window_created(struct renderer_system_state* state, struct bwindo
     // Create a new window state and register it
     window->renderer_state = ballocate(sizeof(bwindow_renderer_state), MEMORY_TAG_RENDERER);
 
-    window->renderer_state->colorbuffer = ballocate(sizeof(bresource_texture), MEMORY_TAG_RENDERER);
-    window->renderer_state->depthbuffer = ballocate(sizeof(bresource_texture), MEMORY_TAG_RENDERER);
-    // Start with invalid color/depth buffer texture handles
-    window->renderer_state->colorbuffer->renderer_texture_handle = bhandle_invalid();
-    window->renderer_state->depthbuffer->renderer_texture_handle = bhandle_invalid();
-
     // Create backend resources (i.e swapchain, surface, images, etc)
     if (!state->backend->window_create(state->backend, window))
     {
         BERROR("Renderer backend failed to create resources for new window. See logs for details");
         return false;
     }
+
+    // Request writeable images that are the size of the window. These are used as render targets and are later blitted to swapchain images
+    window->renderer_state->colorbuffer = texture_system_request_writeable(bname_create("__window_colorbuffer_texture__"), window->width, window->height, BRESOURCE_TEXTURE_FORMAT_RGBA8, false, true);
+    window->renderer_state->depthbuffer = texture_system_request_depth(bname_create("__window_depthbuffer_texture__"), window->width, window->height, true);
 
     return true;
 }
@@ -344,6 +343,26 @@ void renderer_on_window_destroyed(struct renderer_system_state* state, struct bw
 void renderer_on_window_resized(struct renderer_system_state* state, const struct bwindow* window)
 {
     state->backend->window_resized(state->backend, window);
+
+    b8 texture_system_initialized = engine_systems_get()->texture_system != 0;
+    // Also recreate color/depth buffers
+    if (window->renderer_state->colorbuffer)
+    {
+        if (!texture_system_resize(window->renderer_state->colorbuffer, window->width, window->height, texture_system_initialized))
+        {
+            BERROR("Failed to resize window color buffer texture on window resize");
+            return;
+        }
+    }
+
+    if (window->renderer_state->depthbuffer)
+    {
+        if (!texture_system_resize(window->renderer_state->depthbuffer, window->width, window->height, texture_system_initialized))
+        {
+            BERROR("Failed to resize window depth buffer texture on window resize");
+            return;
+        }
+    }
 }
 
 void renderer_begin_debug_label(const char* label_text, vec3 color)
@@ -492,7 +511,7 @@ void renderer_begin_rendering(struct renderer_system_state* state, struct frame_
     {
         for (u32 i = 0; i < color_target_count; ++i)
         {
-            if (bhandle_is_invalid(color_targets[0]))
+            if (bhandle_is_invalid(color_targets[1]))
             {
                 BFATAL("Passed invalid handle to texture target (index=%u) when beginning rendering. Null is used, and will likely cause a failure", i);
             }
@@ -724,13 +743,11 @@ void renderer_geometry_destroy(bgeometry* g)
                 BERROR("vulkan_renderer_destroy_geometry failed to free index buffer range");
         }
 
+        // Setting this to invalidid effectively marks the geometry as "not setup"
         g->generation = INVALID_ID_U16;
+        g->vertex_buffer_offset = INVALID_ID_U64;
+        g->index_buffer_offset = INVALID_ID_U64;
     }
-
-    if (g->vertices)
-        bfree(g->vertices, g->vertex_element_size * g->vertex_count, MEMORY_TAG_RENDERER);
-    if (g->indices)
-        bfree(g->indices, g->index_element_size * g->index_count, MEMORY_TAG_RENDERER);
 }
 
 void renderer_geometry_draw(geometry_render_data* data)
@@ -918,9 +935,9 @@ bhandle renderer_generic_sampler_get(struct renderer_system_state* state, shader
     return state->generic_samplers[sampler];
 }
 
-bhandle renderer_sampler_acquire(struct renderer_system_state* state, texture_filter filter, texture_repeat repeat, f32 anisotropy)
+bhandle renderer_sampler_acquire(struct renderer_system_state* state, bname name, texture_filter filter, texture_repeat repeat, f32 anisotropy)
 {
-    return state->backend->sampler_acquire(state->backend, filter, repeat, anisotropy);
+    return state->backend->sampler_acquire(state->backend, name, filter, repeat, anisotropy);
 }
 
 void renderer_sampler_release(struct renderer_system_state* state, bhandle* sampler)

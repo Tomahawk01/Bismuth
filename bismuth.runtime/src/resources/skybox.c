@@ -1,6 +1,7 @@
 #include "skybox.h"
 
 #include "core/engine.h"
+#include "defines.h"
 #include "bresources/bresource_types.h"
 #include "logger.h"
 #include "math/geometry.h"
@@ -89,6 +90,14 @@ b8 skybox_unload(skybox* sb)
         BWARN("Unable to release shader group resources for skybox");
         return false;
     }
+    sb->group_id = INVALID_ID;
+    
+    if (!renderer_shader_per_draw_resources_release(engine_systems_get()->renderer_system, skybox_shader, sb->draw_id))
+    {
+        BWARN("Unable to release shader draw resources for skybox");
+        return false;
+    }
+    sb->draw_id = INVALID_ID;
 
     renderer_geometry_destroy(&sb->geometry);
     geometry_destroy(&sb->geometry);

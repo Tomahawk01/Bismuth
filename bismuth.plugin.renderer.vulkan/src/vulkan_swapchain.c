@@ -1,4 +1,6 @@
 #include "vulkan_swapchain.h"
+#include "identifiers/bhandle.h"
+#include "bresources/bresource_types.h"
 
 #include <vulkan/vulkan_core.h>
 
@@ -171,8 +173,13 @@ static b8 create(renderer_backend_interface* backend, bwindow* window, renderer_
         return false;
     }
 
-    // Start with zero frame index
-    window_backend->current_frame = 0;
+    // Because the swapchain images are owned/created by the swapchain, the memory for the texture "wrapped" around it is manually allocated here
+    if (!swapchain->swapchain_color_texture)
+    {
+        swapchain->swapchain_color_texture = BALLOC_TYPE(bresource_texture, MEMORY_TAG_RENDERER);
+        // Start with an invalid handle
+        swapchain->swapchain_color_texture->renderer_texture_handle = bhandle_invalid();
+    }
 
     // Get image count from swapchain
     swapchain->image_count = 0;
@@ -194,15 +201,16 @@ static b8 create(renderer_backend_interface* backend, bwindow* window, renderer_
         return false;
     }
 
-    // Swapchain images are stored in the backend data of the window.colorbuffer
-    if (bhandle_is_invalid(window_internal->colorbuffer->renderer_texture_handle))
+    // Swapchain images are stored in the backend data of the swapchain's color texture
+    // NOTE: The window should create a separate set of images to render to, then blit to these
+    if (bhandle_is_invalid(swapchain->swapchain_color_texture->renderer_texture_handle))
     {
         // If invalid, then a new one needs to be created. This does not reach out to the
         // texture system to create this, but handles it internally instead. This is because
         // the process for this varies greatly between backends
         if (!renderer_bresource_texture_resources_acquire(
                 backend->frontend_state,
-                bname_create("__window_colorbuffer_texture__"),
+                bname_create("__swapchain_color_texture__"),
                 BRESOURCE_TEXTURE_TYPE_2D,
                 swapchain_extent.width,
                 swapchain_extent.height,
@@ -212,50 +220,43 @@ static b8 create(renderer_backend_interface* backend, bwindow* window, renderer_
                 // NOTE: This should be a wrapped texture, so the frontend does not try to
                 // acquire the resources we already have here
                 TEXTURE_FLAG_IS_WRAPPED | TEXTURE_FLAG_IS_WRITEABLE | TEXTURE_FLAG_RENDERER_BUFFERING,
-                &window_internal->colorbuffer->renderer_texture_handle))
+                &swapchain->swapchain_color_texture->renderer_texture_handle))
         {
-            BFATAL("Failed to acquire internal texture resources for window.colorbuffer");
+            BFATAL("Failed to acquire internal texture resources for swapchain color texture");
             return false;
         }
     }
 
     // Get the texture_internal_data based on the existing or newly-created handle above.
     // Use that to setup the internal images/views for the colorbuffer texture.
-    vulkan_texture_handle_data* texture_data = &context->textures[window_internal->colorbuffer->renderer_texture_handle.handle_index];
+    vulkan_texture_handle_data* texture_data = &context->textures[swapchain->swapchain_color_texture->renderer_texture_handle.handle_index];
     if (!texture_data)
     {
-        BFATAL("Unable to get internal data for colorbuffer image. Swapchain creation failed");
+        BFATAL("Unable to get internal data for swapchain color image. Swapchain creation failed");
         return false;
     }
 
     // Name is meaningless here, but might be useful for debugging
-    if (window_internal->colorbuffer->base.name == INVALID_BNAME)
-        window_internal->colorbuffer->base.name = bname_create("__window_colorbuffer_texture__");
+    if (swapchain->swapchain_color_texture->base.name == INVALID_BNAME)
+        swapchain->swapchain_color_texture->base.name = bname_create("__swapchain_color_texture__");
 
     texture_data->image_count = swapchain->image_count;
-    // Create the array if it doesn't exist
-    if (!texture_data->images)
+    texture_data->images = BALLOC_TYPE_CARRAY(vulkan_image, texture_data->image_count);
+    
+    // Set initial parameters for each
+    for (u32 i = 0; i < texture_data->image_count; ++i)
     {
-        // Also have to setup the internal data
-        texture_data->images = ballocate(sizeof(vulkan_image) * texture_data->image_count, MEMORY_TAG_TEXTURE);
+        vulkan_image* image = &texture_data->images[i];
+
+        // Construct a unique name for each image
+        image->name = string_format("__internal_vulkan_swapchain_image_%u__", i);
 
         // Set initial parameters for each
-        for (u32 i = 0; i < texture_data->image_count; ++i)
-        {
-            vulkan_image* image = &texture_data->images[i];
-
-            // Construct a unique name for each image
-            char tex_name[38] = "__internal_vulkan_swapchain_image_0__";
-            tex_name[34] = '0' + (char)i;
-            image->name = string_duplicate(tex_name);
-
-            // Set initial parameters for each
-            image->memory_flags = 0; // Doesn't really apply anyway/not needed
-            image->mip_levels = 1;
-            image->format = swapchain->image_format.format;
-            image->layer_count = 1;
-            image->layer_views = 0;
-        }
+        image->memory_flags = 0; // Doesn't really apply anyway/not needed
+        image->mip_levels = 1;
+        image->format = swapchain->image_format.format;
+        image->layer_count = 1;
+        image->layer_views = 0;
     }
 
     // Update the parameters and setup a view for each image
@@ -286,9 +287,6 @@ static b8 create(renderer_backend_interface* backend, bwindow* window, renderer_
         VK_CHECK(vkCreateImageView(context->device.logical_device, &view_create_info, context->allocator, &image->view));
     }
 
-    // Make sure to set the owning window
-    swapchain->owning_window = window;
-
     BINFO("Swapchain created successfully");
     return true;
 }
@@ -297,10 +295,7 @@ static void destroy(renderer_backend_interface* backend, vulkan_swapchain* swapc
 {
     vulkan_context* context = backend->internal_context;
 
-    bwindow* window = swapchain->owning_window;
-    bwindow_renderer_state* window_internal = window->renderer_state;
-
-    vulkan_texture_handle_data* texture_data = &context->textures[window_internal->colorbuffer->renderer_texture_handle.handle_index];
+    vulkan_texture_handle_data* texture_data = &context->textures[swapchain->swapchain_color_texture->renderer_texture_handle.handle_index];
     if (!texture_data)
     {
         BFATAL("Unable to get internal data for colorbuffer image. Swapchain destruction failed");
@@ -315,6 +310,8 @@ static void destroy(renderer_backend_interface* backend, vulkan_swapchain* swapc
         vulkan_image* image = &texture_data->images[i];
         vkDestroyImageView(context->device.logical_device, image->view, context->allocator);
     }
+    BFREE_TYPE_CARRAY(texture_data->images, vulkan_image, swapchain->image_count);
+    texture_data->images = 0;
 
     vkDestroySwapchainKHR(context->device.logical_device, swapchain->handle, context->allocator);
 }

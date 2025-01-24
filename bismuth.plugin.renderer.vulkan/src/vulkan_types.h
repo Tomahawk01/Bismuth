@@ -10,6 +10,14 @@
 
 #include <vulkan/vulkan.h>
 
+// Frames in flight can differ for double-buffering (1) or triple-buffering (2), but will never exceed this amount
+#define VULKAN_MAX_FRAMES_IN_FLIGHT 2
+// The color buffer count can differ for double-buffering (2) or triple-buffering (3), but will never exceed this amount
+#define VULKAN_MAX_COLOR_BUFFER_COUNT 3
+
+// The array size for resources created per-image. Regardless of whether double or triple-buffering is used, this should always be used for resource array sizes so that triple buffering can be toggled in settings
+#define VULKAN_RESOURCE_IMAGE_COUNT 3
+
 // Checks the given expression's return value against VK_SUCCESS
 #define VK_CHECK(expr) BASSERT(expr == VK_SUCCESS)
 
@@ -110,36 +118,6 @@ typedef struct vulkan_image
     b8 has_view;
 } vulkan_image;
 
-// Struct definition for renderer-specific framebuffer data
-typedef struct framebuffer_internal_data
-{
-    // The number of VkFramebuffers in the array. Typically 1 unless the attachment requires the frame_count to be taken into account
-    u32 framebuffer_count;
-    // Array of framebuffers
-    VkFramebuffer* framebuffers;
-} framebuffer_internal_data;
-
-typedef enum vulkan_render_pass_state
-{
-    READY,
-    RECORDING,
-    IN_RENDER_PASS,
-    RECORDING_ENDED,
-    SUBMITTED,
-    NOT_ALLOCATED
-} vulkan_render_pass_state;
-
-typedef struct vulkan_renderpass
-{
-    VkRenderPass handle;
-
-    vulkan_render_pass_state state;
-
-    // darray
-    VkClearValue* clear_values;
-    /* u32 clear_value_count; */
-} vulkan_renderpass;
-
 typedef struct vulkan_swapchain
 {
     VkSurfaceFormatKHR image_format;
@@ -149,14 +127,16 @@ typedef struct vulkan_swapchain
     VkSwapchainKHR handle;
     u32 image_count;
 
-    // Track the owning window in case something is needed from it
-    struct bwindow* owning_window;
-
     /** @brief Supports being used as a blit destination */
     b8 supports_blit_dest;
 
     /** @brief Supports being used as a blit source */
     b8 supports_blit_src;
+
+    bresource_texture* swapchain_color_texture;
+
+    /** @brief The swapchain image index (i.e. the swapchain image index that will be blitted to) */
+    u32 image_index;
 } vulkan_swapchain;
 
 typedef enum vulkan_command_buffer_state

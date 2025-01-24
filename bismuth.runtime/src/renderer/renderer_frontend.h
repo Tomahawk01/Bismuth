@@ -140,7 +140,7 @@ BAPI b8 renderer_shader_uniform_set(struct renderer_system_state* state, bhandle
 
 BAPI bhandle renderer_generic_sampler_get(struct renderer_system_state* state, shader_generic_sampler sampler);
 
-BAPI bhandle renderer_sampler_acquire(struct renderer_system_state* state, texture_filter filter, texture_repeat repeat, f32 anisotropy);
+BAPI bhandle renderer_sampler_acquire(struct renderer_system_state* state, bname name, texture_filter filter, texture_repeat repeat, f32 anisotropy);
 BAPI void renderer_sampler_release(struct renderer_system_state* state, bhandle* sampler);
 BAPI b8 renderer_sampler_refresh(struct renderer_system_state* state, bhandle* sampler, texture_filter filter, texture_repeat repeat, f32 anisotropy, u32 mip_levels);
 

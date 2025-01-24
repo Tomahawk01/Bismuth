@@ -85,7 +85,7 @@ b8 vulkan_renderer_shader_per_draw_resources_acquire(renderer_backend_interface*
 b8 vulkan_renderer_shader_per_draw_resources_release(renderer_backend_interface* backend, bhandle shader, u32 local_id);
 b8 vulkan_renderer_shader_uniform_set(renderer_backend_interface* backend, bhandle frontend_shader, struct shader_uniform* uniform, u32 array_index, const void* value);
 
-bhandle vulkan_renderer_sampler_acquire(renderer_backend_interface* backend, texture_filter filter, texture_repeat repeat, f32 anisotropy);
+bhandle vulkan_renderer_sampler_acquire(renderer_backend_interface* backend, bname name, texture_filter filter, texture_repeat repeat, f32 anisotropy);
 void vulkan_renderer_sampler_release(renderer_backend_interface* backend, bhandle* sampler);
 b8 vulkan_renderer_sampler_refresh(renderer_backend_interface* backend, bhandle* sampler, texture_filter filter, texture_repeat repeat, f32 anisotropy, u32 mip_levels);
 
