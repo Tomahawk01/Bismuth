@@ -38,10 +38,8 @@ typedef enum bresource_type
     BRESOURCE_TYPE_HEIGHTMAP_TERRAIN,
     /** @brief Voxel-based terrain resource type */
     BRESOURCE_TYPE_VOXEL_TERRAIN,
-    /** @brief Sound effect resource type */
-    BRESOURCE_TYPE_SOUND_EFFECT,
-    /** @brief Music resource type */
-    BRESOURCE_TYPE_MUSIC,
+    /** @brief Audio resource type, used for both sound effects and music */
+    BRESOURCE_TYPE_AUDIO,
     BRESOURCE_TYPE_COUNT,
     // Anything beyond 128 is user-defined types
     BRESOURCE_KNOWN_TYPE_MAX = 128
@@ -498,8 +496,6 @@ typedef struct bresource_audio
     // Pulse-code modulation buffer, or raw data to be fed into a buffer
     i16* pcm_data;
 
-    // The format (i.e. 16 bit stereo)
-    u32 format;
     // Used to track samples in streaming type files
     // FIXME: Should be tracked internally by the audio system
     u32 total_samples_left;

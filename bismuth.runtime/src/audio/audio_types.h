@@ -9,8 +9,6 @@ struct audio_plugin_state;
 struct frame_data;
 
 struct audio_system_config;
-struct audio_file_internal;
-struct audio_file_plugin_data;
 struct resource;
 
 typedef enum audio_file_type

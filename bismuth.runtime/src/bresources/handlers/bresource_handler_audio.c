@@ -25,7 +25,6 @@ typedef struct audio_resource_handler_info
 } audio_resource_handler_info;
 
 static void audio_basset_on_result(asset_request_result result, const struct basset* asset, void* listener_inst);
-static void audio_basset_on_hot_reload(asset_request_result result, const struct basset* asset, void* listener_inst);
 
 bresource* bresource_handler_audio_allocate(void)
 {
@@ -99,9 +98,12 @@ void bresource_handler_audio_release(struct bresource_handler* self, bresource* 
             BERROR("Attempted to release non-audio resource '%s' via audio resource handler. Resource not released");
             return;
         }
-        // Release GPU resources
+
         bresource_audio* t = (bresource_audio*)resource;
-        renderer_audio_resources_release(engine_systems_get()->renderer_system, &t->renderer_audio_handle);
+        if (t->pcm_data_size && t->pcm_data)
+            bfree(t->pcm_data, t->pcm_data_size, MEMORY_TAG_AUDIO);
+
+        // TODO: release backend data
 
         bfree(resource, sizeof(bresource_audio), MEMORY_TAG_RESOURCE);
     }
@@ -113,13 +115,11 @@ static void audio_basset_on_result(asset_request_result result, const struct bas
     if (result == ASSET_REQUEST_RESULT_SUCCESS)
     {
         // Release the asset reference as we are done with it
-        asset_system_release(asset_system, image->base.name, image->base.package_name);
-        // Boot out so the request isn't destroyed
-        return;
+        asset_system_release(engine_systems_get()->asset_state, asset->name, asset->package_name);
     }
     else
     {
-        BERROR("Failed to load a required asset for audio resource '%s'. Resource may not appear correctly when rendered", bname_string_get(listener->typed_resource->base.name));
+        BERROR("Failed to load a required asset for audio resource '%s'. Resource may not work correctly when used", bname_string_get(listener->typed_resource->base.name));
     }
 
 destroy_request:
@@ -129,9 +129,4 @@ destroy_request:
     bfree(listener->request_info, sizeof(bresource_audio_request_info), MEMORY_TAG_RESOURCE);
     // Free the listener itself
     bfree(listener, sizeof(audio_resource_handler_info), MEMORY_TAG_RESOURCE);
-}
-
-static void audio_basset_on_hot_reload(asset_request_result result, const struct basset* asset, void* listener_inst)
-{
-    BASSERT_MSG(false, "Not yet implemented");
 }
