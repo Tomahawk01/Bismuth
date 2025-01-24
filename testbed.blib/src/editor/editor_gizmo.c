@@ -217,7 +217,27 @@ void editor_gizmo_render_frame_prepare(editor_gizmo* gizmo, const struct frame_d
 void editor_gizmo_mode_set(editor_gizmo* gizmo, editor_gizmo_mode mode)
 {
     if (gizmo)
+    {
         gizmo->mode = mode;
+        gizmo->is_dirty = true;
+#ifdef BISMUTH_DEBUG
+        switch (gizmo->mode)
+        {
+        case EDITOR_GIZMO_MODE_NONE:
+            BTRACE("Gizmo mode set to 'none'");
+            break;
+        case EDITOR_GIZMO_MODE_MOVE:
+            BTRACE("Gizmo mode set to 'move'");
+            break;
+        case EDITOR_GIZMO_MODE_ROTATE:
+            BTRACE("Gizmo mode set to 'rotate'");
+            break;
+        case EDITOR_GIZMO_MODE_SCALE:
+            BTRACE("Gizmo mode set to 'scale'");
+            break;
+        }
+#endif
+    }
 }
 
 static void create_gizmo_mode_none(editor_gizmo* gizmo)

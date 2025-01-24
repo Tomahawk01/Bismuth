@@ -478,9 +478,10 @@ bgeometry geometry_generate_line_box3d(vec3 size, bname name)
     out_geometry.vertex_count = 2 * 12; // 12 lines to make a cube
     out_geometry.vertices = BALLOC_TYPE_CARRAY(color_vertex_3d, out_geometry.vertex_count);
     out_geometry.vertex_buffer_offset = INVALID_ID_U64;
+    // NOTE: line-based boxes do not have/need indices
+    out_geometry.index_count = 0;
     out_geometry.index_element_size = sizeof(u32);
-    out_geometry.index_count = 6 * 6; // 6 indices per side, 6 sides
-    out_geometry.indices = BALLOC_TYPE_CARRAY(u32, out_geometry.index_count);
+    out_geometry.indices = 0;
     out_geometry.index_buffer_offset = INVALID_ID_U64;
 
     extents_3d extents = {0};
@@ -492,6 +493,11 @@ bgeometry geometry_generate_line_box3d(vec3 size, bname name)
     extents.max.z = half_depth;
 
     geometry_recalculate_line_box3d_by_extents(&out_geometry, extents);
+
+    // Set the default color
+    color_vertex_3d* verts = (color_vertex_3d*)out_geometry.vertices;
+    for (u32 i = 0; i < out_geometry.vertex_count; ++i)
+        verts[i].color = vec4_one();
 
     return out_geometry;
 }
