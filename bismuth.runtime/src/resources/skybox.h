@@ -5,7 +5,7 @@
 
 typedef struct skybox_config
 {
-    const char* cubemap_name;
+    bname cubemap_name;
 } skybox_config;
 
 typedef enum skybox_state

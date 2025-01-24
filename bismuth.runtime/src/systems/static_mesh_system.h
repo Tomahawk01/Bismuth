@@ -80,7 +80,7 @@ struct static_mesh_system_state;
 BAPI b8 static_mesh_system_initialize(u64* memory_requirement, struct static_mesh_system_state* state);
 BAPI void static_mesh_system_shutdown(struct static_mesh_system_state* state);
 
-BAPI b8 static_mesh_system_instance_acquire(struct static_mesh_system_state* state, bname name, bname resource_name, static_mesh_instance* out_instance);
+BAPI b8 static_mesh_system_instance_acquire(struct static_mesh_system_state* state, bname resource_name, bname package_name, static_mesh_instance* out_instance);
 BAPI void static_mesh_system_instance_release(struct static_mesh_system_state* state, static_mesh_instance* instance);
 
 BAPI b8 static_mesh_system_render_data_generate(const static_mesh_instance* instance, static_mesh_render_data_flag_bits flags, static_mesh_render_data* out_render_data);

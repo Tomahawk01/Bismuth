@@ -31,11 +31,14 @@ const char* basset_heightmap_terrain_serialize(const basset* asset)
     }
 
     // heightmap_filename
-    if (!bson_object_value_add_string(&tree.root, "heightmap_asset_name", bname_string_get(typed_asset->heightmap_asset_name)))
+    if (!bson_object_value_add_bname_as_string(&tree.root, "heightmap_asset_name", typed_asset->heightmap_asset_name))
     {
         BERROR("Failed to add heightmap_asset_name, which is a required field");
         goto cleanup_bson;
     }
+
+    // heightmap_asset_package_name - optional
+    bson_object_value_add_bname_as_string(&tree.root, "heightmap_asset_package_name", typed_asset->heightmap_asset_package_name);
 
     // chunk_size
     if (!bson_object_value_add_int(&tree.root, "chunk_size", typed_asset->chunk_size))
@@ -97,14 +100,14 @@ b8 basset_heightmap_terrain_deserialize(const char* file_text, basset* out_asset
         }
 
         // heightmap_asset_name
-        const char* heightmap_asset_name_str = 0;
-        if (!bson_object_property_value_get_string(&tree.root, "heightmap_asset_name", &heightmap_asset_name_str))
+        if (!bson_object_property_value_get_string_as_bname(&tree.root, "heightmap_asset_name", &typed_asset->heightmap_asset_name))
         {
             BERROR("Failed to parse heightmap_asset_name, which is a required field");
             goto cleanup_bson;
         }
-        typed_asset->heightmap_asset_name = bname_create(heightmap_asset_name_str);
-        string_free(heightmap_asset_name_str);
+        
+        // heightmap_asset_package_name - optional, can be found automatically
+        bson_object_property_value_get_string_as_bname(&tree.root, "heightmap_asset_package_name", &typed_asset->heightmap_asset_package_name);
 
         // chunk_size
         if (!bson_object_property_value_get_int(&tree.root, "chunk_size", (i64*)(&typed_asset->chunk_size)))

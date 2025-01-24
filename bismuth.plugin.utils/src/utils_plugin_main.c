@@ -61,6 +61,21 @@ b8 bplugin_create(struct bruntime_plugin* out_plugin)
         }
     }
 
+    // Audio - one per file extension
+    {
+        const char* audio_types[] = {"mp3", "ogg", "wav"};
+        for (u8 i = 0; i < 3; ++i)
+        {
+            basset_importer image_importer = {0};
+            image_importer.import = basset_importer_image_import;
+            if (!basset_importer_registry_register(BASSET_TYPE_IMAGE, audio_types[i], image_importer))
+            {
+                BERROR("Failed to register image asset importer!");
+                return false;
+            }
+        }
+    }
+
     BINFO("Bismuth Utils Plugin Creation successful");
 
     return true;

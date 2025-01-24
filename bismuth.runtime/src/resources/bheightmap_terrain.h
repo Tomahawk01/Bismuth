@@ -3,9 +3,6 @@
 #include "defines.h"
 #include "math/math_types.h"
 
-#include "assets/basset_heightmap_terrain.h"
-#include "assets/basset_types.h"
-
 #define HEIGHTMAP_TERRAIN_MAX_MATERIAL_COUNT
 
 /** @brief Represents a single vertex of a heightmap terrain */

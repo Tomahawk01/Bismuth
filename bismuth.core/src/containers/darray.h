@@ -14,6 +14,7 @@ BAPI void* _darray_create(u64 length, u64 stride, struct frame_allocator_int* fr
 BAPI void* _darray_resize(void* array);
 BAPI void* _darray_push(void* array, const void* value_ptr);
 BAPI void* _darray_insert_at(void* array, u64 index, void* value_ptr);
+BAPI void* _darray_duplicate(u64 stride, void* array);
 
 #define DARRAY_DEFAULT_CAPACITY 1
 #define DARRAY_RESIZE_FACTOR 2
@@ -55,6 +56,8 @@ BAPI u64 darray_length(void* array);
 BAPI u64 darray_stride(void* array);
 
 BAPI void darray_length_set(void* array, u64 value);
+
+#define darray_duplicate(type, array) (type*)_darray_duplicate(sizeof(type), array)
 
 /**
  * NEW DARRAY

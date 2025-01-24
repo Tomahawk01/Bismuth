@@ -17,11 +17,9 @@
 #include "containers/darray.h"
 #include "logger.h"
 #include "memory/bmemory.h"
-#include "resources/loaders/audio_loader.h"
 #include "resources/resource_types.h"
 #include "systems/audio_system.h"
 #include "systems/job_system.h"
-#include "systems/resource_system.h"
 
 // OpenAL
 #ifdef BPLATFORM_WINDOWS

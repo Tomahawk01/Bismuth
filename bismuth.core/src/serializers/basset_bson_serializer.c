@@ -1,12 +1,8 @@
 #include "basset_bson_serializer.h"
 
 #include "assets/basset_types.h"
-#include "containers/darray.h"
-#include "core_render_types.h"
 #include "logger.h"
 #include "parsers/bson_parser.h"
-#include "strings/bstring.h"
-#include "utils/render_type_utils.h"
 
 const char* basset_bson_serialize(const basset* asset)
 {

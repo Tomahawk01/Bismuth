@@ -214,4 +214,13 @@ BAPI mat4 xform_world_get(bhandle t);
  */
 BAPI const char* xform_to_string(bhandle t);
 
+/**
+ * @brief Creates an xform from the given string
+ *
+ * @param str The string from which to create the xform. Should be either 'x y z qx qy qz qw sx sy sz' (quaternion rotation) OR 'x y z ex ey ez sx sy sz' (euler rotation)
+ * @param out_xform A pointer to hold the handle to the newly created xform.
+ * @returns True on success; otherwise false.
+ */
+BAPI b8 xform_from_string(const char* str, bhandle* out_xform);
+
 #endif

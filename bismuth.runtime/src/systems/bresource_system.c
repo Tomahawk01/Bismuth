@@ -6,7 +6,9 @@
 #include "defines.h"
 #include "bresources/handlers/bresource_handler_binary.h"
 #include "bresources/handlers/bresource_handler_bitmap_font.h"
+#include "bresources/handlers/bresource_handler_heightmap_terrain.h"
 #include "bresources/handlers/bresource_handler_material.h"
+#include "bresources/handlers/bresource_handler_scene.h"
 #include "bresources/handlers/bresource_handler_shader.h"
 #include "bresources/handlers/bresource_handler_static_mesh.h"
 #include "bresources/handlers/bresource_handler_system_font.h"
@@ -162,6 +164,32 @@ b8 bresource_system_initialize(u64* memory_requirement, struct bresource_system_
         if (!bresource_system_handler_register(state, BRESOURCE_TYPE_SYSTEM_FONT, handler))
         {
             BERROR("Failed to register system font resource handler");
+            return false;
+        }
+    }
+
+    // Scene handler
+    {
+        bresource_handler handler = {0};
+        handler.allocate = bresource_handler_scene_allocate;
+        handler.release = bresource_handler_scene_release;
+        handler.request = bresource_handler_scene_request;
+        if (!bresource_system_handler_register(state, BRESOURCE_TYPE_SCENE, handler))
+        {
+            BERROR("Failed to register scene resource handler");
+            return false;
+        }
+    }
+
+    // Heightmap terrain handler
+    {
+        bresource_handler handler = {0};
+        handler.allocate = bresource_handler_heightmap_terrain_allocate;
+        handler.release = bresource_handler_heightmap_terrain_release;
+        handler.request = bresource_handler_heightmap_terrain_request;
+        if (!bresource_system_handler_register(state, BRESOURCE_TYPE_HEIGHTMAP_TERRAIN, handler))
+        {
+            BERROR("Failed to register heightmap terrain resource handler");
             return false;
         }
     }

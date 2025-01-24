@@ -133,7 +133,7 @@ static void shader_basset_on_result(asset_request_result result, const struct ba
     }
     else
     {
-        BERROR("Failed to load a required asset for shader resource '%s'. Resource may be correct", bname_string_get(listener->typed_resource->base.name));
+        BERROR("Failed to load a required asset for shader resource '%s'. Resource may be incorrect", bname_string_get(listener->typed_resource->base.name));
     }
 
     // Destroy the request

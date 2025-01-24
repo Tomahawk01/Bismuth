@@ -360,7 +360,10 @@ const char* bpackage_source_path_for_asset(const bpackage* package, bname name)
             }
             else
             {
-                return string_duplicate(entry->source_path);
+                if (entry->source_path)
+                    return string_duplicate(entry->source_path);
+
+                return 0;
             }
         }
     }

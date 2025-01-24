@@ -1,26 +1,27 @@
 #include "basset_scene_serializer.h"
 
 #include "assets/basset_types.h"
-
+#include "containers/darray.h"
+#include "core_resource_types.h"
 #include "logger.h"
-#include "math/bmath.h"
+#include "memory/bmemory.h"
 #include "parsers/bson_parser.h"
+#include "strings/bname.h"
 #include "strings/bstring.h"
 
 // The current scene version
-#define BASSET_SCENE_VERSION 2
+#define SCENE_ASSET_CURRENT_VERSION 2
 
-static b8 serialize_node(basset_scene_node* node, bson_object* node_obj);
-static b8 serialize_attachment(basset_scene_node_attachment* attachment, bson_object* attachment_obj);
+static b8 serialize_node(scene_node_config* node, bson_object* node_obj);
 
-static b8 deserialize_node(basset* asset, basset_scene_node* node, bson_object* node_obj);
-static b8 deserialize_attachment(basset* asset, basset_scene_node_attachment* attachment, bson_object* attachment_obj);
+static b8 deserialize_node(basset* asset, scene_node_config* node, bson_object* node_obj);
+static b8 deserialize_attachment(basset* asset, scene_node_config* node, bson_object* attachment_obj);
 
 const char* basset_scene_serialize(const basset* asset)
 {
     if (!asset)
     {
-        BERROR("basset_scene_serialize requires an asset to serialize!");
+        BERROR("scene_serialize requires an asset to serialize!");
         BERROR("Scene serialization failed. See logs for details");
         return 0;
     }
@@ -34,7 +35,7 @@ const char* basset_scene_serialize(const basset* asset)
     tree.root = bson_object_create();
 
     // version - always write the current version
-    if (!bson_object_value_add_int(&tree.root, "version", BASSET_SCENE_VERSION))
+    if (!bson_object_value_add_int(&tree.root, "version", SCENE_ASSET_CURRENT_VERSION))
     {
         BERROR("Failed to add version, which is a required field");
         goto cleanup_bson;
@@ -48,7 +49,7 @@ const char* basset_scene_serialize(const basset* asset)
     bson_array nodes_array = bson_array_create();
     for (u32 i = 0; i < typed_asset->node_count; ++i)
     {
-        basset_scene_node* node = &typed_asset->nodes[i];
+        scene_node_config* node = &typed_asset->nodes[i];
         bson_object node_obj = bson_object_create();
 
         // Serialize the node. This is recursive, and also handles attachments
@@ -129,13 +130,19 @@ b8 basset_scene_deserialize(const char* file_text, basset* out_asset)
                 goto cleanup_bson;
             }
 
+            if (typed_asset->base.meta.version > SCENE_ASSET_CURRENT_VERSION)
+            {
+                BERROR("Parsed scene version '%u' is beyond what the current version '%u' is. Check file format. Deserialization failed", typed_asset->base.meta.version, SCENE_ASSET_CURRENT_VERSION);
+                return false;
+            }
+
             // Description comes from here, but is still optional
             bson_object_property_value_get_string(&tree.root, "description", &typed_asset->description);
         }
 
         // Nodes array
         bson_array nodes_obj_array = {0};
-        if (!bson_object_property_value_get_object(&tree.root, "nodes", &nodes_obj_array))
+        if (!bson_object_property_value_get_array(&tree.root, "nodes", &nodes_obj_array))
         {
             BERROR("Failed to parse nodes, which is a required field");
             goto cleanup_bson;
@@ -149,10 +156,10 @@ b8 basset_scene_deserialize(const char* file_text, basset* out_asset)
         }
 
         // Process nodes
-        typed_asset->nodes = ballocate(sizeof(basset_scene_node) * typed_asset->node_count, MEMORY_TAG_ARRAY);
+        typed_asset->nodes = BALLOC_TYPE_CARRAY(scene_node_config, typed_asset->node_count);
         for (u32 i = 0; i < typed_asset->node_count; ++i)
         {
-            basset_scene_node* node = &typed_asset->nodes[i];
+            scene_node_config* node = &typed_asset->nodes[i];
             bson_object node_obj;
             if (!bson_array_element_value_get_object(&nodes_obj_array, i, &node_obj))
             {
@@ -174,182 +181,19 @@ b8 basset_scene_deserialize(const char* file_text, basset* out_asset)
         return success;
     }
 
-    BERROR("basset_scene_deserialize serializer requires an asset to deserialize to!");
+    BERROR("scene_deserialize serializer requires an asset to deserialize to!");
     return false;
 }
 
-static b8 serialize_attachment(basset_scene_node_attachment* attachment, bson_object* attachment_obj)
+static b8 serialize_node(scene_node_config* node, bson_object* node_obj)
 {
-    const char* attachment_name = attachment->name ? attachment->name : "unnamed-attachment";
-
-    // Name, if it exists
-    if (attachment->name)
-    {
-        if (!bson_object_value_add_string(attachment_obj, "name", attachment->name))
-        {
-            BERROR("Failed to add 'name' property for attachment '%s'", attachment_name);
-            return false;
-        }
-    }
-
-    // Add the type
-    const char* type_str = basset_scene_node_attachment_type_strings[attachment->type];
-    if (!bson_object_value_add_string(attachment_obj, "type", type_str))
-    {
-        BERROR("Failed to add 'name' property for attachment '%s'", attachment_name);
-        return false;
-    }
-
-    // Process based on attachment type
-    switch (attachment->type)
-    {
-    case BASSET_SCENE_NODE_ATTACHMENT_TYPE_SKYBOX:
-    {
-        basset_scene_node_attachment_skybox* typed_attachment = (basset_scene_node_attachment_skybox*)attachment;
-
-        // Cubemap name
-        const char* cubemap_name = typed_attachment->cubemap_image_asset_name ? typed_attachment->cubemap_image_asset_name : "default_skybox";
-        if (!bson_object_value_add_string(attachment_obj, "cubemap_image_asset_name", cubemap_name))
-        {
-            BERROR("Failed to add 'cubemap_image_asset_name' property for attachment '%s'", attachment_name);
-            return false;
-        }
-    } break;
-    case BASSET_SCENE_NODE_ATTACHMENT_TYPE_DIRECTIONAL_LIGHT:
-    {
-        basset_scene_node_attachment_directional_light* typed_attachment = (basset_scene_node_attachment_directional_light*)attachment;
-
-        // Color
-        if (!bson_object_value_add_vec4(attachment_obj, "color", typed_attachment->color))
-        {
-            BERROR("Failed to add 'color' property for attachment '%s'", attachment_name);
-            return false;
-        }
-
-        // Direction
-        if (!bson_object_value_add_vec4(attachment_obj, "direction", typed_attachment->direction))
-        {
-            BERROR("Failed to add 'direction' property for attachment '%s'", attachment_name);
-            return false;
-        }
-
-        // shadow_distance
-        if (!bson_object_value_add_float(attachment_obj, "shadow_distance", typed_attachment->shadow_distance))
-        {
-            BERROR("Failed to add 'shadow_distance' property for attachment '%s'", attachment_name);
-            return false;
-        }
-
-        // shadow_fade_distance
-        if (!bson_object_value_add_float(attachment_obj, "shadow_fade_distance", typed_attachment->shadow_fade_distance))
-        {
-            BERROR("Failed to add 'shadow_fade_distance' property for attachment '%s'", attachment_name);
-            return false;
-        }
-
-        // shadow_split_mult
-        if (!bson_object_value_add_float(attachment_obj, "shadow_split_mult", typed_attachment->shadow_split_mult))
-        {
-            BERROR("Failed to add 'shadow_split_mult' property for attachment '%s'", attachment_name);
-            return false;
-        }
-    } break;
-    case BASSET_SCENE_NODE_ATTACHMENT_TYPE_POINT_LIGHT:
-    {
-        basset_scene_node_attachment_point_light* typed_attachment = (basset_scene_node_attachment_point_light*)attachment;
-
-        // Color
-        if (!bson_object_value_add_vec4(attachment_obj, "color", typed_attachment->color))
-        {
-            BERROR("Failed to add 'color' property for attachment '%s'", attachment_name);
-            return false;
-        }
-
-        // Position
-        if (!bson_object_value_add_vec4(attachment_obj, "position", typed_attachment->position))
-        {
-            BERROR("Failed to add 'position' property for attachment '%s'", attachment_name);
-            return false;
-        }
-
-        // Constant
-        if (!bson_object_value_add_float(attachment_obj, "constant_f", typed_attachment->constant_f))
-        {
-            BERROR("Failed to add 'constant_f' property for attachment '%s'", attachment_name);
-            return false;
-        }
-
-        // Linear
-        if (!bson_object_value_add_float(attachment_obj, "linear", typed_attachment->linear))
-        {
-            BERROR("Failed to add 'linear' property for attachment '%s'", attachment_name);
-            return false;
-        }
-
-        // Quadratic
-        if (!bson_object_value_add_float(attachment_obj, "quadratic", typed_attachment->quadratic))
-        {
-            BERROR("Failed to add 'quadratic' property for attachment '%s'", attachment_name);
-            return false;
-        }
-    } break;
-    case BASSET_SCENE_NODE_ATTACHMENT_TYPE_STATIC_MESH:
-    {
-        basset_scene_node_attachment_static_mesh* typed_attachment = (basset_scene_node_attachment_static_mesh*)attachment;
-
-        // Asset name
-        const char* asset_name = typed_attachment->asset_name;
-        if (!asset_name)
-        {
-            BWARN("Attempted to load static mesh (name: '%s') without an asset name. A default mesh name will be used", attachment_name);
-            asset_name = "default_static_mesh";
-        }
-        if (!bson_object_value_add_string(attachment_obj, "asset_name", asset_name))
-        {
-            BERROR("Failed to add 'cubemap_image_asset_name' property for attachment '%s'", attachment_name);
-            return false;
-        }
-    } break;
-    case BASSET_SCENE_NODE_ATTACHMENT_TYPE_HEIGHTMAP_TERRAIN:
-    {
-        basset_scene_node_attachment_heightmap_terrain* typed_attachment = (basset_scene_node_attachment_heightmap_terrain*)attachment;
-
-        // Asset name
-        if (typed_attachment->asset_name)
-        {
-            if (!bson_object_value_add_string(attachment_obj, "asset_name", typed_attachment->asset_name))
-            {
-                BERROR("Failed to add 'asset_name' property for attachment '%s'", attachment_name);
-                return false;
-            }
-        }
-        else
-        {
-            BERROR("Cannot add heightmap terrain (name: '%s') without an 'asset_name'!", attachment_name);
-            return false;
-        }
-    } break;
-    case BASSET_SCENE_NODE_ATTACHMENT_TYPE_WATER_PLANE:
-    {
-        // NOTE: Intentionally blank until additional config is added to water planes
-    } break;
-    case BASSET_SCENE_NODE_ATTACHMENT_TYPE_COUNT:
-        BERROR("Stop trying to serialize the count member of the enum");
-        return false;
-    }
-
-    return true;
-}
-
-static b8 serialize_node(basset_scene_node* node, bson_object* node_obj)
-{
-    const char* node_name = node->name ? node->name : "unnamed-node";
+    bname node_name = node->name ? node->name : bname_create("unnamed-node");
     // Properties
 
     // Name, if it exists
     if (node->name)
     {
-        if (!bson_object_value_add_string(node_obj, "name", node->name))
+        if (!bson_object_value_add_bname_as_string(node_obj, "name", node->name))
         {
             BERROR("Failed to add 'name' property for node '%s'", node_name);
             return false;
@@ -366,39 +210,366 @@ static b8 serialize_node(basset_scene_node* node, bson_object* node_obj)
         }
     }
 
-    // Process attachments
-    if (node->attachment_count && node->attachments)
+    // Process attachments by type, but place them all into the same array in the output file
+    bson_array attachment_obj_array = bson_array_create();
+
+    if (node->skybox_configs)
     {
-        bson_array attachment_array = bson_array_create();
-        for (u32 i = 0; i < node->attachment_count; ++i)
+        u32 length = darray_length(node->skybox_configs);
+        for (u32 i = 0; i < length; ++i)
         {
-            basset_scene_node_attachment* attachment = &node->attachments[i];
+            scene_node_attachment_skybox_config* typed_attachment = &node->skybox_configs[i];
+            scene_node_attachment_config* attachment = (scene_node_attachment_config*)typed_attachment;
             bson_object attachment_obj = bson_object_create();
-
-            // Process attachment
-            if (!serialize_attachment(attachment, &attachment_obj))
+            const char* attachment_name = bname_string_get(attachment->name);
+            // Base properties
             {
-                BERROR("Failed to serialize attachment of node '%s'", node_name);
-                bson_object_cleanup(&attachment_array);
+                // Name, if it exists
+                if (attachment->name)
+                {
+                    if (!bson_object_value_add_bname_as_string(&attachment_obj, "name", attachment->name))
+                    {
+                        BERROR("Failed to add 'name' property for attachment '%s'", attachment_name);
+                        return false;
+                    }
+                }
+
+                // Add the type. Required
+                const char* type_str = scene_node_attachment_type_strings[attachment->type];
+                if (!bson_object_value_add_string(&attachment_obj, "type", type_str))
+                {
+                    BERROR("Failed to add 'name' property for attachment '%s'", attachment_name);
+                    return false;
+                }
+            }
+
+            // Cubemap name
+            bname cubemap_name = typed_attachment->cubemap_image_asset_name ? typed_attachment->cubemap_image_asset_name : bname_create("default_skybox");
+            if (!bson_object_value_add_bname_as_string(&attachment_obj, "cubemap_image_asset_name", cubemap_name))
+            {
+                BERROR("Failed to add 'cubemap_image_asset_name' property for attachment '%s'", attachment_name);
                 return false;
             }
 
-            // Add it to the array
-            if (!bson_array_value_add_object(&attachment_array, attachment_obj))
+            // Package name, if it exists
+            if (typed_attachment->cubemap_image_asset_package_name)
             {
-                BERROR("Failed to add attachment to node '%s'", node_name);
-                bson_object_cleanup(&attachment_array);
-                return false;
+                if (!bson_object_value_add_bname_as_string(&attachment_obj, "package_name", typed_attachment->cubemap_image_asset_package_name))
+                {
+                    BERROR("Failed to add 'package_name' property for attachment '%s'", attachment_name);
+                    return false;
+                }
             }
+
+            // Add it to the attachments array
+            bson_array_value_add_object(&attachment_obj_array, attachment_obj);
         }
+    }
 
+    if (node->dir_light_configs)
+    {
+        u32 length = darray_length(node->dir_light_configs);
+        for (u32 i = 0; i < length; ++i)
+        {
+            scene_node_attachment_directional_light_config* typed_attachment = &node->dir_light_configs[i];
+            scene_node_attachment_config* attachment = (scene_node_attachment_config*)typed_attachment;
+            bson_object attachment_obj = bson_object_create();
+            const char* attachment_name = bname_string_get(attachment->name);
+
+            // Base properties
+            {
+                // Name, if it exists
+                if (attachment->name)
+                {
+                    if (!bson_object_value_add_bname_as_string(&attachment_obj, "name", attachment->name))
+                    {
+                        BERROR("Failed to add 'name' property for attachment '%s'", attachment_name);
+                        return false;
+                    }
+                }
+
+                // Add the type. Required
+                const char* type_str = scene_node_attachment_type_strings[attachment->type];
+                if (!bson_object_value_add_string(&attachment_obj, "type", type_str))
+                {
+                    BERROR("Failed to add 'name' property for attachment '%s'", attachment_name);
+                    return false;
+                }
+            }
+
+            // Color
+            if (!bson_object_value_add_vec4(&attachment_obj, "color", typed_attachment->color))
+            {
+                BERROR("Failed to add 'color' property for attachment '%s'", attachment_name);
+                return false;
+            }
+
+            // Direction
+            if (!bson_object_value_add_vec4(&attachment_obj, "direction", typed_attachment->direction))
+            {
+                BERROR("Failed to add 'direction' property for attachment '%s'", attachment_name);
+                return false;
+            }
+
+            // shadow_distance
+            if (!bson_object_value_add_float(&attachment_obj, "shadow_distance", typed_attachment->shadow_distance))
+            {
+                BERROR("Failed to add 'shadow_distance' property for attachment '%s'", attachment_name);
+                return false;
+            }
+
+            // shadow_fade_distance
+            if (!bson_object_value_add_float(&attachment_obj, "shadow_fade_distance", typed_attachment->shadow_fade_distance))
+            {
+                BERROR("Failed to add 'shadow_fade_distance' property for attachment '%s'", attachment_name);
+                return false;
+            }
+
+            // shadow_split_mult
+            if (!bson_object_value_add_float(&attachment_obj, "shadow_split_mult", typed_attachment->shadow_split_mult))
+            {
+                BERROR("Failed to add 'shadow_split_mult' property for attachment '%s'", attachment_name);
+                return false;
+            }
+
+            // Add it to the attachments array
+            bson_array_value_add_object(&attachment_obj_array, attachment_obj);
+        }
+    }
+
+    if (node->point_light_configs)
+    {
+        u32 length = darray_length(node->point_light_configs);
+        for (u32 i = 0; i < length; ++i)
+        {
+            scene_node_attachment_point_light_config* typed_attachment = &node->point_light_configs[i];
+            scene_node_attachment_config* attachment = (scene_node_attachment_config*)typed_attachment;
+            bson_object attachment_obj = bson_object_create();
+            const char* attachment_name = bname_string_get(attachment->name);
+
+            // Base properties
+            {
+                // Name, if it exists
+                if (attachment->name)
+                {
+                    if (!bson_object_value_add_bname_as_string(&attachment_obj, "name", attachment->name))
+                    {
+                        BERROR("Failed to add 'name' property for attachment '%s'", attachment_name);
+                        return false;
+                    }
+                }
+                
+                // Add the type. Required
+                const char* type_str = scene_node_attachment_type_strings[attachment->type];
+                if (!bson_object_value_add_string(&attachment_obj, "type", type_str))
+                {
+                    BERROR("Failed to add 'name' property for attachment '%s'", attachment_name);
+                    return false;
+                }
+            }
+
+            // Color
+            if (!bson_object_value_add_vec4(&attachment_obj, "color", typed_attachment->color))
+            {
+                BERROR("Failed to add 'color' property for attachment '%s'", attachment_name);
+                return false;
+            }
+
+            // Position
+            if (!bson_object_value_add_vec4(&attachment_obj, "position", typed_attachment->position))
+            {
+                BERROR("Failed to add 'position' property for attachment '%s'", attachment_name);
+                return false;
+            }
+
+            // Constant
+            if (!bson_object_value_add_float(&attachment_obj, "constant_f", typed_attachment->constant_f))
+            {
+                BERROR("Failed to add 'constant_f' property for attachment '%s'", attachment_name);
+                return false;
+            }
+        
+            // Linear
+            if (!bson_object_value_add_float(&attachment_obj, "linear", typed_attachment->linear))
+            {
+                BERROR("Failed to add 'linear' property for attachment '%s'", attachment_name);
+                return false;
+            }
+
+            // Quadratic
+            if (!bson_object_value_add_float(&attachment_obj, "quadratic", typed_attachment->quadratic))
+            {
+                BERROR("Failed to add 'quadratic' property for attachment '%s'", attachment_name);
+                return false;
+            }
+
+            // Add it to the attachments array
+            bson_array_value_add_object(&attachment_obj_array, attachment_obj);
+        }
+    }
+
+    if (node->static_mesh_configs)
+    {
+        u32 length = darray_length(node->static_mesh_configs);
+        for (u32 i = 0; i < length; ++i)
+        {
+            scene_node_attachment_static_mesh_config* typed_attachment = &node->static_mesh_configs[i];
+            scene_node_attachment_config* attachment = (scene_node_attachment_config*)typed_attachment;
+            bson_object attachment_obj = bson_object_create();
+            const char* attachment_name = bname_string_get(attachment->name);
+
+            // Base properties
+            {
+                // Name, if it exists
+                if (attachment->name)
+                {
+                    if (!bson_object_value_add_bname_as_string(&attachment_obj, "name", attachment->name))
+                    {
+                        BERROR("Failed to add 'name' property for attachment '%s'", attachment_name);
+                        return false;
+                    }
+                }
+
+                // Add the type. Required
+                const char* type_str = scene_node_attachment_type_strings[attachment->type];
+                if (!bson_object_value_add_string(&attachment_obj, "type", type_str))
+                {
+                    BERROR("Failed to add 'name' property for attachment '%s'", attachment_name);
+                    return false;
+                }
+            }
+
+            // Asset name
+            bname cubemap_name = typed_attachment->asset_name ? typed_attachment->asset_name : bname_create("default_static_mesh");
+            if (!bson_object_value_add_bname_as_string(&attachment_obj, "asset_name", cubemap_name))
+            {
+                BERROR("Failed to add 'asset_name' property for attachment '%s'", attachment_name);
+                return false;
+            }
+
+            // Package name, if it exists
+            if (typed_attachment->package_name)
+            {
+                if (!bson_object_value_add_bname_as_string(&attachment_obj, "package_name", typed_attachment->package_name))
+                {
+                    BERROR("Failed to add 'package_name' property for attachment '%s'", attachment_name);
+                    return false;
+                }
+            }
+
+            // Add it to the attachments array
+            bson_array_value_add_object(&attachment_obj_array, attachment_obj);
+        }
+    }
+
+    if (node->heightmap_terrain_configs)
+    {
+        u32 length = darray_length(node->heightmap_terrain_configs);
+        for (u32 i = 0; i < length; ++i)
+        {
+            scene_node_attachment_heightmap_terrain_config* typed_attachment = &node->heightmap_terrain_configs[i];
+            scene_node_attachment_config* attachment = (scene_node_attachment_config*)typed_attachment;
+            bson_object attachment_obj = bson_object_create();
+            const char* attachment_name = bname_string_get(attachment->name);
+
+            // Base properties
+            {
+                // Name, if it exists
+                if (attachment->name)
+                {
+                    if (!bson_object_value_add_bname_as_string(&attachment_obj, "name", attachment->name))
+                    {
+                        BERROR("Failed to add 'name' property for attachment '%s'", attachment_name);
+                        return false;
+                    }
+                }
+
+                // Add the type. Required
+                const char* type_str = scene_node_attachment_type_strings[attachment->type];
+                if (!bson_object_value_add_string(&attachment_obj, "type", type_str))
+                {
+                    BERROR("Failed to add 'name' property for attachment '%s'", attachment_name);
+                    return false;
+                }
+            }
+
+            // Asset name
+            bname cubemap_name = typed_attachment->asset_name ? typed_attachment->asset_name : bname_create("default_terrain");
+            if (!bson_object_value_add_bname_as_string(&attachment_obj, "asset_name", cubemap_name))
+            {
+                BERROR("Failed to add 'asset_name' property for attachment '%s'", attachment_name);
+                return false;
+            }
+
+            // Package name, if it exists
+            if (typed_attachment->package_name)
+            {
+                if (!bson_object_value_add_bname_as_string(&attachment_obj, "package_name", typed_attachment->package_name))
+                {
+                    BERROR("Failed to add 'package_name' property for attachment '%s'", attachment_name);
+                    return false;
+                }
+            }
+
+            // Add it to the attachments array
+            bson_array_value_add_object(&attachment_obj_array, attachment_obj);
+        }
+    }
+    
+    if (node->water_plane_configs)
+    {
+        u32 length = darray_length(node->water_plane_configs);
+        for (u32 i = 0; i < length; ++i)
+        {
+            scene_node_attachment_water_plane_config* typed_attachment = &node->water_plane_configs[i];
+            scene_node_attachment_config* attachment = (scene_node_attachment_config*)typed_attachment;
+            bson_object attachment_obj = bson_object_create();
+            const char* attachment_name = bname_string_get(attachment->name);
+
+            // Base properties
+            {
+                // Name, if it exists
+                if (attachment->name)
+                {
+                    if (!bson_object_value_add_bname_as_string(&attachment_obj, "name", attachment->name))
+                    {
+                        BERROR("Failed to add 'name' property for attachment '%s'", attachment_name);
+                        return false;
+                    }
+                }
+
+                // Add the type. Required
+                const char* type_str = scene_node_attachment_type_strings[attachment->type];
+                if (!bson_object_value_add_string(&attachment_obj, "type", type_str))
+                {
+                    BERROR("Failed to add 'name' property for attachment '%s'", attachment_name);
+                    return false;
+                }
+            }
+
+            // NOTE: No extra properties for now until additional config is added to water planes
+
+            // Add it to the attachments array
+            bson_array_value_add_object(&attachment_obj_array, attachment_obj);
+        }
+    }
+
+    // Only write out the attachments array object if it contains something
+    u32 total_attachment_count = 0;
+    bson_array_element_count_get(&attachment_obj_array, &total_attachment_count);
+    if (total_attachment_count > 0)
+    {
         // Add the attachments array to the parent node object
-        if (!bson_object_value_add_array(node_obj, "attachments", attachment_array))
+        if (!bson_object_value_add_array(node_obj, "attachments", attachment_obj_array))
         {
             BERROR("Failed to add attachments array to node '%s'", node_name);
-            bson_object_cleanup(&attachment_array);
+            bson_object_cleanup(&attachment_obj_array);
             return false;
         }
+    }
+    else
+    {
+        bson_object_cleanup(&attachment_obj_array);
     }
 
     // Process children if there are any
@@ -407,7 +578,7 @@ static b8 serialize_node(basset_scene_node* node, bson_object* node_obj)
         bson_array children_array = bson_array_create();
         for (u32 i = 0; i < node->child_count; ++i)
         {
-            basset_scene_node* child = &node->children[i];
+            scene_node_config* child = &node->children[i];
             bson_object child_obj = bson_object_create();
 
             // Recurse
@@ -439,30 +610,29 @@ static b8 serialize_node(basset_scene_node* node, bson_object* node_obj)
     return true;
 }
 
-static b8 deserialize_node(basset* asset, basset_scene_node* node, bson_object* node_obj)
+static b8 deserialize_node(basset* asset, scene_node_config* node, bson_object* node_obj)
 {
     // Get name, if defined. Not required
-    bson_object_property_value_get_string(node_obj, "name", &node->name);
+    bson_object_property_value_get_string_as_bname(node_obj, "name", &node->name);
 
     // Get Xform as a string, if it exists. Optional
     bson_object_property_value_get_string(node_obj, "xform", &node->xform_source);
 
     // Process attachments if there are any. These are optional
     bson_array attachment_obj_array = {0};
-    if (bson_object_property_value_get_object(node_obj, "attachments", &attachment_obj_array))
+    if (bson_object_property_value_get_array(node_obj, "attachments", &attachment_obj_array))
     {
         // Get the number of attachments
-        if (!bson_array_element_count_get(&attachment_obj_array, (u32*)(&node->attachment_count)))
+        u32 attachment_count;
+        if (!bson_array_element_count_get(&attachment_obj_array, (u32*)(&attachment_count)))
         {
             BERROR("Failed to parse attachment count. Invalid format?");
             return false;
         }
 
         // Setup the attachment array and deserialize
-        node->attachments = ballocate(sizeof(basset_scene_node_attachment) * node->attachment_count, MEMORY_TAG_ARRAY);
-        for (u32 i = 0; i < node->attachment_count; ++i)
+        for (u32 i = 0; i < attachment_count; ++i)
         {
-            basset_scene_node_attachment* attachment = &node->attachments[i];
             bson_object attachment_obj;
             if (!bson_array_element_value_get_object(&attachment_obj_array, i, &attachment_obj))
             {
@@ -471,7 +641,7 @@ static b8 deserialize_node(basset* asset, basset_scene_node* node, bson_object* 
             }
 
             // Deserialize attachment
-            if (!deserialize_attachment(asset, attachment, &attachment_obj))
+            if (!deserialize_attachment(asset, node, &attachment_obj))
             {
                 BERROR("Failed to deserialize attachment at index %u. Skipping...", i);
                 continue;
@@ -481,7 +651,7 @@ static b8 deserialize_node(basset* asset, basset_scene_node* node, bson_object* 
 
     // Process children if there are any. These are optional
     bson_array children_obj_array = {0};
-    if (bson_object_property_value_get_object(node_obj, "children", &children_obj_array))
+    if (bson_object_property_value_get_array(node_obj, "children", &children_obj_array))
     {
         // Get the number of nodes
         if (!bson_array_element_count_get(&children_obj_array, (u32*)(&node->child_count)))
@@ -491,10 +661,10 @@ static b8 deserialize_node(basset* asset, basset_scene_node* node, bson_object* 
         }
 
         // Setup the child array and deserialize
-        node->children = ballocate(sizeof(basset_scene_node) * node->child_count, MEMORY_TAG_ARRAY);
+        node->children = BALLOC_TYPE_CARRAY(scene_node_config, node->child_count);
         for (u32 i = 0; i < node->child_count; ++i)
         {
-            basset_scene_node* child = &node->children[i];
+            scene_node_config* child = &node->children[i];
             bson_object node_obj;
             if (!bson_array_element_value_get_object(&children_obj_array, i, &node_obj))
             {
@@ -515,15 +685,16 @@ static b8 deserialize_node(basset* asset, basset_scene_node* node, bson_object* 
     return true;
 }
 
-static b8 deserialize_attachment(basset* asset, basset_scene_node_attachment* attachment, bson_object* attachment_obj)
+static b8 deserialize_attachment(basset* asset, scene_node_config* node, bson_object* attachment_obj)
 {
     // Name, if it exists. Optional
-    bson_object_property_value_get_string(attachment_obj, "name", &attachment->name);
+    bname name = INVALID_BNAME;
+    bson_object_property_value_get_string_as_bname(attachment_obj, "name", &name);
 
-    const char* attachment_name = attachment->name ? attachment->name : "unnamed-attachment";
+    bname attachment_name = name ? name : bname_create("unnamed-attachment");
 
     // Parse the type
-    const char* type_str = 0; // basset_scene_node_attachment_type_strings[attachment->type];
+    const char* type_str = 0; // scene_node_attachment_type_strings[attachment->type];
     if (!bson_object_property_value_get_string(attachment_obj, "type", &type_str))
     {
         BERROR("Failed to parse required 'type' property for attachment '%s'", attachment_name);
@@ -531,13 +702,12 @@ static b8 deserialize_attachment(basset* asset, basset_scene_node_attachment* at
     }
 
     // Find the attachment type
-    b8 type_found = false;
-    for (u32 i = 0; i < BASSET_SCENE_NODE_ATTACHMENT_TYPE_COUNT; ++i)
+    scene_node_attachment_type type = SCENE_NODE_ATTACHMENT_TYPE_UNKNOWN;
+    for (u32 i = 0; i < SCENE_NODE_ATTACHMENT_TYPE_COUNT; ++i)
     {
-        if (strings_equali(basset_scene_node_attachment_type_strings[i], type_str))
+        if (strings_equali(scene_node_attachment_type_strings[i], type_str))
         {
-            attachment->type = i;
-            type_found = true;
+            type = (scene_node_attachment_type)i;
             break;
         }
 
@@ -545,37 +715,42 @@ static b8 deserialize_attachment(basset* asset, basset_scene_node_attachment* at
         if (asset->meta.version == 1)
         {
             // fallback types
-            if (i == BASSET_SCENE_NODE_ATTACHMENT_TYPE_HEIGHTMAP_TERRAIN)
+            if (i == SCENE_NODE_ATTACHMENT_TYPE_HEIGHTMAP_TERRAIN)
             {
                 if (strings_equali("terrain", type_str))
                 {
-                    attachment->type = i;
-                    type_found = true;
+                    type = (scene_node_attachment_type)i;
                     break;
                 }
             }
         }
     }
-    if (!type_found)
+    if (type == SCENE_NODE_ATTACHMENT_TYPE_UNKNOWN)
     {
         BERROR("Unrecognized attachment type '%s'. Attachment deserialization failed", type_str);
         return false;
     }
 
     // Process based on attachment type
-    switch (attachment->type)
+    switch (type)
     {
-    case BASSET_SCENE_NODE_ATTACHMENT_TYPE_SKYBOX:
+    case SCENE_NODE_ATTACHMENT_TYPE_UNKNOWN:
     {
-        basset_scene_node_attachment_skybox* typed_attachment = (basset_scene_node_attachment_skybox*)attachment;
+        BERROR("Stop trying to deserialize the unknown member of the enum!");
+        return false;
+    } break;
+
+    case SCENE_NODE_ATTACHMENT_TYPE_SKYBOX:
+    {
+        scene_node_attachment_skybox_config typed_attachment = {0};
 
         // Cubemap name
-        if (!bson_object_property_value_get_string(attachment_obj, "cubemap_image_asset_name", &typed_attachment->cubemap_image_asset_name))
+        if (!bson_object_property_value_get_string_as_bname(attachment_obj, "cubemap_image_asset_name", &typed_attachment.cubemap_image_asset_name))
         {
             // Try fallback name if v1
             if (asset->meta.version == 1)
             {
-                if (!bson_object_property_value_get_string(attachment_obj, "cubemap_name", &typed_attachment->cubemap_image_asset_name))
+                if (!bson_object_property_value_get_string_as_bname(attachment_obj, "cubemap_name", &typed_attachment.cubemap_image_asset_name))
                 {
                     BERROR("Failed to add 'cubemap_name' property for attachment '%s'", attachment_name);
                     return false;
@@ -587,96 +762,114 @@ static b8 deserialize_attachment(basset* asset, basset_scene_node_attachment* at
                 return false;
             }
         }
+
+        // Package name. Optional
+        bson_object_property_value_get_string_as_bname(attachment_obj, "package_name", &typed_attachment.cubemap_image_asset_package_name);
+
+        // Push to the appropriate array
+        if (!node->skybox_configs)
+            node->skybox_configs = darray_create(scene_node_attachment_skybox_config);
+        darray_push(node->skybox_configs, typed_attachment);
     } break;
-    case BASSET_SCENE_NODE_ATTACHMENT_TYPE_DIRECTIONAL_LIGHT:
+    case SCENE_NODE_ATTACHMENT_TYPE_DIRECTIONAL_LIGHT:
     {
-        basset_scene_node_attachment_directional_light* typed_attachment = (basset_scene_node_attachment_directional_light*)attachment;
+        scene_node_attachment_directional_light_config typed_attachment = {0};
 
         // Color
-        if (!bson_object_property_value_get_vec4(attachment_obj, "color", &typed_attachment->color))
+        if (!bson_object_property_value_get_vec4(attachment_obj, "color", &typed_attachment.color))
         {
             BERROR("Failed to get 'color' property for attachment '%s'", attachment_name);
             return false;
         }
 
         // Direction
-        if (!bson_object_property_value_get_vec4(attachment_obj, "direction", &typed_attachment->direction))
+        if (!bson_object_property_value_get_vec4(attachment_obj, "direction", &typed_attachment.direction))
         {
             BERROR("Failed to get 'direction' property for attachment '%s'", attachment_name);
             return false;
         }
 
         // shadow_distance
-        if (!bson_object_property_value_get_float(attachment_obj, "shadow_distance", &typed_attachment->shadow_distance))
+        if (!bson_object_property_value_get_float(attachment_obj, "shadow_distance", &typed_attachment.shadow_distance))
         {
             BERROR("Failed to get 'shadow_distance' property for attachment '%s'", attachment_name);
             return false;
         }
 
         // shadow_fade_distance
-        if (!bson_object_property_value_get_float(attachment_obj, "shadow_fade_distance", &typed_attachment->shadow_fade_distance))
+        if (!bson_object_property_value_get_float(attachment_obj, "shadow_fade_distance", &typed_attachment.shadow_fade_distance))
         {
             BERROR("Failed to get 'shadow_fade_distance' property for attachment '%s'", attachment_name);
             return false;
         }
 
         // shadow_split_mult
-        if (!bson_object_property_value_get_float(attachment_obj, "shadow_split_mult", &typed_attachment->shadow_split_mult))
+        if (!bson_object_property_value_get_float(attachment_obj, "shadow_split_mult", &typed_attachment.shadow_split_mult))
         {
             BERROR("Failed to get 'shadow_split_mult' property for attachment '%s'", attachment_name);
             return false;
         }
+
+        // Push to the appropriate array
+        if (!node->dir_light_configs)
+            node->dir_light_configs = darray_create(scene_node_attachment_directional_light_config);
+        darray_push(node->dir_light_configs, typed_attachment);
     } break;
-    case BASSET_SCENE_NODE_ATTACHMENT_TYPE_POINT_LIGHT:
+    case SCENE_NODE_ATTACHMENT_TYPE_POINT_LIGHT:
     {
-        basset_scene_node_attachment_point_light* typed_attachment = (basset_scene_node_attachment_point_light*)attachment;
+        scene_node_attachment_point_light_config typed_attachment = {0};
 
         // Color
-        if (!bson_object_property_value_get_vec4(attachment_obj, "color", &typed_attachment->color))
+        if (!bson_object_property_value_get_vec4(attachment_obj, "color", &typed_attachment.color))
         {
             BERROR("Failed to get 'color' property for attachment '%s'", attachment_name);
             return false;
         }
 
         // Position
-        if (!bson_object_property_value_get_vec4(attachment_obj, "position", &typed_attachment->position))
+        if (!bson_object_property_value_get_vec4(attachment_obj, "position", &typed_attachment.position))
         {
             BERROR("Failed to get 'position' property for attachment '%s'", attachment_name);
             return false;
         }
 
         // Constant
-        if (!bson_object_property_value_get_float(attachment_obj, "constant_f", &typed_attachment->constant_f))
+        if (!bson_object_property_value_get_float(attachment_obj, "constant_f", &typed_attachment.constant_f))
         {
             BERROR("Failed to get 'constant_f' property for attachment '%s'", attachment_name);
             return false;
         }
 
         // Linear
-        if (!bson_object_property_value_get_float(attachment_obj, "linear", &typed_attachment->linear))
+        if (!bson_object_property_value_get_float(attachment_obj, "linear", &typed_attachment.linear))
         {
             BERROR("Failed to get 'linear' property for attachment '%s'", attachment_name);
             return false;
         }
 
         // Quadratic
-        if (!bson_object_property_value_get_float(attachment_obj, "quadratic", &typed_attachment->quadratic))
+        if (!bson_object_property_value_get_float(attachment_obj, "quadratic", &typed_attachment.quadratic))
         {
             BERROR("Failed to get 'quadratic' property for attachment '%s'", attachment_name);
             return false;
         }
+
+        // Push to the appropriate array
+        if (!node->point_light_configs)
+            node->point_light_configs = darray_create(scene_node_attachment_point_light_config);
+        darray_push(node->point_light_configs, typed_attachment);
     } break;
-    case BASSET_SCENE_NODE_ATTACHMENT_TYPE_STATIC_MESH:
+    case SCENE_NODE_ATTACHMENT_TYPE_STATIC_MESH:
     {
-        basset_scene_node_attachment_static_mesh* typed_attachment = (basset_scene_node_attachment_static_mesh*)attachment;
+        scene_node_attachment_static_mesh_config typed_attachment = {0};
 
         // Asset name
-        if (!bson_object_property_value_get_string(attachment_obj, "asset_name", &typed_attachment->asset_name))
+        if (!bson_object_property_value_get_string_as_bname(attachment_obj, "asset_name", &typed_attachment.asset_name))
         {
             // Try fallback
             if (asset->meta.version == 1)
             {
-                if (!bson_object_property_value_get_string(attachment_obj, "resource_name", &typed_attachment->asset_name))
+                if (!bson_object_property_value_get_string_as_bname(attachment_obj, "resource_name", &typed_attachment.asset_name))
                 {
                     BERROR("Failed to get 'resource_name' property for attachment '%s'", attachment_name);
                     return false;
@@ -688,18 +881,26 @@ static b8 deserialize_attachment(basset* asset, basset_scene_node_attachment* at
                 return false;
             }
         }
+
+        // Package name. Optional
+        bson_object_property_value_get_string_as_bname(attachment_obj, "package_name", &typed_attachment.package_name);
+
+        // Push to the appropriate array
+        if (!node->static_mesh_configs)
+            node->static_mesh_configs = darray_create(scene_node_attachment_static_mesh_config);
+        darray_push(node->static_mesh_configs, typed_attachment);
     } break;
-    case BASSET_SCENE_NODE_ATTACHMENT_TYPE_HEIGHTMAP_TERRAIN:
+    case SCENE_NODE_ATTACHMENT_TYPE_HEIGHTMAP_TERRAIN:
     {
-        basset_scene_node_attachment_heightmap_terrain* typed_attachment = (basset_scene_node_attachment_heightmap_terrain*)attachment;
+        scene_node_attachment_heightmap_terrain_config typed_attachment = {0};
 
         // Asset name
-        if (!bson_object_property_value_get_string(attachment_obj, "asset_name", &typed_attachment->asset_name))
+        if (!bson_object_property_value_get_string_as_bname(attachment_obj, "asset_name", &typed_attachment.asset_name))
         {
             // Try fallback
             if (asset->meta.version == 1)
             {
-                if (!bson_object_property_value_get_string(attachment_obj, "resource_name", &typed_attachment->asset_name))
+                if (!bson_object_property_value_get_string_as_bname(attachment_obj, "resource_name", &typed_attachment.asset_name))
                 {
                     BERROR("Failed to get 'resource_name' property for attachment '%s'", attachment_name);
                     return false;
@@ -711,12 +912,26 @@ static b8 deserialize_attachment(basset* asset, basset_scene_node_attachment* at
                 return false;
             }
         }
+
+        // Package name. Optional
+        bson_object_property_value_get_string_as_bname(attachment_obj, "package_name", &typed_attachment.package_name);
+
+        // Push to the appropriate array
+        if (!node->heightmap_terrain_configs)
+            node->heightmap_terrain_configs = darray_create(scene_node_attachment_heightmap_terrain_config);
+        darray_push(node->heightmap_terrain_configs, typed_attachment);
     } break;
-    case BASSET_SCENE_NODE_ATTACHMENT_TYPE_WATER_PLANE:
+    case SCENE_NODE_ATTACHMENT_TYPE_WATER_PLANE:
     {
+        scene_node_attachment_water_plane_config typed_attachment = {0};
         // NOTE: Intentionally blank until additional config is added to water planes
+
+        // Push to the appropriate array
+        if (!node->water_plane_configs)
+            node->water_plane_configs = darray_create(scene_node_attachment_water_plane_config);
+        darray_push(node->water_plane_configs, typed_attachment);
     } break;
-    case BASSET_SCENE_NODE_ATTACHMENT_TYPE_COUNT:
+    case SCENE_NODE_ATTACHMENT_TYPE_COUNT:
         BERROR("Stop trying to serialize the count member of the enum");
         return false;
     }

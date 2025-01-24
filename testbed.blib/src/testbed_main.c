@@ -29,6 +29,7 @@
 #include <time/bclock.h>
 
 #include "application/application_config.h"
+#include "assets/basset_types.h"
 #include "game_state.h"
 
 // Standard UI
@@ -39,7 +40,6 @@
 #include <standard_ui_system.h>
 
 // Audio plugin
-#include <resources/loaders/audio_loader.h>
 
 // TODO: Editor temp
 #include "editor/editor_gizmo.h"
@@ -55,7 +55,6 @@
 #include <systems/audio_system.h>
 #include <systems/light_system.h>
 #include <systems/material_system.h>
-#include <systems/resource_system.h>
 #include <systems/shader_system.h>
 // Standard ui
 #include <core/systems_manager.h>
@@ -67,6 +66,7 @@
 #include "game_keybinds.h"
 // TODO: end temp
 
+#include "bresources/bresource_types.h"
 #include "platform/platform.h"
 #include "plugins/plugin_types.h"
 #include "renderer/rendergraph_nodes/debug_rendergraph_node.h"
@@ -74,6 +74,7 @@
 #include "renderer/rendergraph_nodes/shadow_rendergraph_node.h"
 #include "rendergraph_nodes/ui_rendergraph_node.h"
 #include "strings/bname.h"
+#include "systems/bresource_system.h"
 #include "systems/plugin_system.h"
 #include "systems/timeline_system.h"
 
@@ -493,7 +494,8 @@ b8 application_initialize(struct application* game_inst)
     application_register_events(game_inst);
 
     // Register resource loaders
-    resource_system_loader_register(audio_resource_loader_create());
+    // FIXME: Audio loader via plugin
+    /* resource_system_loader_register(audio_resource_loader_create()); */
 
     // Pick out rendergraph(s) config from app config, create/init them from here, save off to state
     application_config* config = &game_inst->app_config;
@@ -1589,7 +1591,23 @@ static b8 load_main_scene(struct application* game_inst)
 {
     testbed_game_state* state = (testbed_game_state*)game_inst->state;
 
-    // Load config file
+    bresource_scene_request_info request_info = {0};
+    request_info.base.type = BRESOURCE_TYPE_SCENE;
+    request_info.base.synchronous = true; // HACK: use a callback instead
+    request_info.base.assets = array_bresource_asset_info_create(1);
+    bresource_asset_info* asset = &request_info.base.assets.data[0];
+    asset->type = BASSET_TYPE_SCENE;
+    asset->asset_name = bname_create("test_scene");
+    asset->package_name = bname_create("Testbed");
+
+    bresource_scene* scene_resource = (bresource_scene*)bresource_system_request(engine_systems_get()->bresource_state, bname_create("test_scene"), (bresource_request_info*)&request_info);
+    if (!scene_resource)
+    {
+        BERROR("Failed to request scene resource. See logs for details");
+        return false;
+    }
+
+    /* // Load config file
     // TODO: clean up resource
     resource scene_resource;
     if (!resource_system_load("test_scene", RESOURCE_TYPE_scene, 0, &scene_resource))
@@ -1600,12 +1618,12 @@ static b8 load_main_scene(struct application* game_inst)
 
     scene_config* scene_cfg = (scene_config*)scene_resource.data;
     scene_cfg->resource_name = string_duplicate(scene_resource.name);
-    scene_cfg->resource_full_path = string_duplicate(scene_resource.full_path);
+    scene_cfg->resource_full_path = string_duplicate(scene_resource.full_path); */
 
     // Create the scene
     scene_flags scene_load_flags = 0;
     /* scene_load_flags |= SCENE_FLAG_READONLY;  // NOTE: to enable "editor mode", turn this flag off. */
-    if (!scene_create(scene_cfg, scene_load_flags, &state->main_scene))
+    if (!scene_create(scene_resource, scene_load_flags, &state->main_scene))
     {
         BERROR("Failed to create main scene");
         return false;

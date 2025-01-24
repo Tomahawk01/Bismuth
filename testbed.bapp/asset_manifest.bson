@@ -188,27 +188,32 @@ assets = [
     }
     {
         name = "bg_song1"
-        path = "./assets/music/bg_song1.mp3"
+        path = "./assets/music/bg_song1.baf"
+        source_path = "./assets/music/source/bg_song1.mp3"
     }
     {
         name = "bg_song2"
-        path = "./assets/music/bg_song2.mp3"
+        path = "./assets/music/bg_song2.baf"
+        source_path = "./assets/music/source/bg_song2.mp3"
     }
     {
         name = "bg_song3"
-        path = "./assets/music/bg_song3.mp3"
+        path = "./assets/music/bg_song3.baf"
+        source_path = "./assets/music/source/bg_song4.mp3"
+    }
+    {
+        name = "FireLoop"
+        path = "./assets/music/Fire Loop.baf"
+        source_path = "./assets/music/source/Fire Loop.mp3"
+    }
+    {
+        name = "Test_Audio"
+        path = "./assets/sounds/Test.baf"
+        source_path = "./assets/sounds/source/Test.ogg"
     }
     {
         name = "test_scene"
         path = "./assets/scenes/test_scene.bsn"
-    }
-    {
-        name = "FireLoop"
-        path = "./assets/sounds/Fire loop.mp3"
-    }
-    {
-        name = "Test"
-        path = "./assets/sounds/Test.ogg"
     }
     {
         name = "test_terrain"

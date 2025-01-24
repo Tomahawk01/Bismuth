@@ -2,6 +2,7 @@
 
 #include "defines.h"
 #include "math/math_types.h"
+#include "strings/bname.h"
 
 typedef struct directional_light_data
 {
@@ -16,7 +17,7 @@ typedef struct directional_light_data
 
 typedef struct directional_light
 {
-    char* name;
+    bname name;
     // Generation of the light, incremented on change. Can be used to tell when a shader upload is required
     u32 generation;
     directional_light_data data;
@@ -38,7 +39,7 @@ typedef struct point_light_data
 
 typedef struct point_light
 {
-    char* name;
+    bname name;
     // The generation of the light, incremented on every update. Can be used to detect when a shader upload is required
     u32 generation;
     point_light_data data;

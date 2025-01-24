@@ -3,6 +3,7 @@
 #include "defines.h"
 #include "graphs/hierarchy_graph.h"
 #include "identifiers/bhandle.h"
+#include "bresources/bresource_types.h"
 #include "math/math_types.h"
 #include "resources/debug/debug_grid.h"
 #include "resources/resource_types.h"
@@ -64,23 +65,26 @@ typedef struct scene_node_metadata
     u32 id;
 
     // The name of the node
-    const char* name;
+    bname name;
 } scene_node_metadata;
 
 typedef struct scene_static_mesh_metadata
 {
-    const char* resource_name;
+    bname resource_name;
+    bname package_name;
 } scene_static_mesh_metadata;
 
 typedef struct scene_terrain_metadata
 {
-    const char* name;
-    const char* resource_name;
+    bname name;
+    bname resource_name;
+    bname package_name;
 } scene_terrain_metadata;
 
 typedef struct scene_skybox_metadata
 {
-    const char* cubemap_name;
+    bname cubemap_name;
+    bname package_name;
 } scene_skybox_metadata;
 
 typedef struct scene_water_plane_metadata
@@ -96,10 +100,8 @@ typedef struct scene
     scene_state state;
     b8 enabled;
 
-    char* name;
+    bname name;
     char* description;
-    char* resource_name;
-    char* resource_full_path;
 
     // darray of directional lights
     struct directional_light* dir_lights;
@@ -142,8 +144,8 @@ typedef struct scene
     // A grid for the scene
     debug_grid grid;
 
-    // A pointer to the scene configuration, if provided
-    struct scene_config* config;
+    // A pointer to the scene configuration resource
+    bresource_scene* config;
 
     hierarchy_graph hierarchy;
 
@@ -161,12 +163,12 @@ typedef struct scene
  * @brief Creates a new scene with the given config with default values.
  * No resources are allocated. Config is not yet processed.
  *
- * @param config A pointer to the configuration. Optional.
+ * @param config A pointer to the configuration resource. Optional.
  * @param flags Flags to be used during creation (i.e. read-only, etc.).
  * @param out_scene A pointer to hold the newly created scene. Required.
  * @return True on success; otherwise false.
  */
-BAPI b8 scene_create(scene_config* config, scene_flags flags, scene* out_scene);
+BAPI b8 scene_create(bresource_scene* config, scene_flags flags, scene* out_scene);
 
 /**
  * @brief Performs initialization routines on the scene, including processing
@@ -230,5 +232,3 @@ BAPI b8 scene_terrain_render_data_query_from_line(const scene* scene, vec3 direc
 BAPI b8 scene_water_plane_query(const scene* scene, const frustum* f, vec3 center, struct frame_data* p_frame_data, u32* out_count, struct water_plane*** out_water_planes);
 
 BAPI b8 scene_save(scene* s);
-
-BAPI b8 string_to_scene_xform_config(const char* str, struct scene_xform_config* out_xform);

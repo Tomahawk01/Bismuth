@@ -1,5 +1,8 @@
 #include "scene.h"
 
+#include <core_resource_types.h>
+
+#include "assets/basset_types.h"
 #include "containers/darray.h"
 #include "core/console.h"
 #include "core/engine.h"
@@ -16,25 +19,21 @@
 #include "math/math_types.h"
 #include "memory/bmemory.h"
 #include "parsers/bson_parser.h"
-#include "platform/filesystem.h"
 #include "renderer/renderer_types.h"
 #include "resources/debug/debug_box3d.h"
 #include "resources/debug/debug_line3d.h"
-#include "resources/resource_types.h"
 #include "resources/skybox.h"
 #include "resources/terrain.h"
 #include "resources/water_plane.h"
 #include "strings/bname.h"
 #include "strings/bstring.h"
 #include "strings/bstring_id.h"
+#include "systems/bresource_system.h"
 #include "systems/light_system.h"
 #include "systems/material_system.h"
 #include "systems/static_mesh_system.h"
 #include "systems/xform_system.h"
 #include "utils/bsort.h"
-
-// TODO: remove this
-#include <stdio.h> //sscanf
 
 static void scene_actual_unload(scene* scene);
 static void scene_node_metadata_ensure_allocated(scene* s, u64 handle_index);
@@ -75,7 +74,7 @@ static i32 geometry_distance_compare(void* a, void* b)
     return 0;
 }
 
-b8 scene_create(scene_config* config, scene_flags flags, scene* out_scene)
+b8 scene_create(bresource_scene* config, scene_flags flags, scene* out_scene)
 {
     if (!out_scene)
     {
@@ -123,14 +122,9 @@ b8 scene_create(scene_config* config, scene_flags flags, scene* out_scene)
         return false;
     }
 
-    // TODO: Don't save off config beyond the scene being loaded. Destroy the config once loading is complete
     if (config)
     {
-        out_scene->config = ballocate(sizeof(scene_config), MEMORY_TAG_SCENE);
-        bcopy_memory(out_scene->config, config, sizeof(scene_config));
-
-        out_scene->resource_name = string_duplicate(config->resource_name);
-        out_scene->resource_full_path = string_duplicate(config->resource_full_path);
+        out_scene->config = config;
     }
 
     debug_grid_config grid_config = {0};
@@ -160,11 +154,18 @@ void scene_node_initialize(scene* s, bhandle parent_handle, scene_node_config* n
         b8 is_readonly = ((s->flags & SCENE_FLAG_READONLY) != 0);
 
         // Obtain the xform if one is configured
-        bhandle xform_handle;
-        if (node_config->xform)
-            xform_handle = xform_from_position_rotation_scale(node_config->xform->position, node_config->xform->rotation, node_config->xform->scale);
+        bhandle xform_handle = {0};
+        if (node_config->xform_source)
+        {
+            if (!xform_from_string(node_config->xform_source, &xform_handle))
+            {
+                BWARN("Failed to create xform. See logs for details");
+            }
+        }
         else
+        {
             xform_handle = bhandle_invalid();
+        }
 
         // Add a node in the heirarchy
         bhandle node_handle = hierarchy_graph_child_add_with_xform(&s->hierarchy, parent_handle, xform_handle);
@@ -176,396 +177,433 @@ void scene_node_initialize(scene* s, bhandle parent_handle, scene_node_config* n
             {
                 scene_node_metadata* m = &s->node_metadata[node_handle.handle_index];
                 m->id = node_handle.handle_index;
-                m->name = string_duplicate(node_config->name);
+                m->name = node_config->name;
             }
         }
-        // TODO: Also do this for attachments where needed
+        
+        // Process attachment configs by type
 
-        // Process attachment configs
-        if (node_config->attachments)
+        // Skyboxes
+        if (node_config->skybox_configs)
         {
-            u32 attachment_count = darray_length(node_config->attachments);
-            for (u32 i = 0; i < attachment_count; ++i)
+            u32 count = darray_length(node_config->skybox_configs);
+            for (u32 i = 0; i < count; ++i)
             {
-                scene_node_attachment_config* attachment_config = &node_config->attachments[i];
-                scene_node_attachment_type attachment_type = *((scene_node_attachment_type*)attachment_config);
-                switch (attachment_type)
+                scene_node_attachment_skybox_config* typed_attachment_config = &node_config->skybox_configs[i];
+
+                // Create a skybox config and use it to create the skybox
+                skybox_config sb_config = {0};
+                sb_config.cubemap_name = typed_attachment_config->cubemap_image_asset_name;
+                skybox sb;
+                if (!skybox_create(sb_config, &sb))
+                    BWARN("Failed to create skybox");
+
+                // Initialize the skybox
+                if (!skybox_initialize(&sb))
                 {
-                default:
-                case SCENE_NODE_ATTACHMENT_TYPE_UNKNOWN:
-                    BERROR("An unknown attachment type was found in config. This attachment will be ignored");
-                    continue;
-                case SCENE_NODE_ATTACHMENT_TYPE_STATIC_MESH:
+                    BERROR("Failed to initialize skybox. See logs for details");
+                }
+                else
                 {
-                    scene_node_attachment_static_mesh* typed_attachment_config = attachment_config->attachment_data;
-
-                    if (!typed_attachment_config->resource_name)
+                    // Find a free skybox slot and take it, or push a new one
+                    u32 index = INVALID_ID;
+                    u32 skybox_count = darray_length(s->skyboxes);
+                    for (u32 sbi = 0; sbi < skybox_count; ++sbi)
                     {
-                        BWARN("Invalid mesh config, resource_name is required");
-                        return;
-                    }
-
-                    static_mesh_instance new_static_mesh = {0};
-                    if (!static_mesh_system_instance_acquire(engine_systems_get()->static_mesh_system, 0, bname_create(typed_attachment_config->resource_name), &new_static_mesh))
-                    {
-                        BERROR("Failed to create new static mesh in scene");
-                        return;
-                    }
-                    else
-                    {
-                        // Find a free static mesh slot and take it, or push a new one
-                        u32 resource_index = INVALID_ID;
-                        u32 count = darray_length(s->static_meshes);
-                        for (u32 i = 0; i < count; ++i)
+                        if (s->skyboxes[sbi].state == SKYBOX_STATE_UNDEFINED)
                         {
-                            if (s->static_meshes[i].instance_id == INVALID_ID_U64)
-                            {
-                                // Found a slot, use it
-                                resource_index = i;
-                                s->static_meshes[i] = new_static_mesh;
-                                s->mesh_attachments[i].resource_handle = bhandle_create(resource_index);
-                                s->mesh_attachments[i].hierarchy_node_handle = node_handle;
-                                s->mesh_attachments[i].attachment_type = SCENE_NODE_ATTACHMENT_TYPE_STATIC_MESH;
-                                // For "edit" mode, retain metadata
-                                if (!is_readonly)
-                                    s->mesh_metadata[i].resource_name = string_duplicate(typed_attachment_config->resource_name);
-                                break;
-                            }
-                        }
-                        if (resource_index == INVALID_ID)
-                        {
-                            darray_push(s->static_meshes, new_static_mesh);
-                            resource_index = count;
-                            scene_attachment mesh_attachment = {0};
-                            mesh_attachment.resource_handle = bhandle_create(resource_index);
-                            mesh_attachment.hierarchy_node_handle = node_handle;
-                            mesh_attachment.attachment_type = SCENE_NODE_ATTACHMENT_TYPE_STATIC_MESH;
-                            darray_push(s->mesh_attachments, mesh_attachment);
-                            // For "edit" mode, retain metadata
-                            if (!is_readonly)
-                            {
-                                scene_static_mesh_metadata new_mesh_metadata = {0};
-                                new_mesh_metadata.resource_name = string_duplicate(typed_attachment_config->resource_name);
-                                darray_push(s->mesh_metadata, new_mesh_metadata);
-                            }
+                            // Found a slot, use it
+                            index = sbi;
+                            break;
                         }
                     }
-                } break;
-                case SCENE_NODE_ATTACHMENT_TYPE_TERRAIN:
+                    if (index == INVALID_ID)
+                    {
+                        // No empty slot found, so push empty entries and obtain pointers
+                        darray_push(s->skyboxes, (skybox){0});
+                        darray_push(s->skybox_attachments, (scene_attachment){0});
+                        if (!is_readonly)
+                            darray_push(s->skybox_metadata, (scene_skybox_metadata){0});
+
+                        index = skybox_count;
+                    }
+
+                    // Fill out the structs
+                    s->skyboxes[index] = sb;
+
+                    scene_attachment* attachment = &s->skybox_attachments[index];
+                    attachment->resource_handle = bhandle_create(index);
+                    attachment->hierarchy_node_handle = node_handle;
+                    attachment->attachment_type = SCENE_NODE_ATTACHMENT_TYPE_SKYBOX;
+
+                    // For "edit" mode, retain metadata
+                    if (!is_readonly)
+                    {
+                        scene_skybox_metadata* meta = &s->skybox_metadata[index];
+                        meta->cubemap_name = typed_attachment_config->cubemap_image_asset_name;
+                        meta->package_name = typed_attachment_config->cubemap_image_asset_package_name;
+                    }
+                }
+            }
+        }
+
+        // Directional lights
+        if (node_config->dir_light_configs)
+        {
+            u32 count = darray_length(node_config->dir_light_configs);
+            for (u32 i = 0; i < count; ++i)
+            {
+                scene_node_attachment_directional_light_config* typed_attachment_config = &node_config->dir_light_configs[i];
+
+                directional_light new_light = {0};
+                new_light.name = typed_attachment_config->base.name;
+                new_light.data.color = typed_attachment_config->color;
+                new_light.data.direction = typed_attachment_config->direction;
+                new_light.data.shadow_distance = typed_attachment_config->shadow_distance;
+                new_light.data.shadow_fade_distance = typed_attachment_config->shadow_fade_distance;
+                new_light.data.shadow_split_mult = typed_attachment_config->shadow_split_mult;
+                new_light.generation = 0;
+
+                // Add debug data and initialize it
+                new_light.debug_data = BALLOC_TYPE(scene_debug_data, MEMORY_TAG_RESOURCE);
+                scene_debug_data* debug = new_light.debug_data;
+
+                // Generate the line points based on the light direction
+                // The first point will always be at the scene's origin
+                vec3 point_0 = vec3_zero();
+                vec3 point_1 = vec3_mul_scalar(vec3_normalized(vec3_from_vec4(new_light.data.direction)), -1.0f);
+
+                if (!debug_line3d_create(point_0, point_1, bhandle_invalid(), &debug->line))
+                    BERROR("Failed to create debug line for directional light");
+
+                if (!debug_line3d_initialize(&debug->line))
                 {
-                    scene_node_attachment_terrain* typed_attachment = attachment_config->attachment_data;
-
-                    if (!typed_attachment->resource_name)
-                    {
-                        BWARN("Invalid terrain config, resource_name is required");
-                        return;
-                    }
-
-                    terrain_config new_terrain_config = {0};
-                    new_terrain_config.resource_name = string_duplicate(typed_attachment->resource_name);
-                    new_terrain_config.name = string_duplicate(typed_attachment->name);
-                    terrain new_terrain = {0};
-                    if (!terrain_create(&new_terrain_config, &new_terrain))
-                    {
-                        BWARN("Failed to load terrain");
-                        return;
-                    }
-
-                    // Destroy the config
-                    string_free(new_terrain_config.resource_name);
-                    string_free(new_terrain_config.name);
-
-                    if (!terrain_initialize(&new_terrain))
-                    {
-                        BERROR("Failed to initialize terrain");
-                        return;
-                    }
-                    else
-                    {
-                        // Find a free static terrain slot and take it, or push a new one
-                        u32 index = INVALID_ID;
-                        u32 count = darray_length(s->terrains);
-                        for (u32 i = 0; i < count; ++i)
-                        {
-                            if (s->terrains[i].state == TERRAIN_STATE_UNDEFINED)
-                            {
-                                // Found a slot, use it
-                                index = i;
-                                s->terrains[i] = new_terrain;
-                                s->terrain_attachments[i].resource_handle = bhandle_create(index);
-                                s->terrain_attachments[i].hierarchy_node_handle = node_handle;
-                                s->terrain_attachments[i].attachment_type = SCENE_NODE_ATTACHMENT_TYPE_TERRAIN;
-                                // For "edit" mode, retain metadata
-                                if (!is_readonly)
-                                {
-                                    s->terrain_metadata[i].resource_name = string_duplicate(typed_attachment->resource_name);
-                                    s->terrain_metadata[i].name = string_duplicate(typed_attachment->name);
-                                }
-                                break;
-                            }
-                        }
-                        if (index == INVALID_ID)
-                        {
-                            darray_push(s->terrains, new_terrain);
-                            index = count;
-                            scene_attachment terrain_attachment = {0};
-                            terrain_attachment.resource_handle = bhandle_create(index);
-                            terrain_attachment.hierarchy_node_handle = node_handle;
-                            terrain_attachment.attachment_type = SCENE_NODE_ATTACHMENT_TYPE_TERRAIN;
-                            darray_push(s->terrain_attachments, terrain_attachment);
-                            // For "edit" mode, retain metadata
-                            if (!is_readonly)
-                            {
-                                scene_terrain_metadata new_terrain_metadata = {0};
-                                new_terrain_metadata.resource_name = string_duplicate(typed_attachment->resource_name);
-                                new_terrain_metadata.name = string_duplicate(typed_attachment->name);
-                                darray_push(s->terrain_metadata, new_terrain_metadata);
-                            }
-                        }
-                    }
-                } break;
-                case SCENE_NODE_ATTACHMENT_TYPE_SKYBOX:
+                    BERROR("Failed to create debug line for directional light");
+                }
+                else
                 {
-                    scene_node_attachment_skybox* typed_attachment = attachment_config->attachment_data;
-
-                    // Create a skybox config and use it to create the skybox
-                    skybox_config sb_config = {0};
-                    sb_config.cubemap_name = string_duplicate(typed_attachment->cubemap_name);
-                    skybox sb;
-                    if (!skybox_create(sb_config, &sb))
-                        BWARN("Failed to create skybox");
-
-                    // Destroy the skybox config
-                    string_free((char*)sb_config.cubemap_name);
-                    sb_config.cubemap_name = 0;
-
-                    // Initialize the skybox
-                    if (!skybox_initialize(&sb))
+                    // Find a free slot and take it, or push a new one
+                    u32 index = INVALID_ID;
+                    u32 directional_light_count = darray_length(s->dir_lights);
+                    for (u32 dli = 0; dli < directional_light_count; ++dli)
                     {
-                        BERROR("Failed to initialize skybox. See logs for details");
-                    }
-                    else
-                    {
-                        // Find a free skybox slot and take it, or push a new one
-                        u32 index = INVALID_ID;
-                        u32 skybox_count = darray_length(s->skyboxes);
-                        for (u32 i = 0; i < skybox_count; ++i)
+                        if (s->dir_lights[dli].generation == INVALID_ID)
                         {
-                            if (s->skyboxes[i].state == SKYBOX_STATE_UNDEFINED)
-                            {
-                                // Found a slot, use it
-                                index = i;
-                                s->skyboxes[i] = sb;
-                                s->skybox_attachments[i].resource_handle = bhandle_create(index);
-                                s->skybox_attachments[i].hierarchy_node_handle = node_handle;
-                                s->skybox_attachments[i].attachment_type = SCENE_NODE_ATTACHMENT_TYPE_SKYBOX;
-                                // For "edit" mode, retain metadata
-                                if (!is_readonly)
-                                    s->skybox_metadata[i].cubemap_name = string_duplicate(typed_attachment->cubemap_name);
-                                break;
-                            }
-                        }
-                        if (index == INVALID_ID)
-                        {
-                            darray_push(s->skyboxes, sb);
-                            index = skybox_count;
-                            scene_attachment skybox_attachment = {0};
-                            skybox_attachment.resource_handle = bhandle_create(index);
-                            skybox_attachment.hierarchy_node_handle = node_handle;
-                            skybox_attachment.attachment_type = SCENE_NODE_ATTACHMENT_TYPE_SKYBOX;
-                            darray_push(s->skybox_attachments, skybox_attachment);
-                            // For "edit" mode, retain metadata
-                            if (!is_readonly)
-                            {
-                                scene_skybox_metadata new_skybox_metadata = {0};
-                                new_skybox_metadata.cubemap_name = string_duplicate(typed_attachment->cubemap_name);
-                                darray_push(s->skybox_metadata, new_skybox_metadata);
-                            }
+                            // Found a slot, use it
+                            index = dli;
+                            break;
                         }
                     }
-                } break;
-                case SCENE_NODE_ATTACHMENT_TYPE_DIRECTIONAL_LIGHT:
+                    if (index == INVALID_ID)
+                    {
+                        // No empty slot found, so push empty entries and obtain pointers
+                        darray_push(s->dir_lights, (directional_light){0});
+                        darray_push(s->directional_light_attachments, (scene_attachment){0});
+                        index = directional_light_count;
+                    }
+
+                    s->dir_lights[index] = new_light;
+
+                    scene_attachment* attachment = &s->directional_light_attachments[index];
+                    attachment->resource_handle = bhandle_create(index);
+                    attachment->hierarchy_node_handle = node_handle;
+                    attachment->attachment_type = SCENE_NODE_ATTACHMENT_TYPE_DIRECTIONAL_LIGHT;
+
+                    // NOTE: These dont have metadata. If metadata is required, get it here
+                    /* if (!is_readonly)
+                        scene_directional_light_metadata* meta = 0;
+                    */
+                }
+            }
+        }
+
+        // Point lights
+        if (node_config->point_light_configs)
+        {
+            u32 count = darray_length(node_config->point_light_configs);
+            for (u32 i = 0; i < count; ++i)
+            {
+                scene_node_attachment_point_light_config* typed_attachment_config = &node_config->point_light_configs[i];
+
+                point_light new_light = {0};
+                new_light.name = typed_attachment_config->base.name;
+                new_light.data.color = typed_attachment_config->color;
+                new_light.data.position = typed_attachment_config->position;
+                new_light.data.constant_f = typed_attachment_config->constant_f;
+                new_light.data.linear = typed_attachment_config->linear;
+                new_light.data.quadratic = typed_attachment_config->quadratic;
+                new_light.generation = 0;
+
+                // Add debug data and initialize it
+                new_light.debug_data = BALLOC_TYPE(scene_debug_data, MEMORY_TAG_RESOURCE);
+                scene_debug_data* debug = new_light.debug_data;
+
+                if (!debug_box3d_create((vec3){0.2f, 0.2f, 0.2f}, bhandle_invalid(), &debug->box))
                 {
-                    scene_node_attachment_directional_light* typed_attachment = attachment_config->attachment_data;
-
-                    directional_light new_dir_light = {0};
-                    // TODO: name?
-                    /* new_dir_light.name = string_duplicate(typed_attachment.name); */
-                    new_dir_light.data.color = typed_attachment->color;
-                    new_dir_light.data.direction = typed_attachment->direction;
-                    new_dir_light.data.shadow_distance = typed_attachment->shadow_distance;
-                    new_dir_light.data.shadow_fade_distance = typed_attachment->shadow_fade_distance;
-                    new_dir_light.data.shadow_split_mult = typed_attachment->shadow_split_mult;
-                    new_dir_light.generation = 0;
-
-                    // Add debug data and initialize it
-                    new_dir_light.debug_data = ballocate(sizeof(scene_debug_data), MEMORY_TAG_RESOURCE);
-                    scene_debug_data* debug = new_dir_light.debug_data;
-
-                    // Generate the line points based on the light direction
-                    // The first point will always be at the scene's origin
-                    vec3 point_0 = vec3_zero();
-                    vec3 point_1 = vec3_mul_scalar(vec3_normalized(vec3_from_vec4(new_dir_light.data.direction)), -1.0f);
-
-                    if (!debug_line3d_create(point_0, point_1, bhandle_invalid(), &debug->line))
-                        BERROR("Failed to create debug line for directional light");
-                    if (!debug_line3d_initialize(&debug->line))
-                    {
-                        BERROR("Failed to create debug line for directional light");
-                    }
-                    else
-                    {
-                        // Find a free skybox slot and take it, or push a new one
-                        u32 index = INVALID_ID;
-                        u32 directional_light_count = darray_length(s->dir_lights);
-                        for (u32 i = 0; i < directional_light_count; ++i)
-                        {
-                            if (s->dir_lights[i].generation == INVALID_ID)
-                            {
-                                // Found a slot, use it
-                                index = i;
-                                s->dir_lights[i] = new_dir_light;
-                                s->directional_light_attachments[i].resource_handle = bhandle_create(index);
-                                s->directional_light_attachments[i].hierarchy_node_handle = node_handle;
-                                s->directional_light_attachments[i].attachment_type = SCENE_NODE_ATTACHMENT_TYPE_DIRECTIONAL_LIGHT;
-                                break;
-                            }
-                        }
-                        if (index == INVALID_ID)
-                        {
-                            darray_push(s->dir_lights, new_dir_light);
-                            index = directional_light_count;
-                            scene_attachment directional_light_attachment = {0};
-                            directional_light_attachment.resource_handle = bhandle_create(index);
-                            directional_light_attachment.hierarchy_node_handle = node_handle;
-                            directional_light_attachment.attachment_type = SCENE_NODE_ATTACHMENT_TYPE_DIRECTIONAL_LIGHT;
-                            darray_push(s->directional_light_attachments, directional_light_attachment);
-                        }
-                    }
-                } break;
-                case SCENE_NODE_ATTACHMENT_TYPE_POINT_LIGHT:
+                    BERROR("Failed to create debug box for point light");
+                }
+                else
                 {
-                    scene_node_attachment_point_light* typed_attachment = attachment_config->attachment_data;
-
-                    point_light new_light = {0};
-                    // TODO: name?
-                    /* new_light.name = string_duplicate(typed_attachment->name); */
-                    new_light.data.color = typed_attachment->color;
-                    new_light.data.constant_f = typed_attachment->constant_f;
-                    new_light.data.linear = typed_attachment->linear;
-                    // Set the base position, not the world position, which will be calculated on update
-                    new_light.position = typed_attachment->position;
-                    new_light.data.quadratic = typed_attachment->quadratic;
-
-                    // Add debug data and initialize it
-                    new_light.debug_data = ballocate(sizeof(scene_debug_data), MEMORY_TAG_RESOURCE);
-                    scene_debug_data* debug = new_light.debug_data;
-
-                    if (!debug_box3d_create((vec3){0.2f, 0.2f, 0.2f}, bhandle_invalid(), &debug->box))
-                    {
-                        BERROR("Failed to create debug box for directional light");
-                    }
-                    else
-                    {
-                        xform_position_set(debug->box.xform, vec3_from_vec4(new_light.data.position));
-                    }
-
-                    if (!debug_box3d_initialize(&debug->box))
-                    {
-                        BERROR("Failed to create debug box for point light");
-                    }
-                    else
-                    {
-                        // Find a free point light slot and take it, or push a new one
-                        u32 index = INVALID_ID;
-                        u32 point_light_count = darray_length(s->point_lights);
-                        for (u32 i = 0; i < point_light_count; ++i)
-                        {
-                            if (s->point_lights[i].generation == INVALID_ID)
-                            {
-                                // Found a slot, use it
-                                index = i;
-                                s->point_lights[i] = new_light;
-                                s->point_light_attachments[i].resource_handle = bhandle_create(index);
-                                s->point_light_attachments[i].hierarchy_node_handle = node_handle;
-                                s->point_light_attachments[i].attachment_type = SCENE_NODE_ATTACHMENT_TYPE_POINT_LIGHT;
-                                break;
-                            }
-                        }
-                        if (index == INVALID_ID)
-                        {
-                            darray_push(s->point_lights, new_light);
-                            index = point_light_count;
-                            scene_attachment point_light_attachment = {0};
-                            point_light_attachment.resource_handle = bhandle_create(index);
-                            point_light_attachment.hierarchy_node_handle = node_handle;
-                            point_light_attachment.attachment_type = SCENE_NODE_ATTACHMENT_TYPE_POINT_LIGHT;
-                            darray_push(s->point_light_attachments, point_light_attachment);
-                        }
-                    }
-                } break;
-                case SCENE_NODE_ATTACHMENT_TYPE_WATER_PLANE:
+                    xform_position_set(debug->box.xform, vec3_from_vec4(new_light.data.position));
+                }
+                if (!debug_box3d_initialize(&debug->box))
                 {
-                    scene_node_attachment_water_plane* typed_attachment = attachment_config->attachment_data;
-
-                    // Create a water_plane config and use it to create the skybox
-                    // water_plane_config sb_config = {0};
-                    // sb_config.cubemap_name = string_duplicate(typed_attachment->cubemap_name);
-                    water_plane wp;
-                    if (!water_plane_create(&wp))
-                        BWARN("Failed to create water plane");
-
-                    // Destroy the water plane config
-                    // string_free((char*)sb_config.cubemap_name);
-                    // sb_config.cubemap_name = 0;
-
-                    // Initialize the water plane
-                    if (!water_plane_initialize(&wp))
+                    BERROR("Failed to create debug box for point light");
+                }
+                else
+                {
+                    // Find a free slot and take it, or push a new one
+                    u32 index = INVALID_ID;
+                    u32 point_light_count = darray_length(s->point_lights);
+                    for (u32 dli = 0; dli < point_light_count; ++dli)
                     {
-                        BERROR("Failed to initialize water plane. See logs for details");
-                    }
-                    else
-                    {
-                        // Find a free skybox slot and take it, or push a new one
-                        u32 index = INVALID_ID;
-                        u32 water_plane_count = darray_length(s->water_planes);
-                        for (u32 i = 0; i < water_plane_count; ++i)
+                        if (s->point_lights[dli].generation == INVALID_ID)
                         {
-                            // TODO: water plane states
-                            // if (s->water_planes[i].state == WATER_PLANE_STATE_UNDEFINED) {
-                            if (false)
-                            {
-                                // Found a slot, use it
-                                index = i;
-                                s->water_planes[i] = wp;
-                                s->water_plane_attachments[i].resource_handle = bhandle_create(index);
-                                s->water_plane_attachments[i].hierarchy_node_handle = node_handle;
-                                s->water_plane_attachments[i].attachment_type = SCENE_NODE_ATTACHMENT_TYPE_WATER_PLANE;
-                                // For "edit" mode, retain metadata
-                                if (!is_readonly)
-                                    s->water_plane_metadata[i].reserved = typed_attachment->reserved;
-                                break;
-                            }
-                        }
-                        if (index == INVALID_ID)
-                        {
-                            darray_push(s->water_planes, wp);
-                            index = water_plane_count;
-                            scene_attachment water_plane_attachment = {0};
-                            water_plane_attachment.resource_handle = bhandle_create(index);
-                            water_plane_attachment.hierarchy_node_handle = node_handle;
-                            water_plane_attachment.attachment_type = SCENE_NODE_ATTACHMENT_TYPE_WATER_PLANE;
-                            darray_push(s->water_plane_attachments, water_plane_attachment);
-                            // For "edit" mode, retain metadata
-                            if (!is_readonly)
-                            {
-                                scene_water_plane_metadata new_water_plane_metadata = {0};
-                                new_water_plane_metadata.reserved = typed_attachment->reserved;
-                                darray_push(s->water_plane_metadata, new_water_plane_metadata);
-                            }
+                            // Found a slot, use it
+                            index = dli;
+                            break;
                         }
                     }
-                } break;
+                    if (index == INVALID_ID)
+                    {
+                        // No empty slot found, so push empty entries and obtain pointers
+                        darray_push(s->point_lights, (point_light){0});
+                        darray_push(s->point_light_attachments, (scene_attachment){0});
+                        index = point_light_count;
+                    }
+
+                    s->point_lights[index] = new_light;
+
+                    scene_attachment* attachment = &s->point_light_attachments[index];
+                    attachment->resource_handle = bhandle_create(index);
+                    attachment->hierarchy_node_handle = node_handle;
+                    attachment->attachment_type = SCENE_NODE_ATTACHMENT_TYPE_POINT_LIGHT;
+
+                    // NOTE: These dont have metadata. If metadata is required, get it here
+                    /* if (!is_readonly)
+                        scene_point_light_metadata* meta = 0;
+                    */
+                }
+            }
+        }
+
+        // Static meshes
+        if (node_config->static_mesh_configs)
+        {
+            u32 count = darray_length(node_config->static_mesh_configs);
+            for (u32 i = 0; i < count; ++i)
+            {
+                scene_node_attachment_static_mesh_config* typed_attachment_config = &node_config->static_mesh_configs[i];
+
+                if (!typed_attachment_config->asset_name)
+                {
+                    BWARN("Invalid static mesh config, asset_name is required");
+                    return;
+                }
+
+                static_mesh_instance new_static_mesh = {0};
+                if (!static_mesh_system_instance_acquire(engine_systems_get()->static_mesh_system, typed_attachment_config->asset_name, typed_attachment_config->package_name, &new_static_mesh))
+                {
+                    BERROR("Failed to create new static mesh in scene");
+                    return;
+                }
+                else
+                {
+                    // Find a free slot and take it, or push a new one
+                    u32 index = INVALID_ID;
+                    u32 static_mesh_count = darray_length(s->static_meshes);
+                    for (u32 smi = 0; smi < static_mesh_count; ++smi)
+                    {
+                        if (s->static_meshes[i].instance_id == INVALID_ID_U64)
+                        {
+                            // Found a slot, use it
+                            index = smi;
+                            break;
+                        }
+                    }
+                    if (index == INVALID_ID)
+                    {
+                        // No empty slot found, so push empty entries and obtain pointers
+                        darray_push(s->static_meshes, (static_mesh_instance){0});
+                        darray_push(s->mesh_attachments, (scene_attachment){0});
+                        if (!is_readonly)
+                            darray_push(s->mesh_metadata, (scene_static_mesh_metadata){0});
+                        index = static_mesh_count;
+                    }
+
+                    // Fill out the structs
+                    s->static_meshes[index] = new_static_mesh;
+
+                    scene_attachment* attachment = &s->mesh_attachments[index];
+                    attachment->resource_handle = bhandle_create(index);
+                    attachment->hierarchy_node_handle = node_handle;
+                    attachment->attachment_type = SCENE_NODE_ATTACHMENT_TYPE_STATIC_MESH;
+
+                    // For "edit" mode, retain metadata
+                    if (!is_readonly)
+                    {
+                        scene_static_mesh_metadata* meta = &s->mesh_metadata[index];
+                        meta->resource_name = typed_attachment_config->asset_name;
+                        meta->package_name = typed_attachment_config->package_name;
+                    }
+                }
+            }
+        }
+
+        // Heightmap terrains
+        if (node_config->heightmap_terrain_configs)
+        {
+            u32 count = darray_length(node_config->heightmap_terrain_configs);
+            for (u32 i = 0; i < count; ++i)
+            {
+                scene_node_attachment_heightmap_terrain_config* typed_attachment_config = &node_config->heightmap_terrain_configs[i];
+
+                if (!typed_attachment_config->asset_name)
+                {
+                    BWARN("Invalid heightmap terrain config, asset_name is required");
+                    return;
+                }
+
+                const engine_system_states* systems = engine_systems_get();
+
+                bresource_request_info request = {0};
+                request.type = BRESOURCE_TYPE_HEIGHTMAP_TERRAIN;
+                request.assets = array_bresource_asset_info_create(1);
+                request.assets.data[0].type = BASSET_TYPE_HEIGHTMAP_TERRAIN;
+                request.assets.data[0].asset_name = typed_attachment_config->asset_name;
+                request.assets.data[0].package_name = typed_attachment_config->package_name;
+                // TODO: Setup a listener and callback
+                request.listener_inst = 0;
+                request.user_callback = 0;
+                // TODO: async with callback
+                request.synchronous = true;
+
+                // Request the resource
+                bresource_heightmap_terrain* terrain_resource = (bresource_heightmap_terrain*)bresource_system_request(
+                    systems->bresource_state,
+                    typed_attachment_config->asset_name,
+                    &request);
+
+                // Create the terrain
+                terrain new_terrain = {0};
+                if (!terrain_create(terrain_resource, &new_terrain))
+                {
+                    BWARN("Failed to load heightmap terrain");
+                    return;
+                }
+
+                if (!terrain_initialize(&new_terrain))
+                {
+                    BERROR("Failed to initialize heightmap terrain");
+                    return;
+                }
+                else
+                {
+                    // Find a free slot and take it, or push a new one
+                    u32 index = INVALID_ID;
+                    u32 heightmap_terrain_count = darray_length(s->terrains);
+                    for (u32 hti = 0; hti < heightmap_terrain_count; ++hti)
+                    {
+                        if (s->terrains[i].state == TERRAIN_STATE_UNDEFINED)
+                        {
+                            // Found a slot, use it
+                            index = hti;
+                            break;
+                        }
+                    }
+                    if (index == INVALID_ID)
+                    {
+                        // No empty slot found, so push empty entries and obtain pointers
+                        darray_push(s->terrains, (terrain){0});
+                        darray_push(s->terrain_attachments, (scene_attachment){0});
+                        if (!is_readonly)
+                            darray_push(s->mesh_metadata, (scene_terrain_metadata){0});
+                        
+                        index = heightmap_terrain_count;
+                    }
+
+                    // Fill out the structs
+                    s->terrains[index] = new_terrain;
+                    scene_attachment* attachment = &s->terrain_attachments[index];
+                    attachment->resource_handle = bhandle_create(index);
+                    attachment->hierarchy_node_handle = node_handle;
+                    attachment->attachment_type = SCENE_NODE_ATTACHMENT_TYPE_HEIGHTMAP_TERRAIN;
+                    // For "edit" mode, retain metadata
+                    if (!is_readonly)
+                    {
+                        scene_terrain_metadata* meta = &s->terrain_metadata[index];
+                        meta->resource_name = typed_attachment_config->asset_name;
+                        meta->package_name = typed_attachment_config->package_name;
+                    }
+                }
+            }
+        }
+
+        // Water planes
+        if (node_config->water_plane_configs)
+        {
+            u32 count = darray_length(node_config->water_plane_configs);
+            for (u32 i = 0; i < count; ++i)
+            {
+                /* scene_node_attachment_water_plane_config* typed_attachment_config = &node_config->water_plane_configs[i]; */
+
+                /* if (!typed_attachment_config->asset_name)
+                {
+                    BWARN("Invalid heightmap terrain config, asset_name is required");
+                    return;
+                } */
+
+                water_plane wp;
+                if (!water_plane_create(&wp))
+                    BWARN("Failed to create water plane");
+
+                // Initialize the water plane
+                if (!water_plane_initialize(&wp))
+                {
+                    BERROR("Failed to initialize water plane. See logs for details");
+                }
+                else
+                {
+                    // Find a free slot and take it, or push a new one
+                    u32 index = INVALID_ID;
+                    u32 water_plane_count = darray_length(s->water_planes);
+                    for (u32 wpi = 0; wpi < water_plane_count; ++wpi)
+                    {
+                        if (s->terrains[i].state == TERRAIN_STATE_UNDEFINED)
+                        {
+                            // Found a slot, use it
+                            index = wpi;
+                            break;
+                        }
+                    }
+                    if (index == INVALID_ID)
+                    {
+                        // No empty slot found, so push empty entries and obtain pointers
+                        darray_push(s->water_planes, (water_plane){0});
+                        darray_push(s->water_plane_attachments, (scene_attachment){0});
+                        if (!is_readonly)
+                            darray_push(s->water_plane_metadata, (scene_water_plane_metadata){0});
+                        
+                        index = water_plane_count;
+                    }
+
+                    // Fill out the structs
+                    s->water_planes[index] = wp;
+
+                    scene_attachment* attachment = &s->water_plane_attachments[index];
+                    attachment->resource_handle = bhandle_create(index);
+                    attachment->hierarchy_node_handle = node_handle;
+                    attachment->attachment_type = SCENE_NODE_ATTACHMENT_TYPE_WATER_PLANE;
+
+                    // For "edit" mode, retain metadata
+                    if (!is_readonly)
+                    {
+                        scene_water_plane_metadata* meta = &s->water_plane_metadata[index];
+                        meta->reserved = 0;
+                        // NOTE: expand this when config is added
+                        /* meta->resource_name = typed_attachment_config->asset_name;
+                        meta->package_name = typed_attachment_config->package_name; */
+                    }
                 }
             }
         }
@@ -573,7 +611,7 @@ void scene_node_initialize(scene* s, bhandle parent_handle, scene_node_config* n
         // Process children
         if (node_config->children)
         {
-            u32 child_count = darray_length(node_config->children);
+            u32 child_count = node_config->child_count;
             for (u32 i = 0; i < child_count; ++i)
                 scene_node_initialize(s, node_handle, &node_config->children[i]);
         }
@@ -591,16 +629,16 @@ b8 scene_initialize(scene* scene)
     // Process configuration and setup hierarchy
     if (scene->config)
     {
-        scene_config* config = scene->config;
-        if (scene->config->name)
-            scene->name = string_duplicate(scene->config->name);
+        bresource_scene* config = scene->config;
+        if (scene->config->base.name)
+            scene->name = scene->config->base.name;
         if (scene->config->description)
             scene->description = string_duplicate(scene->config->description);
 
         // Process root nodes
         if (config->nodes)
         {
-            u32 node_count = darray_length(config->nodes);
+            u32 node_count = config->node_count;
             // An invalid handle means there is no parent, which is true for root nodes
             bhandle invalid_handle = bhandle_invalid();
             for (u32 i = 0; i < node_count; ++i)
@@ -1721,7 +1759,7 @@ static b8 scene_serialize_node(const scene* s, const hierarchy_graph_view* view,
     scene_node_metadata* node_meta = &s->node_metadata[view_node->node_handle.handle_index];
 
     // Node name
-    bson_object_value_add_string(&node->value.o, "name", node_meta->name);
+    bson_object_value_add_bname_as_string(&node->value.o, "name", node_meta->name);
 
     // xform is optional, so make sure there is a valid handle to one before serializing
     if (!bhandle_is_invalid(view_node->xform_handle))
@@ -1750,7 +1788,8 @@ static b8 scene_serialize_node(const scene* s, const hierarchy_graph_view* view,
 
             // Add properties to it
             bson_object_value_add_string(&attachment.value.o, "type", "static_mesh");
-            bson_object_value_add_string(&attachment.value.o, "resource_name", s->mesh_metadata[m].resource_name);
+            bson_object_value_add_bname_as_string(&attachment.value.o, "asset_name", s->mesh_metadata[m].resource_name);
+            bson_object_value_add_bname_as_string(&attachment.value.o, "package_name", s->mesh_metadata[m].package_name);
 
             // Push it into the attachments array
             darray_push(attachments_prop.value.o.properties, attachment);
@@ -1770,7 +1809,8 @@ static b8 scene_serialize_node(const scene* s, const hierarchy_graph_view* view,
 
             // Add properties to it
             bson_object_value_add_string(&attachment.value.o, "type", "skybox");
-            bson_object_value_add_string(&attachment.value.o, "cubemap_name", s->skybox_metadata[m].cubemap_name);
+            bson_object_value_add_bname_as_string(&attachment.value.o, "cubemap_image_asset_name", s->skybox_metadata[m].cubemap_name);
+            bson_object_value_add_bname_as_string(&attachment.value.o, "cubemap_image_asset_package_name", s->mesh_metadata[m].package_name);
 
             // Push it into the attachments array
             darray_push(attachments_prop.value.o.properties, attachment);
@@ -1788,8 +1828,9 @@ static b8 scene_serialize_node(const scene* s, const hierarchy_graph_view* view,
 
             // Add properties to it
             bson_object_value_add_string(&attachment.value.o, "type", "terrain");
-            bson_object_value_add_string(&attachment.value.o, "name", s->terrain_metadata[m].name);
-            bson_object_value_add_string(&attachment.value.o, "resource_name", s->terrain_metadata[m].resource_name);
+            bson_object_value_add_bname_as_string(&attachment.value.o, "name", s->terrain_metadata[m].name);
+            bson_object_value_add_bname_as_string(&attachment.value.o, "asset_name", s->terrain_metadata[m].resource_name);
+            bson_object_value_add_bname_as_string(&attachment.value.o, "package_name", s->terrain_metadata[m].package_name);
 
             // Push it into the attachments array
             darray_push(attachments_prop.value.o.properties, attachment);
@@ -1905,57 +1946,6 @@ static b8 scene_serialize_node(const scene* s, const hierarchy_graph_view* view,
     return true;
 }
 
-b8 string_to_scene_xform_config(const char* str, scene_xform_config* out_xform)
-{
-    if (!str || !out_xform)
-        return false;
-
-    bzero_memory(out_xform, sizeof(scene_xform_config));
-    f32 values[7] = {0};
-
-    i32 count = sscanf(
-        str,
-        "%f %f %f %f %f %f %f %f %f %f",
-        &out_xform->position.x, &out_xform->position.y, &out_xform->position.z,
-        &values[0], &values[1], &values[2], &values[3], &values[4], &values[5], &values[6]);
-
-    if (count == 10)
-    {
-        // Treat as quat, load directly
-        out_xform->rotation.x = values[0];
-        out_xform->rotation.y = values[1];
-        out_xform->rotation.z = values[2];
-        out_xform->rotation.w = values[3];
-
-        // Set scale
-        out_xform->scale.x = values[4];
-        out_xform->scale.y = values[5];
-        out_xform->scale.z = values[6];
-    }
-    else if (count == 9)
-    {
-        quat x_rot = quat_from_axis_angle((vec3){1.0f, 0, 0}, deg_to_rad(values[0]), true);
-        quat y_rot = quat_from_axis_angle((vec3){0, 1.0f, 0}, deg_to_rad(values[1]), true);
-        quat z_rot = quat_from_axis_angle((vec3){0, 0, 1.0f}, deg_to_rad(values[2]), true);
-        out_xform->rotation = quat_mul(x_rot, quat_mul(y_rot, z_rot));
-
-        // Set scale
-        out_xform->scale.x = values[3];
-        out_xform->scale.y = values[4];
-        out_xform->scale.z = values[5];
-    }
-    else
-    {
-        BWARN("Format error: invalid xform provided. Identity transform will be used");
-        out_xform->position = vec3_zero();
-        out_xform->rotation = quat_identity();
-        out_xform->scale = vec3_one();
-        return false;
-    }
-
-    return true;
-}
-
 b8 scene_save(scene* s)
 {
     if (!s)
@@ -1978,7 +1968,7 @@ b8 scene_save(scene* s)
     // Properties property
     bson_property properties = bson_object_property_create("properties");
 
-    bson_object_value_add_string(&properties.value.o, "name", s->name);
+    bson_object_value_add_bname_as_string(&properties.value.o, "name", s->name);
     bson_object_value_add_string(&properties.value.o, "description", s->description);
 
     darray_push(tree.root.properties, properties);
@@ -2024,9 +2014,9 @@ b8 scene_save(scene* s)
 
     // Write to file
 
-    // TODO: Validate resource path and/or retrieve based on resource type and resource_name
-    BINFO("Writing scene '%s' to file '%s'", s->name, s->resource_full_path);
     b8 result = true;
+    // TODO: Validate resource path and/or retrieve based on resource type and resource_name
+    /* BINFO("Writing scene '%s' to file '%s'", s->name, s->resource_full_path);
     file_handle f;
     if (!filesystem_open(s->resource_full_path, FILE_MODE_WRITE, false, &f))
     {
@@ -2040,12 +2030,13 @@ b8 scene_save(scene* s)
     result = filesystem_write(&f, sizeof(char) * content_length, file_content, &bytes_written);
     if (!result)
         BERROR("Failed to write scene file");
+    */
 
-scene_save_file_cleanup:
+// scene_save_file_cleanup:
     string_free((char*)file_content);
 
     // Close the file
-    filesystem_close(&f);
+    // filesystem_close(&f);
     return result;
 }
 
