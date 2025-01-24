@@ -1,6 +1,7 @@
 #include "audio_frontend.h"
 
-#include "containers/darray.h"
+#include "assets/basset_types.h"
+#include "audio/baudio_types.h"
 #include "core/engine.h"
 #include "defines.h"
 #include "identifiers/bhandle.h"
@@ -10,6 +11,7 @@
 #include "memory/bmemory.h"
 #include "parsers/bson_parser.h"
 #include "plugins/plugin_types.h"
+#include "systems/bresource_system.h"
 #include "systems/plugin_system.h"
 
 typedef struct baudio_system_config
@@ -35,6 +37,26 @@ typedef struct baudio_system_config
     const char* backend_plugin_name;
 } baudio_system_config;
 
+typedef struct baudio_resource_handle_data
+{
+    // The unique id matching an associated handle. INVALID_ID_U64 means this slot is unused
+    u64 uniqueid;
+
+    // A pointer to the underlying audio resource
+    bresource_audio* resource;
+
+    // Indicates if the audio should be streamed in small bits (large files) or loaded all at once (small files)
+    b8 is_streaming;
+
+    // Range: [0.5f - 2.0f] Default: 1.0f
+    f32 pitch;
+
+    // Range: 0-1
+    f32 volume;
+
+    b8 looping;
+} baudio_resource_handle_data;
+
 typedef struct baudio_channel
 {
     f32 volume;
@@ -45,34 +67,12 @@ typedef struct baudio_channel
     vec3 position;
     // Indicates if the source is looping
     b8 looping;
-    // Indicates if this souce is in use
-    b8 in_use;
-
-    // Handle into the sound backend/plugin resource array
-    bhandle resource_handle;
+    // A pointer to the currently bound resource handle data, if in use; otherwise 0/null (i.e. not in use)
+    baudio_resource_handle_data* bound_data;
 } baudio_channel;
-
-// The frontend-specific data for an instance of an audio resource
-typedef struct baudio_resource_instance_handle_data
-{
-    u64 uniqueid;
-} baudio_resource_instance_handle_data;
-
-// The frontend-specific data for an audio resource
-typedef struct baudio_resource_handle_data
-{
-    u64 uniqueid;
-
-    // A pointer to the underlying audio resource
-    bresource_audio* resource;
-
-    // darray of instances of this resource
-    baudio_resource_instance_handle_data* instances;
-} baudio_resource_handle_data;
 
 typedef struct baudio_system_state
 {
-    // TODO: backend interface
     f32 master_volume;
     /** @brief The frequency to output audio at */
     u32 frequency;
@@ -99,9 +99,21 @@ typedef struct baudio_system_state
 
     // The backend plugin
     bruntime_plugin* plugin;
+
+    // Pointer to the backend interface
+    baudio_backend_interface* backend;
 } baudio_system_state;
 
+typedef struct audio_asset_request_listener
+{
+    baudio_system_state* state;
+    bhandle audio;
+} audio_asset_request_listener;
+
 static b8 deserialize_config(const char* config_str, baudio_system_config* out_config);
+static bhandle get_new_handle(baudio_system_state* state);
+static void on_audio_asset_loaded(bresource* resource, void* listener);
+static b8 handle_is_valid_and_pristine(baudio_system_state* state, bhandle handle);
 
 b8 baudio_system_initialize(u64* memory_requirement, void* memory, const char* config_str)
 {
@@ -136,8 +148,8 @@ b8 baudio_system_initialize(u64* memory_requirement, void* memory, const char* c
     {
         baudio_resource_handle_data* data = &state->resources[i];
         data->resource = 0;
+        // This marks it as unused
         data->uniqueid = INVALID_ID_U64;
-        data->instances = 0;
     }
 
     // Default volumes for master and all channels to 1.0 (max)
@@ -149,9 +161,8 @@ b8 baudio_system_initialize(u64* memory_requirement, void* memory, const char* c
         // Also set some other reasonable defaults
         channel->pitch = 1.0f;
         channel->position = vec3_zero();
-        channel->in_use = false;
         channel->looping = false;
-        channel->resource_handle = bhandle_invalid();
+        channel->bound_data = 0;
     }
 
     // Load the plugin
@@ -162,109 +173,350 @@ b8 baudio_system_initialize(u64* memory_requirement, void* memory, const char* c
         return false;
     }
 
-    // TODO: Get the interface to the backend, then initialize()
+    state->backend = state->plugin->plugin_state;
+
     // TODO: setup console commands to load/play sounds/music, etc
+
+    baudio_backend_config backend_config = {0};
+    backend_config.frequency = config.frequency;
+    backend_config.chunk_size = config.chunk_size;
+    backend_config.channel_count = config.channel_count;
+    backend_config.max_resource_count = config.max_resource_count;
+    backend_config.audio_channel_count = config.audio_channel_count;
+    return state->backend->initialize(state->backend, &backend_config);
 }
 
 void baudio_system_shutdown(struct baudio_system_state* state)
 {
-    // TODO: release all sources, device, etc.
+    if (state)
+    {
+        // TODO: release all sources, device, etc
+        state->backend->shutdown(state->backend);
+    }
 }
 
-b8 baudio_system_update(void* state, struct frame_data* p_frame_data)
+b8 baudio_system_update(struct baudio_system_state* state, struct frame_data* p_frame_data)
 {
+    if (state)
+    {
+        // Adjust each channel's properties based on what is bound to them (if anything)
+        for (u32 i = 0; i < state->audio_channel_count; ++i)
+        {
+            baudio_channel* channel = &state->channels[i];
+            if (channel->bound_data)
+            {
+                // Volume
+                f32 mixed_volume = channel->bound_data->volume * channel->volume * state->master_volume;
+                state->backend->channel_gain_set(state->backend, i, mixed_volume);
+                // Pitch
+                f32 mixed_pitch = channel->pitch * channel->bound_data->pitch;
+                state->backend->channel_pitch_set(state->backend, i, mixed_pitch);
+                // Looping setting
+                state->backend->channel_looping_set(state->backend, i, channel->bound_data->looping);
+
+                // Position is only applied for mono sounds, because only those can be spatial/use position
+                if (channel->bound_data->resource->channels == 1)
+                    state->backend->channel_position_set(state->backend, i, channel->position);
+            }
+        }
+
+        return state->backend->update(state->backend, p_frame_data);
+    }
+
+    return false;
 }
 
 b8 baudio_system_listener_orientation_set(struct baudio_system_state* state, vec3 position, vec3 forward, vec3 up)
 {
+    if (!state)
+        return false;
+
+    state->backend->listener_position_set(state->backend, position);
+    state->backend->listener_orientation_set(state->backend, forward, up);
+    return true;
 }
 
 void baudio_system_master_volume_set(struct baudio_system_state* state, f32 volume)
 {
+    if (state)
+        state->master_volume = BCLAMP(volume, 0.0f, 1.0f);
 }
 
 f32 baudio_system_master_volume_get(struct baudio_system_state* state)
 {
+    if (state)
+        return state->master_volume;
+
+    return 0.0f;
 }
 
 void baudio_system_channel_volume_set(struct baudio_system_state* state, u8 channel_index, f32 volume)
 {
+    if (state)
+    {
+        if (channel_index < state->audio_channel_count)
+        {
+            // Clamp volume to a sane range
+            state->channels[channel_index].volume = BCLAMP(volume, 0.0f, 1.0f);
+        }
+        BERROR("baudio_system_channel_volume_set - channel_index %u is out of range (0-%u). Nothing will be done", channel_index, state->audio_channel_count);
+    }
 }
 
 f32 baudio_system_channel_volume_get(struct baudio_system_state* state, u8 channel_index)
 {
+    if (state)
+    {
+        if (channel_index < state->audio_channel_count)
+            return state->channels[channel_index].volume;
+
+        BERROR("baudio_system_channel_volume_get - channel_index %u is out of range (0-%u). 0 will be returned", channel_index, state->audio_channel_count);
+        return 0.0f;
+    }
+
+    return 0.0f;
 }
 
-b8 baudio_sound_effect_acquire(struct baudio_system_state* state, bname resource_name, bname package_name, bsound_effect_instance* out_instance) {}
-
-void baudio_sound_effect_release(struct baudio_system_state* state, bsound_effect_instance* instance) {}
-
-b8 baudio_sound_play(struct baudio_system_state* state, bsound_effect_instance instance) {}
-
-b8 baudio_sound_pause(struct baudio_system_state* state, bsound_effect_instance instance) {}
-
-b8 baudio_sound_resume(struct baudio_system_state* state, bsound_effect_instance instance) {}
-
-b8 baudio_sound_stop(struct baudio_system_state* state, bsound_effect_instance instance) {}
-
-b8 baudio_sound_is_playing(struct baudio_system_state* state, bsound_effect_instance instance) {}
-
-b8 baudio_sound_is_valid(struct baudio_system_state* state, bsound_effect_instance instance) {}
-
-f32 baudio_sound_pan_get(struct baudio_system_state* state, bsound_effect_instance instance) {}
-
-b8 baudio_sound_pan_set(struct baudio_system_state* state, bsound_effect_instance instance, f32 pan) {}
-
-b8 baudio_sound_pitch_get(struct baudio_system_state* state, bsound_effect_instance instance) {}
-
-b8 baudio_sound_pitch_set(struct baudio_system_state* state, bsound_effect_instance instance, f32 pitch) {}
-
-b8 baudio_sound_volume_get(struct baudio_system_state* state, bsound_effect_instance instance) {}
-
-b8 baudio_sound_volume_set(struct baudio_system_state* state, bsound_effect_instance instance, f32 volume) {}
-
-b8 baudio_music_acquire(struct baudio_system_state* state, bname resource_name, bname package_name, bmusic_instance* out_instance) {}
-
-void baudio_music_release(struct baudio_system_state* state, bmusic_instance* instance) {}
-
-b8 baudio_music_play(struct baudio_system_state* state, bmusic_instance instance) {}
-
-b8 baudio_music_pause(struct baudio_system_state* state, bmusic_instance instance) {}
-
-b8 baudio_music_resume(struct baudio_system_state* state, bmusic_instance instance) {}
-
-b8 baudio_music_stop(struct baudio_system_state* state, bmusic_instance instance) {}
-
-b8 baudio_music_seek(struct baudio_system_state* state, bmusic_instance instance, f32 seconds) {}
-
-f32 baudio_music_time_length_get(struct baudio_system_state* state, bmusic_instance instance) {}
-
-f32 baudio_music_time_played_get(struct baudio_system_state* state, bmusic_instance instance) {}
-
-b8 baudio_music_is_playing(struct baudio_system_state* state, bmusic_instance instance) {}
-
-b8 baudio_music_is_valid(struct baudio_system_state* state, bmusic_instance instance) {}
-
-b8 baudio_music_looping_get(struct baudio_system_state* state, bmusic_instance instance) {}
-
-b8 baudio_music_looping_set(struct baudio_system_state* state, bmusic_instance instance, b8 looping) {}
-
-// 0=left, 0.5=center, 1.0=right
-f32 baudio_music_pan_get(struct baudio_system_state* state, bmusic_instance instance) {}
-
-// 0=left, 0.5=center, 1.0=right
-b8 baudio_music_pan_set(struct baudio_system_state* state, bmusic_instance instance, f32 pan) {}
-
-b8 baudio_music_pitch_get(struct baudio_system_state* state, bmusic_instance instance) {}
-
-b8 baudio_music_pitch_set(struct baudio_system_state* state, bmusic_instance instance, f32 pitch) {}
-
-b8 baudio_music_volume_get(struct baudio_system_state* state, bmusic_instance instance)
+b8 baudio_acquire(struct baudio_system_state* state, bname resource_name, bname package_name, b8 is_streaming, bhandle* out_audio)
 {
+    if (!state)
+        return false;
+
+    // Get/create a new handle for the resource
+    *out_audio = get_new_handle(state);
+
+    // Mark the slot as "in-use" by syncing the uniqueid
+    baudio_resource_handle_data* data = &state->resources[out_audio->handle_index];
+    data->uniqueid = out_audio->unique_id.uniqueid;
+    data->is_streaming = is_streaming;
+    // Set reasonable defaults
+    data->looping = is_streaming ? true : false;
+    data->pitch = 1.0f;
+
+    // Listener for the request
+    audio_asset_request_listener* listener = BALLOC_TYPE(audio_asset_request_listener, MEMORY_TAG_RESOURCE);
+    listener->state = state;
+    listener->audio = *out_audio;
+
+    // Request the resource. If it already exists it will return immediately and be in a ready/loaded state.
+    // If not, it will be handled asynchronously. Either way, it'll go through the same callback
+    bresource_audio_request_info request = {0};
+    request.base.type = BRESOURCE_TYPE_AUDIO;
+    request.base.assets = array_bresource_asset_info_create(1);
+    request.base.user_callback = on_audio_asset_loaded;
+    request.base.listener_inst = listener;
+    bresource_asset_info* asset = &request.base.assets.data[0];
+    asset->type = BASSET_TYPE_AUDIO;
+    asset->asset_name = resource_name;
+    asset->package_name = package_name;
+    asset->watch_for_hot_reload = false; // Hot-reloading not supported for audio
+
+    return bresource_system_request(engine_systems_get()->bresource_state, resource_name, (bresource_request_info*)&request);
 }
 
-b8 baudio_music_volume_set(struct baudio_system_state* state, bmusic_instance instance, f32 volume)
+void baudio_release(struct baudio_system_state* state, bhandle* audio)
 {
+    if (state && audio)
+    {
+        if (!handle_is_valid_and_pristine(state, *audio))
+        {
+            BERROR("baudio_release was passed a handle that is either invalid or stale. Nothing to be done");
+            return;
+        }
+
+        baudio_resource_handle_data* data = &state->resources[audio->handle_index];
+
+        // Release from backend
+        state->backend->resource_unload(state->backend, *audio);
+
+        // Release the resource
+        bresource_system_release(engine_systems_get()->bresource_state, data->resource->base.name);
+
+        // Reset the handle data and make the slot available for use
+        data->is_streaming = false;
+        data->resource = 0;
+        data->uniqueid = INVALID_ID_U64;
+    }
+}
+
+b8 baudio_play(struct baudio_system_state* state, bhandle audio, u8 channel_index)
+{
+    if (!handle_is_valid_and_pristine(state, audio))
+    {
+        BERROR("%s was called with an invalid or stale handle", __FUNCTION__);
+        return false;
+    }
+    if (channel_index >= state->audio_channel_count)
+    {
+        BERROR("%s was called with an out of bounds channel_index of %hhu (range = 0-%u)", __FUNCTION__, channel_index, state->audio_channel_count);
+        return false;
+    }
+
+    baudio_resource_handle_data* data = &state->resources[audio.handle_index];
+
+    return state->backend->channel_play_resource(state->backend, audio, channel_index);
+}
+
+b8 baudio_is_valid(struct baudio_system_state* state, bhandle audio)
+{
+    if (!handle_is_valid_and_pristine(state, audio))
+    {
+        BERROR("%s was called with an invalid or stale handle", __FUNCTION__);
+        return false;
+    }
+
+    baudio_resource_handle_data* data = &state->resources[audio.handle_index];
+
+    return data->uniqueid != INVALID_ID_U64 && data->resource && data->resource->base.state == BRESOURCE_STATE_LOADED;
+}
+
+f32 baudio_pitch_get(struct baudio_system_state* state, bhandle audio)
+{
+    if (!handle_is_valid_and_pristine(state, audio))
+    {
+        BERROR("%s was called with an invalid or stale handle", __FUNCTION__);
+        return 0.0f;
+    }
+
+    baudio_resource_handle_data* data = &state->resources[audio.handle_index];
+
+    return data->pitch;
+}
+
+b8 baudio_pitch_set(struct baudio_system_state* state, bhandle audio, f32 pitch)
+{
+    if (!handle_is_valid_and_pristine(state, audio))
+    {
+        BERROR("%s was called with an invalid or stale handle", __FUNCTION__);
+        return false;
+    }
+
+    baudio_resource_handle_data* data = &state->resources[audio.handle_index];
+
+    // Clamp to a valid range
+    data->pitch = BCLAMP(pitch, 0.5f, 2.0f);
+
+    return true;
+}
+
+f32 baudio_volume_get(struct baudio_system_state* state, bhandle audio)
+{
+    if (!handle_is_valid_and_pristine(state, audio))
+    {
+        BERROR("%s was called with an invalid or stale handle", __FUNCTION__);
+        return 0.0f;
+    }
+
+    baudio_resource_handle_data* data = &state->resources[audio.handle_index];
+
+    return data->volume;
+}
+
+b8 baudio_volume_set(struct baudio_system_state* state, bhandle audio, f32 volume)
+{
+    if (!handle_is_valid_and_pristine(state, audio))
+    {
+        BERROR("%s was called with an invalid or stale handle", __FUNCTION__);
+        return false;
+    }
+
+    baudio_resource_handle_data* data = &state->resources[audio.handle_index];
+
+    // Clamp to a valid range
+    data->volume = BCLAMP(volume, 0.0f, 1.0f);
+
+    return true;
+}
+
+b8 baudio_channel_play(struct baudio_system_state* state, u8 channel_index)
+{
+    if (!state)
+        return false;
+
+    if (channel_index >= state->audio_channel_count)
+    {
+        BERROR("%s called with channel_index %hhu out of range (range = 0-%u)", __FUNCTION__, channel_index, state->audio_channel_count);
+        return false;
+    }
+
+    // Attempt to play the already bound resource if one exists. Otherwise this fails
+    if (state->channels[channel_index].bound_data)
+    {
+        state->backend->channel_play(state->backend, channel_index);
+        return true;
+    }
+
+    return false;
+}
+
+b8 baudio_channel_pause(struct baudio_system_state* state, u8 channel_index)
+{}
+
+b8 baudio_channel_resume(struct baudio_system_state* state, u8 channel_index)
+{}
+
+b8 baudio_channel_stop(struct baudio_system_state* state, u8 channel_index)
+{}
+
+b8 baudio_channel_is_playing(struct baudio_system_state* state, u8 channel_index)
+{}
+
+b8 baudio_channel_looping_get(struct baudio_system_state* state, u8 channel_index)
+{
+    if (!state)
+        return false;
+
+    if (channel_index >= state->audio_channel_count)
+    {
+        BERROR("%s called with channel_index %hhu out of range (range = 0-%u)", __FUNCTION__, channel_index, state->audio_channel_count);
+        return false;
+    }
+
+    return state->channels[channel_index].looping;
+}
+
+b8 baudio_channel_looping_set(struct baudio_system_state* state, u8 channel_index, b8 looping)
+{
+    if (!state)
+        return false;
+
+    if (channel_index >= state->audio_channel_count)
+    {
+        BERROR("%s called with channel_index %hhu out of range (range = 0-%u)", __FUNCTION__, channel_index, state->audio_channel_count);
+        return false;
+    }
+
+    state->channels[channel_index].looping = looping;
+    return true;
+}
+
+f32 baudio_channel_volume_get(struct baudio_system_state* state, u8 channel_index)
+{
+    if (!state)
+        return false;
+
+    if (channel_index >= state->audio_channel_count)
+    {
+        BERROR("%s called with channel_index %hhu out of range (range = 0-%u)", __FUNCTION__, channel_index, state->audio_channel_count);
+        return false;
+    }
+
+    return state->channels[channel_index].volume;
+}
+
+b8 baudio_channel_volume_set(struct baudio_system_state* state, u8 channel_index, f32 volume)
+{
+    if (!state)
+        return false;
+
+    if (channel_index >= state->audio_channel_count)
+    {
+        BERROR("%s called with channel_index %hhu out of range (range = 0-%u)", __FUNCTION__, channel_index, state->audio_channel_count);
+        return false;
+    }
+
+    state->channels[channel_index].volume = volume;
+    return true;
 }
 
 static b8 deserialize_config(const char* config_str, baudio_system_config* out_config)
@@ -349,4 +601,49 @@ static b8 deserialize_config(const char* config_str, baudio_system_config* out_c
     bson_tree_cleanup(&tree);
     
     return true;
+}
+
+static bhandle get_new_handle(baudio_system_state* state)
+{
+    for (u32 i = 0; i < state->max_resource_count; ++i)
+    {
+        baudio_resource_handle_data* data = &state->resources[i];
+        if (data->uniqueid == INVALID_ID_U64)
+        {
+            // Found one
+            bhandle h = bhandle_create(i);
+            data->uniqueid = h.unique_id.uniqueid;
+            return h;
+        }
+    }
+
+    BFATAL("No more room to allocate a new handle for a sound. Expand the max_resource_count in configuration to load more at once");
+    return bhandle_invalid();
+}
+
+static void on_audio_asset_loaded(bresource* resource, void* listener)
+{
+    audio_asset_request_listener* listener_inst = listener;
+
+    baudio_resource_handle_data* data = &listener_inst->state->resources[listener_inst->audio.handle_index];
+    data->resource = (bresource_audio*)resource;
+
+    // Send over to the backend to be loaded
+    if (!listener_inst->state->backend->resource_load(listener_inst->state->backend, data->resource, data->is_streaming, listener_inst->audio))
+    {
+        BERROR("Failed to load audio resource into audio system backend. Resource will be released and handle unusable");
+
+        bresource_system_release(engine_systems_get()->bresource_state, resource->name);
+        data->is_streaming = false;
+        data->resource = 0;
+        data->uniqueid = INVALID_ID_U64;
+    }
+    
+    // Cleanup the listener
+    BFREE_TYPE(listener, audio_asset_request_listener, MEMORY_TAG_RESOURCE);
+}
+
+static b8 handle_is_valid_and_pristine(baudio_system_state* state, bhandle handle)
+{
+    return state && bhandle_is_valid(handle) && handle.handle_index < state->max_resource_count && bhandle_is_pristine(handle, state->resources[handle.handle_index].uniqueid);
 }

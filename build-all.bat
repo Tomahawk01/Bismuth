@@ -63,7 +63,7 @@ make -j -f "Makefile.library.mak" %ACTION% TARGET=%TARGET% ASSEMBLY=bismuth.plug
 IF %ERRORLEVEL% NEQ 0 (echo Error:%ERRORLEVEL% && exit)
 
 REM OpenAL plugin lib
-make -j -f "Makefile.library.mak" %ACTION% TARGET=%TARGET% ASSEMBLY=bismuth.plugin.audio.openal VER_MAJOR=0 VER_MINOR=1 DO_VERSION=%DO_VERSION% ADDL_INC_FLAGS="%INC_CORE_RT% -I'%programfiles(x86)%\OpenAL 1.1 SDK\include'" ADDL_LINK_FLAGS="%LNK_CORE_RT% -lopenal32 -L'%programfiles(x86)%\OpenAL 1.1 SDK\libs\win64'"
+make -j -f "Makefile.library.mak" %ACTION% TARGET=%TARGET% ASSEMBLY=bismuth.plugin.audio.openal VER_MAJOR=0 VER_MINOR=2 DO_VERSION=%DO_VERSION% ADDL_INC_FLAGS="%INC_CORE_RT% -I'%programfiles(x86)%\OpenAL 1.1 SDK\include'" ADDL_LINK_FLAGS="%LNK_CORE_RT% -lopenal32 -L'%programfiles(x86)%\OpenAL 1.1 SDK\libs\win64'"
 IF %ERRORLEVEL% NEQ 0 (echo Error:%ERRORLEVEL% && exit)
 
 REM Standard UI lib

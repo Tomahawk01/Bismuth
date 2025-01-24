@@ -46,7 +46,7 @@ typedef struct baudio_backend_interface
     b8 (*channel_position_set)(struct baudio_backend_interface* backend, u8 channel_id, vec3 position);
     b8 (*channel_looping_set)(struct baudio_backend_interface* backend, u8 channel_id, b8 looping);
 
-    b8 (*resource_load)(struct baudio_backend_interface* backend, const bresource_audio* resource, bhandle resource_handle);
+    b8 (*resource_load)(struct baudio_backend_interface* backend, const bresource_audio* resource, b8 is_stream, bhandle resource_handle);
     void (*resource_unload)(struct baudio_backend_interface* backend, bhandle resource_handle);
 
     b8 (*channel_play)(struct baudio_backend_interface* backend, u8 channel_id);
