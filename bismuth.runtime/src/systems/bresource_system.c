@@ -4,6 +4,7 @@
 #include "core/engine.h"
 #include "debug/bassert.h"
 #include "defines.h"
+#include "bresources/handlers/bresource_handler_binary.h"
 #include "bresources/handlers/bresource_handler_bitmap_font.h"
 #include "bresources/handlers/bresource_handler_material.h"
 #include "bresources/handlers/bresource_handler_shader.h"
@@ -70,6 +71,19 @@ b8 bresource_system_initialize(u64* memory_requirement, struct bresource_system_
         if (!bresource_system_handler_register(state, BRESOURCE_TYPE_TEXT, handler))
         {
             BERROR("Failed to register text resource handler");
+            return false;
+        }
+    }
+
+    // Binary handler
+    {
+        bresource_handler handler = {0};
+        handler.allocate = bresource_handler_binary_allocate;
+        handler.release = bresource_handler_binary_release;
+        handler.request = bresource_handler_binary_request;
+        if (!bresource_system_handler_register(state, BRESOURCE_TYPE_BINARY, handler))
+        {
+            BERROR("Failed to register binary resource handler");
             return false;
         }
     }

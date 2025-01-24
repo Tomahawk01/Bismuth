@@ -379,7 +379,7 @@ typedef struct bresource_binary
     bresource base;
 
     u32 size;
-    const void* bytes;
+    void* bytes;
 } bresource_binary;
 
 #define BRESOURCE_TYPE_NAME_FONT "Font"

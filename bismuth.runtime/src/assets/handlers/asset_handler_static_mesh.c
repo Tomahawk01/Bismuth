@@ -2,8 +2,6 @@
 
 #include "math/bmath.h"
 #include "memory/bmemory.h"
-#include "strings/bstring.h"
-#include "systems/asset_system.h"
 
 #include <assets/basset_importer_registry.h>
 #include <assets/basset_types.h>
