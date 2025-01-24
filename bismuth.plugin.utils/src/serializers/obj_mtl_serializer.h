@@ -20,6 +20,9 @@ typedef struct obj_mtl_source_material
     vec3 diffuse_color;
     bname diffuse_image_asset_name;
 
+    f32 diffuse_transparency;
+    bname diffuse_transparency_image_asset_name;
+
     f32 roughness;
     bname roughness_image_asset_name;
     f32 metallic;

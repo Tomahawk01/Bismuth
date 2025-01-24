@@ -313,6 +313,10 @@ typedef struct bresource_material
 
     // Derivative (dudv) map. Only used for water materials
     bmaterial_texture_input dudv_map;
+
+    f32 tiling;
+    f32 wave_strength;
+    f32 wave_speed;
     
     u32 custom_sampler_count;
     bmaterial_sampler_config* custom_samplers;

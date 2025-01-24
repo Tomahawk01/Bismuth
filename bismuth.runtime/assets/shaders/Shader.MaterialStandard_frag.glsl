@@ -20,6 +20,18 @@ const uint MAT_STANDARD_IDX_AO = 4;
 const uint MAT_STANDARD_IDX_MRA = 5;
 const uint MAT_STANDARD_IDX_EMISSIVE = 6;
 
+// Option indices
+const uint MAT_OPTION_IDX_RENDER_MODE = 0;
+const uint MAT_OPTION_IDX_USE_PCF = 1;
+const uint MAT_OPTION_IDX_UNUSED_0 = 2;
+const uint MAT_OPTION_IDX_UNUSED_1 = 3;
+// Param indices
+
+const uint MAT_PARAM_IDX_SHADOW_BIAS = 0;
+const uint MAT_PARAM_IDX_DELTA_TIME = 1;
+const uint MAT_PARAM_IDX_GAME_TIME = 2;
+const uint MAT_PARAM_IDX_UNUSED_0 = 3;
+
 const uint BMATERIAL_FLAG_HAS_TRANSPARENCY_BIT = 0x0001;
 const uint BMATERIAL_FLAG_DOUBLE_SIDED_BIT = 0x0002;
 const uint BMATERIAL_FLAG_RECIEVES_SHADOW_BIT = 0x0004;
@@ -67,20 +79,19 @@ struct point_light
 // =========================================================
 
 // per-frame
-layout(set = 0, binding = 0) uniform per_frame_ubo
+layout(std140, set = 0, binding = 0) uniform per_frame_ubo
 {
     // Light space for shadow mapping. Per cascade
     mat4 directional_light_spaces[MATERIAL_MAX_SHADOW_CASCADES]; // 256 bytes
-    mat4 projection;
 	mat4 views[MATERIAL_MAX_VIEWS];
+    mat4 projection;
     vec4 view_positions[MATERIAL_MAX_VIEWS];
-    float cascade_splits[MATERIAL_MAX_SHADOW_CASCADES];
-    float shadow_bias;
-    uint render_mode;
-    uint use_pcf;
-    float delta_time;
-    float game_time;
-    vec2 padding;
+    vec4 cascade_splits;// TODO: support for something other than 4[MATERIAL_MAX_SHADOW_CASCADES];
+    // [shadow_bias, delta_time, game_time, padding]
+    vec4 params;
+    // [render_mode, use_pcf, padding, padding]
+    uvec4 options;
+    vec4 padding;  // 16 bytes
 } material_frame_ubo;
 layout(set = 0, binding = 1) uniform texture2DArray shadow_texture;
 layout(set = 0, binding = 2) uniform textureCube irradiance_textures[MATERIAL_MAX_IRRADIANCE_CUBEMAP_COUNT];
@@ -118,6 +129,9 @@ layout(set = 1, binding = 0) uniform per_group_ubo
     // Packed texture channels for various maps requiring it
     uint texture_channels; // [metallic, roughness, ao, unused]
     vec2 padding;
+    vec4 padding2;
+    vec4 padding3;
+    vec4 padding4;
 } material_group_ubo;
 layout(set = 1, binding = 1) uniform texture2D material_textures[MATERIAL_STANDARD_TEXTURE_COUNT];
 layout(set = 1, binding = 2) uniform sampler material_samplers[MATERIAL_STANDARD_SAMPLER_COUNT];
@@ -155,8 +169,8 @@ layout(location = 0) out vec4 out_color;
 vec3 calculate_reflectance(vec3 albedo, vec3 normal, vec3 view_direction, vec3 light_direction, float metallic, float roughness, vec3 base_reflectivity, vec3 radiance);
 vec3 calculate_point_light_radiance(point_light light, vec3 view_direction, vec3 frag_position_xyz);
 vec3 calculate_directional_light_radiance(directional_light light, vec3 view_direction);
-float calculate_pcf(vec3 projected, int cascade_index);
-float calculate_unfiltered(vec3 projected, int cascade_index);
+float calculate_pcf(vec3 projected, int cascade_index, float shadow_bias);
+float calculate_unfiltered(vec3 projected, int cascade_index, float shadow_bias);
 float calculate_shadow(vec4 light_space_frag_pos, vec3 normal, directional_light light, int cascade_index);
 float geometry_schlick_ggx(float normal_dot_direction, float roughness);
 void unpack_u32(uint n, out uint x, out uint y, out uint z, out uint w);
@@ -165,7 +179,7 @@ uint flag_set(uint flags, uint flag, bool enabled);
 
 void main()
 {
-    uint in_mode = material_frame_ubo.render_mode;
+    uint render_mode = material_frame_ubo.options[MAT_OPTION_IDX_RENDER_MODE];
 	vec4 view_position = material_frame_ubo.view_positions[material_draw_ubo.view_index];
     vec3 cascade_color = vec3(1.0);
 
@@ -316,7 +330,7 @@ void main()
             cascade_index = int(MATERIAL_MAX_SHADOW_CASCADES);
         }
 
-        if(in_mode == 3)
+        if(render_mode == 3)
         {
             switch(cascade_index)
             {
@@ -334,7 +348,7 @@ void main()
                     break;
             }
         }
-        float shadow = calculate_shadow(in_dto.light_space_frag_pos[cascade_index], normal, material_group_ubo.dir_light, cascade_index);
+        shadow = calculate_shadow(in_dto.light_space_frag_pos[cascade_index], normal, material_group_ubo.dir_light, cascade_index);
 
         // Fade out the shadow map past a certain distance
         float fade_start = material_group_ubo.dir_light.shadow_distance;
@@ -353,11 +367,11 @@ void main()
     vec3 base_reflectivity = vec3(0.04); 
     base_reflectivity = mix(base_reflectivity, albedo, metallic);
 
-    if(in_mode == 0 || in_mode == 1 || in_mode == 3)
+    if(render_mode == 0 || render_mode == 1 || render_mode == 3)
     {
         vec3 view_direction = normalize(view_position.xyz - in_dto.frag_position.xyz);
 
-        albedo += (vec3(1.0) * in_mode);         
+        albedo += (vec3(1.0) * render_mode);         
         albedo = clamp(albedo, vec3(0.0), vec3(1.0));
 
         // Overall reflectance
@@ -412,11 +426,11 @@ void main()
         }
         out_color = vec4(color, alpha);
     }
-    else if(in_mode == 2)
+    else if(render_mode == 2)
     {
         out_color = vec4(abs(normal), 1.0);
     }
-    else if(in_mode == 4)
+    else if(render_mode == 4)
     {
         // wireframe, just render a solid color
         out_color = vec4(0.0, 1.0, 1.0, 1.0); // cyan
@@ -475,7 +489,7 @@ vec3 calculate_directional_light_radiance(directional_light light, vec3 view_dir
     return light.color.rgb;
 }
 
-float calculate_pcf(vec3 projected, int cascade_index)
+float calculate_pcf(vec3 projected, int cascade_index, float shadow_bias)
 {
     float shadow = 0.0;
     vec2 texel_size = 1.0 / textureSize(sampler2DArray(shadow_texture, shadow_sampler), 0).xy;
@@ -484,20 +498,20 @@ float calculate_pcf(vec3 projected, int cascade_index)
         for(int y = -1; y <= 1; ++y)
         {
             float pcf_depth = texture(sampler2DArray(shadow_texture, shadow_sampler), vec3(projected.xy + vec2(x, y) * texel_size, cascade_index)).r;
-            shadow += projected.z - material_frame_ubo.shadow_bias > pcf_depth ? 1.0 : 0.0;
+            shadow += projected.z - shadow_bias > pcf_depth ? 1.0 : 0.0;
         }
     }
     shadow /= 9;
     return 1.0 - shadow;
 }
 
-float calculate_unfiltered(vec3 projected, int cascade_index)
+float calculate_unfiltered(vec3 projected, int cascade_index, float shadow_bias)
 {
     // Sample the shadow map
     float map_depth = texture(sampler2DArray(shadow_texture, shadow_sampler), vec3(projected.xy, cascade_index)).r;
 
     // TODO: cast/get rid of branch
-    float shadow = projected.z - material_frame_ubo.shadow_bias > map_depth ? 0.0 : 1.0;
+    float shadow = projected.z - shadow_bias > map_depth ? 0.0 : 1.0;
     return shadow;
 }
 
@@ -511,11 +525,14 @@ float calculate_shadow(vec4 light_space_frag_pos, vec3 normal, directional_light
 
     // NOTE: Transform to NDC not needed for Vulkan, but would be for OpenGL.
     // projected.xy = projected.xy * 0.5 + 0.5;
-    if(material_frame_ubo.use_pcf == 1)
+    uint use_pcf = material_frame_ubo.options[MAT_OPTION_IDX_USE_PCF];
+    float shadow_bias = material_frame_ubo.params[MAT_PARAM_IDX_SHADOW_BIAS];
+    if(use_pcf == 1)
     {
-        return calculate_pcf(projected, cascade_index);
+        return calculate_pcf(projected, cascade_index, shadow_bias);
     } 
-    return calculate_unfiltered(projected, cascade_index);
+
+    return calculate_unfiltered(projected, cascade_index, shadow_bias);
 }
 
 // Based on a combination of GGX and Schlick-Beckmann approximation to calculate probability of overshadowing micro-facets
@@ -536,7 +553,7 @@ void unpack_u32(uint n, out uint x, out uint y, out uint z, out uint w)
 
 bool flag_get(uint flags, uint flag)
 {
-    return (flags | flag) == flag;
+    return (flags & flag) == flag;
 }
 
 uint flag_set(uint flags, uint flag, bool enabled)

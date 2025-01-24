@@ -1106,7 +1106,6 @@ b8 scene_debug_render_data_query(scene* scene, u32* data_count, geometry_render_
 
     // TODO: Check if grid exists
     // TODO: flag for toggling grid on and off
-    if (false)
     {
         if (debug_geometries)
         {

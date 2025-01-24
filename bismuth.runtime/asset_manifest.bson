@@ -15,10 +15,6 @@ assets = [
         path = "assets/shaders/Shader.Color3D_vert.glsl"
     }
     {
-        name = "Shader.MaterialStandard"
-        path = "assets/shaders/MaterialStandard.bsc"
-    }
-    {
         name = "Shader.MaterialStandard_frag"
         path = "assets/shaders/Shader.MaterialStandard_frag.glsl"
     }
@@ -97,10 +93,6 @@ assets = [
     {
         name = "Shader.Skybox_vert"
         path = "assets/shaders/Shader.Skybox_vert.glsl"
-    }
-    {
-        name = "Shader.MaterialWater"
-        path = "assets/shaders/Shader.MaterialWater.bsc"
     }
     {
         name = "Shader.MaterialWater_frag"

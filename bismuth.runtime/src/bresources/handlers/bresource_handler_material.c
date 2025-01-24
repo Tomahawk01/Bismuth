@@ -188,6 +188,13 @@ static void asset_to_resource(const basset_material* asset, bresource_material* 
     out_material->emissive = asset->emissive;
     out_material->emissive_map = asset->emissive_map;
 
+    if (out_material->type == BMATERIAL_TYPE_WATER)
+    {
+        out_material->tiling = asset->tiling;
+        out_material->wave_speed = asset->wave_speed;
+        out_material->wave_strength = asset->wave_strength;
+    }
+
     out_material->custom_sampler_count = asset->custom_sampler_count;
     if (out_material->custom_sampler_count)
     {

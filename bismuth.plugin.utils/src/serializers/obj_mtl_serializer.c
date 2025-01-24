@@ -195,6 +195,10 @@ static b8 import_obj_material_library_file(const char* mtl_file_text, obj_mtl_so
                 // NOTE: Treating RMA (roughness/metallic/ao), ORM and MRA as the same MRA for now
                 current_material.mra_image_asset_name = image_asset_name;
             }
+            else if (strings_nequali(substr, "map_d", 5))
+            {
+                current_material.diffuse_transparency_image_asset_name = image_asset_name;
+            }
             else
             {
                 BWARN("Unrecognized token. Skipping...");
@@ -244,9 +248,23 @@ static b8 import_obj_material_library_file(const char* mtl_file_text, obj_mtl_so
                 hit_name = true;
                 current_name = string_duplicate(material_name);
             }
-        }
+        } break;
+        case 'T':
+        {
+            // Transparency - 1.0 - d
+            char t[2];
+            f32 d = 0;
+            sscanf(line, "%s %f", t, &d);
+            current_material.diffuse_transparency = 1.0f - d;
+        } break;
+        case 'd':
+        {
+            // "diffused" transparency, use as-is
+            char t[2];
+            sscanf(line, "%s %f", t, &current_material.diffuse_transparency);
+        } break;
         } // end switch
-    }     // each line
+    } // each line
 
     // Write out the remaining material
     // Assuming standard material type

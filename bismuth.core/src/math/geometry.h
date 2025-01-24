@@ -19,12 +19,14 @@ typedef enum bgeometry_type
     BGEOMETRY_TYPE_2D_DYNAMIC = 0x02,
     /** @brief Used for 3d geometry that doesn't change */
     BGEOMETRY_TYPE_3D_STATIC = 0x03,
+    /** @brief Used for 3d geometry that doesn't change, and only contains color data */
+    BGEOMETRY_TYPE_3D_STATIC_COLOR_ONLY = 0x04,
     /** @brief Used for 3d geometry that changes often */
-    BGEOMETRY_TYPE_3D_DYNAMIC = 0x04,
+    BGEOMETRY_TYPE_3D_DYNAMIC = 0x05,
     /** @brief Used for skinned 3d geometry that changes potentially every frame, and includes bone/weight data */
-    BGEOMETRY_TYPE_3D_SKINNED = 0x05,
+    BGEOMETRY_TYPE_3D_SKINNED = 0x06,
     /** @brief Used for heightmap terrain-specific geometry that rarely (if ever) changes - includes material index/weight data */
-    BGEOMETRY_TYPE_3D_HEIGHTMAP_TERRAIN = 0x06,
+    BGEOMETRY_TYPE_3D_HEIGHTMAP_TERRAIN = 0x07,
     /** @brief User-defined geometry type. Vertex/index size will only be looked at for this type */
     BGEOMETRY_TYPE_CUSTOM = 0xFF,
 } bgeometry_type;
