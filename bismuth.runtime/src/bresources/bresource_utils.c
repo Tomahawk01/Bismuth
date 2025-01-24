@@ -71,10 +71,8 @@ const char* bresource_type_to_string(bresource_type type)
         return "heightmap_terrain";
     case BRESOURCE_TYPE_VOXEL_TERRAIN:
         return "voxel_terrain";
-    case BRESOURCE_TYPE_SOUND_EFFECT:
-        return "sound_effect";
-    case BRESOURCE_TYPE_MUSIC:
-        return "music";
+    case BRESOURCE_TYPE_AUDIO:
+        return "audio";
     case BRESOURCE_TYPE_COUNT:
     case BRESOURCE_KNOWN_TYPE_MAX:
         BERROR("Attempted to get string representation of count/max. Returning unknown");

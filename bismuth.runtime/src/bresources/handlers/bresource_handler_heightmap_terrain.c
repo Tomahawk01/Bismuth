@@ -49,7 +49,7 @@ b8 bresource_handler_heightmap_terrain_request(bresource_handler* self, bresourc
     heightmap_terrain_resource_handler_info* listener_inst = ballocate(sizeof(heightmap_terrain_resource_handler_info), MEMORY_TAG_RESOURCE);
     // Take a copy of the typed request info
     listener_inst->request_info = ballocate(sizeof(bresource_heightmap_terrain_request_info), MEMORY_TAG_RESOURCE);
-    kcopy_memory(listener_inst->request_info, typed_request, sizeof(bresource_heightmap_terrain_request_info));
+    bcopy_memory(listener_inst->request_info, typed_request, sizeof(bresource_heightmap_terrain_request_info));
     listener_inst->typed_resource = typed_resource;
     listener_inst->handler = self;
     listener_inst->asset = 0;

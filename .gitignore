@@ -8,4 +8,7 @@ obj/
 # Bismuth Static Mesh
 *.bsm
 
+# Bismuth Audio Format
+*.baf
+
 *version.h

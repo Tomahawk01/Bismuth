@@ -433,6 +433,8 @@ typedef struct basset_bitmap_font
     array_basset_bitmap_font_page pages;
 } basset_bitmap_font;
 
+#define BASSET_TYPE_NAME_AUDIO "Audio"
+
 typedef struct basset_audio
 {
     basset base;

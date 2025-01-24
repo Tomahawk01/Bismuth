@@ -4,6 +4,7 @@
 #include "core/engine.h"
 #include "debug/bassert.h"
 #include "defines.h"
+#include "bresources/handlers/bresource_handler_audio.h"
 #include "bresources/handlers/bresource_handler_binary.h"
 #include "bresources/handlers/bresource_handler_bitmap_font.h"
 #include "bresources/handlers/bresource_handler_heightmap_terrain.h"
@@ -194,6 +195,19 @@ b8 bresource_system_initialize(u64* memory_requirement, struct bresource_system_
         }
     }
 
+    // Audio handler
+    {
+        bresource_handler handler = {0};
+        handler.allocate = bresource_handler_audio_allocate;
+        handler.release = bresource_handler_audio_release;
+        handler.request = bresource_handler_audio_request;
+        if (!bresource_system_handler_register(state, BRESOURCE_TYPE_AUDIO, handler))
+        {
+            BERROR("Failed to register audio resource handler");
+            return false;
+        }
+    }
+
     BINFO("Resource system (new) initialized");
     return true;
 }
@@ -251,9 +265,10 @@ bresource* bresource_system_request(struct bresource_system_state* state, bname 
                 bresource_handler* handler = &state->handlers[info->type];
                 if (!handler->allocate)
                 {
-                    BERROR("There is no handler setup for the resource type '%s'. Null/0 will be returned", bresource_type_to_string(info->type));
+                    BERROR("There is no resource handler setup for the resource type '%s'. Null/0 will be returned", bresource_type_to_string(info->type));
                     return 0;
                 }
+                
                 // Have the handler allocate memory for the resource
                 lookup->r = handler->allocate();
                 if (!lookup->r)

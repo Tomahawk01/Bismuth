@@ -1,5 +1,6 @@
 #include "utils_plugin_main.h"
 
+#include "importers/basset_importer_audio.h"
 #include "importers/basset_importer_bitmap_font_fnt.h"
 #include "importers/basset_importer_image.h"
 #include "importers/basset_importer_static_mesh_obj.h"
@@ -66,11 +67,11 @@ b8 bplugin_create(struct bruntime_plugin* out_plugin)
         const char* audio_types[] = {"mp3", "ogg", "wav"};
         for (u8 i = 0; i < 3; ++i)
         {
-            basset_importer image_importer = {0};
-            image_importer.import = basset_importer_image_import;
-            if (!basset_importer_registry_register(BASSET_TYPE_IMAGE, audio_types[i], image_importer))
+            basset_importer audio_importer = {0};
+            audio_importer.import = basset_importer_audio_import;
+            if (!basset_importer_registry_register(BASSET_TYPE_AUDIO, audio_types[i], audio_importer))
             {
-                BERROR("Failed to register image asset importer!");
+                BERROR("Failed to register audio asset importer!");
                 return false;
             }
         }

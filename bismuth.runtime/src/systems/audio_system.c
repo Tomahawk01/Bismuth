@@ -1,4 +1,4 @@
-#include "audio_system.h"
+/* #include "audio_system.h"
 
 #include "audio/audio_types.h"
 #include "core/engine.h"
@@ -356,4 +356,4 @@ void audio_system_channel_resume(i8 channel_id)
         // Resume given channel
         state->backend->source_resume(state->backend, channel_id);
     }
-}
+} */

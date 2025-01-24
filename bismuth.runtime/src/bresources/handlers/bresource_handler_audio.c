@@ -2,25 +2,18 @@
 #include "assets/basset_types.h"
 #include "containers/array.h"
 #include "core/engine.h"
-#include "debug/bassert.h"
 #include "bresources/bresource_types.h"
-#include "bresources/bresource_utils.h"
 #include "logger.h"
 #include "memory/bmemory.h"
-#include "renderer/renderer_frontend.h"
 #include "strings/bname.h"
 #include "systems/asset_system.h"
 #include "systems/bresource_system.h"
-
-// TODO: move this to basset_types?
-ARRAY_TYPE_NAMED(const basset_image*, bimage_ptr);
 
 typedef struct audio_resource_handler_info
 {
     bresource_audio* typed_resource;
     bresource_handler* handler;
     bresource_audio_request_info* request_info;
-    array_bimage_ptr assets;
     u32 loaded_count;
 } audio_resource_handler_info;
 
@@ -41,20 +34,15 @@ b8 bresource_handler_audio_request(struct bresource_handler* self, bresource* re
 
     bresource_audio* typed_resource = (bresource_audio*)resource;
     bresource_audio_request_info* typed_request = (bresource_audio_request_info*)info;
-    struct renderer_system_state* renderer = engine_systems_get()->renderer_system;
-
-    b8 assets_required = true;
 
     // NOTE: dynamically allocating this so lifetime isn't a concern
     audio_resource_handler_info* listener_inst = ballocate(sizeof(audio_resource_handler_info), MEMORY_TAG_RESOURCE);
     // Take a copy of the typed request info
     listener_inst->request_info = ballocate(sizeof(bresource_audio_request_info), MEMORY_TAG_RESOURCE);
-    kcopy_memory(listener_inst->request_info, typed_request, sizeof(bresource_audio_request_info));
+    bcopy_memory(listener_inst->request_info, typed_request, sizeof(bresource_audio_request_info));
     listener_inst->typed_resource = typed_resource;
     listener_inst->handler = self;
     listener_inst->loaded_count = 0;
-    if (assets_required)
-        listener_inst->assets = array_bimage_ptr_create(info->assets.base.length);
 
     if (info->assets.base.length != 1)
     {
@@ -114,6 +102,21 @@ static void audio_basset_on_result(asset_request_result result, const struct bas
     audio_resource_handler_info* listener = (audio_resource_handler_info*)listener_inst;
     if (result == ASSET_REQUEST_RESULT_SUCCESS)
     {
+        basset_audio* typed_asset = (basset_audio*)asset;
+        // Convert asset to resource
+        listener->typed_resource->channels = typed_asset->channels;
+        listener->typed_resource->sample_rate = typed_asset->sample_rate;
+        listener->typed_resource->total_sample_count = typed_asset->total_sample_count;
+        listener->typed_resource->pcm_data_size = typed_asset->pcm_data_size;
+        listener->typed_resource->pcm_data = ballocate(listener->typed_resource->pcm_data_size, MEMORY_TAG_AUDIO);
+        bcopy_memory(listener->typed_resource->pcm_data, typed_asset->pcm_data, listener->typed_resource->pcm_data_size);
+
+        listener->typed_resource->base.state = BRESOURCE_STATE_LOADED;
+
+        // Invoke the user callback if provided
+        if (listener->request_info->base.user_callback)
+            listener->request_info->base.user_callback((bresource*)listener->typed_resource, listener->request_info->base.listener_inst);
+
         // Release the asset reference as we are done with it
         asset_system_release(engine_systems_get()->asset_state, asset->name, asset->package_name);
     }
@@ -122,9 +125,7 @@ static void audio_basset_on_result(asset_request_result result, const struct bas
         BERROR("Failed to load a required asset for audio resource '%s'. Resource may not work correctly when used", bname_string_get(listener->typed_resource->base.name));
     }
 
-destroy_request:
     // Destroy the request
-    array_bimage_ptr_destroy(&listener->assets);
     array_bresource_asset_info_destroy(&listener->request_info->base.assets);
     bfree(listener->request_info, sizeof(bresource_audio_request_info), MEMORY_TAG_RESOURCE);
     // Free the listener itself

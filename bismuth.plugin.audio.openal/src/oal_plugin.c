@@ -1,4 +1,4 @@
-#include "oal_plugin.h"
+/* #include "oal_plugin.h"
 
 #include "defines.h"
 #include "parsers/bson_parser.h"
@@ -70,16 +70,11 @@ typedef struct audio_plugin_source
 
 typedef struct audio_plugin_state
 {
-    /** @brief The maximum number of buffers available. Default: 256 */
     u32 max_buffers;
-    /** @brief The maximum number of sources available. Default: 8 */
     u32 max_sources;
-    /** @brief The frequency to output audio at */
     u32 frequency;
-    /** @brief The number of audio channels to support (i.e. 2 for stereo, 1 for mono) */
     u32 channel_count;
 
-    /** @brief The size to chunk streamed audio data in */
     u32 chunk_size;
 
     // Selected audio device
@@ -551,6 +546,7 @@ static u32 oal_plugin_find_free_buffer(struct audio_backend_interface* plugin)
                     oal_plugin_check_error();
 
                     clear_buffer(plugin, &buffers_freed, to_be_freed);
+                    // alSourcePlay(plugin->internal_state->sources[i - 1].id);
                 }
             }
 
@@ -988,4 +984,4 @@ static b8 plugin_deserialize_config(const char* config_str, audio_plugin_state* 
     bson_tree_cleanup(&tree);
 
     return true;
-}
+} */

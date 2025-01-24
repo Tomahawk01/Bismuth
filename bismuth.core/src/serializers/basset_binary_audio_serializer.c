@@ -1,7 +1,6 @@
 #include "basset_binary_audio_serializer.h"
 
 #include "assets/basset_types.h"
-#include "assets/basset_utils.h"
 #include "logger.h"
 #include "memory/bmemory.h"
 

@@ -11,6 +11,7 @@
 #include "memory/bmemory.h"
 #include "parsers/bson_parser.h"
 #include "plugins/plugin_types.h"
+#include "strings/bname.h"
 #include "systems/bresource_system.h"
 #include "systems/plugin_system.h"
 
@@ -254,12 +255,14 @@ void baudio_system_channel_volume_set(struct baudio_system_state* state, u8 chan
 {
     if (state)
     {
-        if (channel_index < state->audio_channel_count)
+        if (channel_index >= state->audio_channel_count)
         {
-            // Clamp volume to a sane range
-            state->channels[channel_index].volume = BCLAMP(volume, 0.0f, 1.0f);
+            BERROR("baudio_system_channel_volume_set - channel_index %u is out of range (0-%u). Nothing will be done", channel_index, state->audio_channel_count);
+            return;
         }
-        BERROR("baudio_system_channel_volume_set - channel_index %u is out of range (0-%u). Nothing will be done", channel_index, state->audio_channel_count);
+        
+        // Clamp volume to a sane range.
+        state->channels[channel_index].volume = BCLAMP(volume, 0.0f, 1.0f);
     }
 }
 
@@ -267,11 +270,13 @@ f32 baudio_system_channel_volume_get(struct baudio_system_state* state, u8 chann
 {
     if (state)
     {
-        if (channel_index < state->audio_channel_count)
-            return state->channels[channel_index].volume;
+        if (channel_index >= state->audio_channel_count)
+        {
+            BERROR("baudio_system_channel_volume_get - channel_index %u is out of range (0-%u). 0 will be returned", channel_index, state->audio_channel_count);
+            return 0.0f;
+        }
 
-        BERROR("baudio_system_channel_volume_get - channel_index %u is out of range (0-%u). 0 will be returned", channel_index, state->audio_channel_count);
-        return 0.0f;
+        return state->channels[channel_index].volume;
     }
 
     return 0.0f;
@@ -351,8 +356,6 @@ b8 baudio_play(struct baudio_system_state* state, bhandle audio, u8 channel_inde
         BERROR("%s was called with an out of bounds channel_index of %hhu (range = 0-%u)", __FUNCTION__, channel_index, state->audio_channel_count);
         return false;
     }
-
-    baudio_resource_handle_data* data = &state->resources[audio.handle_index];
 
     return state->backend->channel_play_resource(state->backend, audio, channel_index);
 }
@@ -450,16 +453,88 @@ b8 baudio_channel_play(struct baudio_system_state* state, u8 channel_index)
 }
 
 b8 baudio_channel_pause(struct baudio_system_state* state, u8 channel_index)
-{}
+{
+    if (!state)
+        return false;
+
+    if (channel_index >= state->audio_channel_count)
+    {
+        BERROR("%s called with channel_index %hhu out of range (range = 0-%u)", __FUNCTION__, channel_index, state->audio_channel_count);
+        return false;
+    }
+
+    return state->backend->channel_pause(state->backend, channel_index);
+}
 
 b8 baudio_channel_resume(struct baudio_system_state* state, u8 channel_index)
-{}
+{
+    if (!state)
+        return false;
+
+    if (channel_index >= state->audio_channel_count)
+    {
+        BERROR("%s called with channel_index %hhu out of range (range = 0-%u)", __FUNCTION__, channel_index, state->audio_channel_count);
+        return false;
+    }
+
+    return state->backend->channel_resume(state->backend, channel_index);
+}
 
 b8 baudio_channel_stop(struct baudio_system_state* state, u8 channel_index)
-{}
+{
+    if (!state)
+        return false;
+
+    if (channel_index >= state->audio_channel_count)
+    {
+        BERROR("%s called with channel_index %hhu out of range (range = 0-%u)", __FUNCTION__, channel_index, state->audio_channel_count);
+        return false;
+    }
+
+    return state->backend->channel_stop(state->backend, channel_index);
+}
 
 b8 baudio_channel_is_playing(struct baudio_system_state* state, u8 channel_index)
-{}
+{
+    if (!state)
+        return false;
+
+    if (channel_index >= state->audio_channel_count)
+    {
+        BERROR("%s called with channel_index %hhu out of range (range = 0-%u)", __FUNCTION__, channel_index, state->audio_channel_count);
+        return false;
+    }
+
+    return state->backend->channel_is_playing(state->backend, channel_index);
+}
+
+b8 baudio_channel_is_paused(struct baudio_system_state* state, u8 channel_index)
+{
+    if (!state)
+        return false;
+
+    if (channel_index >= state->audio_channel_count)
+    {
+        BERROR("%s called with channel_index %hhu out of range (range = 0-%u)", __FUNCTION__, channel_index, state->audio_channel_count);
+        return false;
+    }
+
+    return state->backend->channel_is_paused(state->backend, channel_index);
+}
+
+b8 baudio_channel_is_stopped(struct baudio_system_state* state, u8 channel_index)
+{
+    if (!state)
+        return false;
+
+    if (channel_index >= state->audio_channel_count)
+    {
+        BERROR("%s called with channel_index %hhu out of range (range = 0-%u)", __FUNCTION__, channel_index, state->audio_channel_count);
+        return false;
+    }
+
+    return state->backend->channel_is_stopped(state->backend, channel_index);
+}
 
 b8 baudio_channel_looping_get(struct baudio_system_state* state, u8 channel_index)
 {
@@ -624,6 +699,7 @@ static bhandle get_new_handle(baudio_system_state* state)
 static void on_audio_asset_loaded(bresource* resource, void* listener)
 {
     audio_asset_request_listener* listener_inst = listener;
+    BTRACE("Audio resource loaded: '%s'", bname_string_get(resource->name));
 
     baudio_resource_handle_data* data = &listener_inst->state->resources[listener_inst->audio.handle_index];
     data->resource = (bresource_audio*)resource;

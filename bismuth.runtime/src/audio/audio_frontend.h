@@ -44,6 +44,8 @@ BAPI b8 baudio_channel_pause(struct baudio_system_state* state, u8 channel_index
 BAPI b8 baudio_channel_resume(struct baudio_system_state* state, u8 channel_index);
 BAPI b8 baudio_channel_stop(struct baudio_system_state* state, u8 channel_index);
 BAPI b8 baudio_channel_is_playing(struct baudio_system_state* state, u8 channel_index);
+BAPI b8 baudio_channel_is_paused(struct baudio_system_state* state, u8 channel_index);
+BAPI b8 baudio_channel_is_stopped(struct baudio_system_state* state, u8 channel_index);
 BAPI b8 baudio_channel_looping_get(struct baudio_system_state* state, u8 channel_index);
 BAPI b8 baudio_channel_looping_set(struct baudio_system_state* state, u8 channel_index, b8 looping);
 BAPI f32 baudio_channel_volume_get(struct baudio_system_state* state, u8 channel_index);

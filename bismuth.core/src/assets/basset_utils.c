@@ -18,6 +18,7 @@ static const char* basset_type_strs[BASSET_TYPE_MAX] = {
     "Material",         // BASSET_TYPE_MATERIAL,
     "StaticMesh",       // BASSET_TYPE_STATIC_MESH,
     "HeightmapTerrain", // BASSET_TYPE_HEIGHTMAP_TERRAIN,
+    "Scene",            // BASSET_TYPE_SCENE
     "BitmapFont",       // BASSET_TYPE_BITMAP_FONT,
     "SystemFont",       // BASSET_TYPE_SYSTEM_FONT,
     "Text",             // BASSET_TYPE_TEXT,
@@ -26,7 +27,7 @@ static const char* basset_type_strs[BASSET_TYPE_MAX] = {
     "VoxelTerrain",     // BASSET_TYPE_VOXEL_TERRAIN,
     "SkeletalMesh",     // BASSET_TYPE_SKELETAL_MESH,
     "Audio",            // BASSET_TYPE_AUDIO,
-    "Music"             // BASSET_TYPE_MUSIC,
+    "Shader"            // BASSET_TYPE_SHADER,
 };
 
 // Ensure changes to asset types break this if it isn't also updated

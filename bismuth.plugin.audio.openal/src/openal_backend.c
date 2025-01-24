@@ -139,6 +139,7 @@ static void clear_buffer(baudio_backend_interface* backend, u32* buf_ptr, u32 am
 static u32 openal_backend_find_free_buffer(baudio_backend_interface* backend);
 static const char* openal_backend_error_str(ALCenum err);
 static b8 openal_backend_check_error(void);
+static b8 channel_id_valid(baudio_backend_state* state, u8 channel_id);
 
 b8 openal_backend_initialize(baudio_backend_interface* backend, const baudio_backend_config* config)
 {
@@ -154,6 +155,8 @@ b8 openal_backend_initialize(baudio_backend_interface* backend, const baudio_bac
         state->channel_count = config->channel_count;
         state->max_resource_count = config->max_resource_count;
         state->resources = BALLOC_TYPE_CARRAY(baudio_resource_data, state->max_resource_count);
+
+        state->buffer_count = 256;
 
         if (state->max_sources < 1)
         {
@@ -277,6 +280,7 @@ b8 openal_backend_resource_load(baudio_backend_interface* backend, const bresour
         data->format = AL_FORMAT_STEREO16;
 
     data->resource = resource;
+    data->total_samples_left = data->resource->total_sample_count;
 
     if (is_stream)
     {
@@ -322,7 +326,7 @@ b8 openal_backend_resource_load(baudio_backend_interface* backend, const bresour
 
 void openal_backend_resource_unload(baudio_backend_interface* backend, bhandle resource_handle)
 {
-    if (!backend || !bhandle_is_invalid(resource_handle))
+    if (!backend || bhandle_is_invalid(resource_handle))
     {
         BERROR("openal_backend_resource_unload requires a valid pointer to plugin and a valid resource_handle");
         return;
@@ -369,9 +373,12 @@ b8 openal_backend_listener_orientation_set(baudio_backend_interface* backend, ve
 
 b8 openal_backend_channel_gain_set(baudio_backend_interface* backend, u8 channel_id, f32 gain)
 {
+    if (!backend)
+        return false;
+
     baudio_backend_state* state = backend->internal_state;
 
-    if (backend && channel_id <= state->max_sources)
+    if (channel_id_valid(state, channel_id))
     {
         baudio_plugin_source* source = &state->sources[channel_id];
         alSourcef(source->id, AL_GAIN, gain);
@@ -384,9 +391,12 @@ b8 openal_backend_channel_gain_set(baudio_backend_interface* backend, u8 channel
 
 b8 openal_backend_channel_pitch_set(baudio_backend_interface* backend, u8 channel_id, f32 pitch)
 {
+    if (!backend)
+        return false;
+
     baudio_backend_state* state = backend->internal_state;
 
-    if (backend && channel_id <= state->max_sources)
+    if (channel_id_valid(state, channel_id))
     {
         baudio_plugin_source* source = &state->sources[channel_id];
         alSourcef(source->id, AL_PITCH, pitch);
@@ -399,9 +409,12 @@ b8 openal_backend_channel_pitch_set(baudio_backend_interface* backend, u8 channe
 
 b8 openal_backend_channel_position_set(baudio_backend_interface* backend, u8 channel_id, vec3 position)
 {
+    if (!backend)
+        return false;
+
     baudio_backend_state* state = backend->internal_state;
 
-    if (backend && channel_id <= state->max_sources)
+    if (channel_id_valid(state, channel_id))
     {
         baudio_plugin_source* source = &state->sources[channel_id];
         alSource3f(source->id, AL_POSITION, position.x, position.y, position.z);
@@ -414,9 +427,12 @@ b8 openal_backend_channel_position_set(baudio_backend_interface* backend, u8 cha
 
 b8 openal_backend_channel_looping_set(baudio_backend_interface* backend, u8 channel_id, b8 looping)
 {
+    if (!backend)
+        return false;
+
     baudio_backend_state* state = backend->internal_state;
 
-    if (backend && channel_id <= state->max_sources)
+    if (channel_id_valid(state, channel_id))
     {
         baudio_plugin_source* source = &state->sources[channel_id];
         alSourcei(source->id, AL_LOOPING, looping ? AL_TRUE : AL_FALSE);
@@ -429,22 +445,25 @@ b8 openal_backend_channel_looping_set(baudio_backend_interface* backend, u8 chan
 
 b8 openal_backend_channel_play(baudio_backend_interface* backend, u8 channel_id)
 {
-    if (!backend || channel_id < 0)
+    if (!backend)
         return false;
 
     baudio_backend_state* state = backend->internal_state;
-    baudio_plugin_source* source = &state->sources[channel_id];
-    bmutex_lock(&source->data_mutex);
-    if (source->current)
-        source->trigger_play = true;
-    bmutex_unlock(&source->data_mutex);
+    if (channel_id_valid(state, channel_id))
+    {
+        baudio_plugin_source* source = &state->sources[channel_id];
+        bmutex_lock(&source->data_mutex);
+        if (source->current)
+            source->trigger_play = true;
+        bmutex_unlock(&source->data_mutex);
+    }
 
     return true;
 }
 
 b8 openal_backend_channel_play_resource(baudio_backend_interface* backend, bhandle resource_handle, u8 channel_id)
 {
-    if (!backend || !bhandle_is_invalid(resource_handle) || channel_id < 0)
+    if (!backend || bhandle_is_invalid(resource_handle) || !channel_id_valid(backend->internal_state, channel_id))
         return false;
 
     BTRACE("Play on channel %d", channel_id);
@@ -498,54 +517,115 @@ b8 openal_backend_channel_stop(baudio_backend_interface* backend, u8 channel_id)
         return false;
 
     baudio_backend_state* state = backend->internal_state;
-    baudio_plugin_source* source = &state->sources[channel_id];
+    if (channel_id_valid(state, channel_id))
+    {
+        baudio_plugin_source* source = &state->sources[channel_id];
 
-    alSourceStop(source->id);
+        alSourceStop(source->id);
 
-    // Detach all buffers
-    alSourcei(source->id, AL_BUFFER, 0);
-    openal_backend_check_error();
+        // Detach all buffers
+        alSourcei(source->id, AL_BUFFER, 0);
+        openal_backend_check_error();
 
-    // Rewind
-    alSourceRewind(source->id);
+        // Rewind
+        alSourceRewind(source->id);
 
-    source->current = 0;
+        source->current = 0;
 
-    return true;
+        return true;
+    }
+
+    return false;
 }
 
 b8 openal_backend_channel_pause(baudio_backend_interface* backend, u8 channel_id)
 {
-    if (!backend || channel_id < 0)
+    if (!backend)
         return false;
 
     baudio_backend_state* state = backend->internal_state;
 
-    // Trigger a pause if the source is currently playing
-    baudio_plugin_source* source = &state->sources[channel_id];
-    ALint source_state;
-    alGetSourcei(source->id, AL_SOURCE_STATE, &source_state);
-    if (source_state == AL_PLAYING)
-        alSourcePause(source->id);
+    if (channel_id_valid(state, channel_id))
+    {
+        // Trigger a pause if the source is currently playing
+        baudio_plugin_source* source = &state->sources[channel_id];
+        ALint source_state;
+        alGetSourcei(source->id, AL_SOURCE_STATE, &source_state);
+        if (source_state == AL_PLAYING)
+            alSourcePause(source->id);
+        return true;
+    }
 
-    return true;
+    return false;
 }
 
 b8 openal_backend_channel_resume(baudio_backend_interface* backend, u8 channel_id)
 {
-    if (!backend || channel_id < 0)
+    if (!backend)
         return false;
 
     baudio_backend_state* state = backend->internal_state;
 
-    // Trigger a resume if the source is currently paused
-    baudio_plugin_source* source = &state->sources[channel_id];
-    ALint source_state;
-    alGetSourcei(source->id, AL_SOURCE_STATE, &source_state);
-    if (source_state == AL_PAUSED)
-        alSourcePlay(source->id);
+    if (channel_id_valid(state, channel_id))
+    {
+        // Trigger a resume if the source is currently paused
+        baudio_plugin_source* source = &state->sources[channel_id];
+        ALint source_state;
+        alGetSourcei(source->id, AL_SOURCE_STATE, &source_state);
+        if (source_state == AL_PAUSED)
+            alSourcePlay(source->id);
+        return true;
+    }
 
-    return true;
+    return false;
+}
+
+b8 openal_backend_channel_is_playing(baudio_backend_interface* backend, u8 channel_id)
+{
+    if (!backend)
+        return false;
+
+    baudio_backend_state* state = backend->internal_state;
+    if (channel_id_valid(state, channel_id))
+    {
+        ALint source_state;
+        alGetSourcei(state->sources[channel_id].id, AL_SOURCE_STATE, &source_state);
+        return source_state == AL_PLAYING;
+    }
+
+    return false;
+}
+
+b8 openal_backend_channel_is_paused(baudio_backend_interface* backend, u8 channel_id)
+{
+    if (!backend)
+        return false;
+
+    baudio_backend_state* state = backend->internal_state;
+    if (channel_id_valid(state, channel_id))
+    {
+        ALint source_state;
+        alGetSourcei(state->sources[channel_id].id, AL_SOURCE_STATE, &source_state);
+        return source_state == AL_PAUSED;
+    }
+
+    return false;
+}
+
+b8 openal_backend_channel_is_stopped(baudio_backend_interface* backend, u8 channel_id)
+{
+    if (!backend)
+        return false;
+
+    baudio_backend_state* state = backend->internal_state;
+    if (channel_id_valid(state, channel_id))
+    {
+        ALint source_state;
+        alGetSourcei(state->sources[channel_id].id, AL_SOURCE_STATE, &source_state);
+        return source_state == AL_STOPPED || source_state == AL_INITIAL;
+    }
+
+    return false;
 }
 
 static b8 stream_resource_data(baudio_backend_interface* backend, ALuint buffer, baudio_resource_data* resource)
@@ -889,4 +969,9 @@ static b8 openal_backend_check_error(void)
     }
 
     return true;
+}
+
+static b8 channel_id_valid(baudio_backend_state* state, u8 channel_id)
+{
+    return state && channel_id < state->max_sources;
 }

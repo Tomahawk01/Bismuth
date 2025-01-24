@@ -217,7 +217,7 @@ b8 terrain_chunk_load(terrain* t, terrain_chunk* chunk)
 
     // Create terrain material by copying properties of these materials to a new terrain material
     // FIXME: Need layered materials for this. This is just using the default standard material for now if nothing exists
-    material_system_acquire(engine_systems_get()->material_system, t->material_name ? t->material_name : kname_create(MATERIAL_DEFAULT_NAME_STANDARD), &chunk->material);
+    material_system_acquire(engine_systems_get()->material_system, t->material_name ? t->material_name : bname_create(MATERIAL_DEFAULT_NAME_STANDARD), &chunk->material);
     if (bhandle_is_invalid(chunk->material.material) || bhandle_is_invalid(chunk->material.instance))
     {
         BWARN("Failed to acquire terrain material. Using defualt instead");
@@ -597,7 +597,7 @@ static void generate_and_load_geometry(terrain* t)
 {
     // The number of detail levels  (LOD) is calculated by first taking the dimension figuring out how many times that number can be divided by 2,
     // taking the floor value (rounding down) and adding 1 to represent the base level. This always leaves a value of at least 1
-    t->lod_count = (u32)(kfloor(klog2(t->chunk_size)) + 1);
+    t->lod_count = (u32)(bfloor(blog2(t->chunk_size)) + 1);
 
     // Setup memory for the chunks
     t->chunk_count = (t->tile_count_x / t->chunk_size) * (t->tile_count_z / t->chunk_size);
