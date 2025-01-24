@@ -90,6 +90,7 @@ b8 editor_gizmo_load(editor_gizmo* gizmo)
         g->index_element_size = 0;
         g->indices = 0;
         g->index_buffer_offset = 0;
+        g->generation = INVALID_ID_U16;
 
         if (!renderer_geometry_upload(g))
         {

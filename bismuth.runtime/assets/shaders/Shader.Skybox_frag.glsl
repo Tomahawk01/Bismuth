@@ -38,6 +38,5 @@ layout(location = 0) out vec4 out_color;
 
 void main()
 {
-    // out_color = texture(samplerCube(cube_texture, cube_sampler), in_dto.tex_coord);
-    out_color = vec4(1.0); // HACK: remove this
+    out_color = texture(samplerCube(cube_texture, cube_sampler), in_dto.tex_coord);
 }
