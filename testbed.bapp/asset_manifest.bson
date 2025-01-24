@@ -47,10 +47,6 @@ assets = [
         path = "./assets/materials/column_a.bmt"
     }
     {
-        name = "column_a"
-        path = "./assets/materials/column_a.bmt"
-    }
-    {
         name = "column_b"
         path = "./assets/materials/column_b.bmt"
     }
@@ -289,9 +285,9 @@ assets = [
         source_path = "./assets/images/source/chain_texture_combined.png"
     }
     {
-        name = "rocks"
-        path = "./assets/images/rocks.bbi"
-        source_path = "./assets/images/source/rocks.png"
+        name = "rocks_bc"
+        path = "./assets/images/rocks_bc.bbi"
+        source_path = "./assets/images/source/rocks_bc.png"
     }
     {
         name = "rocks_norm"
@@ -384,9 +380,9 @@ assets = [
         source_path = "./assets/images/source/prototype_1024_spec.png"
     }
     {
-        name = "stone"
-        path = "./assets/images/stone.bbi"
-        source_path = "./assets/images/source/stone.png"
+        name = "stone_bc"
+        path = "./assets/images/stone_bc.bbi"
+        source_path = "./assets/images/source/stone_bc.png"
     }
     {
         name = "stone_norm"
@@ -399,9 +395,9 @@ assets = [
         source_path = "./assets/images/source/stone_spec.png"
     }
     {
-        name = "wood"
-        path = "./assets/images/wood.bbi"
-        source_path = "./assets/images/source/wood.png"
+        name = "wood_bc"
+        path = "./assets/images/wood_bc.bbi"
+        source_path = "./assets/images/source/wood_bc.png"
     }
     {
         name = "wood_norm"
@@ -694,9 +690,9 @@ assets = [
         source_path = "./assets/images/source/terrain_heightmap_512.png"
     }
     {
-        name = "transparent_test"
-        path = "./assets/images/transparent_test.bbi"
-        source_path = "./assets/images/source/transparent_test.png"
+        name = "transparent_test_bc"
+        path = "./assets/images/transparent_test_bc.bbi"
+        source_path = "./assets/images/source/transparent_test_bc.png"
     }
     {
         name = "vase_dif"
@@ -714,9 +710,9 @@ assets = [
         source_path = "./assets/images/source/vase_ddn.tga"
     }
     {
-        name = "vase_hanging"
-        path = "./assets/images/vase_hanging.bbi"
-        source_path = "./assets/images/source/vase_hanging.tga"
+        name = "vase_hanging_bc"
+        path = "./assets/images/vase_hanging_bc.bbi"
+        source_path = "./assets/images/source/vase_hanging_bc.tga"
     }
     {
         name = "vase_hanging_combined"
@@ -729,9 +725,9 @@ assets = [
         source_path = "./assets/images/source/vase_hanging_ddn.tga"
     }
     {
-        name = "vase_plant"
-        path = "./assets/images/vase_plant.bbi"
-        source_path = "./assets/images/source/vase_plant.tga"
+        name = "vase_plant_bc"
+        path = "./assets/images/vase_plant_bc.bbi"
+        source_path = "./assets/images/source/vase_plant_bc.tga"
     }
     {
         name = "vase_plant_combined"
@@ -744,9 +740,9 @@ assets = [
         source_path = "./assets/images/source/vase_plant_ddn.tga"
     }
     {
-        name = "vase_round"
-        path = "./assets/images/vase_round.bbi"
-        source_path = "./assets/images/source/vase_round.tga"
+        name = "vase_round_bc"
+        path = "./assets/images/vase_round_bc.bbi"
+        source_path = "./assets/images/source/vase_round_bc.tga"
     }
     {
         name = "vase_round_combined"

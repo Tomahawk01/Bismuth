@@ -43,9 +43,9 @@
 
 // NOTE: To disable custom allocator, comment this out or set to 0
 // TODO: re-enable this
-#ifndef BVULKAN_USE_CUSTOM_ALLOCATOR
-#define BVULKAN_USE_CUSTOM_ALLOCATOR 1
-#endif
+// #ifndef BVULKAN_USE_CUSTOM_ALLOCATOR
+// #define BVULKAN_USE_CUSTOM_ALLOCATOR 1
+// #endif
 
 VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(
     VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
@@ -1970,7 +1970,7 @@ b8 vulkan_renderer_shader_create(renderer_backend_interface* backend, bhandle sh
 
         // Keep a copy of the uniform properties
         shader_uniform* uniform = &internal_shader->uniforms[i];
-        uniform->name =  u_config->name;
+        uniform->name = u_config->name;
         uniform->offset = info->ubo_size;
         uniform->location = u_config->location;
         uniform->tex_samp_index = tex_samp_index;
@@ -4756,6 +4756,8 @@ static b8 vulkan_descriptorset_update_and_bind(
                 descriptor_writes[descriptor_write_count] = desc_set_write;
                 descriptor_write_count++;
             }
+
+            binding_index++;
         }
     }
 

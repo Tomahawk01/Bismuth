@@ -66,9 +66,6 @@ void vulkan_command_buffer_free(
     VkCommandPool pool,
     vulkan_command_buffer* command_buffer)
 {
-    if (command_buffer->is_primary && command_buffer->state != COMMAND_BUFFER_STATE_READY)
-        BFATAL("vulkan_command_buffer_begin called on a command buffer that is not ready");
-
     vkFreeCommandBuffers(
         context->device.logical_device,
         pool,
@@ -85,6 +82,9 @@ void vulkan_command_buffer_begin(
     b8 is_renderpass_continue,
     b8 is_simultaneous_use)
 {
+    if (command_buffer->is_primary && command_buffer->state != COMMAND_BUFFER_STATE_READY)
+        BFATAL("vulkan_command_buffer_begin called on a command buffer that is not ready");
+
     VkCommandBufferBeginInfo begin_info = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
     begin_info.flags = 0;
     if (is_single_use)

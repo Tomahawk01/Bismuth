@@ -566,7 +566,7 @@ b8 engine_create(application* game_inst)
     {
         material_system_config material_sys_config = {0};
         material_sys_config.max_material_count = 256;
-        material_sys_config.max_instance_count = 256;
+        material_sys_config.max_instance_count = 1024;
         material_system_initialize(&systems->material_system_memory_requirement, 0, &material_sys_config);
         systems->material_system = ballocate(systems->material_system_memory_requirement, MEMORY_TAG_ENGINE);
         if (!material_system_initialize(&systems->material_system_memory_requirement, systems->material_system, &material_sys_config))
