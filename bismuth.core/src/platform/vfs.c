@@ -183,8 +183,7 @@ vfs_asset_data vfs_request_asset_sync(vfs_state* state, vfs_request_info info)
 
         if (info.package_name == INVALID_BNAME || package->name == info.package_name)
         {
-            const char* package_name_str = bname_string_get(package->name);
-            BDEBUG("Attempting to load asset '%s' from package '%s'...", asset_name_str, package_name_str);
+            BDEBUG("Attempting to load asset '%s' from package '%s'...", asset_name_str, bname_string_get(package->name));
             // Determine if the asset type is text
             bpackage_result result = BPACKAGE_RESULT_INTERNAL_FAILURE;
             if (info.is_binary)
@@ -243,7 +242,7 @@ vfs_asset_data vfs_request_asset_sync(vfs_state* state, vfs_request_info info)
                 if (out_data.path)
                 {
                     bpackage_asset_watch(package, out_data.path, &out_data.file_watch_id);
-                    BTRACE("Watching asset for hot reload: package='%s', name='%s', file_watch_id=%u, path='%s'", package_name_str, bname_string_get(info.asset_name), out_data.file_watch_id, out_data.path);
+                    BTRACE("Watching asset for hot reload: package='%s', name='%s', file_watch_id=%u, path='%s'", bname_string_get(package->name), bname_string_get(info.asset_name), out_data.file_watch_id, out_data.path);
                     darray_push(state->watched_assets, out_data);
                 }
                 else

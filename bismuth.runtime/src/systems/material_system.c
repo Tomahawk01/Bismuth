@@ -1664,7 +1664,7 @@ void material_system_dump(material_system_state* state)
                 active_instance_count++;
         }
 
-        BTRACE("Material name: '%s', active instance count = %u", bname_string_get(m->name), active_instance_count);
+        BINFO("Material name: '%s', active instance count = %u", bname_string_get(m->name), active_instance_count);
     }
 }
 

@@ -140,7 +140,7 @@ b8 vulkan_result_is_success(VkResult result)
     }
 }
 
-#if defined(_DEBUG)
+#if BISMUTH_DEBUG
 void vulkan_set_debug_object_name(vulkan_context* context, VkObjectType object_type, void* object_handle, const char* object_name)
 {
     const VkDebugUtilsObjectNameInfoEXT name_info = {

@@ -492,7 +492,6 @@ typedef struct vulkan_context
     VkInstance instance;
     VkAllocationCallbacks* allocator;
 
-#if defined(_DEBUG)
     VkDebugUtilsMessengerEXT debug_messenger;
 
     /** @brief Function pointer to set debug object names. */
@@ -503,7 +502,6 @@ typedef struct vulkan_context
 
     PFN_vkCmdBeginDebugUtilsLabelEXT pfnCmdBeginDebugUtilsLabelEXT;
     PFN_vkCmdEndDebugUtilsLabelEXT pfnCmdEndDebugUtilsLabelEXT;
-#endif
 
     vulkan_device device;
 

@@ -114,10 +114,12 @@ STATIC_ASSERT(sizeof(f64) == 8, "Expected f64 to be 8 bytes.");
 #endif
 #endif
 
-#ifdef _DEBUG
-#define BISMUTH_DEBUG
+#if _DEBUG
+#define BISMUTH_DEBUG 1
+#define BISMUTH_RELEASE 0
 #else
-#define BISMUTH_RELEASE
+#define BISMUTH_RELEASE 1
+#define BISMUTH_DEBUG 0
 #endif
 
 #define BCLAMP(value, min, max) ((value <= min) ? min : (value >= max) ? max : value)

@@ -205,12 +205,14 @@ b8 engine_create(application* game_inst)
     }
 
     // Report runtime version
-#if BRELEASE
+#if BISMUTH_RELEASE
     const char* build_type = "Release";
-#else
+#elif BISMUTH_DEBUG
     const char* build_type = "Debug";
+#else
+    const char* build_type = "Unknown";
 #endif
-    BINFO("Bismuth Runtime v.%s (%s)", BVERSION, build_type);
+    BINFO("Bismuth Runtime %s (%s)", BVERSION, build_type);
 
     // Virtual File System
     {

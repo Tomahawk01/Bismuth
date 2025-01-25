@@ -7,7 +7,7 @@
 
 #include "identifiers/bhandle.h"
 
-#ifdef _DEBUG
+#if BISMUTH_DEBUG
 #include <resources/debug/debug_line3d.h>
 #endif
 
@@ -80,7 +80,7 @@ typedef struct editor_gizmo
 
     b8 is_dirty;
 
-#ifdef _DEBUG
+#if BISMUTH_DEBUG
     debug_line3d plane_normal_line;
 #endif
 } editor_gizmo;

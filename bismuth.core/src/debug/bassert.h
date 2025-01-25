@@ -34,40 +34,40 @@
 
 BAPI void report_assertion_failure(const char* expression, const char* message, const char* file, i32 line);
 
-#    define BASSERT(expr)                                                \
-        {                                                                \
-            if (expr) {                                                  \
-            } else {                                                     \
-                report_assertion_failure(#expr, "", __FILE__, __LINE__); \
-                bdebug_break();                                          \
-            }                                                            \
-        }
+#define BASSERT(expr)                                                \
+    {                                                                \
+        if (expr) {                                                  \
+        } else {                                                     \
+            report_assertion_failure(#expr, "", __FILE__, __LINE__); \
+            bdebug_break();                                          \
+        }                                                            \
+    }
 
-#    define BASSERT_MSG(expr, message)                                        \
-        {                                                                     \
-            if (expr) {                                                       \
-            } else {                                                          \
-                report_assertion_failure(#expr, message, __FILE__, __LINE__); \
-                bdebug_break();                                               \
-            }                                                                 \
-        }
+#define BASSERT_MSG(expr, message)                                        \
+    {                                                                     \
+        if (expr) {                                                       \
+        } else {                                                          \
+            report_assertion_failure(#expr, message, __FILE__, __LINE__); \
+            bdebug_break();                                               \
+        }                                                                 \
+    }
 
-#    ifdef _DEBUG
+#if BISMUTH_DEBUG
 
-#        define BASSERT_DEBUG(expr)                                          \
-            {                                                                \
-                if (expr) {                                                  \
-                } else {                                                     \
-                    report_assertion_failure(#expr, "", __FILE__, __LINE__); \
-                    bdebug_break();                                          \
-                }                                                            \
-            }
-#    else
-#        define BASSERT_DEBUG(expr) // Does nothing at all
-#    endif
+#define BASSERT_DEBUG(expr)                                          \
+    {                                                                \
+        if (expr) {                                                  \
+        } else {                                                     \
+            report_assertion_failure(#expr, "", __FILE__, __LINE__); \
+            bdebug_break();                                          \
+        }                                                            \
+    }
+#else
+#define BASSERT_DEBUG(expr) // Does nothing at all
+#endif
 
 #else
-#    define BASSERT(expr)              // Does nothing at all
-#    define BASSERT_MSG(expr, message) // Does nothing at all
-#    define BASSERT_DEBUG(expr)        // Does nothing at all
+#define BASSERT(expr)              // Does nothing at all
+#define BASSERT_MSG(expr, message) // Does nothing at all
+#define BASSERT_DEBUG(expr)        // Does nothing at all
 #endif

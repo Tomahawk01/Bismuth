@@ -185,7 +185,7 @@ void main()
         vec4 reflect_color = texture(sampler2D(material_textures[MAT_WATER_IDX_REFLECTION], material_samplers[MAT_WATER_IDX_REFLECTION]), reflect_texcoord);
         vec4 refract_color = texture(sampler2D(material_textures[MAT_WATER_IDX_REFRACTION], material_samplers[MAT_WATER_IDX_REFRACTION]), refract_texcoord);
         // Refract should be slightly darker since it's wet
-        refract_color.rgb = clamp(reflect_color.rgb - vec3(0.2), vec3(0.0), vec3(1.0));
+        refract_color.rgb = clamp(refract_color.rgb - vec3(0.2), vec3(0.0), vec3(1.0));
 
         // Calculate the fresnel effect
         float fresnel_factor = dot(normalize(in_dto.world_to_camera), normal);
@@ -209,7 +209,7 @@ void main()
     if(render_mode == 0)
     {
         // Falloff depth of the water at the edge
-        float edge_depth_falloff = 4.0; // TODO: configurable
+        float edge_depth_falloff = 0.5; // TODO: configurable
         out_color.a = clamp(water_depth / edge_depth_falloff, 0.0, 1.0);
     }
 }

@@ -97,7 +97,7 @@ static b8 uniform_name_valid(bshader* shader, bname uniform_name);
 static b8 shader_uniform_add_state_valid(bshader* shader);
 static void internal_shader_destroy(bhandle* shader);
 
-#ifdef _DEBUG
+#if BISMUTH_DEBUG
 static b8 file_watch_event(u16 code, void* sender, void* listener_inst, event_context context)
 {
     shader_system_state* typed_state = (shader_system_state*)listener_inst;
@@ -183,7 +183,7 @@ b8 shader_system_initialize(u64* memory_requirement, void* memory, void* config)
     state_ptr->max_bound_sampler_count = renderer_max_bound_sampler_count_get(state_ptr->renderer);
     state_ptr->max_bound_texture_count = renderer_max_bound_texture_count_get(state_ptr->renderer);
     
-#ifdef _DEBUG
+#if BISMUTH_DEBUG
     // Watch for file hot reloads in debug builds
     event_register(EVENT_CODE_RESOURCE_HOT_RELOADED, state_ptr, file_watch_event);
 #endif

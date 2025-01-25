@@ -42,10 +42,9 @@
 // #endif
 
 // NOTE: To disable custom allocator, comment this out or set to 0
-// TODO: re-enable this
-// #ifndef BVULKAN_USE_CUSTOM_ALLOCATOR
-// #define BVULKAN_USE_CUSTOM_ALLOCATOR 1
-// #endif
+#ifndef BVULKAN_USE_CUSTOM_ALLOCATOR
+#define BVULKAN_USE_CUSTOM_ALLOCATOR 1
+#endif
 
 VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(
     VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
@@ -137,7 +136,7 @@ b8 vulkan_renderer_backend_initialize(renderer_backend_interface* backend, const
     darray_push(required_extensions, &VK_KHR_SURFACE_EXTENSION_NAME);   // Generic surface extension
     vulkan_platform_get_required_extension_names(&required_extensions); // Platform-specific extension(s)
     u32 required_extension_count = 0;
-#if defined(_DEBUG)
+
     darray_push(required_extensions, &VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 
     BDEBUG("Required extensions:");
@@ -146,7 +145,6 @@ b8 vulkan_renderer_backend_initialize(renderer_backend_interface* backend, const
     {
         BDEBUG(required_extensions[i]);
     }
-#endif
 
     create_info.enabledExtensionCount = darray_length(required_extensions);
     create_info.ppEnabledExtensionNames = required_extensions;
@@ -252,46 +250,47 @@ b8 vulkan_renderer_backend_initialize(renderer_backend_interface* backend, const
     // TODO: implement multithreading
     context->multithreading_enabled = false;
 
-// Debugger
-#if defined(_DEBUG)
-    BDEBUG("Creating Vulkan debugger...");
-    u32 log_severity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT |
-                       VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
-                       VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
-                       VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT;
+    // Debugger
+    if (context->validation_enabled)
+    {
+        BDEBUG("Creating Vulkan debugger...");
+        u32 log_severity =
+            VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT |
+            VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+            VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
+            VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT;
 
-    VkDebugUtilsMessengerCreateInfoEXT debug_create_info = {VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT};
-    debug_create_info.messageSeverity = log_severity;
-    debug_create_info.messageType = 
-        VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-        VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT |
-        VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-        VK_DEBUG_UTILS_MESSAGE_TYPE_DEVICE_ADDRESS_BINDING_BIT_EXT;
-    debug_create_info.pfnUserCallback = vk_debug_callback;
+        VkDebugUtilsMessengerCreateInfoEXT debug_create_info = {VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT};
+        debug_create_info.messageSeverity = log_severity;
+        debug_create_info.messageType =
+            VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+            VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT |
+            VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+            VK_DEBUG_UTILS_MESSAGE_TYPE_DEVICE_ADDRESS_BINDING_BIT_EXT;
+        debug_create_info.pfnUserCallback = vk_debug_callback;
 
-    PFN_vkCreateDebugUtilsMessengerEXT func =
-        (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(context->instance, "vkCreateDebugUtilsMessengerEXT");
-    BASSERT_MSG(func, "Failed to create debug messenger!");
-    VK_CHECK(func(context->instance, &debug_create_info, context->allocator, &context->debug_messenger));
-    BDEBUG("Vulkan debugger created");
+        PFN_vkCreateDebugUtilsMessengerEXT func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(context->instance, "vkCreateDebugUtilsMessengerEXT");
+        BASSERT_MSG(func, "Failed to create debug messenger!");
+        VK_CHECK(func(context->instance, &debug_create_info, context->allocator, &context->debug_messenger));
+        BDEBUG("Vulkan debugger created");
 
-    // Load up debug function pointers
-    context->pfnSetDebugUtilsObjectNameEXT = (PFN_vkSetDebugUtilsObjectNameEXT)vkGetInstanceProcAddr(context->instance, "vkSetDebugUtilsObjectNameEXT");
-    if (!context->pfnSetDebugUtilsObjectNameEXT)
-        BWARN("Unable to load function pointer for vkSetDebugUtilsObjectNameEXT. Debug functions associated with this will not work");
+        // Load up debug function pointers
+        context->pfnSetDebugUtilsObjectNameEXT = (PFN_vkSetDebugUtilsObjectNameEXT)vkGetInstanceProcAddr(context->instance, "vkSetDebugUtilsObjectNameEXT");
+        if (!context->pfnSetDebugUtilsObjectNameEXT)
+            BWARN("Unable to load function pointer for vkSetDebugUtilsObjectNameEXT. Debug functions associated with this will not work");
 
-    context->pfnSetDebugUtilsObjectTagEXT = (PFN_vkSetDebugUtilsObjectTagEXT)vkGetInstanceProcAddr(context->instance, "vkSetDebugUtilsObjectTagEXT");
-    if (!context->pfnSetDebugUtilsObjectTagEXT)
-        BWARN("Unable to load function pointer for vkSetDebugUtilsObjectTagEXT. Debug functions associated with this will not work");
+        context->pfnSetDebugUtilsObjectTagEXT = (PFN_vkSetDebugUtilsObjectTagEXT)vkGetInstanceProcAddr(context->instance, "vkSetDebugUtilsObjectTagEXT");
+        if (!context->pfnSetDebugUtilsObjectTagEXT)
+            BWARN("Unable to load function pointer for vkSetDebugUtilsObjectTagEXT. Debug functions associated with this will not work");
 
-    context->pfnCmdBeginDebugUtilsLabelEXT = (PFN_vkCmdBeginDebugUtilsLabelEXT)vkGetInstanceProcAddr(context->instance, "vkCmdBeginDebugUtilsLabelEXT");
-    if (!context->pfnCmdBeginDebugUtilsLabelEXT)
-        BWARN("Unable to load function pointer for vkCmdBeginDebugUtilsLabelEXT. Debug functions associated with this will not work");
+        context->pfnCmdBeginDebugUtilsLabelEXT = (PFN_vkCmdBeginDebugUtilsLabelEXT)vkGetInstanceProcAddr(context->instance, "vkCmdBeginDebugUtilsLabelEXT");
+        if (!context->pfnCmdBeginDebugUtilsLabelEXT)
+            BWARN("Unable to load function pointer for vkCmdBeginDebugUtilsLabelEXT. Debug functions associated with this will not work");
 
-    context->pfnCmdEndDebugUtilsLabelEXT = (PFN_vkCmdEndDebugUtilsLabelEXT)vkGetInstanceProcAddr(context->instance, "vkCmdEndDebugUtilsLabelEXT");
-    if (!context->pfnCmdEndDebugUtilsLabelEXT)
-        BWARN("Unable to load function pointer for vkCmdEndDebugUtilsLabelEXT. Debug functions associated with this will not work");
-#endif
+        context->pfnCmdEndDebugUtilsLabelEXT = (PFN_vkCmdEndDebugUtilsLabelEXT)vkGetInstanceProcAddr(context->instance, "vkCmdEndDebugUtilsLabelEXT");
+        if (!context->pfnCmdEndDebugUtilsLabelEXT)
+            BWARN("Unable to load function pointer for vkCmdEndDebugUtilsLabelEXT. Debug functions associated with this will not work");
+    }
 
     // Device creation
     if (!vulkan_device_create(context))
@@ -338,14 +337,15 @@ void vulkan_renderer_backend_shutdown(renderer_backend_interface* backend)
         backend->internal_context = 0;
     }
 
-#if defined(_DEBUG)
-    BDEBUG("Destroying Vulkan debugger...");
-    if (context->debug_messenger)
+    if (context->validation_enabled)
     {
-        PFN_vkDestroyDebugUtilsMessengerEXT func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(context->instance, "vkDestroyDebugUtilsMessengerEXT");
-        func(context->instance, context->debug_messenger, context->allocator);
+        BDEBUG("Destroying Vulkan debugger...");
+        if (context->debug_messenger)
+        {
+            PFN_vkDestroyDebugUtilsMessengerEXT func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(context->instance, "vkDestroyDebugUtilsMessengerEXT");
+            func(context->instance, context->debug_messenger, context->allocator);
+        }
     }
-#endif
 
     BDEBUG("Destroying Vulkan instance...");
     vkDestroyInstance(context->instance, context->allocator);
@@ -648,17 +648,17 @@ void vulkan_renderer_backend_on_window_resized(renderer_backend_interface* backe
 
 void vulkan_renderer_begin_debug_label(renderer_backend_interface* backend, const char* label_text, vec3 color)
 {
-#ifdef _DEBUG
+#if BISMUTH_DEBUG
     vulkan_context* context = (vulkan_context*)backend->internal_context;
     vulkan_command_buffer* command_buffer = get_current_command_buffer(context);
     vec4 rgba = (vec4){color.r, color.g, color.b, 1.0f};
-#endif
     VK_BEGIN_DEBUG_LABEL(context, command_buffer->handle, label_text, rgba);
+#endif
 }
 
 void vulkan_renderer_end_debug_label(renderer_backend_interface* backend)
 {
-#ifdef _DEBUG
+#if BISMUTH_DEBUG
     vulkan_context* context = (vulkan_context*)backend->internal_context;
     vulkan_command_buffer* command_buffer = get_current_command_buffer(context);
 #endif
@@ -715,16 +715,8 @@ b8 vulkan_renderer_frame_prepare_window_surface(renderer_backend_interface* back
 
         window_backend->skip_frames++;
 
-        // Resize depth buffer image
         if (window_backend->skip_frames == window_backend->max_frames_in_flight)
         {
-            // NOTE: This resize probably isn't required
-            // if (!bhandle_is_invalid(window->renderer_state->depthbuffer->renderer_texture_handle))
-            // {
-            //     /* vkQueueWaitIdle(context->device.graphics_queue); */
-            //     if (!renderer_texture_resize(backend->frontend_state, window->renderer_state->depthbuffer->renderer_texture_handle, window->width, window->height))
-            //         BERROR("Failed to resize depth buffer for window '%s'. See logs for details", window->name);
-            // }
             // Sync the framebuffer size generation
             window_backend->framebuffer_previous_size_generation = window_backend->framebuffer_size_generation;
 
@@ -4000,9 +3992,9 @@ static b8 vulkan_graphics_pipeline_create(vulkan_context* context, const vulkan_
     }
 
     VkPipelineColorBlendStateCreateInfo color_blend_state_create_info = {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
+    VkPipelineColorBlendAttachmentState color_blend_attachment_state;
     if (config->color_attachment_count)
     {
-        VkPipelineColorBlendAttachmentState color_blend_attachment_state;
         bzero_memory(&color_blend_attachment_state, sizeof(VkPipelineColorBlendAttachmentState));
         color_blend_attachment_state.blendEnable = VK_TRUE;
         color_blend_attachment_state.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
@@ -4101,7 +4093,7 @@ static b8 vulkan_graphics_pipeline_create(vulkan_context* context, const vulkan_
     VkPipelineLayoutCreateInfo pipeline_layout_create_info = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
 
     // Push constants
-    VkPushConstantRange ranges[32];
+    VkPushConstantRange ranges[32] = {0};
     if (config->push_constant_range_count > 0)
     {
         if (config->push_constant_range_count > 32)
@@ -4138,7 +4130,7 @@ static b8 vulkan_graphics_pipeline_create(vulkan_context* context, const vulkan_
         context->allocator,
         &out_pipeline->pipeline_layout));
 
-#if _DEBUG
+#if BISMUTH_DEBUG
     char* pipeline_layout_name_buf = string_format("pipeline_layout_shader_%s", config->name);
     VK_SET_DEBUG_OBJECT_NAME(context, VK_OBJECT_TYPE_PIPELINE_LAYOUT, out_pipeline->pipeline_layout, pipeline_layout_name_buf);
     string_free(pipeline_layout_name_buf);
@@ -4187,7 +4179,7 @@ static b8 vulkan_graphics_pipeline_create(vulkan_context* context, const vulkan_
     // Cleanup
     darray_destroy(dynamic_states);
 
-#if _DEBUG
+#if BISMUTH_DEBUG
     char* pipeline_name_buf = string_format("pipeline_shader_%s", config->name);
     VK_SET_DEBUG_OBJECT_NAME(context, VK_OBJECT_TYPE_PIPELINE, out_pipeline->handle, pipeline_name_buf);
     string_free(pipeline_name_buf);
@@ -4644,10 +4636,10 @@ static b8 shader_create_modules_and_pipelines(renderer_backend_interface* backen
             BTRACE("skybox shader");
 
         // NOTE: Always one block for the push constant, unless there is no per-draw UBO uniforms
+        brange push_constant_range;
         if (internal_shader->per_draw_info.ubo_size)
         {
             pipeline_config.push_constant_range_count = 1;
-            brange push_constant_range;
             push_constant_range.offset = 0;
             push_constant_range.size = internal_shader->per_draw_info.ubo_stride;
             pipeline_config.push_constant_ranges = &push_constant_range;
