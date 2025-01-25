@@ -203,8 +203,8 @@ assets = [
     }
     {
         name = "FireLoop"
-        path = "./assets/sounds/Fire Loop.baf"
-        source_path = "./assets/sounds/source/Fire Loop.mp3"
+        path = "./assets/sounds/FireLoop.baf"
+        source_path = "./assets/sounds/source/FireLoop.mp3"
     }
     {
         name = "Test_Audio"

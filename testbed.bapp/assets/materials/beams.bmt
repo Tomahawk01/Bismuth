@@ -8,7 +8,7 @@ casts_shadow = true
 use_vertex_color_as_base_color = false
 inputs = {
     base_color = {
-		map = {
+        map = {
             resource_name = "beams_and_sticks_bc"
             package_name = "Testbed"
         }
