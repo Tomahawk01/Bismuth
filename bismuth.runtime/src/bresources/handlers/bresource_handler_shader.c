@@ -27,11 +27,6 @@ typedef struct shader_resource_handler_info
 static void shader_basset_on_result(asset_request_result result, const struct basset* asset, void* listener_inst);
 static void asset_to_resource(const basset_shader* asset, bresource_shader* out_shader);
 
-bresource* bresource_handler_shader_allocate(void)
-{
-    return (bresource*)BALLOC_TYPE(bresource_shader, MEMORY_TAG_RESOURCE);
-}
-
 b8 bresource_handler_shader_request(bresource_handler* self, bresource* resource, const struct bresource_request_info* info)
 {
     if (!self || !resource)
@@ -89,8 +84,6 @@ b8 bresource_handler_shader_request(bresource_handler* self, bresource* resource
     request_info.listener_inst = listener_inst;
     request_info.callback = shader_basset_on_result;
     request_info.synchronous = typed_request->base.synchronous;
-    request_info.hot_reload_callback = 0; // Don't need hot-reloading on the shader config
-    request_info.hot_reload_context = 0;
     request_info.import_params_size = 0;
     request_info.import_params = 0;
 
@@ -117,8 +110,6 @@ void bresource_handler_shader_release(bresource_handler* self, bresource* resour
         {
             BFREE_TYPE_CARRAY(typed_resource->stage_configs, shader_stage_config, typed_resource->stage_count);
         }
-
-        BFREE_TYPE(typed_resource, bresource_shader, MEMORY_TAG_RESOURCE);
     }
 }
 
@@ -187,7 +178,6 @@ static void asset_to_resource(const basset_shader* asset, bresource_shader* out_
     // Stages
     out_shader_resource->stage_count = asset->stage_count;
     out_shader_resource->stage_configs = BALLOC_TYPE_CARRAY(shader_stage_config, out_shader_resource->stage_count);
-    out_shader_resource->base.asset_file_watch_ids = darray_create(u32);
     for (u32 i = 0; i < out_shader_resource->stage_count; ++i)
     {
         basset_shader_stage* a = &asset->stages[i];
@@ -216,26 +206,16 @@ static void asset_to_resource(const basset_shader* asset, bresource_shader* out_
         if (!text_resource)
         {
             BERROR("Failed to properly request shader stage resource '%s' for shader '%s'.", bname_string_get(target->resource_name), bname_string_get(out_shader_resource->base.name));
-            target->source = 0;
+            target->resource = 0;
             return;
         }
         if (text_resource->text)
         {
-            target->source = string_duplicate(text_resource->text);
+            target->resource = text_resource;
         }
         else
         {
             BWARN("Loaded shader source asset '%s' has no source", bname_string_get(text_resource->base.name));
-        }
-
-        // Keep track of the watch ids if they exist
-        if (text_resource->base.asset_file_watch_ids)
-        {
-            u32 watch_id_count = darray_length(text_resource->base.asset_file_watch_ids);
-            for (u32 w = 0; w < watch_id_count; ++w)
-            {
-                darray_push(out_shader_resource->base.asset_file_watch_ids, text_resource->base.asset_file_watch_ids[w]);
-            }
         }
     }
 

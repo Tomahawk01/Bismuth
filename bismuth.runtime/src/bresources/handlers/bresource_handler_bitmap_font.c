@@ -22,11 +22,6 @@ typedef struct bitmap_font_resource_handler_info
 static void bitmap_font_basset_on_result(asset_request_result result, const struct basset* asset, void* listener_inst);
 static void asset_to_resource(const basset_bitmap_font* asset, bresource_bitmap_font* out_bitmap_font);
 
-bresource* bresource_handler_bitmap_font_allocate(void)
-{
-    return (bresource*)BALLOC_TYPE(bresource_bitmap_font, MEMORY_TAG_RESOURCE);
-}
-
 b8 bresource_handler_bitmap_font_request(bresource_handler* self, bresource* resource, const struct bresource_request_info* info)
 {
     if (!self || !resource)
@@ -68,8 +63,6 @@ b8 bresource_handler_bitmap_font_request(bresource_handler* self, bresource* res
     request_info.listener_inst = listener_inst;
     request_info.callback = bitmap_font_basset_on_result;
     request_info.synchronous = typed_request->base.synchronous;
-    request_info.hot_reload_callback = 0;
-    request_info.hot_reload_context = 0;
     request_info.import_params_size = 0;
     request_info.import_params = 0;
     asset_system_request(self->asset_system, request_info);

@@ -254,12 +254,13 @@ typedef enum shader_state
     SHADER_STATE_INITIALIZED,
 } shader_state;
 
+struct bresource_text;
 typedef struct shader_stage_config
 {
     shader_stage stage;
+    struct bresource_text* resource;
     bname resource_name;
     bname package_name;
-    char* source;
 } shader_stage_config;
 
 /** @brief Configuration for an attribute */

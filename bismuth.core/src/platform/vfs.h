@@ -79,8 +79,8 @@ typedef struct vfs_asset_data
 
 typedef void (*PFN_on_asset_loaded_callback)(struct vfs_state* vfs, vfs_asset_data asset_data);
 
-typedef void (*PFN_asset_hot_reloaded_callback)(struct vfs_state* vfs, const vfs_asset_data* asset_data);
-typedef void (*PFN_asset_deleted_callback)(struct vfs_state* vfs, u32 file_watch_id);
+typedef void (*PFN_asset_hot_reloaded_callback)(void* listener, const vfs_asset_data* asset_data);
+typedef void (*PFN_asset_deleted_callback)(void* listener, u32 file_watch_id);
 
 typedef struct vfs_state
 {
@@ -88,8 +88,12 @@ typedef struct vfs_state
     struct bpackage* packages;
     // darray
     vfs_asset_data* watched_assets;
+    // A pointer to a state listening for asset hot reloads
+    void* hot_reload_listener;
     // A callback to be made when an asset is hot-reloaded from the VFS. Typically handled within the asset system
     PFN_asset_hot_reloaded_callback hot_reloaded_callback;
+    // A pointer to a state listening for asset deletions from disk
+    void* deleted_listener;
     // A callback to be made when an asset is deleted from the VFS. Typically handled within the asset system
     PFN_asset_deleted_callback deleted_callback;
 } vfs_state;
@@ -121,7 +125,7 @@ typedef struct vfs_request_info
 BAPI b8 vfs_initialize(u64* memory_requirement, vfs_state* out_state, const vfs_config* config);
 BAPI void vfs_shutdown(vfs_state* state);
 
-BAPI void vfs_hot_reload_callbacks_register(vfs_state* state, PFN_asset_hot_reloaded_callback hot_reloaded_callback, PFN_asset_deleted_callback deleted_callback);
+BAPI void vfs_hot_reload_callbacks_register(vfs_state* state, void* hot_reload_listener, PFN_asset_hot_reloaded_callback hot_reloaded_callback, void* deleted_listener, PFN_asset_deleted_callback deleted_callback);
 
 BAPI void vfs_request_asset(vfs_state* state, vfs_request_info info);
 BAPI vfs_asset_data vfs_request_asset_sync(vfs_state* state, vfs_request_info info);

@@ -11,6 +11,8 @@ typedef struct asset_system_config
 
 struct asset_system_state;
 
+typedef void (*PFN_asset_system_hot_reload_callback)(void* listener, basset* asset);
+
 typedef struct asset_request_info
 {
     /** @param type The asset type */
@@ -31,10 +33,6 @@ typedef struct asset_request_info
     u32 import_params_size;
     /** @param import_params A pointer to the inport params, if used; otherwise 0 */
     void* import_params;
-    /** @param hot_reload_callback A callback to be made if the asset is hot-reloaded. Pass 0 if not used. Hot-reloaded assets are not auto-released */
-    PFN_basset_on_hot_reload hot_reload_callback;
-    /** @param hot_reload_listener A pointer to the listener data for an asset hot-reload */
-    void* hot_reload_context;
 } asset_request_info;
 
 BAPI b8 asset_system_deserialize_config(const char* config_str, asset_system_config* out_config);
@@ -48,3 +46,5 @@ BAPI void asset_system_release(struct asset_system_state* state, bname asset_nam
 BAPI void asset_system_on_handler_result(struct asset_system_state* state, asset_request_result result, basset* asset, void* listener_instance, PFN_basset_on_result callback);
 
 BAPI b8 asset_type_is_binary(basset_type type);
+
+void asset_system_register_hot_reload_callback(struct asset_system_state* state, void* listener, PFN_asset_system_hot_reload_callback callback);

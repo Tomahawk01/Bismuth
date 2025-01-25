@@ -82,9 +82,6 @@ typedef struct bresource
 
     /** @brief An array of tags */
     bname* tags;
-
-    // darray of file watches, if relevant
-    u32* asset_file_watch_ids;
 } bresource;
 
 typedef struct bresource_asset_info
@@ -368,6 +365,8 @@ typedef struct bresource_text
     bresource base;
     
     const char* text;
+
+    u32 asset_file_watch_id;
 } bresource_text;
 
 #define BRESOURCE_TYPE_NAME_BINARY "Binary"

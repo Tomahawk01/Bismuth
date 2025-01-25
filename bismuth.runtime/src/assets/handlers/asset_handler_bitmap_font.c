@@ -26,6 +26,7 @@ void asset_handler_bitmap_font_create(struct asset_handler* self, struct vfs_sta
     self->binary_deserialize = basset_bitmap_font_deserialize;
     self->text_serialize = 0;
     self->text_deserialize = 0;
+    self->size = sizeof(basset_bitmap_font);
 }
 
 void asset_handler_bitmap_font_release_asset(struct asset_handler* self, struct basset* asset)

@@ -28,6 +28,7 @@ void asset_handler_shader_create(struct asset_handler* self, struct vfs_state* v
     self->binary_deserialize = 0;
     self->text_serialize = basset_shader_serialize;
     self->text_deserialize = basset_shader_deserialize;
+    self->size = sizeof(basset_shader);
 }
 
 void asset_handler_shader_release_asset(struct asset_handler* self, struct basset* asset)

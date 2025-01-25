@@ -25,6 +25,7 @@ void asset_handler_audio_create(struct asset_handler* self, struct vfs_state* vf
     self->binary_deserialize = basset_binary_audio_deserialize;
     self->text_serialize = 0;
     self->text_deserialize = 0;
+    self->size = sizeof(basset_audio);
 }
 
 void asset_handler_audio_release_asset(struct asset_handler* self, struct basset* asset)

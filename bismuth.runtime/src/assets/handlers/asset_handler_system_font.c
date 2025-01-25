@@ -30,6 +30,7 @@ void asset_handler_system_font_create(struct asset_handler* self, struct vfs_sta
     self->binary_deserialize = 0;
     self->text_serialize = basset_system_font_serialize;
     self->text_deserialize = basset_system_font_deserialize;
+    self->size = sizeof(basset_system_font);
 }
 
 void asset_handler_system_font_request_asset(struct asset_handler* self, struct basset* asset, void* listener_instance, PFN_basset_on_result user_callback)

@@ -27,6 +27,7 @@ void asset_handler_image_create(struct asset_handler* self, struct vfs_state* vf
     self->binary_deserialize = basset_binary_image_deserialize;
     self->text_serialize = 0;
     self->text_deserialize = 0;
+    self->size = sizeof(basset_image);
 }
 
 void asset_handler_image_release_asset(struct asset_handler* self, struct basset* asset)

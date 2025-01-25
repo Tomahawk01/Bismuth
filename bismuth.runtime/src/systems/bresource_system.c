@@ -20,6 +20,10 @@
 #include "logger.h"
 #include "memory/bmemory.h"
 #include "strings/bname.h"
+#include "systems/asset_system.h"
+
+#include <core/event.h>
+#include <containers/darray.h>
 
 struct asset_system_state;
 
@@ -44,9 +48,13 @@ typedef struct bresource_system_state
     resource_lookup* lookups;
     // A BST to use for lookups of resources by bname
     bt_node* lookup_tree;
+
+    // A BST to use for lookups of resources by file watch id
+    bt_node* file_watch_lookup;
 } bresource_system_state;
 
 static void bresource_system_release_internal(struct bresource_system_state* state, bname resource_name, b8 force_release);
+static void on_asset_system_hot_reload(void* listener, basset* asset);
 
 b8 bresource_system_initialize(u64* memory_requirement, struct bresource_system_state* state, const bresource_system_config* config)
 {
@@ -60,6 +68,7 @@ b8 bresource_system_initialize(u64* memory_requirement, struct bresource_system_
     state->max_resource_count = config->max_resource_count;
     state->lookups = ballocate(sizeof(resource_lookup) * state->max_resource_count, MEMORY_TAG_ARRAY);
     state->lookup_tree = 0;
+    state->file_watch_lookup = 0;
 
     state->asset_system = engine_systems_get()->asset_state;
 
@@ -68,9 +77,10 @@ b8 bresource_system_initialize(u64* memory_requirement, struct bresource_system_
     // Text handler
     {
         bresource_handler handler = {0};
-        handler.allocate = bresource_handler_text_allocate;
+        handler.size = sizeof(bresource_text);
         handler.release = bresource_handler_text_release;
         handler.request = bresource_handler_text_request;
+        handler.handle_hot_reload = bresource_handler_text_handle_hot_reload;
         if (!bresource_system_handler_register(state, BRESOURCE_TYPE_TEXT, handler))
         {
             BERROR("Failed to register text resource handler");
@@ -81,9 +91,10 @@ b8 bresource_system_initialize(u64* memory_requirement, struct bresource_system_
     // Binary handler
     {
         bresource_handler handler = {0};
-        handler.allocate = bresource_handler_binary_allocate;
+        handler.size = sizeof(bresource_binary);
         handler.release = bresource_handler_binary_release;
         handler.request = bresource_handler_binary_request;
+        handler.handle_hot_reload = bresource_handler_binary_handle_hot_reload;
         if (!bresource_system_handler_register(state, BRESOURCE_TYPE_BINARY, handler))
         {
             BERROR("Failed to register binary resource handler");
@@ -94,7 +105,7 @@ b8 bresource_system_initialize(u64* memory_requirement, struct bresource_system_
     // Texture handler
     {
         bresource_handler handler = {0};
-        handler.allocate = bresource_handler_texture_allocate;
+        handler.size = sizeof(bresource_texture);
         handler.release = bresource_handler_texture_release;
         handler.request = bresource_handler_texture_request;
         if (!bresource_system_handler_register(state, BRESOURCE_TYPE_TEXTURE, handler))
@@ -107,7 +118,7 @@ b8 bresource_system_initialize(u64* memory_requirement, struct bresource_system_
     // Material handler
     {
         bresource_handler handler = {0};
-        handler.allocate = bresource_handler_material_allocate;
+        handler.size = sizeof(bresource_material);
         handler.release = bresource_handler_material_release;
         handler.request = bresource_handler_material_request;
         if (!bresource_system_handler_register(state, BRESOURCE_TYPE_MATERIAL, handler))
@@ -120,7 +131,7 @@ b8 bresource_system_initialize(u64* memory_requirement, struct bresource_system_
     // Static mesh handler
     {
         bresource_handler handler = {0};
-        handler.allocate = bresource_handler_static_mesh_allocate;
+        handler.size = sizeof(bresource_static_mesh);
         handler.release = bresource_handler_static_mesh_release;
         handler.request = bresource_handler_static_mesh_request;
         if (!bresource_system_handler_register(state, BRESOURCE_TYPE_STATIC_MESH, handler))
@@ -133,7 +144,7 @@ b8 bresource_system_initialize(u64* memory_requirement, struct bresource_system_
     // Shader handler
     {
         bresource_handler handler = {0};
-        handler.allocate = bresource_handler_shader_allocate;
+        handler.size = sizeof(bresource_shader);
         handler.release = bresource_handler_shader_release;
         handler.request = bresource_handler_shader_request;
         if (!bresource_system_handler_register(state, BRESOURCE_TYPE_SHADER, handler))
@@ -146,7 +157,7 @@ b8 bresource_system_initialize(u64* memory_requirement, struct bresource_system_
     // Bitmap font handler
     {
         bresource_handler handler = {0};
-        handler.allocate = bresource_handler_bitmap_font_allocate;
+        handler.size = sizeof(bresource_bitmap_font);
         handler.release = bresource_handler_bitmap_font_release;
         handler.request = bresource_handler_bitmap_font_request;
         if (!bresource_system_handler_register(state, BRESOURCE_TYPE_BITMAP_FONT, handler))
@@ -159,7 +170,7 @@ b8 bresource_system_initialize(u64* memory_requirement, struct bresource_system_
     // System font handler
     {
         bresource_handler handler = {0};
-        handler.allocate = bresource_handler_system_font_allocate;
+        handler.size = sizeof(bresource_system_font);
         handler.release = bresource_handler_system_font_release;
         handler.request = bresource_handler_system_font_request;
         if (!bresource_system_handler_register(state, BRESOURCE_TYPE_SYSTEM_FONT, handler))
@@ -172,7 +183,7 @@ b8 bresource_system_initialize(u64* memory_requirement, struct bresource_system_
     // Scene handler
     {
         bresource_handler handler = {0};
-        handler.allocate = bresource_handler_scene_allocate;
+        handler.size = sizeof(bresource_scene);
         handler.release = bresource_handler_scene_release;
         handler.request = bresource_handler_scene_request;
         if (!bresource_system_handler_register(state, BRESOURCE_TYPE_SCENE, handler))
@@ -185,7 +196,7 @@ b8 bresource_system_initialize(u64* memory_requirement, struct bresource_system_
     // Heightmap terrain handler
     {
         bresource_handler handler = {0};
-        handler.allocate = bresource_handler_heightmap_terrain_allocate;
+        handler.size = sizeof(bresource_heightmap_terrain);
         handler.release = bresource_handler_heightmap_terrain_release;
         handler.request = bresource_handler_heightmap_terrain_request;
         if (!bresource_system_handler_register(state, BRESOURCE_TYPE_HEIGHTMAP_TERRAIN, handler))
@@ -198,7 +209,7 @@ b8 bresource_system_initialize(u64* memory_requirement, struct bresource_system_
     // Audio handler
     {
         bresource_handler handler = {0};
-        handler.allocate = bresource_handler_audio_allocate;
+        handler.size = sizeof(bresource_audio);
         handler.release = bresource_handler_audio_release;
         handler.request = bresource_handler_audio_request;
         if (!bresource_system_handler_register(state, BRESOURCE_TYPE_AUDIO, handler))
@@ -207,6 +218,9 @@ b8 bresource_system_initialize(u64* memory_requirement, struct bresource_system_
             return false;
         }
     }
+
+    // Register a callback with the asset system to get notified when an asset has been hot-reloaded
+    asset_system_register_hot_reload_callback(state->asset_system, state, on_asset_system_hot_reload);
 
     BINFO("Resource system (new) initialized");
     return true;
@@ -224,6 +238,7 @@ void bresource_system_shutdown(struct bresource_system_state* state)
 
         // Destroy the bst
         u64_bst_cleanup(state->lookup_tree);
+        u64_bst_cleanup(state->file_watch_lookup);
 
         bfree(state->lookups, sizeof(resource_lookup) * state->max_resource_count, MEMORY_TAG_ARRAY);
 
@@ -263,14 +278,9 @@ bresource* bresource_system_request(struct bresource_system_state* state, bname 
             {
                 // Grab a handler for the resource type, if there is one
                 bresource_handler* handler = &state->handlers[info->type];
-                if (!handler->allocate)
-                {
-                    BERROR("There is no resource handler setup for the resource type '%s'. Null/0 will be returned", bresource_type_to_string(info->type));
-                    return 0;
-                }
                 
-                // Have the handler allocate memory for the resource
-                lookup->r = handler->allocate();
+                // Allocate memory for the resource
+                lookup->r = ballocate(handler->size, MEMORY_TAG_RESOURCE);
                 if (!lookup->r)
                 {
                     BERROR("Resource handler failed to allocate resource. Null/0 will be returned");
@@ -293,6 +303,8 @@ bresource* bresource_system_request(struct bresource_system_state* state, bname 
                 lookup->r->tag_count = 0;
                 lookup->r->tags = 0;
                 lookup->reference_count = 0;
+                // Only allow auto-release for resources which aren't hot-reloadable
+                lookup->auto_release = handler->handle_hot_reload == 0;
 
                 // Make the actual request
                 b8 result = handler->request(handler, lookup->r, info);
@@ -323,6 +335,31 @@ void bresource_system_release(struct bresource_system_state* state, bname resour
     bresource_system_release_internal(state, resource_name, false);
 }
 
+void bresource_system_register_for_hot_reload(struct bresource_system_state* state, bresource* resource, u32 file_watch_id)
+{
+    // TODO: also handle unload and removing from this lookup when destroying
+
+    // Add an entry to the bst for this node
+    u32 lookup_index = INVALID_ID;
+    const bt_node* node = u64_bst_find(state->lookup_tree, resource->name);
+    if (node)
+        lookup_index = node->value.u32;
+
+    if (lookup_index != INVALID_ID)
+    {
+        bt_node_value v;
+        v.u32 = lookup_index;
+        bt_node* new_node = u64_bst_insert(state->file_watch_lookup, file_watch_id, v);
+        // Save as root if this is the first resource. Otherwise it'll be part of the tree automatically
+        if (!state->file_watch_lookup)
+            state->file_watch_lookup = new_node;
+    }
+    else
+    {
+        BERROR("Failed to register resource for hot reload watch");
+    }
+}
+
 b8 bresource_system_handler_register(struct bresource_system_state* state, bresource_type type, bresource_handler handler)
 {
     if (!state)
@@ -339,9 +376,10 @@ b8 bresource_system_handler_register(struct bresource_system_state* state, breso
     }
 
     h->asset_system = state->asset_system;
-    h->allocate = handler.allocate;
+    h->size = handler.size;
     h->request = handler.request;
     h->release = handler.release;
+    h->handle_hot_reload = handler.handle_hot_reload;
 
     return true;
 }
@@ -390,9 +428,11 @@ static void bresource_system_release_internal(struct bresource_system_state* sta
                 lookup->r->tags = 0;
             }
 
-            lookup->r = 0;
+            // Free the resource structure itself
+            bfree(lookup->r, handler->size, MEMORY_TAG_RESOURCE);
 
             // Ensure the lookup is invalidated
+            lookup->r = 0;
             lookup->reference_count = 0;
             lookup->auto_release = false;
         }
@@ -401,5 +441,39 @@ static void bresource_system_release_internal(struct bresource_system_state* sta
     {
         // Entry not found, nothing to do
         BWARN("bresource_system_release: Attempted to release resource '%s', which does not exist or is not already loaded. Nothing to do", bname_string_get(resource_name));
+    }
+}
+
+static void on_asset_system_hot_reload(void* listener, basset* asset)
+{
+    bresource_system_state* state = (bresource_system_state*)listener;
+
+    // Find the resource from a lookup table based on file_watch_id
+    const bt_node* node = u64_bst_find(state->file_watch_lookup, asset->file_watch_id);
+    u32 lookup_index = INVALID_ID;
+    if (node)
+        lookup_index = node->value.u32;
+
+    if (lookup_index != INVALID_ID)
+    {
+        resource_lookup* lookup = &state->lookups[lookup_index];
+        bresource* resource = lookup->r;
+
+        // Increment the resource generation
+        resource->generation++;
+        
+        // If the handler for this type handles hot-reloads, do it
+        bresource_handler* handler = &state->handlers[resource->type];
+        if (handler->handle_hot_reload)
+            handler->handle_hot_reload(handler, resource, asset, asset->file_watch_id);
+
+        // Fire off a message about the hot reload for anything that might be interested
+        event_context evt = {0};
+        evt.data.u32[0] = asset->file_watch_id; // Pass through the asset file watch id
+        event_fire(EVENT_CODE_RESOURCE_HOT_RELOADED, resource, evt);
+    }
+    else
+    {
+        BWARN("Resource system was notified of a file watch update for a resource not being watched");
     }
 }

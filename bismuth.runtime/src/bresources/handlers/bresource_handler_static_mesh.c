@@ -26,11 +26,6 @@ typedef struct static_mesh_asset_request_listener
 // Callback for when an asset loads
 static void basset_static_mesh_on_result(asset_request_result result, const struct basset* asset, void* listener_inst);
 
-bresource* bresource_handler_static_mesh_allocate(void)
-{
-    return (bresource*)BALLOC_TYPE(bresource_static_mesh, MEMORY_TAG_RESOURCE);
-}
-
 b8 bresource_handler_static_mesh_request(struct bresource_handler* self, bresource* resource, const struct bresource_request_info* info)
 {
     bresource_static_mesh* typed_resource = (bresource_static_mesh*)resource;
@@ -66,8 +61,6 @@ b8 bresource_handler_static_mesh_request(struct bresource_handler* self, bresour
         request_info.listener_inst = listener;
         request_info.callback = basset_static_mesh_on_result;
         request_info.synchronous = false;
-        request_info.hot_reload_callback = 0; // No hot-reloading for this
-        request_info.hot_reload_context = 0;
         request_info.import_params_size = 0;
         request_info.import_params = 0;
 

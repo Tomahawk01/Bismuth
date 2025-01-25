@@ -132,6 +132,7 @@ b8 event_fire(u16 code, void* sender, event_context context)
     for (u64 i = 0; i < registered_count; ++i)
     {
         registered_event e = state_ptr->registered[code].events[i];
+        // This fires once for every listener/callback combo
         if (e.callback(code, sender, e.listener, context))
         {
             // Message has been handled, do not send to other listeners

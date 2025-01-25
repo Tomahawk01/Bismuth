@@ -28,11 +28,6 @@ typedef struct texture_resource_handler_info
 static void texture_basset_on_result(asset_request_result result, const struct basset* asset, void* listener_inst);
 static void texture_basset_on_hot_reload(asset_request_result result, const struct basset* asset, void* listener_inst);
 
-bresource* bresource_handler_texture_allocate(void)
-{
-    return (bresource*)ballocate(sizeof(bresource_texture), MEMORY_TAG_RESOURCE);
-}
-
 b8 bresource_handler_texture_request(struct bresource_handler* self, bresource* resource, const struct bresource_request_info* info)
 {
     if (!self || !resource)
@@ -103,9 +98,6 @@ b8 bresource_handler_texture_request(struct bresource_handler* self, bresource* 
                 request_info.listener_inst = listener_inst;
                 request_info.callback = texture_basset_on_result;
                 request_info.synchronous = false;
-                request_info.hot_reload_callback = texture_basset_on_hot_reload;
-                // TODO: Context needs to include pointer to the resource and a copy of the import params.
-                request_info.hot_reload_context = 0;
                 request_info.import_params_size = sizeof(basset_image_import_options);
                 request_info.import_params = &import_params;
 
@@ -238,7 +230,6 @@ void bresource_handler_texture_release(struct bresource_handler* self, bresource
         // Release GPU resources
         bresource_texture* t = (bresource_texture*)resource;
         renderer_texture_resources_release(engine_systems_get()->renderer_system, &t->renderer_texture_handle);
-        bfree(resource, sizeof(bresource_texture), MEMORY_TAG_RESOURCE);
     }
 }
 
@@ -393,9 +384,4 @@ destroy_request:
     bfree(listener->request_info, sizeof(bresource_texture_request_info), MEMORY_TAG_RESOURCE);
     // Free the listener itself
     bfree(listener, sizeof(texture_resource_handler_info), MEMORY_TAG_RESOURCE);
-}
-
-static void texture_basset_on_hot_reload(asset_request_result result, const struct basset* asset, void* listener_inst)
-{
-    BASSERT_MSG(false, "Not yet implemented");
 }

@@ -16,6 +16,7 @@
 
 static b8 basset_text_deserialize(const char* file_text, basset* out_asset);
 static const char* basset_text_serialize(const basset* asset);
+static void on_hot_reload(const struct vfs_asset_data* asset_data, const struct basset* asset);
 
 void asset_handler_text_create(struct asset_handler* self, struct vfs_state* vfs)
 {
@@ -31,6 +32,8 @@ void asset_handler_text_create(struct asset_handler* self, struct vfs_state* vfs
     self->binary_deserialize = 0;
     self->text_serialize = basset_text_serialize;
     self->text_deserialize = basset_text_deserialize;
+    self->on_hot_reload = on_hot_reload;
+    self->size = sizeof(basset_text);
 }
 
 void asset_handler_text_release_asset(struct asset_handler* self, struct basset* asset)
@@ -60,4 +63,17 @@ static const char* basset_text_serialize(const basset* asset)
         return 0;
 
     return string_duplicate(((basset_text*)asset)->content);
+}
+
+static void on_hot_reload(const struct vfs_asset_data* asset_data, const struct basset* asset)
+{
+    if (asset && asset_data && asset_data->text)
+    {
+        basset_text* typed_asset = (basset_text*)asset;
+
+        // Make sure to free the old data first
+        if (typed_asset->content)
+            string_free(typed_asset->content);
+        typed_asset->content = string_duplicate(asset_data->text);
+    }
 }

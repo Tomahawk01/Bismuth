@@ -8,6 +8,7 @@
 #include "strings/bname.h"
 #include "systems/asset_system.h"
 #include "systems/bresource_system.h"
+#include "systems/audio_system.h"
 
 typedef struct audio_resource_handler_info
 {
@@ -62,8 +63,6 @@ b8 bresource_handler_audio_request(struct bresource_handler* self, bresource* re
         request_info.listener_inst = listener_inst;
         request_info.callback = audio_basset_on_result;
         request_info.synchronous = false;
-        request_info.hot_reload_callback = 0;
-        request_info.hot_reload_context = 0;
         request_info.import_params_size = 0;
         request_info.import_params = 0;
         asset_system_request(self->asset_system, request_info);
@@ -92,8 +91,6 @@ void bresource_handler_audio_release(struct bresource_handler* self, bresource* 
             bfree(t->pcm_data, t->pcm_data_size, MEMORY_TAG_AUDIO);
 
         // TODO: release backend data
-
-        bfree(resource, sizeof(bresource_audio), MEMORY_TAG_RESOURCE);
     }
 }
 

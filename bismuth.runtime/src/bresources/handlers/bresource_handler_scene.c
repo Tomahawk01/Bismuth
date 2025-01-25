@@ -25,11 +25,6 @@ typedef struct scene_resource_handler_info
 static void scene_basset_on_result(asset_request_result result, const struct basset* asset, void* listener_inst);
 static void asset_to_resource(const basset_scene* asset, bresource_scene* out_scene_resource);
 
-bresource* bresource_handler_scene_allocate(void)
-{
-    return (bresource*)BALLOC_TYPE(bresource_scene, MEMORY_TAG_RESOURCE);
-}
-
 b8 bresource_handler_scene_request(bresource_handler* self, bresource* resource, const struct bresource_request_info* info)
 {
     if (!self || !resource)
@@ -72,8 +67,6 @@ b8 bresource_handler_scene_request(bresource_handler* self, bresource* resource,
     request_info.listener_inst = listener_inst;
     request_info.callback = scene_basset_on_result;
     request_info.synchronous = typed_request->base.synchronous;
-    request_info.hot_reload_callback = 0; // Don't need hot-reloading on the scene config.
-    request_info.hot_reload_context = 0;
     request_info.import_params_size = 0;
     request_info.import_params = 0;
 
@@ -152,6 +145,10 @@ void bresource_handler_scene_release(bresource_handler* self, bresource* resourc
         {
             for (u32 i = 0; i < typed_resource->node_count; ++i)
                 destroy_scene_node(&typed_resource->nodes[i]);
+            
+            BFREE_TYPE_CARRAY(typed_resource->nodes, scene_node_config, typed_resource->node_count);
+            typed_resource->nodes = 0;
+            typed_resource->node_count = 0;
         }
     }
 }

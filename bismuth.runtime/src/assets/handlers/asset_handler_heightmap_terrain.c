@@ -26,6 +26,7 @@ void asset_handler_heightmap_terrain_create(struct asset_handler* self, struct v
     self->binary_deserialize = 0;
     self->text_serialize = basset_heightmap_terrain_serialize;
     self->text_deserialize = basset_heightmap_terrain_deserialize;
+    self->size = sizeof(basset_heightmap_terrain);
 }
 
 void asset_handler_heightmap_terrain_release_asset(struct asset_handler* self, struct basset* asset)

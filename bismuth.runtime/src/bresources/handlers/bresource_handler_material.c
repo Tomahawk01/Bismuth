@@ -24,11 +24,6 @@ static void material_basset_on_result(asset_request_result result, const struct 
 static void asset_to_resource(const basset_material* asset, bresource_material* out_material);
 static void material_basset_on_hot_reload(asset_request_result result, const struct basset* asset, void* listener_inst);
 
-bresource* bresource_handler_material_allocate(void)
-{
-    return (bresource*)BALLOC_TYPE(bresource_material, MEMORY_TAG_RESOURCE);
-}
-
 b8 bresource_handler_material_request(bresource_handler* self, bresource* resource, const struct bresource_request_info* info)
 {
     if (!self || !resource)
@@ -83,8 +78,6 @@ b8 bresource_handler_material_request(bresource_handler* self, bresource* resour
     request_info.listener_inst = listener_inst;
     request_info.callback = material_basset_on_result;
     request_info.synchronous = false;
-    request_info.hot_reload_callback = material_basset_on_hot_reload;
-    request_info.hot_reload_context = typed_resource;
     request_info.import_params_size = 0;
     request_info.import_params = 0;
     asset_system_request(self->asset_system, request_info);
@@ -100,8 +93,6 @@ void bresource_handler_material_release(bresource_handler* self, bresource* reso
 
         if (typed_resource->custom_sampler_count && typed_resource->custom_samplers)
             BFREE_TYPE_CARRAY(typed_resource->custom_samplers, bmaterial_sampler_config, typed_resource->custom_sampler_count);
-
-        BFREE_TYPE(typed_resource, bresource_material, MEMORY_TAG_RESOURCE);
     }
 }
 

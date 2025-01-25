@@ -22,11 +22,6 @@ typedef struct system_font_resource_handler_info
 static void system_font_basset_on_result(asset_request_result result, const struct basset* asset, void* listener_inst);
 static void asset_to_resource(const basset_system_font* asset, bresource_system_font* out_system_font);
 
-bresource* bresource_handler_system_font_allocate(void)
-{
-    return (bresource*)BALLOC_TYPE(bresource_system_font, MEMORY_TAG_RESOURCE);
-}
-
 b8 bresource_handler_system_font_request(bresource_handler* self, bresource* resource, const struct bresource_request_info* info)
 {
     if (!self || !resource)
@@ -68,8 +63,6 @@ b8 bresource_handler_system_font_request(bresource_handler* self, bresource* res
     request_info.listener_inst = listener_inst;
     request_info.callback = system_font_basset_on_result;
     request_info.synchronous = typed_request->base.synchronous;
-    request_info.hot_reload_callback = 0;
-    request_info.hot_reload_context = 0;
     request_info.import_params_size = 0;
     request_info.import_params = 0;
     asset_system_request(self->asset_system, request_info);
@@ -87,8 +80,6 @@ void bresource_handler_system_font_release(bresource_handler* self, bresource* r
         {
             BFREE_TYPE_CARRAY(typed_resource->faces, bname, typed_resource->face_count);
         }
-
-        bzero_memory(typed_resource, sizeof(bresource_system_font));
     }
 }
 

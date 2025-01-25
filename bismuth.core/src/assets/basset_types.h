@@ -89,7 +89,10 @@ typedef enum asset_request_result
 } asset_request_result;
 
 typedef void (*PFN_basset_on_result)(asset_request_result result, const struct basset* asset, void* listener_inst);
-typedef void (*PFN_basset_on_hot_reload)(asset_request_result result, const struct basset* asset, void* listener_inst);
+
+struct vfs_asset_data;
+typedef void (*PFN_basset_on_hot_reload)(const struct vfs_asset_data* asset_data, const struct basset* asset);
+
 typedef b8 (*PFN_basset_importer_import)(const struct basset_importer* self, u64 data_size, const void* data, void* params, struct basset* out_asset);
 
 /** @brief Represents the interface point for an importer */

@@ -9,6 +9,10 @@ typedef struct asset_handler
 {
     basset_type type;
     const char* type_name;
+
+    /** @brief The internal size of the asset structure */
+    u64 size;
+
     b8 is_binary;
 
     /** @brief Cache a pointer to the VFS state for fast lookup */
@@ -23,6 +27,8 @@ typedef struct asset_handler
 
     const char* (*text_serialize)(const basset* asset);
     b8 (*text_deserialize)(const char* file_text, basset* out_asset);
+
+    PFN_basset_on_hot_reload on_hot_reload;
 } asset_handler;
 
 typedef struct asset_handler_request_context

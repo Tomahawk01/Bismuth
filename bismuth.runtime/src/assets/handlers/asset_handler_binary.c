@@ -67,6 +67,7 @@ void asset_handler_binary_create(struct asset_handler* self, struct vfs_state* v
     self->binary_deserialize = basset_binary_deserialize;
     self->binary_serialize = 0;
     self->binary_deserialize = 0;
+    self->size = sizeof(basset_binary);
 }
 
 void asset_handler_binary_release_asset(struct asset_handler* self, struct basset* asset)

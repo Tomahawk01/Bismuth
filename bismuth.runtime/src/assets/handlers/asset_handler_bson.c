@@ -28,6 +28,7 @@ void asset_handler_bson_create(struct asset_handler* self, struct vfs_state* vfs
     self->binary_deserialize = 0;
     self->text_serialize = basset_bson_serialize;
     self->text_deserialize = basset_bson_deserialize;
+    self->size = sizeof(basset_bson);
 }
 
 void asset_handler_bson_release_asset(struct asset_handler* self, struct basset* asset)

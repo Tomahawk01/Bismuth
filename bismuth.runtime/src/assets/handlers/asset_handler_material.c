@@ -27,6 +27,7 @@ void asset_handler_material_create(struct asset_handler* self, struct vfs_state*
     self->binary_deserialize = 0;
     self->text_serialize = basset_material_serialize;
     self->text_deserialize = basset_material_deserialize;
+    self->size = sizeof(basset_material);
 }
 
 void asset_handler_material_request_asset(struct asset_handler* self, struct basset* asset, void* listener_instance, PFN_basset_on_result user_callback)

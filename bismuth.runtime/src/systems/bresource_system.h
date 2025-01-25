@@ -12,8 +12,10 @@ typedef struct bresource_system_config
 typedef struct bresource_handler
 {
     struct asset_system_state* asset_system;
-    bresource* (*allocate)(void);
+    // The size of the internal resource struct type
+    u64 size;
     b8 (*request)(struct bresource_handler* self, bresource* resource, const struct bresource_request_info* info);
+    b8 (*handle_hot_reload)(struct bresource_handler* self, bresource* resource, basset* asset, u32 file_watch_id);
     void (*release)(struct bresource_handler* self, bresource* resource);
 } bresource_handler;
 
@@ -24,3 +26,4 @@ BAPI bresource* bresource_system_request(struct bresource_system_state* state, b
 BAPI void bresource_system_release(struct bresource_system_state* state, bname resource_name);
 
 BAPI b8 bresource_system_handler_register(struct bresource_system_state* state, bresource_type type, bresource_handler handler);
+BAPI void bresource_system_register_for_hot_reload(struct bresource_system_state* state, bresource* resource, u32 file_watch_id);
