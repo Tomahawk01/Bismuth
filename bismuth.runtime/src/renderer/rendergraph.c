@@ -839,7 +839,7 @@ static b8 rg_dep_graph_topological_sort(rendergraph* graph)
     // Always force the begin node to be first and the end node to be last
     graph->execution_list[0] = graph->begin_node->index;
     graph->execution_list[graph->node_count - 1] = graph->end_node->index;
-    u32 current_index = graph->node_count - 2;;
+    u32 current_index = graph->node_count - 2;
     while (stack_index)
     {
         rg_dep_node* node = stack[--stack_index];

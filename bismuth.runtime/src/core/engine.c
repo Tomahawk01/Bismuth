@@ -716,6 +716,7 @@ b8 engine_run(application* game_inst)
             // TODO: Update systems here that need them
             job_system_update(engine_state->systems.job_system, &engine_state->p_frame_data);
             plugin_system_update_plugins(engine_state->systems.plugin_system, &engine_state->p_frame_data);
+            baudio_system_update(engine_state->systems.audio_system, &engine_state->p_frame_data);
 
             // Update timelines. NOTE: this is not done by the systems manager because we don't want or have timeline data in the frame_data struct any longer
             timeline_system_update(engine_state->systems.timeline_system, delta);

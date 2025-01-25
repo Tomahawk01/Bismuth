@@ -180,7 +180,7 @@ bhandle xform_from_position(vec3 position)
 bhandle xform_from_rotation(quat rotation)
 {
     bhandle handle = {0};
-    xform_system_state* state = engine_systems_get()->xform_system;;
+    xform_system_state* state = engine_systems_get()->xform_system;
     if (state)
     {
         handle = handle_create(state);
@@ -204,7 +204,7 @@ bhandle xform_from_rotation(quat rotation)
 bhandle xform_from_position_rotation(vec3 position, quat rotation)
 {
     bhandle handle = {0};
-    xform_system_state* state = engine_systems_get()->xform_system;;
+    xform_system_state* state = engine_systems_get()->xform_system;
     if (state)
     {
         handle = handle_create(state);
@@ -228,7 +228,7 @@ bhandle xform_from_position_rotation(vec3 position, quat rotation)
 bhandle xform_from_position_rotation_scale(vec3 position, quat rotation, vec3 scale)
 {
     bhandle handle = {0};
-    xform_system_state* state = engine_systems_get()->xform_system;;
+    xform_system_state* state = engine_systems_get()->xform_system;
     if (state)
     {
         handle = handle_create(state);

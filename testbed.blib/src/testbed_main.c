@@ -234,6 +234,8 @@ b8 game_on_debug_event(u16 code, void* sender, void* listener_inst, event_contex
                 // Play on channel 6
                 // TODO: pipe this through an emitter node in the scene
                 baudio_play(engine_systems_get()->audio_system, state->test_loop_sound, 6);
+                // Set this to loop
+                baudio_looping_set(engine_systems_get()->audio_system, state->test_loop_sound, true);
             }
             else
             {
@@ -800,8 +802,8 @@ b8 application_initialize(struct application* game_inst)
         BERROR("Failed to load test audio file");
 
     // Looping audio file
-    if (!kaudio_acquire(audio_system, bname_create("FireLoop"), kname_create("Testbed"), false, &state->test_loop_sound))
-        KERROR("Failed to load test looping audio file");
+    if (!baudio_acquire(audio_system, bname_create("FireLoop"), bname_create("Testbed"), false, &state->test_loop_sound))
+        BERROR("Failed to load test looping audio file");
 
     // Test music
     if (!baudio_acquire(audio_system, bname_create("bg_song1"), bname_create("Testbed"), true, &state->test_music))
@@ -828,6 +830,9 @@ b8 application_initialize(struct application* game_inst)
     /* if (!audio_system_channel_emitter_play(6, &state->test_emitter))
         BERROR("Failed to play test emitter");
     */
+    // TODO: pipe this through an emitter node in the scene
+    baudio_play(engine_systems_get()->audio_system, state->test_loop_sound, 6);
+    baudio_looping_set(engine_systems_get()->audio_system, state->test_loop_sound, true);
 
     // Play the test music on channel 7
     baudio_play(engine_systems_get()->audio_system, state->test_music, 7);

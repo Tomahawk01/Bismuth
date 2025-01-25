@@ -129,7 +129,7 @@ static void recalculate_points(debug_line3d* line)
 {
     if (line)
     {
-        color_vertex_3d* verts = (color_vertex_3d*)line->geometry.vertices;;
+        color_vertex_3d* verts = (color_vertex_3d*)line->geometry.vertices;
         verts[0].position = vec4_from_vec3(line->point_0, 1.0f);
         verts[1].position = vec4_from_vec3(line->point_1, 1.0f);
     }

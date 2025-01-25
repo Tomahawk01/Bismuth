@@ -166,7 +166,7 @@ static bpackage_result asset_get_data(const bpackage* package, b8 is_binary, bna
         const char* asset_path = get_source ? entry->source_path : entry->path;
         if (!asset_path)
         {
-            BERROR("Package '%s': No %s asset path exists for asset '%s'. Load operation failed", package_name, get_source ? "source" : "primary", name_str);
+            BTRACE("Package '%s': No %s asset path exists for asset '%s'", package_name, get_source ? "source" : "primary", name_str);
             result = get_source ? BPACKAGE_RESULT_SOURCE_GET_FAILURE : BPACKAGE_RESULT_PRIMARY_GET_FAILURE;
             return result;
         }
@@ -174,7 +174,7 @@ static bpackage_result asset_get_data(const bpackage* package, b8 is_binary, bna
         // Validate that the file exists
         if (!filesystem_exists(asset_path))
         {
-            BERROR("Package '%s': Invalid %s asset path ('%s') for asset '%s'. Load operation failed", package_name, get_source ? "source" : "primary", asset_path, name_str);
+            BTRACE("Package '%s': Invalid %s asset path ('%s') for asset '%s'", package_name, get_source ? "source" : "primary", asset_path, name_str);
             result = get_source ? BPACKAGE_RESULT_SOURCE_GET_FAILURE : BPACKAGE_RESULT_PRIMARY_GET_FAILURE;
             return result;
         }

@@ -9,7 +9,7 @@ void openal_backend_shutdown(baudio_backend_interface* backend);
 
 b8 openal_backend_update(baudio_backend_interface* backend, struct frame_data* p_frame_data);
 
-b8 openal_backend_resource_load(baudio_backend_interface* backend, const kresource_audio* resource, b8 is_stream, bhandle resource_handle);
+b8 openal_backend_resource_load(baudio_backend_interface* backend, const bresource_audio* resource, b8 is_stream, bhandle resource_handle);
 void openal_backend_resource_unload(baudio_backend_interface* backend, bhandle resource_handle);
 
 b8 openal_backend_listener_position_set(baudio_backend_interface* backend, vec3 position);

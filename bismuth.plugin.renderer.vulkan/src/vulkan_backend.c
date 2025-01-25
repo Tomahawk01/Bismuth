@@ -5111,7 +5111,7 @@ static void* vulkan_alloc_reallocation(void* user_data, void* original, size_t s
     BTRACE("Attempting to realloc block %p...", original);
 #endif
 
-    void* result = vulkan_alloc_allocation(user_data, size, alloc_alignment, allocation_scope);
+    void* result = vulkan_alloc_allocation(user_data, size, alignment, allocation_scope);
     if (result)
     {
 #ifdef BVULKAN_ALLOCATOR_TRACE
