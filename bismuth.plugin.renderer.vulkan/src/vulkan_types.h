@@ -19,7 +19,10 @@
 #define VULKAN_RESOURCE_IMAGE_COUNT 3
 
 // Checks the given expression's return value against VK_SUCCESS
-#define VK_CHECK(expr) BASSERT(expr == VK_SUCCESS)
+#define VK_CHECK(expr)               \
+    {                                \
+        BASSERT(expr == VK_SUCCESS); \
+    }
 
 struct vulkan_context;
 
@@ -246,8 +249,8 @@ typedef struct vulkan_descriptor_set_config
 
 typedef struct vulkan_descriptor_state
 {
-    /** @brief The renderer frame number on which this descriptor was last updated. One per swapchain image. INVALID_ID_U16 if never loaded */
-    u16* renderer_frame_number;
+    /** @brief The renderer frame number on which this descriptor was last updated. One per color image. INVALID_ID_U16 if never loaded */
+    u16 renderer_frame_number[VULKAN_RESOURCE_IMAGE_COUNT];
 } vulkan_descriptor_state;
 
 typedef struct vulkan_uniform_sampler_state
@@ -276,7 +279,7 @@ typedef struct vulkan_shader_frequency_state
     u32 id;
     u64 offset;
 
-    VkDescriptorSet* descriptor_sets;
+    VkDescriptorSet descriptor_sets[VULKAN_RESOURCE_IMAGE_COUNT];
 
     // UBO descriptor state
     vulkan_descriptor_state ubo_descriptor_state;
@@ -324,7 +327,7 @@ typedef struct vulkan_shader
     // The name of the shader (mostly kept for debugging purposes)
     bname name;
     /** @brief The block of memory mapped to the each per-swapchain-image uniform buffer */
-    void** mapped_uniform_buffer_blocks;
+    void* mapped_uniform_buffer_blocks[VULKAN_RESOURCE_IMAGE_COUNT];
     /** @brief The block of memory used for push constants, 128B */
     void* per_draw_push_constant_block;
 
@@ -370,9 +373,8 @@ typedef struct vulkan_shader
 
     VkDescriptorSetLayout descriptor_set_layouts[VULKAN_SHADER_DESCRIPTOR_SET_LAYOUT_COUNT];
 
-    /** @brief The uniform buffers used by this shader, one per swapchain image */
-    renderbuffer* uniform_buffers;
-    u32 uniform_buffer_count;
+    /** @brief The uniform buffers used by this shader, one per colorbuffer image */
+    renderbuffer uniform_buffers[VULKAN_RESOURCE_IMAGE_COUNT];
 
     vulkan_pipeline** pipelines;
     vulkan_pipeline** wireframe_pipelines;

@@ -6,6 +6,7 @@
 #include <plugins/plugin_types.h>
 #include <defines.h>
 
+#include "version.h"
 #include "openal_backend.h"
 
 // Plugin entry point
@@ -38,7 +39,7 @@ b8 bplugin_create(bruntime_plugin* out_plugin)
     backend->channel_pause = openal_backend_channel_pause;
     backend->channel_resume = openal_backend_channel_resume;
 
-    BINFO("OpenAL Plugin Creation successful");
+    BINFO("OpenAL Plugin Creation successful (%s)", BVERSION);
     return true;
 }
 
