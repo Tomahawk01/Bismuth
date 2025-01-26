@@ -35,10 +35,11 @@ void freelist_create(u64 total_size, u64* memory_requirement, void* memory, free
     if (!memory)
         return;
 
+    // NOTE: Enable this if we ever need to verify why a lot of small freelists are being created
     // If memory required is too small, should warn about it being wasteful to use
-    u64 mem_min = (sizeof(internal_state) + sizeof(freelist_node)) * 8;
-    if (total_size < mem_min)
-        BWARN("Freelists are very inefficient with amounts of memory less than %iB; it is recommended to not use this structure in this case", mem_min);
+    // u64 mem_min = (sizeof(internal_state) + sizeof(freelist_node)) * 8;
+    // if (total_size < mem_min)
+    //     BWARN("Freelists are very inefficient with amounts of memory less than %iB; it is recommended to not use this structure in this case", mem_min);
 
     out_list->memory = memory;
 

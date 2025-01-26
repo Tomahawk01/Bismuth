@@ -2001,7 +2001,7 @@ b8 bson_object_property_value_get_bool(const bson_object* object, const char* na
     i32 index = bson_object_property_index_get(object, name);
     if (index == -1)
     {
-        *out_value = 0;
+        *out_value = false;
         return false;
     }
 

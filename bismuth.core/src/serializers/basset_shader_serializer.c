@@ -268,12 +268,12 @@ b8 basset_shader_deserialize(const char* file_text, basset* out_asset)
         bson_object_property_value_get_bool(&tree.root, "supports_wireframe", &typed_asset->supports_wireframe);
 
         // Color read
-        typed_asset->color_read = false;
-        bson_object_property_value_get_bool(&tree.root, "color_read", &typed_asset->color_read);
+        if (!bson_object_property_value_get_bool(&tree.root, "color_read", &typed_asset->color_read))
+            typed_asset->color_read = true; // NOTE: color read is on by default if not specified
 
         // Color write
-        typed_asset->color_write = true; // NOTE: color write is on by default if not specified
-        bson_object_property_value_get_bool(&tree.root, "color_write", &typed_asset->color_write);
+        if (!bson_object_property_value_get_bool(&tree.root, "color_write", &typed_asset->color_write))
+            typed_asset->color_write = true; // NOTE: color write is on by default if not specified
 
         // Cull mode
         const char* cull_mode = 0;

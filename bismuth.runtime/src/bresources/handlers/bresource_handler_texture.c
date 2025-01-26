@@ -300,7 +300,7 @@ static void texture_basset_on_result(asset_request_result result, const struct b
                 for (array_iterator it = listener->assets.begin((const array_base*)&listener->assets); !it.end(&it); it.next(&it))
                 {
                     b8 mismatch = false;
-                    const basset_image* image =  listener->assets.data[it.pos]; // it.value(&it);
+                    const basset_image* image = listener->assets.data[it.pos]; // it.value(&it);
 
                     // Verify and report any mismatches
                     if (image->width != width)

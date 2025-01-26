@@ -1,6 +1,6 @@
 #include "plugin_audio_main.h"
 
-#include <audio/audio_types.h>
+#include <audio/baudio_types.h>
 #include <logger.h>
 #include <memory/bmemory.h>
 #include <plugins/plugin_types.h>
@@ -12,7 +12,7 @@
 // Plugin entry point
 b8 bplugin_create(bruntime_plugin* out_plugin)
 {
-    out_plugin->plugin_state_size = sizeof(audio_backend_interface);
+    out_plugin->plugin_state_size = sizeof(baudio_backend_interface);
     out_plugin->plugin_state = ballocate(out_plugin->plugin_state_size, MEMORY_TAG_AUDIO);
 
     baudio_backend_interface* backend = out_plugin->plugin_state;

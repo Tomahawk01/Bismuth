@@ -1,26 +1,5 @@
 #include "openal_backend.h"
 
-#include "audio/baudio_types.h"
-#include "defines.h"
-#include "identifiers/bhandle.h"
-#include "bresources/bresource_types.h"
-#ifdef BPLATFORM_WINDOWS
-#include <malloc.h>
-#else
-#include <alloca.h>
-#endif
-#include <math/bmath.h>
-#include <platform/platform.h>
-#include <threads/bmutex.h>
-#include <threads/bthread.h>
-#include "audio/audio_types.h"
-#include "containers/darray.h"
-#include "defines.h"
-#include "logger.h"
-#include "memory/bmemory.h"
-#include "systems/audio_system.h"
-#include "systems/job_system.h"
-
 // OpenAL
 #ifdef BPLATFORM_WINDOWS
 #include <al.h>
@@ -29,6 +8,29 @@
 #include <AL/al.h>
 #include <AL/alc.h>
 #endif
+
+// Core
+#include <defines.h>
+#include <identifiers/bhandle.h>
+#include <containers/darray.h>
+#include <logger.h>
+#include <memory/bmemory.h>
+#include <math/bmath.h>
+#include <platform/platform.h>
+#include <threads/bmutex.h>
+#include <threads/bthread.h>
+
+// #ifdef BPLATFORM_WINDOWS
+// #include <malloc.h>
+// #else
+// #include <alloca.h>
+// #endif
+
+// Runtime
+#include <bresources/bresource_types.h>
+#include <audio/baudio_types.h>
+#include <systems/job_system.h>
+
 // The number of buffers used for streaming music file data
 #define OPENAL_BACKEND_STREAM_MAX_BUFFER_COUNT 2
 
@@ -244,7 +246,7 @@ void openal_backend_shutdown(baudio_backend_interface* backend)
             backend->internal_state = 0;
         }
 
-        bzero_memory(backend, sizeof(audio_backend_interface));
+        bzero_memory(backend, sizeof(baudio_backend_interface));
     }
 }
 

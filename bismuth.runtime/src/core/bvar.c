@@ -134,7 +134,7 @@ static b8 bvar_entry_set_desc_value(bvar_entry* entry, bvar_types type, const ch
     // Send out a notification that the variable was changed
     event_context context = {0};
     context.data.custom_data.size = sizeof(bvar_change);
-    context.data.custom_data.data = ballocate(context.data.custom_data.size, MEMORY_TAG_UNKNOWN);  // FIXME: event tag
+    context.data.custom_data.data = ballocate(context.data.custom_data.size, MEMORY_TAG_ENGINE);
     bvar_change* change_data = context.data.custom_data.data;
     change_data->name = entry->name;
     change_data->new_type = type;

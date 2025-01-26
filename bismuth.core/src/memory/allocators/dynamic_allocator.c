@@ -17,7 +17,6 @@ typedef struct alloc_header
 {
     void* start;
     u16 alignment;
-    u16 alignment_offset;
 } alloc_header;
 
 // Storage size in bytes of a node's user memory block size

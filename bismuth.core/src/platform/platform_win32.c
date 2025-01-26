@@ -223,7 +223,7 @@ b8 platform_window_create(const bwindow_config* config, struct bwindow* window, 
     window->height = client_height;
     window->device_pixel_ratio = 1.0f;
 
-    window->platform_state = ballocate(sizeof(bwindow_platform_state), MEMORY_TAG_UNKNOWN);
+    window->platform_state = ballocate(sizeof(bwindow_platform_state), MEMORY_TAG_PLATFORM);
 
     // Convert to wide character string first.
     // LPCWSTR wtitle = cstr_to_wcstr(window->title);
