@@ -30,6 +30,7 @@
 
 #include "application/application_config.h"
 #include "assets/basset_types.h"
+#include "core_audio_types.h"
 #include "game_state.h"
 
 // Standard UI
@@ -214,19 +215,19 @@ b8 game_on_debug_event(u16 code, void* sender, void* listener_inst, event_contex
     }
     else if (code == EVENT_CODE_DEBUG3)
     {
-        if (bhandle_is_valid(state->test_sound))
+        if (baudio_is_valid(state->audio_system, state->test_sound))
         {
             // Cycle between first 5 channels
             static i8 channel_id = -1;
             channel_id++;
             channel_id = channel_id % 5;
             BTRACE("Playing sound on channel %u", channel_id);
-            baudio_play(engine_systems_get()->audio_system, state->test_sound, channel_id);
+            baudio_play(state->audio_system, state->test_sound, channel_id);
         }
     }
     else if (code == EVENT_CODE_DEBUG4)
     {
-        if (bhandle_is_valid(state->test_loop_sound))
+        /* if (baudio_is_valid(state->audio_system, state->test_loop_sound))
         {
             static b8 playing = true;
             playing = !playing;
@@ -234,16 +235,16 @@ b8 game_on_debug_event(u16 code, void* sender, void* listener_inst, event_contex
             {
                 // Play on channel 6
                 // TODO: pipe this through an emitter node in the scene
-                baudio_play(engine_systems_get()->audio_system, state->test_loop_sound, 6);
+                baudio_play(state->audio_system, state->test_loop_sound, 6);
                 // Set this to loop
-                baudio_looping_set(engine_systems_get()->audio_system, state->test_loop_sound, true);
+                baudio_looping_set(state->audio_system, state->test_loop_sound, true);
             }
             else
             {
                 // Stop channel 6
-                baudio_channel_stop(engine_systems_get()->audio_system, 6);
+                baudio_channel_stop(state->audio_system, 6);
             }
-        }
+        } */
     }
 
     return false;
@@ -482,6 +483,7 @@ b8 application_initialize(struct application* game_inst)
     BDEBUG("application_initialize() called!");
 
     testbed_game_state* state = (testbed_game_state*)game_inst->state;
+    state->audio_system = engine_systems_get()->audio_system;
 
     // Get the standard ui plugin
     state->sui_plugin = plugin_system_get(engine_systems_get()->plugin_system, "bismuth.plugin.ui.standard");
@@ -798,18 +800,18 @@ b8 application_initialize(struct application* game_inst)
     bzero_memory(&state->render_clock, sizeof(bclock));
 
     // Audio tests
-    struct baudio_system_state* audio_system = engine_systems_get()->audio_system;
 
     // Load up a test audio file
-    if (!baudio_acquire(audio_system, bname_create("Test_Audio"), bname_create("Testbed"), false, &state->test_sound))
+    if (!baudio_acquire(state->audio_system, bname_create("Test_Audio"), bname_create("Testbed"), false, BAUDIO_SPACE_2D, &state->test_sound))
         BERROR("Failed to load test audio file");
 
-    // Looping audio file
-    if (!baudio_acquire(audio_system, bname_create("FireLoop"), bname_create("Testbed"), false, &state->test_loop_sound))
+    /* // Looping audio file
+    if (!baudio_acquire(state->audio_system, bname_create("FireLoop"), bname_create("Testbed"), false, &state->test_loop_sound))
         BERROR("Failed to load test looping audio file");
+    */
 
     // Test music
-    if (!baudio_acquire(audio_system, bname_create("bg_song1"), bname_create("Testbed"), true, &state->test_music))
+    if (!baudio_acquire(state->audio_system, bname_create("bg_song1"), bname_create("Testbed"), true, BAUDIO_SPACE_2D, &state->test_music))
         BERROR("Failed to load test music file");
 
     // Setup a test emitter
@@ -820,25 +822,22 @@ b8 application_initialize(struct application* game_inst)
     state->test_emitter.position = vec3_create(10.0f, 0.8f, 20.0f); */
 
     // Set some channel volumes
-    baudio_system_master_volume_set(audio_system, 0.9f);
-    baudio_system_channel_volume_set(audio_system, 0, 1.0f);
-    baudio_system_channel_volume_set(audio_system, 1, 0.75f);
-    baudio_system_channel_volume_set(audio_system, 2, 0.50f);
-    baudio_system_channel_volume_set(audio_system, 3, 0.25);
-    baudio_system_channel_volume_set(audio_system, 4, 0.0f);
-    baudio_system_channel_volume_set(audio_system, 7, 0.9f);
+    baudio_master_volume_set(state->audio_system, 0.9f);
+    baudio_channel_volume_set(state->audio_system, 0, 1.0f);
+    baudio_channel_volume_set(state->audio_system, 1, 0.75f);
+    baudio_channel_volume_set(state->audio_system, 2, 0.50f);
+    baudio_channel_volume_set(state->audio_system, 3, 0.25);
+    baudio_channel_volume_set(state->audio_system, 4, 0.0f);
+    baudio_channel_volume_set(state->audio_system, 7, 0.9f);
 
     // TODO: emmiters
     // Try playing the emitter
     /* if (!audio_system_channel_emitter_play(6, &state->test_emitter))
         BERROR("Failed to play test emitter");
     */
-    // TODO: pipe this through an emitter node in the scene
-    baudio_play(engine_systems_get()->audio_system, state->test_loop_sound, 6);
-    baudio_looping_set(engine_systems_get()->audio_system, state->test_loop_sound, true);
 
     // Play the test music on channel 7
-    baudio_play(engine_systems_get()->audio_system, state->test_music, 7);
+    baudio_play(state->audio_system, state->test_music, 7);
 
     if (!rendergraph_initialize(&state->forward_graph))
     {

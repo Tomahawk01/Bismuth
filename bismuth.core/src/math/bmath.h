@@ -72,6 +72,7 @@ BAPI f32 bsqrt(f32 x);
 BAPI f32 babs(f32 x);
 BAPI f32 bfloor(f32 x);
 BAPI f32 bceil(f32 x);
+BAPI f32 blog(f32 x);
 BAPI f32 blog2(f32 x);
 BAPI f32 bpow(f32 x, f32 y);
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "audio/baudio_types.h"
 #include "defines.h"
 #include "graphs/hierarchy_graph.h"
 #include "identifiers/bhandle.h"
@@ -92,6 +93,8 @@ typedef struct scene_water_plane_metadata
     u32 reserved;
 } scene_water_plane_metadata;
 
+struct scene_audio_emitter;
+
 typedef struct scene
 {
     u32 id;
@@ -112,6 +115,11 @@ typedef struct scene
     struct point_light* point_lights;
     // Array of scene attachments for point lights
     scene_attachment* point_light_attachments;
+
+    // darray of audio emitters
+    struct scene_audio_emitter* audio_emitters;
+    // Array of scene attachments for audio_emitters
+    scene_attachment* audio_emitter_attachments;
 
     // darray of static meshes
     static_mesh_instance* static_meshes;

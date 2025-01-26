@@ -1,8 +1,10 @@
 #pragma once
 
-#include <identifiers/bhandle.h>
+#include "core_audio_types.h"
+
 #include <audio/baudio_types.h>
 #include <defines.h>
+#include <identifiers/bhandle.h>
 
 b8 openal_backend_initialize(baudio_backend_interface* backend, const baudio_backend_config* config);
 void openal_backend_shutdown(baudio_backend_interface* backend);
@@ -20,7 +22,7 @@ b8 openal_backend_channel_position_set(baudio_backend_interface* backend, u8 cha
 b8 openal_backend_channel_looping_set(baudio_backend_interface* backend, u8 channel_id, b8 looping);
 
 b8 openal_backend_channel_play(baudio_backend_interface* backend, u8 channel_id);
-b8 openal_backend_channel_play_resource(baudio_backend_interface* backend, bhandle resource_handle, u8 channel_id);
+b8 openal_backend_channel_play_resource(baudio_backend_interface* backend, bhandle resource_handle, baudio_space audio_space, u8 channel_id);
 
 b8 openal_backend_channel_stop(baudio_backend_interface* backend, u8 channel_id);
 b8 openal_backend_channel_pause(baudio_backend_interface* backend, u8 channel_id);

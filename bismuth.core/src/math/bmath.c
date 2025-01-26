@@ -21,6 +21,7 @@ f32 bsqrt(f32 x) { return sqrtf(x); }
 f32 babs(f32 x) { return fabsf(x); }
 f32 bfloor(f32 x) { return floorf(x); }
 f32 bceil(f32 x) { return ceilf(x); }
+f32 blog(f32 x) { return logf(x); }
 f32 blog2(f32 x) { return log2f(x); }
 f32 bpow(f32 x, f32 y) { return powf(x, y); }
 

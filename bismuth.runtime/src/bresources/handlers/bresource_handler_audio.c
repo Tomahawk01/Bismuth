@@ -1,5 +1,6 @@
 #include "bresource_handler_audio.h"
 #include "assets/basset_types.h"
+#include "audio/audio_frontend.h"
 #include "containers/array.h"
 #include "core/engine.h"
 #include "bresources/bresource_types.h"
@@ -8,6 +9,7 @@
 #include "strings/bname.h"
 #include "systems/asset_system.h"
 #include "systems/bresource_system.h"
+#include "utils/audio_utils.h"
 
 typedef struct audio_resource_handler_info
 {
@@ -88,6 +90,12 @@ void bresource_handler_audio_release(struct bresource_handler* self, bresource* 
         bresource_audio* t = (bresource_audio*)resource;
         if (t->pcm_data_size && t->pcm_data)
             bfree(t->pcm_data, t->pcm_data_size, MEMORY_TAG_AUDIO);
+        t->pcm_data = 0;
+        t->pcm_data_size = 0;
+        if (t->mono_pcm_data && t->downmixed_size)
+            bfree(t->mono_pcm_data, t->total_sample_count * sizeof(i16), MEMORY_TAG_AUDIO);
+        t->mono_pcm_data = 0;
+        t->downmixed_size = 0;
 
         // TODO: release backend data
     }
@@ -106,6 +114,18 @@ static void audio_basset_on_result(asset_request_result result, const struct bas
         listener->typed_resource->pcm_data_size = typed_asset->pcm_data_size;
         listener->typed_resource->pcm_data = ballocate(listener->typed_resource->pcm_data_size, MEMORY_TAG_AUDIO);
         bcopy_memory(listener->typed_resource->pcm_data, typed_asset->pcm_data, listener->typed_resource->pcm_data_size);
+        // If the asset is stereo, get a downmixed version of the audio so it can be used as a "2D" sound if need be
+        if (listener->typed_resource->channels == 2)
+        {
+            listener->typed_resource->mono_pcm_data = baudio_downmix_stereo_to_mono(listener->typed_resource->pcm_data, listener->typed_resource->total_sample_count);
+            listener->typed_resource->downmixed_size = listener->typed_resource->total_sample_count * sizeof(i16);
+        }
+        else
+        {
+            // Asset was already mono, just point to the pcm data
+            listener->typed_resource->mono_pcm_data = listener->typed_resource->pcm_data;
+            listener->typed_resource->downmixed_size = 0; // Set to zero to indicate this shouldn't be freed separately
+        }
 
         listener->typed_resource->base.state = BRESOURCE_STATE_LOADED;
 

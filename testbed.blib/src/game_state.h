@@ -2,29 +2,32 @@
 
 // Core
 #include <defines.h>
-#include <math/math_types.h>
 #include <identifiers/bhandle.h>
+#include <math/math_types.h>
 #include <time/bclock.h>
 
 // Runtime
-#include <renderer/rendergraph.h>
 #include <application/application_types.h>
-#include <systems/camera_system.h>
 #include <core/keymap.h>
+#include <renderer/rendergraph.h>
 #include <renderer/viewport.h>
-#include <resources/scene.h>
 #include <resources/debug/debug_box3d.h>
+#include <resources/scene.h>
 #include <resources/skybox.h>
+#include <systems/camera_system.h>
 #include <systems/light_system.h>
 
 // Standard UI plugin
-#include <standard_ui_system.h>
 #include <debug_console.h>
+#include <standard_ui_system.h>
 
+#include "audio/audio_frontend.h"
+#include "core/engine.h"
 #include "editor/editor_gizmo.h"
 
 struct debug_line3d;
 struct debug_box3d;
+struct baudio_system_state;
 
 typedef struct selected_object
 {
@@ -37,6 +40,7 @@ typedef struct testbed_game_state
 {
     b8 running;
     camera* world_camera;
+    struct baudio_system_state* audio_system;
     // TODO: temp
     camera* world_camera_2;
 
@@ -95,9 +99,8 @@ typedef struct testbed_game_state
     struct sui_control test_panel;
     struct sui_control test_button;
 
-    bhandle test_sound;
-    bhandle test_loop_sound;
-    bhandle test_music;
+    audio_instance test_sound;
+    audio_instance test_music;
 
     u32 proj_box_index;
     u32 cam_proj_line_indices[24];
