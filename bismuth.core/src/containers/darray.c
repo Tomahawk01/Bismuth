@@ -114,7 +114,7 @@ void* darray_pop_at(void* array, u64 index, void* dest)
         bcopy_memory(
             (void*)(addr + (index * stride)),
             (void*)(addr + ((index + 1) * stride)),
-            stride * (length - (index - 1)));
+            stride * (length - (index + 1)));
     }
 
     darray_length_set(array, length - 1);

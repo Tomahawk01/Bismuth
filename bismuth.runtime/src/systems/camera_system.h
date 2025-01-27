@@ -1,6 +1,5 @@
 #pragma once
 
-#include "defines.h"
 #include "renderer/camera.h"
 
 typedef struct camera_system_config

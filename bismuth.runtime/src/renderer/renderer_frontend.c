@@ -391,7 +391,7 @@ void renderer_end_debug_label(void)
 #endif
 }
 
-b8 renderer_frame_prepare(renderer_system_state* state, struct frame_data* p_frame_data)
+b8 renderer_frame_prepare(struct renderer_system_state* state, struct frame_data* p_frame_data)
 {
     BASSERT(state && p_frame_data);
 
@@ -579,7 +579,7 @@ void renderer_begin_rendering(struct renderer_system_state* state, struct frame_
     {
         for (u32 i = 0; i < color_target_count; ++i)
         {
-            if (bhandle_is_invalid(color_targets[1]))
+            if (bhandle_is_invalid(color_targets[i]))
             {
                 BFATAL("Passed invalid handle to texture target (index=%u) when beginning rendering. Null is used, and will likely cause a failure", i);
             }

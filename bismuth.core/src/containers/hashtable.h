@@ -39,7 +39,7 @@ BAPI void hashtable_destroy(hashtable* table);
 
 /**
  * @brief Stores a copy of the data in value in the provided hashtable. 
- * Only use for tables which were created with is_pointer_type = false
+ * Only use for tables which were NOT created with is_pointer_type = true
  * 
  * @param table A pointer to the table to get from. Required.
  * @param name The name of the entry to set. Required.
@@ -61,7 +61,7 @@ BAPI b8 hashtable_set_ptr(hashtable* table, const char* name, void** value);
 
 /**
  * @brief Obtains a copy of data present in the hashtable.
- * Only use for tables which were created with is_pointer_type = false
+ * Only use for tables which were NOT created with is_pointer_type = true
  * 
  * @param table A pointer to the table to retrieved from. Required.
  * @param name The name of the entry to retrieved. Required.

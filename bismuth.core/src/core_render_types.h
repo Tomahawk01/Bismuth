@@ -176,12 +176,8 @@ typedef struct shader_uniform
     u16 location;
     /** @brief Index into the internal sampler/texture array depending on type */
     u16 tex_samp_index;
-    /** @brief Index into the internal uniform array */
-    u16 index;
     /** @brief The size of the uniform, or 0 for samplers */
     u16 size;
-    /** @brief The index of the descriptor set the uniform belongs to (0=per_frame, 1=per_group, INVALID_ID=per_draw) */
-    u8 set_index;
     /** @brief The update frequency of the uniform */
     shader_update_frequency frequency;
     /** @brief The type of uniform */

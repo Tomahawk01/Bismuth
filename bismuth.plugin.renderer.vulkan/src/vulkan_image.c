@@ -294,7 +294,7 @@ void vulkan_image_recreate(vulkan_context* context, vulkan_image* image)
 
         VK_CHECK(vkCreateImageView(context->device.logical_device, &image->view_create_info, context->allocator, &image->view));
 
-#ifdef BISMUTH_DEBUG
+#if BISMUTH_DEBUG
         char* formatted_name = string_format("%s_view_idx_%u", image->name, 0);
         VK_SET_DEBUG_OBJECT_NAME(context, VK_OBJECT_TYPE_IMAGE_VIEW, image->view, formatted_name);
         string_free(formatted_name);

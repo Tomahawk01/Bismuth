@@ -111,7 +111,7 @@ b8 freelist_allocate_block(freelist* list, u64 size, u64* out_offset)
     }
 
     u64 free_space = freelist_free_space(list);
-    BWARN("freelist_allocate_block_aligned, no block with enough free space found (requested: %uB, available: %lluB)", size, free_space);
+    BWARN("freelist_allocate_block, no block with enough free space found (requested: %lluB, available: %lluB)", size, free_space);
     return false;
 }
 
