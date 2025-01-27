@@ -33,18 +33,18 @@ BAPI void* _darray_duplicate(u64 stride, void* array);
 
 BAPI void darray_destroy(void* array);
 
-#define darray_push(array, value)           \
-    {                                       \
-        typeof(value) temp = value;         \
-        array = _darray_push(array, &temp); \
+#define darray_push(array, value)                       \
+    {                                                   \
+        typeof(value) __b_temp_value__ = value;         \
+        array = _darray_push(array, &__b_temp_value__); \
     }
 
 BAPI void darray_pop(void* array, void* dest);
 
-#define darray_insert_at(array, index, value)           \
-    {                                                   \
-        typeof(value) temp = value;                     \
-        array = _darray_insert_at(array, index, &temp); \
+#define darray_insert_at(array, index, value)                       \
+    {                                                               \
+        typeof(value) __b_temp_value__ = value;                     \
+        array = _darray_insert_at(array, index, &__b_temp_value__); \
     }
 
 BAPI void* darray_pop_at(void* array, u64 index, void* dest);

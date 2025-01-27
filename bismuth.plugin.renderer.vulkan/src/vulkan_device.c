@@ -1,12 +1,13 @@
 #include "vulkan_device.h"
 
-#include "containers/darray.h"
-#include "logger.h"
-#include "memory/bmemory.h"
-#include "platform/platform.h"
+#include <containers/darray.h>
+#include <logger.h>
+#include <memory/bmemory.h>
+#include <strings/bstring.h>
+
 #include "platform/vulkan_platform.h"
-#include "strings/bstring.h"
 #include "vulkan/vulkan_core.h"
+#include "vulkan_loader.h"
 #include "vulkan_types.h"
 #include "vulkan_utils.h"
 
@@ -45,6 +46,8 @@ b8 vulkan_device_create(vulkan_context* context)
     if (!select_physical_device(context))
         return false;
     
+    brhi_vulkan* rhi = &context->rhi;
+    
     BINFO("Creating logical device...");
     // NOTE: Do not create additional queues for shared indices.
     b8 present_shares_graphics_queue = context->device.graphics_queue_index == context->device.present_queue_index;
@@ -68,8 +71,8 @@ b8 vulkan_device_create(vulkan_context* context)
 
     VkQueueFamilyProperties props[32];
     u32 prop_count;
-    vkGetPhysicalDeviceQueueFamilyProperties(context->device.physical_device, &prop_count, 0);
-    vkGetPhysicalDeviceQueueFamilyProperties(context->device.physical_device, &prop_count, props);
+     rhi->bvkGetPhysicalDeviceQueueFamilyProperties(context->device.physical_device, &prop_count, 0);
+     rhi->bvkGetPhysicalDeviceQueueFamilyProperties(context->device.physical_device, &prop_count, props);
 
     for (u32 i = 0; i < index_count; ++i)
     {
@@ -102,11 +105,11 @@ b8 vulkan_device_create(vulkan_context* context)
     b8 portability_required = false;
     u32 available_extension_count = 0;
     VkExtensionProperties* available_extensions = 0;
-    VK_CHECK(vkEnumerateDeviceExtensionProperties(context->device.physical_device, 0, &available_extension_count, 0));
+    VK_CHECK(rhi->bvkEnumerateDeviceExtensionProperties(context->device.physical_device, 0, &available_extension_count, 0));
     if (available_extension_count != 0)
     {
         available_extensions = ballocate(sizeof(VkExtensionProperties) * available_extension_count, MEMORY_TAG_RENDERER);
-        VK_CHECK(vkEnumerateDeviceExtensionProperties(context->device.physical_device, 0, &available_extension_count, available_extensions));
+        VK_CHECK(rhi->bvkEnumerateDeviceExtensionProperties(context->device.physical_device, 0, &available_extension_count, available_extensions));
         for (u32 i = 0; i < available_extension_count; ++i)
         {
             if (strings_equal(available_extensions[i].extensionName, "VK_KHR_portability_subset"))
@@ -201,11 +204,20 @@ b8 vulkan_device_create(vulkan_context* context)
     device_create_info.pNext = &device_features;
 
     // Create the device
-    VK_CHECK(vkCreateDevice(
+    VK_CHECK(rhi->bvkCreateDevice(
         context->device.physical_device,
         &device_create_info,
         context->allocator,
         &context->device.logical_device));
+    
+    rhi->device = context->device.logical_device;
+
+    // Load device functions immediately after device creation
+    if (!vulkan_loader_load_device(rhi, context->device.logical_device))
+    {
+        BERROR("Failed to load Vulkan device functions. Renderer init failed");
+        return false;
+    }
 
     VK_SET_DEBUG_OBJECT_NAME(context, VK_OBJECT_TYPE_DEVICE, context->device.logical_device, "Vulkan Logical Device");
 
@@ -217,23 +229,23 @@ b8 vulkan_device_create(vulkan_context* context)
     {
         BINFO("Vulkan device doesn't support native dynamic state, but does via extension. Using extension");
         // Dynamic primitive topology
-        context->vkCmdSetPrimitiveTopologyEXT = (PFN_vkCmdSetPrimitiveTopologyEXT)vkGetInstanceProcAddr(context->instance, "vkCmdSetPrimitiveTopologyEXT");
+        context->vkCmdSetPrimitiveTopologyEXT = (PFN_vkCmdSetPrimitiveTopologyEXT)rhi->bvkGetInstanceProcAddr(context->instance, "vkCmdSetPrimitiveTopologyEXT");
 
         // Dynamic front-face
-        context->vkCmdSetFrontFaceEXT = (PFN_vkCmdSetFrontFaceEXT)vkGetInstanceProcAddr(context->instance, "vkCmdSetFrontFaceEXT");
+        context->vkCmdSetFrontFaceEXT = (PFN_vkCmdSetFrontFaceEXT)rhi->bvkGetInstanceProcAddr(context->instance, "vkCmdSetFrontFaceEXT");
 
         // Dynamic cull mode
-        context->vkCmdSetCullModeEXT = (PFN_vkCmdSetCullModeEXT)vkGetInstanceProcAddr(context->instance, "vkCmdSetCullModeEXT");
+        context->vkCmdSetCullModeEXT = (PFN_vkCmdSetCullModeEXT)rhi->bvkGetInstanceProcAddr(context->instance, "vkCmdSetCullModeEXT");
 
         // Dynamic depth/stencil state
-        context->vkCmdSetStencilOpEXT = (PFN_vkCmdSetStencilOpEXT)vkGetInstanceProcAddr(context->instance, "vkCmdSetStencilOpEXT");
-        context->vkCmdSetStencilTestEnableEXT = (PFN_vkCmdSetStencilTestEnableEXT)vkGetInstanceProcAddr(context->instance, "vkCmdSetStencilTestEnableEXT");
-        context->vkCmdSetDepthTestEnableEXT = (PFN_vkCmdSetDepthTestEnableEXT)vkGetInstanceProcAddr(context->instance, "vkCmdSetDepthTestEnableEXT");
-        context->vkCmdSetDepthWriteEnableEXT = (PFN_vkCmdSetDepthWriteEnableEXT)vkGetInstanceProcAddr(context->instance, "vkCmdSetDepthWriteEnableEXT");
+        context->vkCmdSetStencilOpEXT = (PFN_vkCmdSetStencilOpEXT)rhi->bvkGetInstanceProcAddr(context->instance, "vkCmdSetStencilOpEXT");
+        context->vkCmdSetStencilTestEnableEXT = (PFN_vkCmdSetStencilTestEnableEXT)rhi->bvkGetInstanceProcAddr(context->instance, "vkCmdSetStencilTestEnableEXT");
+        context->vkCmdSetDepthTestEnableEXT = (PFN_vkCmdSetDepthTestEnableEXT)rhi->bvkGetInstanceProcAddr(context->instance, "vkCmdSetDepthTestEnableEXT");
+        context->vkCmdSetDepthWriteEnableEXT = (PFN_vkCmdSetDepthWriteEnableEXT)rhi->bvkGetInstanceProcAddr(context->instance, "vkCmdSetDepthWriteEnableEXT");
 
         // Dynamic rendering
-        context->vkCmdBeginRenderingKHR = (PFN_vkCmdBeginRenderingKHR)vkGetInstanceProcAddr(context->instance, "vkCmdBeginRenderingKHR");
-        context->vkCmdEndRenderingKHR = (PFN_vkCmdEndRenderingKHR)vkGetInstanceProcAddr(context->instance, "vkCmdEndRenderingKHR");
+        context->vkCmdBeginRenderingKHR = (PFN_vkCmdBeginRenderingKHR)rhi->bvkGetInstanceProcAddr(context->instance, "vkCmdBeginRenderingKHR");
+        context->vkCmdEndRenderingKHR = (PFN_vkCmdEndRenderingKHR)rhi->bvkGetInstanceProcAddr(context->instance, "vkCmdEndRenderingKHR");
     }
     else
     {
@@ -248,19 +260,19 @@ b8 vulkan_device_create(vulkan_context* context)
     }
 
     // Get queues
-    vkGetDeviceQueue(
+    rhi->bvkGetDeviceQueue(
         context->device.logical_device,
         context->device.graphics_queue_index,
         0,
         &context->device.graphics_queue);
     
-    vkGetDeviceQueue(
+    rhi->bvkGetDeviceQueue(
         context->device.logical_device,
         context->device.present_queue_index,
         present_must_share_graphics ? 0 : (context->device.graphics_queue_index == context->device.present_queue_index) ? 1 : 0,
         &context->device.present_queue);
 
-    vkGetDeviceQueue(
+    rhi->bvkGetDeviceQueue(
         context->device.logical_device,
         context->device.transfer_queue_index,
         0,
@@ -271,7 +283,7 @@ b8 vulkan_device_create(vulkan_context* context)
     VkCommandPoolCreateInfo pool_create_info = {VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
     pool_create_info.queueFamilyIndex = context->device.graphics_queue_index;
     pool_create_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-    VK_CHECK(vkCreateCommandPool(
+    VK_CHECK(rhi->bvkCreateCommandPool(
         context->device.logical_device,
         &pool_create_info,
         context->allocator,
@@ -289,7 +301,7 @@ void vulkan_device_destroy(vulkan_context* context)
     context->device.transfer_queue = 0;
 
     BINFO("Destroying command pools...");
-    vkDestroyCommandPool(
+    context->rhi.bvkDestroyCommandPool(
         context->device.logical_device,
         context->device.graphics_command_pool,
         context->allocator);
@@ -298,7 +310,7 @@ void vulkan_device_destroy(vulkan_context* context)
     BINFO("Destroying logical device...");
     if (context->device.logical_device)
     {
-        vkDestroyDevice(context->device.logical_device, context->allocator);
+        context->rhi.bvkDestroyDevice(context->device.logical_device, context->allocator);
         context->device.logical_device = 0;
     }
 
@@ -307,20 +319,14 @@ void vulkan_device_destroy(vulkan_context* context)
 
     if (context->device.swapchain_support.formats)
     {
-        bfree(
-            context->device.swapchain_support.formats,
-            sizeof(VkSurfaceFormatKHR) * context->device.swapchain_support.format_count,
-            MEMORY_TAG_RENDERER);
+        bfree(context->device.swapchain_support.formats, sizeof(VkSurfaceFormatKHR) * context->device.swapchain_support.format_count, MEMORY_TAG_RENDERER);
         context->device.swapchain_support.formats = 0;
         context->device.swapchain_support.format_count = 0;
     }
 
     if (context->device.swapchain_support.present_modes)
     {
-        bfree(
-            context->device.swapchain_support.present_modes,
-            sizeof(VkPresentModeKHR) * context->device.swapchain_support.present_mode_count,
-            MEMORY_TAG_RENDERER);
+        bfree(context->device.swapchain_support.present_modes, sizeof(VkPresentModeKHR) * context->device.swapchain_support.present_mode_count, MEMORY_TAG_RENDERER);
         context->device.swapchain_support.present_modes = 0;
         context->device.swapchain_support.present_mode_count = 0;
     }
@@ -333,12 +339,14 @@ void vulkan_device_destroy(vulkan_context* context)
 }
 
 void vulkan_device_query_swapchain_support(
+    vulkan_context* context,
     VkPhysicalDevice physical_device,
     VkSurfaceKHR surface,
     vulkan_swapchain_support_info* out_support_info)
 {
+    brhi_vulkan* rhi = &context->rhi;
     // Surface capabilities
-    VkResult result = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
+    VkResult result = rhi->bvkGetPhysicalDeviceSurfaceCapabilitiesKHR(
         physical_device,
         surface,
         &out_support_info->capabilities);
@@ -346,7 +354,7 @@ void vulkan_device_query_swapchain_support(
         BFATAL("vkGetPhysicalDeviceSurfaceCapabilitiesKHR failed with message: %s", vulkan_result_string(result, true));
     
     // Surface formats
-    VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(
+    VK_CHECK(rhi->bvkGetPhysicalDeviceSurfaceFormatsKHR(
         physical_device,
         surface,
         &out_support_info->format_count,
@@ -355,7 +363,7 @@ void vulkan_device_query_swapchain_support(
     {
         if (!out_support_info->formats)
             out_support_info->formats = ballocate(sizeof(VkSurfaceFormatKHR) * out_support_info->format_count, MEMORY_TAG_RENDERER);
-        VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(
+        VK_CHECK(rhi->bvkGetPhysicalDeviceSurfaceFormatsKHR(
             physical_device,
             surface,
             &out_support_info->format_count,
@@ -363,7 +371,7 @@ void vulkan_device_query_swapchain_support(
     }
     
     // Present modes
-    VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(
+    VK_CHECK(rhi->bvkGetPhysicalDeviceSurfacePresentModesKHR(
         physical_device,
         surface,
         &out_support_info->present_mode_count,
@@ -372,7 +380,7 @@ void vulkan_device_query_swapchain_support(
     {
         if (!out_support_info->present_modes)
             out_support_info->present_modes = ballocate(sizeof(VkPresentModeKHR) * out_support_info->present_mode_count, MEMORY_TAG_RENDERER);
-        VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(
+        VK_CHECK(rhi->bvkGetPhysicalDeviceSurfacePresentModesKHR(
             physical_device,
             surface,
             &out_support_info->present_mode_count,
@@ -380,8 +388,9 @@ void vulkan_device_query_swapchain_support(
     }
 }
 
-b8 vulkan_device_detect_depth_format(vulkan_device* device)
+b8 vulkan_device_detect_depth_format(vulkan_context* context, vulkan_device* device)
 {
+    brhi_vulkan* rhi = &context->rhi;
     // Format candidates
     const u64 candidate_count = 2;
     VkFormat candidates[2] = {
@@ -395,7 +404,7 @@ b8 vulkan_device_detect_depth_format(vulkan_device* device)
     for (u64 i = 0; i < candidate_count; ++i)
     {
         VkFormatProperties properties;
-        vkGetPhysicalDeviceFormatProperties(device->physical_device, candidates[i], &properties);
+        rhi->bvkGetPhysicalDeviceFormatProperties(device->physical_device, candidates[i], &properties);
 
         if ((properties.linearTilingFeatures & flags) == flags)
         {
@@ -417,7 +426,8 @@ b8 vulkan_device_detect_depth_format(vulkan_device* device)
 static b8 select_physical_device(vulkan_context* context)
 {
     u32 physical_device_count = 0;
-    VK_CHECK(vkEnumeratePhysicalDevices(context->instance, &physical_device_count, 0));
+    brhi_vulkan* rhi = &context->rhi;
+    VK_CHECK(rhi->bvkEnumeratePhysicalDevices(context->instance, &physical_device_count, 0));
     if (physical_device_count == 0)
     {
         BFATAL("No devices which support Vulkan were found");
@@ -439,17 +449,17 @@ static b8 select_physical_device(vulkan_context* context)
 
     // Iterate physical devices to find one that fits
     VkPhysicalDevice physical_devices[32];
-    VK_CHECK(vkEnumeratePhysicalDevices(context->instance, &physical_device_count, physical_devices));
+    VK_CHECK(rhi->bvkEnumeratePhysicalDevices(context->instance, &physical_device_count, physical_devices));
     for (u32 i = 0; i < physical_device_count; ++i)
     {
         VkPhysicalDeviceProperties2 properties2 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2};
         VkPhysicalDeviceDriverProperties driverProperties = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES};
         properties2.pNext = &driverProperties;
-        vkGetPhysicalDeviceProperties2(physical_devices[i], &properties2);
+        rhi->bvkGetPhysicalDeviceProperties2(physical_devices[i], &properties2);
         VkPhysicalDeviceProperties properties = properties2.properties;
 
         VkPhysicalDeviceFeatures features;
-        vkGetPhysicalDeviceFeatures(physical_devices[i], &features);
+        rhi->bvkGetPhysicalDeviceFeatures(physical_devices[i], &features);
 
         VkPhysicalDeviceFeatures2 features2 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
         // Check for dynamic topology support via extension
@@ -459,10 +469,10 @@ static b8 select_physical_device(vulkan_context* context)
         VkPhysicalDeviceLineRasterizationFeaturesEXT smooth_line_next = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_LINE_RASTERIZATION_FEATURES_EXT};
         dynamic_state_next.pNext = &smooth_line_next;
         // Perform the query
-        vkGetPhysicalDeviceFeatures2(physical_devices[i], &features2);
+        rhi->bvkGetPhysicalDeviceFeatures2(physical_devices[i], &features2);
 
         VkPhysicalDeviceMemoryProperties memory;
-        vkGetPhysicalDeviceMemoryProperties(physical_devices[i], &memory);
+        rhi->bvkGetPhysicalDeviceMemoryProperties(physical_devices[i], &memory);
 
         BINFO("Evaluating device: '%s', index %u", properties.deviceName, i);
 
@@ -590,6 +600,7 @@ static b8 physical_device_meets_requirements(
     vulkan_physical_device_queue_family_info* out_queue_info,
     vulkan_swapchain_support_info* out_swapchain_support)
 {
+    brhi_vulkan* rhi = &context->rhi;
     // Evaluate device properties to determine if it meets the needs of application
     out_queue_info->graphics_family_index = -1;
     out_queue_info->present_family_index = -1;
@@ -607,9 +618,9 @@ static b8 physical_device_meets_requirements(
     }
     
     u32 queue_family_count = 0;
-    vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count, 0);
+    rhi->bvkGetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count, 0);
     VkQueueFamilyProperties queue_families[32];
-    vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count, queue_families);
+    rhi->bvkGetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count, queue_families);
 
     // Look at each queue and see what queues it supports
     BINFO("Graphics | Present | Compute | Transfer | Name");
@@ -693,11 +704,11 @@ static b8 physical_device_meets_requirements(
         {
             u32 available_extension_count = 0;
             VkExtensionProperties* available_extensions = 0;
-            VK_CHECK(vkEnumerateDeviceExtensionProperties(device, 0, &available_extension_count, 0));
+            VK_CHECK(rhi->bvkEnumerateDeviceExtensionProperties(device, 0, &available_extension_count, 0));
             if (available_extension_count != 0)
             {
                 available_extensions = ballocate(sizeof(VkExtensionProperties) * available_extension_count, MEMORY_TAG_RENDERER);
-                VK_CHECK(vkEnumerateDeviceExtensionProperties(device, 0, &available_extension_count, available_extensions));
+                VK_CHECK(rhi->bvkEnumerateDeviceExtensionProperties(device, 0, &available_extension_count, available_extensions));
 
                 u32 required_extension_count = darray_length(requirements->device_extension_names);
                 for (u32 i = 0; i < required_extension_count; ++i)

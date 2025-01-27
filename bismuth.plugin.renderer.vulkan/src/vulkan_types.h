@@ -5,6 +5,7 @@
 #include "defines.h"
 #include "identifiers/bhandle.h"
 #include "bresources/bresource_types.h"
+#include "platform/vulkan_platform.h"
 #include "renderer/renderer_types.h"
 #include "vulkan/vulkan_core.h"
 
@@ -537,6 +538,9 @@ typedef struct vulkan_context
 
     PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR;
     PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR;
+
+    // The render hardware interface
+    brhi_vulkan rhi;
 
     // Pointer to the currently bound vulkan shader
     vulkan_shader* bound_shader;

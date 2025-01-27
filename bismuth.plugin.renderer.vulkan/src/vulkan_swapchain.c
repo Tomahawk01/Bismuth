@@ -1,6 +1,7 @@
 #include "vulkan_swapchain.h"
 #include "identifiers/bhandle.h"
 #include "bresources/bresource_types.h"
+#include "platform/vulkan_platform.h"
 
 #include <vulkan/vulkan_core.h>
 
@@ -47,13 +48,14 @@ void vulkan_swapchain_destroy(renderer_backend_interface* backend, vulkan_swapch
 static b8 create(renderer_backend_interface* backend, bwindow* window, renderer_config_flags flags, vulkan_swapchain* swapchain)
 {
     vulkan_context* context = backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     bwindow_renderer_state* window_internal = window->renderer_state;
     bwindow_renderer_backend_state* window_backend = window_internal->backend_state;
 
     VkExtent2D swapchain_extent = {window->width, window->height};
 
     // Requery swapchain support
-    vulkan_device_query_swapchain_support(context->device.physical_device, window_backend->surface, &context->device.swapchain_support);
+    vulkan_device_query_swapchain_support(context, context->device.physical_device, window_backend->surface, &context->device.swapchain_support);
 
     // Choose a swap surface format
     b8 found = false;
@@ -74,7 +76,7 @@ static b8 create(renderer_backend_interface* backend, bwindow* window, renderer_
     
     // Query swapchain image format properties to see if it can be a src/destination for blitting
     VkFormatProperties format_properties = {0};
-    vkGetPhysicalDeviceFormatProperties(context->device.physical_device, swapchain->image_format.format, &format_properties);
+    rhi->bvkGetPhysicalDeviceFormatProperties(context->device.physical_device, swapchain->image_format.format, &format_properties);
     swapchain->supports_blit_dest = (format_properties.optimalTilingFeatures & VK_FORMAT_FEATURE_BLIT_DST_BIT) != 0;
     swapchain->supports_blit_src = (format_properties.optimalTilingFeatures & VK_FORMAT_FEATURE_BLIT_SRC_BIT) != 0;
     BDEBUG("Swapchain image format %s be a blit destination", swapchain->supports_blit_dest ? "CAN" : "CANNOT");
@@ -165,7 +167,7 @@ static b8 create(renderer_backend_interface* backend, bwindow* window, renderer_
     swapchain_create_info.oldSwapchain = 0;
 
     // Verify the swapchain creation
-    VkResult result = vkCreateSwapchainKHR(context->device.logical_device, &swapchain_create_info, context->allocator, &swapchain->handle);
+    VkResult result = rhi->bvkCreateSwapchainKHR(context->device.logical_device, &swapchain_create_info, context->allocator, &swapchain->handle);
     if (!vulkan_result_is_success(result))
     {
         const char* result_str = vulkan_result_string(result, true);
@@ -183,7 +185,7 @@ static b8 create(renderer_backend_interface* backend, bwindow* window, renderer_
 
     // Get image count from swapchain
     swapchain->image_count = 0;
-    result = vkGetSwapchainImagesKHR(context->device.logical_device, swapchain->handle, &swapchain->image_count, 0);
+    result = rhi->bvkGetSwapchainImagesKHR(context->device.logical_device, swapchain->handle, &swapchain->image_count, 0);
     if (!vulkan_result_is_success(result))
     {
         const char* result_str = vulkan_result_string(result, true);
@@ -193,7 +195,7 @@ static b8 create(renderer_backend_interface* backend, bwindow* window, renderer_
 
     // Get the actual images from swapchain
     VkImage swapchain_images[32];
-    result = vkGetSwapchainImagesKHR(context->device.logical_device, swapchain->handle, &swapchain->image_count, swapchain_images);
+    result = rhi->bvkGetSwapchainImagesKHR(context->device.logical_device, swapchain->handle, &swapchain->image_count, swapchain_images);
     if (!vulkan_result_is_success(result))
     {
         const char* result_str = vulkan_result_string(result, true);
@@ -284,7 +286,7 @@ static b8 create(renderer_backend_interface* backend, bwindow* window, renderer_
         image->view_subresource_range.layerCount = 1;
         view_create_info.subresourceRange = image->view_subresource_range;
 
-        VK_CHECK(vkCreateImageView(context->device.logical_device, &view_create_info, context->allocator, &image->view));
+        VK_CHECK(rhi->bvkCreateImageView(context->device.logical_device, &view_create_info, context->allocator, &image->view));
     }
 
     BINFO("Swapchain created successfully");
@@ -294,6 +296,7 @@ static b8 create(renderer_backend_interface* backend, bwindow* window, renderer_
 static void destroy(renderer_backend_interface* backend, vulkan_swapchain* swapchain)
 {
     vulkan_context* context = backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
 
     vulkan_texture_handle_data* texture_data = &context->textures[swapchain->swapchain_color_texture->renderer_texture_handle.handle_index];
     if (!texture_data)
@@ -302,16 +305,16 @@ static void destroy(renderer_backend_interface* backend, vulkan_swapchain* swapc
         return;
     }
 
-    vkDeviceWaitIdle(context->device.logical_device);
+    rhi->bvkDeviceWaitIdle(context->device.logical_device);
 
     // Only destroy the colorbuffer views, not the images, since those are owned by the swapchain and are thus destroyed when it is
     for (u32 i = 0; i < swapchain->image_count; ++i)
     {
         vulkan_image* image = &texture_data->images[i];
-        vkDestroyImageView(context->device.logical_device, image->view, context->allocator);
+        rhi->bvkDestroyImageView(context->device.logical_device, image->view, context->allocator);
     }
     BFREE_TYPE_CARRAY(texture_data->images, vulkan_image, swapchain->image_count);
     texture_data->images = 0;
 
-    vkDestroySwapchainKHR(context->device.logical_device, swapchain->handle, context->allocator);
+    rhi->bvkDestroySwapchainKHR(context->device.logical_device, swapchain->handle, context->allocator);
 }

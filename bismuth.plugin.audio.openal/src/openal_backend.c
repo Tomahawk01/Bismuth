@@ -168,7 +168,8 @@ b8 openal_backend_initialize(baudio_backend_interface* backend, const baudio_bac
 
         // Get the default device. TODO: enumerate devices and pick via ALC_ENUMERATION_EXT?
         state->device = alcOpenDevice(0);
-        openal_backend_check_error();
+        // NOTE: Don't check for errors before context is created and made current
+        // openal_backend_check_error();
         if (!state->device)
         {
             BERROR("Unable to obtain OpenAL device. Plugin initialize failed");
@@ -181,7 +182,8 @@ b8 openal_backend_initialize(baudio_backend_interface* backend, const baudio_bac
 
         // Get context and make it current
         state->context = alcCreateContext(state->device, 0);
-        openal_backend_check_error();
+        // NOTE: Don't check for errors before context is created and made current
+        // openal_backend_check_error();
         if (!alcMakeContextCurrent(state->context))
             openal_backend_check_error();
 

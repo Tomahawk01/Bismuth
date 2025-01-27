@@ -185,7 +185,7 @@ const char* filesystem_read_entire_text_file(const char* filepath)
     if (bytes_read < size)
     {
         const char* copy = string_duplicate(buf);
-        bfree(buf, size, MEMORY_TAG_STRING);
+        bfree(buf, size + 1, MEMORY_TAG_STRING);
         return copy;
     }
     return buf;

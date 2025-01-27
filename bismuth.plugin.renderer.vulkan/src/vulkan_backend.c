@@ -32,6 +32,7 @@
 #include "vulkan_command_buffer.h"
 #include "vulkan_device.h"
 #include "vulkan_image.h"
+#include "vulkan_loader.h"
 #include "vulkan_swapchain.h"
 #include "vulkan_types.h"
 #include "vulkan_utils.h"
@@ -65,7 +66,7 @@ static u32 get_current_image_count(vulkan_context* context);
 
 static b8 vulkan_graphics_pipeline_create(vulkan_context* context, const vulkan_pipeline_config* config, vulkan_pipeline* out_pipeline);
 static void vulkan_pipeline_destroy(vulkan_context* context, vulkan_pipeline* pipeline);
-static void vulkan_pipeline_bind(vulkan_command_buffer* command_buffer, VkPipelineBindPoint bind_point, vulkan_pipeline* pipeline);
+static void vulkan_pipeline_bind(vulkan_context* context, vulkan_command_buffer* command_buffer, VkPipelineBindPoint bind_point, vulkan_pipeline* pipeline);
 static b8 setup_frequency_state(renderer_backend_interface* backend, vulkan_shader* internal_shader, shader_update_frequency frequency, u32* out_frequency_id);
 static b8 release_shader_frequency_state(vulkan_context* context, vulkan_shader* internal_shader, shader_update_frequency frequency, u32 frequency_id);
 static void destroy_shader_frequency_states(shader_update_frequency frequency, vulkan_shader_frequency_state* states, u32 state_count, vulkan_shader_frequency_info* info);
@@ -91,6 +92,21 @@ b8 vulkan_renderer_backend_initialize(renderer_backend_interface* backend, const
     backend->internal_context = ballocate(backend->internal_context_size, MEMORY_TAG_RENDERER);
 
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+
+    context->rhi = (brhi_vulkan){0};
+    if (!vulkan_loader_initialize(&context->rhi))
+    {
+        BERROR("Failed to initialize Vulkan RHI. See logs for details");
+        return false;
+    }
+
+    brhi_vulkan* rhi = &context->rhi;
+    if (!vulkan_loader_load_core(rhi))
+    {
+        BERROR("Failed to load core Vulkan functions. See logs for details");
+        return false;
+    }
+
     if (config->flags & RENDERER_CONFIG_FLAG_ENABLE_VALIDATION)
         context->validation_enabled = true;
     context->flags = config->flags;
@@ -115,7 +131,7 @@ b8 vulkan_renderer_backend_initialize(renderer_backend_interface* backend, const
 
     // Get currently-installed instance version. Use this to create instance
     u32 api_version = 0;
-    vkEnumerateInstanceVersion(&api_version);
+    rhi->bvkEnumerateInstanceVersion(&api_version);
     context->api_major = VK_VERSION_MAJOR(api_version);
     context->api_minor = VK_VERSION_MINOR(api_version);
     context->api_patch = VK_VERSION_PATCH(api_version);
@@ -150,9 +166,9 @@ b8 vulkan_renderer_backend_initialize(renderer_backend_interface* backend, const
     create_info.ppEnabledExtensionNames = required_extensions;
 
     u32 available_extension_count = 0;
-    vkEnumerateInstanceExtensionProperties(0, &available_extension_count, 0);
+    rhi->bvkEnumerateInstanceExtensionProperties(0, &available_extension_count, 0);
     VkExtensionProperties* available_extensions = darray_reserve(VkExtensionProperties, available_extension_count);
-    vkEnumerateInstanceExtensionProperties(0, &available_extension_count, available_extensions);
+    rhi->bvkEnumerateInstanceExtensionProperties(0, &available_extension_count, available_extensions);
 
     // Verify required extensions are available.
     for (u32 i = 0; i < required_extension_count; ++i)
@@ -192,9 +208,9 @@ b8 vulkan_renderer_backend_initialize(renderer_backend_interface* backend, const
 
         // Obtain a list of available validation layers
         u32 available_layer_count = 0;
-        VK_CHECK(vkEnumerateInstanceLayerProperties(&available_layer_count, 0));
+        VK_CHECK(rhi->bvkEnumerateInstanceLayerProperties(&available_layer_count, 0));
         VkLayerProperties* available_layers = darray_reserve(VkLayerProperties, available_layer_count);
-        VK_CHECK(vkEnumerateInstanceLayerProperties(&available_layer_count, available_layers));
+        VK_CHECK(rhi->bvkEnumerateInstanceLayerProperties(&available_layer_count, available_layers));
 
         // Verify all required layers are available
         for (u32 i = 0; i < required_validation_layer_count; ++i)
@@ -231,11 +247,19 @@ b8 vulkan_renderer_backend_initialize(renderer_backend_interface* backend, const
     create_info.enabledLayerCount = required_validation_layer_count;
     create_info.ppEnabledLayerNames = required_validation_layer_names;
 
-    VkResult instance_result = vkCreateInstance(&create_info, context->allocator, &context->instance);
+    VkResult instance_result = rhi->bvkCreateInstance(&create_info, context->allocator, &context->instance);
     if (!vulkan_result_is_success(instance_result))
     {
         const char* result_string = vulkan_result_string(instance_result, true);
         BFATAL("Vulkan instance creation failed with result: '%s'", result_string);
+        return false;
+    }
+
+    rhi->instance = context->instance;
+
+    if (!vulkan_loader_load_instance(rhi, context->instance))
+    {
+        BERROR("Failed to load Vulkan instance functions. Renderer init failed");
         return false;
     }
 
@@ -269,25 +293,25 @@ b8 vulkan_renderer_backend_initialize(renderer_backend_interface* backend, const
             VK_DEBUG_UTILS_MESSAGE_TYPE_DEVICE_ADDRESS_BINDING_BIT_EXT;
         debug_create_info.pfnUserCallback = vk_debug_callback;
 
-        PFN_vkCreateDebugUtilsMessengerEXT func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(context->instance, "vkCreateDebugUtilsMessengerEXT");
+        PFN_vkCreateDebugUtilsMessengerEXT func = (PFN_vkCreateDebugUtilsMessengerEXT)rhi->bvkGetInstanceProcAddr(context->instance, "vkCreateDebugUtilsMessengerEXT");
         BASSERT_MSG(func, "Failed to create debug messenger!");
         VK_CHECK(func(context->instance, &debug_create_info, context->allocator, &context->debug_messenger));
         BDEBUG("Vulkan debugger created");
 
         // Load up debug function pointers
-        context->pfnSetDebugUtilsObjectNameEXT = (PFN_vkSetDebugUtilsObjectNameEXT)vkGetInstanceProcAddr(context->instance, "vkSetDebugUtilsObjectNameEXT");
+        context->pfnSetDebugUtilsObjectNameEXT = (PFN_vkSetDebugUtilsObjectNameEXT)rhi->bvkGetInstanceProcAddr(context->instance, "vkSetDebugUtilsObjectNameEXT");
         if (!context->pfnSetDebugUtilsObjectNameEXT)
             BWARN("Unable to load function pointer for vkSetDebugUtilsObjectNameEXT. Debug functions associated with this will not work");
 
-        context->pfnSetDebugUtilsObjectTagEXT = (PFN_vkSetDebugUtilsObjectTagEXT)vkGetInstanceProcAddr(context->instance, "vkSetDebugUtilsObjectTagEXT");
+        context->pfnSetDebugUtilsObjectTagEXT = (PFN_vkSetDebugUtilsObjectTagEXT)rhi->bvkGetInstanceProcAddr(context->instance, "vkSetDebugUtilsObjectTagEXT");
         if (!context->pfnSetDebugUtilsObjectTagEXT)
             BWARN("Unable to load function pointer for vkSetDebugUtilsObjectTagEXT. Debug functions associated with this will not work");
 
-        context->pfnCmdBeginDebugUtilsLabelEXT = (PFN_vkCmdBeginDebugUtilsLabelEXT)vkGetInstanceProcAddr(context->instance, "vkCmdBeginDebugUtilsLabelEXT");
+        context->pfnCmdBeginDebugUtilsLabelEXT = (PFN_vkCmdBeginDebugUtilsLabelEXT)rhi->bvkGetInstanceProcAddr(context->instance, "vkCmdBeginDebugUtilsLabelEXT");
         if (!context->pfnCmdBeginDebugUtilsLabelEXT)
             BWARN("Unable to load function pointer for vkCmdBeginDebugUtilsLabelEXT. Debug functions associated with this will not work");
 
-        context->pfnCmdEndDebugUtilsLabelEXT = (PFN_vkCmdEndDebugUtilsLabelEXT)vkGetInstanceProcAddr(context->instance, "vkCmdEndDebugUtilsLabelEXT");
+        context->pfnCmdEndDebugUtilsLabelEXT = (PFN_vkCmdEndDebugUtilsLabelEXT)rhi->bvkGetInstanceProcAddr(context->instance, "vkCmdEndDebugUtilsLabelEXT");
         if (!context->pfnCmdEndDebugUtilsLabelEXT)
             BWARN("Unable to load function pointer for vkCmdEndDebugUtilsLabelEXT. Debug functions associated with this will not work");
     }
@@ -318,7 +342,8 @@ b8 vulkan_renderer_backend_initialize(renderer_backend_interface* backend, const
 void vulkan_renderer_backend_shutdown(renderer_backend_interface* backend)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
-    vkDeviceWaitIdle(context->device.logical_device);
+    brhi_vulkan* rhi = &context->rhi;
+    rhi->bvkDeviceWaitIdle(context->device.logical_device);
 
     // Destroy runtime shader compiler
     if (context->shader_compiler)
@@ -342,13 +367,13 @@ void vulkan_renderer_backend_shutdown(renderer_backend_interface* backend)
         BDEBUG("Destroying Vulkan debugger...");
         if (context->debug_messenger)
         {
-            PFN_vkDestroyDebugUtilsMessengerEXT func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(context->instance, "vkDestroyDebugUtilsMessengerEXT");
+            PFN_vkDestroyDebugUtilsMessengerEXT func = (PFN_vkDestroyDebugUtilsMessengerEXT)rhi->bvkGetInstanceProcAddr(context->instance, "vkDestroyDebugUtilsMessengerEXT");
             func(context->instance, context->debug_messenger, context->allocator);
         }
     }
 
     BDEBUG("Destroying Vulkan instance...");
-    vkDestroyInstance(context->instance, context->allocator);
+    rhi->bvkDestroyInstance(context->instance, context->allocator);
 
     // Destroy allocator callbacks if set
     if (context->allocator)
@@ -363,6 +388,7 @@ b8 vulkan_renderer_on_window_created(renderer_backend_interface* backend, bwindo
     BASSERT(backend && window);
 
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     bwindow_renderer_state* window_internal = window->renderer_state;
 
     // Setup backend-specific state for the window
@@ -389,7 +415,7 @@ b8 vulkan_renderer_on_window_created(renderer_backend_interface* backend, bwindo
     }
 
     // Re-detect supported device depth format
-    if (!vulkan_device_detect_depth_format(&context->device))
+    if (!vulkan_device_detect_depth_format(context, &context->device))
     {
         context->device.depth_format = VK_FORMAT_UNDEFINED;
         BFATAL("Failed to find a supported format!");
@@ -417,8 +443,8 @@ b8 vulkan_renderer_on_window_created(renderer_backend_interface* backend, bwindo
         for (u8 i = 0; i < window_backend->max_frames_in_flight; ++i)
         {
             VkSemaphoreCreateInfo semaphore_create_info = {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
-            vkCreateSemaphore(context->device.logical_device, &semaphore_create_info, context->allocator, &window_backend->image_available_semaphores[i]);
-            vkCreateSemaphore(context->device.logical_device, &semaphore_create_info, context->allocator, &window_backend->queue_complete_semaphores[i]);
+            rhi->bvkCreateSemaphore(context->device.logical_device, &semaphore_create_info, context->allocator, &window_backend->image_available_semaphores[i]);
+            rhi->bvkCreateSemaphore(context->device.logical_device, &semaphore_create_info, context->allocator, &window_backend->queue_complete_semaphores[i]);
 
             // Create the fence in a signaled state, indicating that the first frame has
             // already been "rendered". This will prevent the application from waiting
@@ -426,7 +452,7 @@ b8 vulkan_renderer_on_window_created(renderer_backend_interface* backend, bwindo
             // until a frame is "rendered" before it
             VkFenceCreateInfo fence_create_info = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
             fence_create_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-            VK_CHECK(vkCreateFence(context->device.logical_device, &fence_create_info, context->allocator, &window_backend->in_flight_fences[i]));
+            VK_CHECK(rhi->bvkCreateFence(context->device.logical_device, &fence_create_info, context->allocator, &window_backend->in_flight_fences[i]));
 
             // Staging buffer
             // TODO: Reduce this to a single buffer split by max_frames_in_flight
@@ -468,6 +494,7 @@ b8 vulkan_renderer_on_window_created(renderer_backend_interface* backend, bwindo
 void vulkan_renderer_on_window_destroyed(renderer_backend_interface* backend, bwindow* window)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     bwindow_renderer_state* window_internal = window->renderer_state;
     bwindow_renderer_backend_state* window_backend = window_internal->backend_state;
 
@@ -481,16 +508,16 @@ void vulkan_renderer_on_window_destroyed(renderer_backend_interface* backend, bw
             // Sync objects
             if (window_backend->image_available_semaphores[i])
             {
-                vkDestroySemaphore(context->device.logical_device, window_backend->image_available_semaphores[i], context->allocator);
+                rhi->bvkDestroySemaphore(context->device.logical_device, window_backend->image_available_semaphores[i], context->allocator);
                 window_backend->image_available_semaphores[i] = 0;
             }
             if (window_backend->queue_complete_semaphores[i])
             {
-                vkDestroySemaphore(context->device.logical_device, window_backend->queue_complete_semaphores[i], context->allocator);
+                rhi->bvkDestroySemaphore(context->device.logical_device, window_backend->queue_complete_semaphores[i], context->allocator);
                 window_backend->queue_complete_semaphores[i] = 0;
             }
 
-            vkDestroyFence(context->device.logical_device, window_backend->in_flight_fences[i], context->allocator);
+            rhi->bvkDestroyFence(context->device.logical_device, window_backend->in_flight_fences[i], context->allocator);
 
             // Command buffers
             if (window_backend->graphics_command_buffers[i].handle)
@@ -544,7 +571,7 @@ void vulkan_renderer_on_window_destroyed(renderer_backend_interface* backend, bw
     BDEBUG("Destroying Vulkan surface for window '%s'...", window->name);
     if (window_backend->surface)
     {
-        vkDestroySurfaceKHR(context->instance, window_backend->surface, context->allocator);
+        rhi->bvkDestroySurfaceKHR(context->instance, window_backend->surface, context->allocator);
         window_backend->surface = 0;
     }
 
@@ -591,6 +618,7 @@ b8 vulkan_renderer_frame_prepare(renderer_backend_interface* backend, struct fra
 b8 vulkan_renderer_frame_prepare_window_surface(renderer_backend_interface* backend, struct bwindow* window, struct frame_data* p_frame_data)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     vulkan_device* device = &context->device;
 
     bwindow_renderer_state* window_internal = window->renderer_state;
@@ -599,7 +627,7 @@ b8 vulkan_renderer_frame_prepare_window_surface(renderer_backend_interface* back
     // Check if recreating swap chain and boot out
     if (window_backend->recreating_swapchain)
     {
-        VkResult result = vkDeviceWaitIdle(device->logical_device);
+        VkResult result = rhi->bvkDeviceWaitIdle(device->logical_device);
         if (!vulkan_result_is_success(result))
         {
             BERROR("vulkan_renderer_backend_frame_begin vkDeviceWaitIdle (1) failed: '%s'", vulkan_result_string(result, true));
@@ -613,7 +641,7 @@ b8 vulkan_renderer_frame_prepare_window_surface(renderer_backend_interface* back
     // Also include vsync changed check
     if (window_backend->framebuffer_size_generation != window_backend->framebuffer_previous_size_generation || context->render_flag_changed)
     {
-        VkResult result = vkDeviceWaitIdle(device->logical_device);
+        VkResult result = rhi->bvkDeviceWaitIdle(device->logical_device);
         if (!vulkan_result_is_success(result))
         {
             BERROR("vulkan_renderer_backend_frame_begin vkDeviceWaitIdle (2) failed: '%s'", vulkan_result_string(result, true));
@@ -645,7 +673,7 @@ b8 vulkan_renderer_frame_prepare_window_surface(renderer_backend_interface* back
     }
 
     // Wait for the execution of the current frame to complete. The fence being free will allow this one to move on
-    VkResult result = vkWaitForFences(context->device.logical_device, 1, &window_backend->in_flight_fences[window_backend->current_frame], true, U64_MAX);
+    VkResult result = rhi->bvkWaitForFences(context->device.logical_device, 1, &window_backend->in_flight_fences[window_backend->current_frame], true, U64_MAX);
     if (!vulkan_result_is_success(result))
     {
         BFATAL("In-flight fence wait failure! error: %s", vulkan_result_string(result, true));
@@ -666,7 +694,7 @@ b8 vulkan_renderer_frame_prepare_window_surface(renderer_backend_interface* back
     // Clear the list
     darray_clear(updated_textures);
 
-    result = vkAcquireNextImageKHR(
+    result = rhi->bvkAcquireNextImageKHR(
         context->device.logical_device,
         window_backend->swapchain.handle,
         U64_MAX,
@@ -688,7 +716,7 @@ b8 vulkan_renderer_frame_prepare_window_surface(renderer_backend_interface* back
     }
 
     // Reset fence for use on the next frame
-    VK_CHECK(vkResetFences(context->device.logical_device, 1, &window_backend->in_flight_fences[window_backend->current_frame]));
+    VK_CHECK(rhi->bvkResetFences(context->device.logical_device, 1, &window_backend->in_flight_fences[window_backend->current_frame]));
 
     // Reset staging buffer
     if (!renderer_renderbuffer_clear(&window_backend->staging[window_backend->current_frame], false))
@@ -708,7 +736,7 @@ b8 vulkan_renderer_frame_command_list_begin(renderer_backend_interface* backend,
     vulkan_command_buffer* command_buffer = get_current_command_buffer(context);
 
     vulkan_command_buffer_reset(command_buffer);
-    vulkan_command_buffer_begin(command_buffer, false, false, false);
+    vulkan_command_buffer_begin(context, command_buffer, false, false, false);
 
     return true;
 }
@@ -716,6 +744,7 @@ b8 vulkan_renderer_frame_command_list_begin(renderer_backend_interface* backend,
 b8 vulkan_renderer_frame_command_list_end(renderer_backend_interface* backend, struct frame_data* p_frame_data)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     vulkan_command_buffer* command_buffer = get_current_command_buffer(context);
 
     bwindow_renderer_backend_state* window_backend = context->current_window->renderer_state->backend_state;
@@ -741,7 +770,7 @@ b8 vulkan_renderer_frame_command_list_end(renderer_backend_interface* backend, s
         barrier.subresourceRange.layerCount = source_image->layer_count;
         barrier.subresourceRange.baseMipLevel = 0;
         barrier.subresourceRange.levelCount = source_image->mip_levels;
-        vkCmdPipelineBarrier(
+        rhi->bvkCmdPipelineBarrier(
             command_buffer->handle,
             VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
             0, 0, 0, 0, 0, 1, &barrier);
@@ -763,7 +792,7 @@ b8 vulkan_renderer_frame_command_list_end(renderer_backend_interface* backend, s
         barrier.subresourceRange.layerCount = target_image->layer_count;
         barrier.subresourceRange.baseMipLevel = 0;
         barrier.subresourceRange.levelCount = target_image->mip_levels;
-        vkCmdPipelineBarrier(
+        rhi->bvkCmdPipelineBarrier(
             command_buffer->handle,
             VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, // VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, // VK_PIPELINE_STAGE_TRANSFER_BIT,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -790,7 +819,7 @@ b8 vulkan_renderer_frame_command_list_end(renderer_backend_interface* backend, s
         blit_region.dstSubresource.mipLevel = 0;
 
         // Perform the blit operation
-        vkCmdBlitImage(
+        rhi->bvkCmdBlitImage(
             command_buffer->handle,
             source_image->handle, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
             target_image->handle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -814,7 +843,7 @@ b8 vulkan_renderer_frame_command_list_end(renderer_backend_interface* backend, s
         barrier.subresourceRange.layerCount = source_image->layer_count;
         barrier.subresourceRange.baseMipLevel = 0;
         barrier.subresourceRange.levelCount = source_image->mip_levels;
-        vkCmdPipelineBarrier(
+        rhi->bvkCmdPipelineBarrier(
             command_buffer->handle,
             VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
             0, 0, 0, 0, 0, 1, &barrier);
@@ -836,7 +865,7 @@ b8 vulkan_renderer_frame_command_list_end(renderer_backend_interface* backend, s
         barrier.subresourceRange.layerCount = target_image->layer_count;
         barrier.subresourceRange.baseMipLevel = 0;
         barrier.subresourceRange.levelCount = target_image->mip_levels;
-        vkCmdPipelineBarrier(
+        rhi->bvkCmdPipelineBarrier(
             command_buffer->handle,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
             VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, // After the image has been blitted
@@ -855,7 +884,7 @@ b8 vulkan_renderer_frame_command_list_end(renderer_backend_interface* backend, s
         barrier.size = VK_WHOLE_SIZE;
         barrier.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
         barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
-        vkCmdPipelineBarrier(
+        rhi->bvkCmdPipelineBarrier(
             command_buffer->handle,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
             VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
@@ -876,7 +905,7 @@ b8 vulkan_renderer_frame_command_list_end(renderer_backend_interface* backend, s
         barrier.size = VK_WHOLE_SIZE;
         barrier.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
         barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-        vkCmdPipelineBarrier(
+        rhi->bvkCmdPipelineBarrier(
             command_buffer->handle,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
             VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
@@ -887,7 +916,7 @@ b8 vulkan_renderer_frame_command_list_end(renderer_backend_interface* backend, s
     }
 
     // Just end the command buffer
-    vulkan_command_buffer_end(command_buffer);
+    vulkan_command_buffer_end(context, command_buffer);
 
     // Increment (and wrap) the color buffer image index
     context->current_window->renderer_state->backend_state->image_index =
@@ -911,6 +940,7 @@ b8 vulkan_renderer_frame_submit(struct renderer_backend_interface* backend, stru
 
     // Submit the command buffer for execution
     b8 result = vulkan_command_buffer_submit(
+        context,
         command_buffer,
         context->device.graphics_queue,
         1,
@@ -938,6 +968,7 @@ b8 vulkan_renderer_frame_present(renderer_backend_interface* backend, struct bwi
 {
     // Cold-cast the context
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     /* bwindow_renderer_backend_state* window_backend = context->current_window->renderer_state->backend_state; */
     bwindow_renderer_backend_state* window_backend = window->renderer_state->backend_state;
 
@@ -950,7 +981,7 @@ b8 vulkan_renderer_frame_present(renderer_backend_interface* backend, struct bwi
     present_info.pImageIndices = &window_backend->swapchain.image_index;
     present_info.pResults = 0;
 
-    VkResult result = vkQueuePresentKHR(context->device.present_queue, &present_info);
+    VkResult result = rhi->bvkQueuePresentKHR(context->device.present_queue, &present_info);
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
     {
         // Swapchain is out of date, suboptimal or a framebuffer resize has occurred. Trigger swapchain recreation
@@ -973,6 +1004,7 @@ b8 vulkan_renderer_frame_present(renderer_backend_interface* backend, struct bwi
 void vulkan_renderer_viewport_set(renderer_backend_interface* backend, vec4 rect)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     // Dynamic state
     VkViewport viewport;
     viewport.x = rect.x;
@@ -984,7 +1016,7 @@ void vulkan_renderer_viewport_set(renderer_backend_interface* backend, vec4 rect
 
     vulkan_command_buffer* command_buffer = get_current_command_buffer(context);
 
-    vkCmdSetViewport(command_buffer->handle, 0, 1, &viewport);
+    rhi->bvkCmdSetViewport(command_buffer->handle, 0, 1, &viewport);
 }
 
 void vulkan_renderer_viewport_reset(renderer_backend_interface* backend)
@@ -996,6 +1028,7 @@ void vulkan_renderer_viewport_reset(renderer_backend_interface* backend)
 void vulkan_renderer_scissor_set(renderer_backend_interface* backend, vec4 rect)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     VkRect2D scissor;
     scissor.offset.x = rect.x;
     scissor.offset.y = rect.y;
@@ -1004,7 +1037,7 @@ void vulkan_renderer_scissor_set(renderer_backend_interface* backend, vec4 rect)
 
     vulkan_command_buffer* command_buffer = get_current_command_buffer(context);
 
-    vkCmdSetScissor(command_buffer->handle, 0, 1, &scissor);
+    rhi->bvkCmdSetScissor(command_buffer->handle, 0, 1, &scissor);
 }
 
 void vulkan_renderer_scissor_reset(renderer_backend_interface* backend)
@@ -1016,11 +1049,12 @@ void vulkan_renderer_scissor_reset(renderer_backend_interface* backend)
 void vulkan_renderer_winding_set(struct renderer_backend_interface* backend, renderer_winding winding)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     vulkan_command_buffer* command_buffer = get_current_command_buffer(context);
 
     VkFrontFace vk_winding = winding == RENDERER_WINDING_COUNTER_CLOCKWISE ? VK_FRONT_FACE_COUNTER_CLOCKWISE : VK_FRONT_FACE_CLOCKWISE;
     if (context->device.support_flags & VULKAN_DEVICE_SUPPORT_FLAG_NATIVE_DYNAMIC_STATE_BIT)
-        vkCmdSetFrontFace(command_buffer->handle, vk_winding);
+        rhi->bvkCmdSetFrontFace(command_buffer->handle, vk_winding);
     else if (context->device.support_flags & VULKAN_DEVICE_SUPPORT_FLAG_DYNAMIC_STATE_BIT)
         context->vkCmdSetFrontFaceEXT(command_buffer->handle, vk_winding);
     else
@@ -1030,6 +1064,7 @@ void vulkan_renderer_winding_set(struct renderer_backend_interface* backend, ren
 void vulkan_renderer_cull_mode_set(struct renderer_backend_interface* backend, renderer_cull_mode cull_mode)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     vulkan_command_buffer* command_buffer = get_current_command_buffer(context);
 
     VkCullModeFlags vulkan_cull_mode = VK_CULL_MODE_NONE;
@@ -1050,7 +1085,7 @@ void vulkan_renderer_cull_mode_set(struct renderer_backend_interface* backend, r
         break;
     }
     if (context->device.support_flags & VULKAN_DEVICE_SUPPORT_FLAG_NATIVE_DYNAMIC_STATE_BIT) {
-        vkCmdSetCullMode(command_buffer->handle, vulkan_cull_mode);
+        rhi->bvkCmdSetCullMode(command_buffer->handle, vulkan_cull_mode);
     } else if (context->device.support_flags & VULKAN_DEVICE_SUPPORT_FLAG_DYNAMIC_STATE_BIT) {
         context->vkCmdSetCullModeEXT(command_buffer->handle, vulkan_cull_mode);
     } else {
@@ -1113,10 +1148,11 @@ static VkCompareOp vulkan_renderer_get_compare_op(renderer_compare_op op)
 void vulkan_renderer_set_stencil_test_enabled(struct renderer_backend_interface* backend, b8 enabled)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     vulkan_command_buffer* command_buffer = get_current_command_buffer(context);
 
     if (context->device.support_flags & VULKAN_DEVICE_SUPPORT_FLAG_NATIVE_DYNAMIC_STATE_BIT)
-        vkCmdSetStencilTestEnable(command_buffer->handle, (VkBool32)enabled);
+        rhi->bvkCmdSetStencilTestEnable(command_buffer->handle, (VkBool32)enabled);
     else if (context->device.support_flags & VULKAN_DEVICE_SUPPORT_FLAG_DYNAMIC_STATE_BIT)
         context->vkCmdSetStencilTestEnableEXT(command_buffer->handle, (VkBool32)enabled);
     else
@@ -1126,10 +1162,11 @@ void vulkan_renderer_set_stencil_test_enabled(struct renderer_backend_interface*
 void vulkan_renderer_set_depth_test_enabled(struct renderer_backend_interface* backend, b8 enabled)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     vulkan_command_buffer* command_buffer = get_current_command_buffer(context);
 
     if (context->device.support_flags & VULKAN_DEVICE_SUPPORT_FLAG_NATIVE_DYNAMIC_STATE_BIT)
-        vkCmdSetDepthTestEnable(command_buffer->handle, (VkBool32)enabled);
+        rhi->bvkCmdSetDepthTestEnable(command_buffer->handle, (VkBool32)enabled);
     else if (context->device.support_flags & VULKAN_DEVICE_SUPPORT_FLAG_DYNAMIC_STATE_BIT)
         context->vkCmdSetDepthTestEnableEXT(command_buffer->handle, (VkBool32)enabled);
     else
@@ -1139,10 +1176,11 @@ void vulkan_renderer_set_depth_test_enabled(struct renderer_backend_interface* b
 void vulkan_renderer_set_depth_write_enabled(struct renderer_backend_interface* backend, b8 enabled)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     vulkan_command_buffer* command_buffer = get_current_command_buffer(context);
 
     if (context->device.support_flags & VULKAN_DEVICE_SUPPORT_FLAG_NATIVE_DYNAMIC_STATE_BIT)
-        vkCmdSetDepthWriteEnable(command_buffer->handle, (VkBool32)enabled);
+        rhi->bvkCmdSetDepthWriteEnable(command_buffer->handle, (VkBool32)enabled);
     else if (context->device.support_flags & VULKAN_DEVICE_SUPPORT_FLAG_DYNAMIC_STATE_BIT)
         context->vkCmdSetDepthWriteEnableEXT(command_buffer->handle, (VkBool32)enabled);
     else
@@ -1152,19 +1190,21 @@ void vulkan_renderer_set_depth_write_enabled(struct renderer_backend_interface* 
 void vulkan_renderer_set_stencil_reference(struct renderer_backend_interface* backend, u32 reference)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     vulkan_command_buffer* command_buffer = get_current_command_buffer(context);
 
-    vkCmdSetStencilReference(command_buffer->handle, VK_STENCIL_FACE_FRONT_AND_BACK, reference);
+    rhi->bvkCmdSetStencilReference(command_buffer->handle, VK_STENCIL_FACE_FRONT_AND_BACK, reference);
 }
 
 void vulkan_renderer_set_stencil_op(struct renderer_backend_interface* backend, renderer_stencil_op fail_op, renderer_stencil_op pass_op, renderer_stencil_op depth_fail_op, renderer_compare_op compare_op)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     vulkan_command_buffer* command_buffer = get_current_command_buffer(context);
 
     if (context->device.support_flags & VULKAN_DEVICE_SUPPORT_FLAG_NATIVE_DYNAMIC_STATE_BIT)
     {
-        vkCmdSetStencilOp(
+        rhi->bvkCmdSetStencilOp(
             command_buffer->handle,
             VK_STENCIL_FACE_FRONT_AND_BACK,
             vulkan_renderer_get_stencil_op(fail_op),
@@ -1191,13 +1231,14 @@ void vulkan_renderer_set_stencil_op(struct renderer_backend_interface* backend, 
 void vulkan_renderer_begin_rendering(struct renderer_backend_interface* backend, frame_data* p_frame_data, rect_2d render_area, u32 color_target_count, bhandle* color_targets, bhandle depth_stencil_target, u32 depth_stencil_layer)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     vulkan_command_buffer* primary = get_current_command_buffer(context);
     u32 image_index = get_current_image_index(context);
 
     // Anytime we "begin" a render, update the "in-secondary" state and get the appropriate secondary buffer
     primary->in_secondary = true;
     vulkan_command_buffer* secondary = get_current_command_buffer(context);
-    vulkan_command_buffer_begin(secondary, false, false, false);
+    vulkan_command_buffer_begin(context, secondary, false, false, false);
     VkRenderingInfo render_info = {VK_STRUCTURE_TYPE_RENDERING_INFO};
     render_info.renderArea.offset.x = render_area.x;
     render_info.renderArea.offset.y = render_area.y;
@@ -1276,7 +1317,7 @@ void vulkan_renderer_begin_rendering(struct renderer_backend_interface* backend,
 
     // Kick off the render using the secondary buffer
     if (context->device.support_flags & VULKAN_DEVICE_SUPPORT_FLAG_NATIVE_DYNAMIC_STATE_BIT)
-        vkCmdBeginRendering(secondary->handle, &render_info);
+        rhi->bvkCmdBeginRendering(secondary->handle, &render_info);
     else
         context->vkCmdBeginRenderingKHR(secondary->handle, &render_info);
 }
@@ -1284,17 +1325,18 @@ void vulkan_renderer_begin_rendering(struct renderer_backend_interface* backend,
 void vulkan_renderer_end_rendering(struct renderer_backend_interface* backend, frame_data* p_frame_data)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     // Since ending a rendering, will be in a secondary buffer
     vulkan_command_buffer* secondary = get_current_command_buffer(context);
 
     // End rendering
     if (context->device.support_flags & VULKAN_DEVICE_SUPPORT_FLAG_NATIVE_DYNAMIC_STATE_BIT)
-        vkCmdEndRendering(secondary->handle);
+        rhi->bvkCmdEndRendering(secondary->handle);
     else
         context->vkCmdEndRenderingKHR(secondary->handle);
     
     // End secondary command buffer
-    vulkan_command_buffer_end(secondary);
+    vulkan_command_buffer_end(context, secondary);
 
     // Barrier for vertex buffer
     {
@@ -1307,7 +1349,7 @@ void vulkan_renderer_end_rendering(struct renderer_backend_interface* backend, f
         barrier.size = VK_WHOLE_SIZE;
         barrier.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT; //| VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_TRANSFER_READ_BIT;
         barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;  // | (is_depth ? VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT : VK_ACCESS_COLOR_ATTACHMENT_READ_BIT);
-        vkCmdPipelineBarrier(
+        rhi->bvkCmdPipelineBarrier(
             secondary->parent->handle,
             VK_PIPELINE_STAGE_TRANSFER_BIT,     // _LATE_FRAGMENT_TESTS_BIT, //  VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,    // VK_PIPELINE_STAGE_TRANSFER_BIT
             VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, // _FRAGMENT_SHADER_BIT,     // VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
@@ -1328,7 +1370,7 @@ void vulkan_renderer_end_rendering(struct renderer_backend_interface* backend, f
         barrier.size = VK_WHOLE_SIZE;
         barrier.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT; //| VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_TRANSFER_READ_BIT;
         barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;  // | (is_depth ? VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT : VK_ACCESS_COLOR_ATTACHMENT_READ_BIT);
-        vkCmdPipelineBarrier(
+        rhi->bvkCmdPipelineBarrier(
             secondary->parent->handle,
             VK_PIPELINE_STAGE_TRANSFER_BIT,     // _LATE_FRAGMENT_TESTS_BIT, //  VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,    // VK_PIPELINE_STAGE_TRANSFER_BIT
             VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, // _FRAGMENT_SHADER_BIT,     // VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
@@ -1339,25 +1381,27 @@ void vulkan_renderer_end_rendering(struct renderer_backend_interface* backend, f
     }
 
     // Execute secondary command buffer
-    vulkan_command_buffer_execute_secondary(secondary);
+    vulkan_command_buffer_execute_secondary(context, secondary);
 }
 
 void vulkan_renderer_set_stencil_compare_mask(struct renderer_backend_interface* backend, u32 compare_mask)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     vulkan_command_buffer* command_buffer = get_current_command_buffer(context);
 
     // Supported as of vulkan 1.0, so no need to check for dynamic state support
-    vkCmdSetStencilCompareMask(command_buffer->handle, VK_STENCIL_FACE_FRONT_AND_BACK, compare_mask);
+    rhi->bvkCmdSetStencilCompareMask(command_buffer->handle, VK_STENCIL_FACE_FRONT_AND_BACK, compare_mask);
 }
 
 void vulkan_renderer_set_stencil_write_mask(struct renderer_backend_interface* backend, u32 write_mask)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     vulkan_command_buffer* command_buffer = get_current_command_buffer(context);
 
     // Supported as of vulkan 1.0, so no need to check for dynamic state support
-    vkCmdSetStencilWriteMask(command_buffer->handle, VK_STENCIL_FACE_FRONT_AND_BACK, write_mask);
+    rhi->bvkCmdSetStencilWriteMask(command_buffer->handle, VK_STENCIL_FACE_FRONT_AND_BACK, write_mask);
 }
 
 void vulkan_renderer_clear_color_set(renderer_backend_interface* backend, vec4 color)
@@ -1393,6 +1437,7 @@ void vulkan_renderer_clear_color_texture(renderer_backend_interface* backend, bh
 {
     // Cold-cast the context
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     vulkan_command_buffer* command_buffer = get_current_command_buffer(context);
     vulkan_texture_handle_data* tex_internal = &context->textures[renderer_texture_handle.handle_index];
     u32 image_index = get_current_image_index(context);
@@ -1417,7 +1462,7 @@ void vulkan_renderer_clear_color_texture(renderer_backend_interface* backend, bh
         barrier.subresourceRange.layerCount = image->layer_count;
         barrier.subresourceRange.baseArrayLayer = 0;
 
-        vkCmdPipelineBarrier(
+        rhi->bvkCmdPipelineBarrier(
             command_buffer->handle,
             VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -1428,7 +1473,7 @@ void vulkan_renderer_clear_color_texture(renderer_backend_interface* backend, bh
     }
 
     // Clear the image
-    vkCmdClearColorImage(
+    rhi->bvkCmdClearColorImage(
         command_buffer->handle,
         image->handle,
         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -1452,7 +1497,7 @@ void vulkan_renderer_clear_color_texture(renderer_backend_interface* backend, bh
         barrier.subresourceRange.levelCount = image->mip_levels;
         barrier.subresourceRange.baseArrayLayer = 0;
         barrier.subresourceRange.layerCount = image->layer_count;
-        vkCmdPipelineBarrier(
+        rhi->bvkCmdPipelineBarrier(
             command_buffer->handle,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -1467,6 +1512,7 @@ void vulkan_renderer_clear_depth_stencil(renderer_backend_interface* backend, bh
 {
     // Cold-cast the context
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     vulkan_command_buffer* command_buffer = get_current_command_buffer(context);
     u32 image_index = get_current_image_index(context);
 
@@ -1499,7 +1545,7 @@ void vulkan_renderer_clear_depth_stencil(renderer_backend_interface* backend, bh
         barrier.subresourceRange.layerCount = image->layer_count;
         barrier.subresourceRange.baseArrayLayer = 0;
 
-        vkCmdPipelineBarrier(
+        rhi->bvkCmdPipelineBarrier(
             command_buffer->handle,
             VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -1510,7 +1556,7 @@ void vulkan_renderer_clear_depth_stencil(renderer_backend_interface* backend, bh
     }
 
     // Clear the image
-    vkCmdClearDepthStencilImage(
+    rhi->bvkCmdClearDepthStencilImage(
         command_buffer->handle,
         image->handle,
         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -1534,7 +1580,7 @@ void vulkan_renderer_clear_depth_stencil(renderer_backend_interface* backend, bh
         barrier.subresourceRange.levelCount = image->mip_levels;
         barrier.subresourceRange.baseArrayLayer = 0;
         barrier.subresourceRange.layerCount = image->layer_count;
-        vkCmdPipelineBarrier(
+        rhi->bvkCmdPipelineBarrier(
             command_buffer->handle,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
             VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
@@ -1549,6 +1595,7 @@ void vulkan_renderer_color_texture_prepare_for_present(renderer_backend_interfac
 {
     // Cold-cast the context
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     vulkan_command_buffer* command_buffer = get_current_command_buffer(context);
     u32 image_index = get_current_image_index(context);
 
@@ -1575,7 +1622,7 @@ void vulkan_renderer_color_texture_prepare_for_present(renderer_backend_interfac
     barrier.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
     barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
 
-    vkCmdPipelineBarrier(
+    rhi->bvkCmdPipelineBarrier(
         command_buffer->handle,
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
         VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
@@ -1589,6 +1636,7 @@ void vulkan_renderer_texture_prepare_for_sampling(renderer_backend_interface* ba
 {
     // Cold-cast the context
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     vulkan_command_buffer* command_buffer = get_current_command_buffer(context);
     u32 image_index = get_current_image_index(context);
 
@@ -1628,7 +1676,7 @@ void vulkan_renderer_texture_prepare_for_sampling(renderer_backend_interface* ba
     barrier.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
     barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
 
-    vkCmdPipelineBarrier(
+    rhi->bvkCmdPipelineBarrier(
         command_buffer->handle,
         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
         VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
@@ -1665,8 +1713,9 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(
 
 static i32 find_memory_index(vulkan_context* context, u32 type_filter, u32 property_flags)
 {
+    brhi_vulkan* rhi = &context->rhi;
     VkPhysicalDeviceMemoryProperties memory_properties;
-    vkGetPhysicalDeviceMemoryProperties(context->device.physical_device, &memory_properties);
+    rhi->bvkGetPhysicalDeviceMemoryProperties(context->device.physical_device, &memory_properties);
 
     for (u32 i = 0; i < memory_properties.memoryTypeCount; ++i)
     {
@@ -1682,6 +1731,7 @@ static i32 find_memory_index(vulkan_context* context, u32 type_filter, u32 prope
 static b8 recreate_swapchain(renderer_backend_interface* backend, bwindow* window)
 {
     vulkan_context* context = backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     bwindow_renderer_state* window_internal = window->renderer_state;
     bwindow_renderer_backend_state* window_backend = window_internal->backend_state;
 
@@ -1703,10 +1753,10 @@ static b8 recreate_swapchain(renderer_backend_interface* backend, bwindow* windo
     window_backend->recreating_swapchain = true;
 
     // Wait for any operations to complete
-    vkDeviceWaitIdle(context->device.logical_device);
+    rhi->bvkDeviceWaitIdle(context->device.logical_device);
 
     // Redetect the depth format
-    vulkan_device_detect_depth_format(&context->device);
+    vulkan_device_detect_depth_format(context, &context->device);
 
     // Recreate the swapchain
     if (!vulkan_swapchain_recreate(backend, window, &window_backend->swapchain))
@@ -2147,6 +2197,7 @@ b8 vulkan_renderer_shader_create(renderer_backend_interface* backend, bhandle sh
     }
 
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     VkDevice logical_device = context->device.logical_device;
     VkAllocationCallbacks* vk_allocator = context->allocator;
     vulkan_shader* internal_shader = &context->shaders[shader.handle_index];
@@ -2407,7 +2458,7 @@ b8 vulkan_renderer_shader_create(renderer_backend_interface* backend, bhandle sh
     pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT; // | VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
 
     // Create descriptor pool
-    VkResult result = vkCreateDescriptorPool(logical_device, &pool_info, vk_allocator, &internal_shader->descriptor_pool);
+    VkResult result = rhi->bvkCreateDescriptorPool(logical_device, &pool_info, vk_allocator, &internal_shader->descriptor_pool);
     if (!vulkan_result_is_success(result))
     {
         BERROR("vulkan_shader_initialize failed creating descriptor pool: '%s'", vulkan_result_string(result, true));
@@ -2426,7 +2477,7 @@ b8 vulkan_renderer_shader_create(renderer_backend_interface* backend, bhandle sh
         layout_info.bindingCount = internal_shader->descriptor_set_configs[i].binding_count;
         layout_info.pBindings = internal_shader->descriptor_set_configs[i].bindings;
 
-        result = vkCreateDescriptorSetLayout(logical_device, &layout_info, vk_allocator, &internal_shader->descriptor_set_layouts[i]);
+        result = rhi->bvkCreateDescriptorSetLayout(logical_device, &layout_info, vk_allocator, &internal_shader->descriptor_set_layouts[i]);
         if (!vulkan_result_is_success(result))
         {
             BERROR("vulkan_shader_initialize failed descriptor set layout: '%s'", vulkan_result_string(result, true));
@@ -2605,6 +2656,7 @@ void vulkan_renderer_shader_destroy(renderer_backend_interface* backend, bhandle
     if (!bhandle_is_invalid(shader))
     {
         vulkan_context* context = (vulkan_context*)backend->internal_context;
+        brhi_vulkan* rhi = &context->rhi;
         VkDevice logical_device = context->device.logical_device;
         VkAllocationCallbacks* vk_allocator = context->allocator;
         vulkan_shader* internal_shader = &context->shaders[shader.handle_index];
@@ -2625,7 +2677,7 @@ void vulkan_renderer_shader_destroy(renderer_backend_interface* backend, bhandle
             }
             if (internal_shader->descriptor_set_layouts[i])
             {
-                vkDestroyDescriptorSetLayout(logical_device, internal_shader->descriptor_set_layouts[i], vk_allocator);
+                rhi->bvkDestroyDescriptorSetLayout(logical_device, internal_shader->descriptor_set_layouts[i], vk_allocator);
                 internal_shader->descriptor_set_layouts[i] = 0;
             }
         }
@@ -2636,7 +2688,7 @@ void vulkan_renderer_shader_destroy(renderer_backend_interface* backend, bhandle
         // Descriptor pool
         if (internal_shader->descriptor_pool)
         {
-            vkDestroyDescriptorPool(logical_device, internal_shader->descriptor_pool, vk_allocator);
+            rhi->bvkDestroyDescriptorPool(logical_device, internal_shader->descriptor_pool, vk_allocator);
             internal_shader->descriptor_pool = 0;
         }
 
@@ -2691,7 +2743,7 @@ void vulkan_renderer_shader_destroy(renderer_backend_interface* backend, bhandle
 
         // Shader modules
         for (u32 i = 0; i < internal_shader->stage_count; ++i)
-            vkDestroyShaderModule(context->device.logical_device, internal_shader->stages[i].handle, context->allocator);
+            rhi->bvkDestroyShaderModule(context->device.logical_device, internal_shader->stages[i].handle, context->allocator);
         internal_shader->stage_count = 0;
 
         // Internal shader arrays, etc
@@ -2739,19 +2791,20 @@ b8 vulkan_renderer_shader_reload(renderer_backend_interface* backend, bhandle sh
 b8 vulkan_renderer_shader_use(renderer_backend_interface* backend, bhandle shader)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     vulkan_shader* internal_shader = &context->shaders[shader.handle_index];
     vulkan_command_buffer* command_buffer = get_current_command_buffer(context);
 
     // Pick the correct pipeline
     b8 wireframe_enabled = vulkan_renderer_shader_flag_get(backend, shader, SHADER_FLAG_WIREFRAME_BIT);
     vulkan_pipeline** pipeline_array = wireframe_enabled ? internal_shader->wireframe_pipelines : internal_shader->pipelines;
-    vulkan_pipeline_bind(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_array[internal_shader->bound_pipeline_index]);
+    vulkan_pipeline_bind(context, command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_array[internal_shader->bound_pipeline_index]);
 
     context->bound_shader = internal_shader;
     // Make sure to use the current bound type as well
     if (context->device.support_flags & VULKAN_DEVICE_SUPPORT_FLAG_NATIVE_DYNAMIC_STATE_BIT)
     {
-        vkCmdSetPrimitiveTopology(command_buffer->handle, internal_shader->current_topology);
+        rhi->bvkCmdSetPrimitiveTopology(command_buffer->handle, internal_shader->current_topology);
     }
     else if (context->device.support_flags & VULKAN_DEVICE_SUPPORT_FLAG_DYNAMIC_STATE_BIT)
     {
@@ -2888,6 +2941,7 @@ b8 vulkan_renderer_shader_apply_per_group(renderer_backend_interface* backend, b
 b8 vulkan_renderer_shader_apply_per_draw(renderer_backend_interface* backend, bhandle shader, u16 renderer_frame_number)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     vulkan_shader* internal_shader = &context->shaders[shader.handle_index];
     vulkan_shader_frequency_info* frequency_info = &internal_shader->per_draw_info;
 
@@ -2904,7 +2958,7 @@ b8 vulkan_renderer_shader_apply_per_draw(renderer_backend_interface* backend, bh
     vulkan_pipeline** pipeline_array = wireframe_enabled ? internal_shader->wireframe_pipelines : internal_shader->pipelines;
 
     // Update the non-sampler uniforms via push constants
-    vkCmdPushConstants(
+    rhi->bvkCmdPushConstants(
         command_buffer,
         pipeline_array[internal_shader->bound_pipeline_index]->pipeline_layout,
         VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
@@ -2942,6 +2996,8 @@ b8 vulkan_renderer_shader_apply_per_draw(renderer_backend_interface* backend, bh
 
 static b8 sampler_create_internal(vulkan_context* context, texture_filter filter, texture_repeat repeat, f32 anisotropy, vulkan_sampler_handle_data* out_sampler_handle_data)
 {
+    brhi_vulkan* rhi = &context->rhi;
+
     // Create a sampler for the texture
     VkSamplerCreateInfo sampler_info = {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
     sampler_info.minFilter = filter == TEXTURE_FILTER_MODE_LINEAR ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
@@ -2994,7 +3050,7 @@ static b8 sampler_create_internal(vulkan_context* context, texture_filter filter
     /* sampler_info.minLod = map->texture->mip_levels > 1 ? map->texture->mip_levels : 0.0f; */
     sampler_info.maxLod = VK_LOD_CLAMP_NONE; // Don't clamp
 
-    VkResult result = vkCreateSampler(context->device.logical_device, &sampler_info, context->allocator, &out_sampler_handle_data->sampler);
+    VkResult result = rhi->bvkCreateSampler(context->device.logical_device, &sampler_info, context->allocator, &out_sampler_handle_data->sampler);
     if (!vulkan_result_is_success(VK_SUCCESS))
     {
         BERROR("Error creating sampler: %s", vulkan_result_string(result, true));
@@ -3044,14 +3100,15 @@ bhandle vulkan_renderer_sampler_acquire(renderer_backend_interface* backend, bna
 void vulkan_renderer_sampler_release(renderer_backend_interface* backend, bhandle* sampler)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     if (!bhandle_is_invalid(*sampler))
     {
         vulkan_sampler_handle_data* s = &context->samplers[sampler->handle_index];
         if (s->sampler && s->handle_uniqueid == sampler->unique_id.uniqueid)
         {
             // Make sure there's no way this is in use
-            vkDeviceWaitIdle(context->device.logical_device);
-            vkDestroySampler(context->device.logical_device, s->sampler, context->allocator);
+            rhi->bvkDeviceWaitIdle(context->device.logical_device);
+            rhi->bvkDestroySampler(context->device.logical_device, s->sampler, context->allocator);
             // Invalidate the entry and the handle
             s->sampler = 0;
             s->handle_uniqueid = INVALID_ID_U64;
@@ -3063,6 +3120,7 @@ void vulkan_renderer_sampler_release(renderer_backend_interface* backend, bhandl
 b8 vulkan_renderer_sampler_refresh(renderer_backend_interface* backend, bhandle* sampler, texture_filter filter, texture_repeat repeat, f32 anisotropy, u32 mip_levels)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     if (bhandle_is_invalid(*sampler))
     {
         BERROR("Attempted to refresh a sampler via an invalid handler");
@@ -3076,7 +3134,7 @@ b8 vulkan_renderer_sampler_refresh(renderer_backend_interface* backend, bhandle*
         VkSampler old = s->sampler;
 
         // Make sure there's no way this is in use
-        vkDeviceWaitIdle(context->device.logical_device);
+        rhi->bvkDeviceWaitIdle(context->device.logical_device);
 
         // Create/assign the new
         if (!sampler_create_internal(context, filter, repeat, anisotropy, s))
@@ -3086,7 +3144,7 @@ b8 vulkan_renderer_sampler_refresh(renderer_backend_interface* backend, bhandle*
         }
 
         // Destroy the old
-        vkDestroySampler(context->device.logical_device, old, context->allocator);
+        rhi->bvkDestroySampler(context->device.logical_device, old, context->allocator);
 
         // Update the handle and handle data
         sampler->unique_id = identifier_create();
@@ -3223,6 +3281,7 @@ b8 vulkan_renderer_shader_uniform_set(renderer_backend_interface* backend, bhand
 
 static b8 create_shader_module(vulkan_context* context, vulkan_shader* internal_shader, shader_stage stage, const char* source, const char* filename, vulkan_shader_stage* out_stage)
 {
+    brhi_vulkan* rhi = &context->rhi;
     shaderc_shader_kind shader_kind;
     VkShaderStageFlagBits vulkan_stage;
     switch (stage)
@@ -3307,7 +3366,7 @@ static b8 create_shader_module(vulkan_context* context, vulkan_shader* internal_
     out_stage->create_info.codeSize = result_length;
     out_stage->create_info.pCode = code;
 
-    VK_CHECK(vkCreateShaderModule(context->device.logical_device, &out_stage->create_info, context->allocator, &out_stage->handle));
+    VK_CHECK(rhi->bvkCreateShaderModule(context->device.logical_device, &out_stage->create_info, context->allocator, &out_stage->handle));
 
     // Release the copy of the code
     bfree(code, result_length, MEMORY_TAG_RENDERER);
@@ -3379,6 +3438,7 @@ static b8 vulkan_buffer_is_host_coherent(renderer_backend_interface* backend, vu
 b8 vulkan_buffer_create_internal(renderer_backend_interface* backend, renderbuffer* buffer)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     if (!buffer)
     {
         BERROR("vulkan_buffer_create_internal requires a valid pointer to a buffer");
@@ -3437,10 +3497,10 @@ b8 vulkan_buffer_create_internal(renderer_backend_interface* backend, renderbuff
     buffer_info.usage = internal_buffer.usage;
     buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE; // NOTE: Only used in one queue
 
-    VK_CHECK(vkCreateBuffer(context->device.logical_device, &buffer_info, context->allocator, &internal_buffer.handle));
+    VK_CHECK(rhi->bvkCreateBuffer(context->device.logical_device, &buffer_info, context->allocator, &internal_buffer.handle));
 
     // Gather memory requirements
-    vkGetBufferMemoryRequirements(context->device.logical_device, internal_buffer.handle, &internal_buffer.memory_requirements);
+    rhi->bvkGetBufferMemoryRequirements(context->device.logical_device, internal_buffer.handle, &internal_buffer.memory_requirements);
     internal_buffer.memory_index = context->find_memory_index(context, internal_buffer.memory_requirements.memoryTypeBits, internal_buffer.memory_property_flags);
     if (internal_buffer.memory_index == -1)
     {
@@ -3454,7 +3514,7 @@ b8 vulkan_buffer_create_internal(renderer_backend_interface* backend, renderbuff
     allocate_info.memoryTypeIndex = (u32)internal_buffer.memory_index;
 
     // Allocate the memory
-    VkResult result = vkAllocateMemory(context->device.logical_device, &allocate_info, context->allocator, &internal_buffer.memory);
+    VkResult result = rhi->bvkAllocateMemory(context->device.logical_device, &allocate_info, context->allocator, &internal_buffer.memory);
     if (!vulkan_result_is_success(result))
     {
         BERROR("Failed to allocate memory for buffer with error: %s", vulkan_result_string(result, true));
@@ -3487,7 +3547,8 @@ b8 vulkan_buffer_create_internal(renderer_backend_interface* backend, renderbuff
 void vulkan_buffer_destroy_internal(renderer_backend_interface* backend, renderbuffer* buffer)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
-    vkDeviceWaitIdle(context->device.logical_device);
+    brhi_vulkan* rhi = &context->rhi;
+    rhi->bvkDeviceWaitIdle(context->device.logical_device);
     if (buffer)
     {
         vulkan_buffer* internal_buffer = (vulkan_buffer*)buffer->internal_data;
@@ -3495,12 +3556,12 @@ void vulkan_buffer_destroy_internal(renderer_backend_interface* backend, renderb
         {
             if (internal_buffer->memory)
             {
-                vkFreeMemory(context->device.logical_device, internal_buffer->memory, context->allocator);
+                rhi->bvkFreeMemory(context->device.logical_device, internal_buffer->memory, context->allocator);
                 internal_buffer->memory = 0;
             }
             if (internal_buffer->handle)
             {
-                vkDestroyBuffer(context->device.logical_device, internal_buffer->handle, context->allocator);
+                rhi->bvkDestroyBuffer(context->device.logical_device, internal_buffer->handle, context->allocator);
                 internal_buffer->handle = 0;
             }
 
@@ -3524,6 +3585,7 @@ void vulkan_buffer_destroy_internal(renderer_backend_interface* backend, renderb
 b8 vulkan_buffer_resize(renderer_backend_interface* backend, renderbuffer* buffer, u64 new_size)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     if (!buffer || !buffer->internal_data)
         return false;
 
@@ -3536,11 +3598,11 @@ b8 vulkan_buffer_resize(renderer_backend_interface* backend, renderbuffer* buffe
     buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE; // NOTE: Only used in one queue
     
     VkBuffer new_buffer;
-    VK_CHECK(vkCreateBuffer(context->device.logical_device, &buffer_info, context->allocator, &new_buffer));
+    VK_CHECK(rhi->bvkCreateBuffer(context->device.logical_device, &buffer_info, context->allocator, &new_buffer));
 
     // Gather memory requirements
     VkMemoryRequirements requirements;
-    vkGetBufferMemoryRequirements(context->device.logical_device, new_buffer, &requirements);
+    rhi->bvkGetBufferMemoryRequirements(context->device.logical_device, new_buffer, &requirements);
 
     // Allocate memory info
     VkMemoryAllocateInfo allocate_info = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
@@ -3549,7 +3611,7 @@ b8 vulkan_buffer_resize(renderer_backend_interface* backend, renderbuffer* buffe
 
     // Allocate the memory
     VkDeviceMemory new_memory;
-    VkResult result = vkAllocateMemory(context->device.logical_device, &allocate_info, context->allocator, &new_memory);
+    VkResult result = rhi->bvkAllocateMemory(context->device.logical_device, &allocate_info, context->allocator, &new_memory);
     if (result != VK_SUCCESS)
     {
         BERROR("Unable to resize vulkan buffer because the required memory allocation failed. Error: %i", result);
@@ -3558,24 +3620,24 @@ b8 vulkan_buffer_resize(renderer_backend_interface* backend, renderbuffer* buffe
     VK_SET_DEBUG_OBJECT_NAME(context, VK_OBJECT_TYPE_DEVICE_MEMORY, new_memory, buffer->name);
 
     // Bind the new buffer's memory
-    VK_CHECK(vkBindBufferMemory(context->device.logical_device, new_buffer, new_memory, 0));
+    VK_CHECK(rhi->bvkBindBufferMemory(context->device.logical_device, new_buffer, new_memory, 0));
 
     // Copy over the data
     vulkan_buffer_copy_range_internal(context, internal_buffer->handle, 0, new_buffer, 0, buffer->total_size, false);
 
     // Make sure anything potentially using these is finished
     // NOTE: We could use vkQueueWaitIdle here if we knew what queue this buffer would be used with
-    vkDeviceWaitIdle(context->device.logical_device);
+    rhi->bvkDeviceWaitIdle(context->device.logical_device);
 
     // Destroy the old
     if (internal_buffer->memory)
     {
-        vkFreeMemory(context->device.logical_device, internal_buffer->memory, context->allocator);
+        rhi->bvkFreeMemory(context->device.logical_device, internal_buffer->memory, context->allocator);
         internal_buffer->memory = 0;
     }
     if (internal_buffer->handle)
     {
-        vkDestroyBuffer(context->device.logical_device, internal_buffer->handle, context->allocator);
+        rhi->bvkDestroyBuffer(context->device.logical_device, internal_buffer->handle, context->allocator);
         internal_buffer->handle = 0;
     }
 
@@ -3598,6 +3660,7 @@ b8 vulkan_buffer_resize(renderer_backend_interface* backend, renderbuffer* buffe
 b8 vulkan_buffer_bind(renderer_backend_interface* backend, renderbuffer* buffer, u64 offset)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     
     if (!buffer || !buffer->internal_data)
     {
@@ -3605,7 +3668,7 @@ b8 vulkan_buffer_bind(renderer_backend_interface* backend, renderbuffer* buffer,
         return false;
     }
     vulkan_buffer* internal_buffer = (vulkan_buffer*)buffer->internal_data;
-    VK_CHECK(vkBindBufferMemory(context->device.logical_device, internal_buffer->handle, internal_buffer->memory, offset));
+    VK_CHECK(rhi->bvkBindBufferMemory(context->device.logical_device, internal_buffer->handle, internal_buffer->memory, offset));
     return true;
 }
 
@@ -3624,6 +3687,7 @@ b8 vulkan_buffer_unbind(renderer_backend_interface* backend, renderbuffer* buffe
 void* vulkan_buffer_map_memory(renderer_backend_interface* backend, renderbuffer* buffer, u64 offset, u64 size)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     
     if (!buffer || !buffer->internal_data)
     {
@@ -3632,25 +3696,27 @@ void* vulkan_buffer_map_memory(renderer_backend_interface* backend, renderbuffer
     }
     vulkan_buffer* internal_buffer = (vulkan_buffer*)buffer->internal_data;
     void* data;
-    VK_CHECK(vkMapMemory(context->device.logical_device, internal_buffer->memory, offset, size, 0, &data));
+    VK_CHECK(rhi->bvkMapMemory(context->device.logical_device, internal_buffer->memory, offset, size, 0, &data));
     return data;
 }
 
 void vulkan_buffer_unmap_memory(renderer_backend_interface* backend, renderbuffer* buffer, u64 offset, u64 size)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     if (!buffer || !buffer->internal_data)
     {
         BERROR("vulkan_buffer_unmap_memory requires a valid pointer to a buffer");
         return;
     }
     vulkan_buffer* internal_buffer = (vulkan_buffer*)buffer->internal_data;
-    vkUnmapMemory(context->device.logical_device, internal_buffer->memory);
+    rhi->bvkUnmapMemory(context->device.logical_device, internal_buffer->memory);
 }
 
 b8 vulkan_buffer_flush(renderer_backend_interface* backend, renderbuffer* buffer, u64 offset, u64 size)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     if (!buffer || !buffer->internal_data)
     {
         BERROR("vulkan_buffer_flush requires a valid pointer to a buffer");
@@ -3664,7 +3730,7 @@ b8 vulkan_buffer_flush(renderer_backend_interface* backend, renderbuffer* buffer
         range.memory = internal_buffer->memory;
         range.offset = offset;
         range.size = size;
-        VK_CHECK(vkFlushMappedMemoryRanges(context->device.logical_device, 1, &range));
+        VK_CHECK(rhi->bvkFlushMappedMemoryRanges(context->device.logical_device, 1, &range));
     }
 
     return true;
@@ -3673,6 +3739,7 @@ b8 vulkan_buffer_flush(renderer_backend_interface* backend, renderbuffer* buffer
 b8 vulkan_buffer_read(renderer_backend_interface* backend, renderbuffer* buffer, u64 offset, u64 size, void** out_memory)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     if (!buffer || !buffer->internal_data || !out_memory)
     {
         BERROR("vulkan_buffer_read requires a valid pointer to a buffer and out_memory, and the size must be nonzero");
@@ -3701,9 +3768,9 @@ b8 vulkan_buffer_read(renderer_backend_interface* backend, renderbuffer* buffer,
 
         // Map/copy/unmap
         void* mapped_data;
-        VK_CHECK(vkMapMemory(context->device.logical_device, read_internal->memory, 0, size, 0, &mapped_data));
+        VK_CHECK(rhi->bvkMapMemory(context->device.logical_device, read_internal->memory, 0, size, 0, &mapped_data));
         bcopy_memory(*out_memory, mapped_data, size);
-        vkUnmapMemory(context->device.logical_device, read_internal->memory);
+        rhi->bvkUnmapMemory(context->device.logical_device, read_internal->memory);
 
         // Clean up the read buffer
         renderer_renderbuffer_unbind(&read);
@@ -3713,9 +3780,9 @@ b8 vulkan_buffer_read(renderer_backend_interface* backend, renderbuffer* buffer,
     {
         // If no staging buffer is needed, map/copy/unmap
         void* data_ptr;
-        VK_CHECK(vkMapMemory(context->device.logical_device, internal_buffer->memory, offset, size, 0, &data_ptr));
+        VK_CHECK(rhi->bvkMapMemory(context->device.logical_device, internal_buffer->memory, offset, size, 0, &data_ptr));
         bcopy_memory(*out_memory, data_ptr, size);
-        vkUnmapMemory(context->device.logical_device, internal_buffer->memory);
+        rhi->bvkUnmapMemory(context->device.logical_device, internal_buffer->memory);
     }
 
     return true;
@@ -3724,6 +3791,7 @@ b8 vulkan_buffer_read(renderer_backend_interface* backend, renderbuffer* buffer,
 b8 vulkan_buffer_load_range(renderer_backend_interface* backend, renderbuffer* buffer, u64 offset, u64 size, const void* data, b8 include_in_frame_workload)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     if (!buffer || !buffer->internal_data || !size || !data)
     {
         BERROR("vulkan_buffer_load_range requires a valid pointer to a buffer, a nonzero size and a valid pointer to data");
@@ -3751,9 +3819,9 @@ b8 vulkan_buffer_load_range(renderer_backend_interface* backend, renderbuffer* b
     {
         // If no staging buffer is needed, map/copy/unmap
         void* data_ptr;
-        VK_CHECK(vkMapMemory(context->device.logical_device, internal_buffer->memory, offset, size, 0, &data_ptr));
+        VK_CHECK(rhi->bvkMapMemory(context->device.logical_device, internal_buffer->memory, offset, size, 0, &data_ptr));
         bcopy_memory(data_ptr, data, size);
-        vkUnmapMemory(context->device.logical_device, internal_buffer->memory);
+        rhi->bvkUnmapMemory(context->device.logical_device, internal_buffer->memory);
     }
 
     return true;
@@ -3761,6 +3829,7 @@ b8 vulkan_buffer_load_range(renderer_backend_interface* backend, renderbuffer* b
 
 static b8 vulkan_buffer_copy_range_internal(vulkan_context* context, VkBuffer source, u64 source_offset, VkBuffer dest, u64 dest_offset, u64 size, b8 include_in_frame_workload)
 {
+    brhi_vulkan* rhi = &context->rhi;
     VkQueue queue = context->device.graphics_queue;
     vulkan_command_buffer temp_command_buffer;
     vulkan_command_buffer* command_buffer = 0;
@@ -3768,7 +3837,7 @@ static b8 vulkan_buffer_copy_range_internal(vulkan_context* context, VkBuffer so
     // If not including in frame workload, then utilize a new temp command buffer as well. Otherwise this should be done as part of the current frame's work
     if (!include_in_frame_workload)
     {
-        vkQueueWaitIdle(queue);
+        rhi->bvkQueueWaitIdle(queue);
         // Create a one-time-use command buffer
         vulkan_command_buffer_allocate_and_begin_single_use(context, context->device.graphics_command_pool, &temp_command_buffer);
         command_buffer = &temp_command_buffer;
@@ -3783,7 +3852,7 @@ static b8 vulkan_buffer_copy_range_internal(vulkan_context* context, VkBuffer so
     copy_region.srcOffset = source_offset;
     copy_region.dstOffset = dest_offset;
     copy_region.size = size;
-    vkCmdCopyBuffer(command_buffer->handle, source, dest, 1, &copy_region);
+    rhi->bvkCmdCopyBuffer(command_buffer->handle, source, dest, 1, &copy_region);
 
     if (!include_in_frame_workload)
     {
@@ -3798,7 +3867,7 @@ static b8 vulkan_buffer_copy_range_internal(vulkan_context* context, VkBuffer so
         VkMemoryBarrier memoryBarrier = {VK_STRUCTURE_TYPE_MEMORY_BARRIER};
         memoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_MEMORY_WRITE_BIT | VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_TRANSFER_READ_BIT;
         memoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_MEMORY_WRITE_BIT | VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_TRANSFER_READ_BIT;
-        vkCmdPipelineBarrier(command_buffer->handle,
+        rhi->bvkCmdPipelineBarrier(command_buffer->handle,
                              srcStage, dstStage,
                              0, 1, &memoryBarrier, 0, 0, 0, 0);
     }
@@ -3825,28 +3894,29 @@ b8 vulkan_buffer_copy_range(renderer_backend_interface* backend, renderbuffer* s
 b8 vulkan_buffer_draw(renderer_backend_interface* backend, renderbuffer* buffer, u64 offset, u32 element_count, b8 bind_only)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     vulkan_command_buffer* command_buffer = get_current_command_buffer(context);
 
     if (buffer->type == RENDERBUFFER_TYPE_VERTEX)
     {
         // Bind vertex buffer at offset
         VkDeviceSize offsets[1] = {offset};
-        vkCmdBindVertexBuffers(command_buffer->handle, 0, 1,
+        rhi->bvkCmdBindVertexBuffers(command_buffer->handle, 0, 1,
                                &((vulkan_buffer*)buffer->internal_data)->handle,
                                offsets);
         if (!bind_only)
-            vkCmdDraw(command_buffer->handle, element_count, 1, 0, 0);
+            rhi->bvkCmdDraw(command_buffer->handle, element_count, 1, 0, 0);
 
         return true;
     }
     else if (buffer->type == RENDERBUFFER_TYPE_INDEX)
     {
         // Bind index buffer at offset
-        vkCmdBindIndexBuffer(command_buffer->handle,
+        rhi->bvkCmdBindIndexBuffer(command_buffer->handle,
                              ((vulkan_buffer*)buffer->internal_data)->handle,
                              offset, VK_INDEX_TYPE_UINT32);
         if (!bind_only)
-            vkCmdDrawIndexed(command_buffer->handle, element_count, 1, 0, 0, 0);
+            rhi->bvkCmdDrawIndexed(command_buffer->handle, element_count, 1, 0, 0, 0);
 
         return true;
     }
@@ -3862,7 +3932,8 @@ void vulkan_renderer_wait_for_idle(renderer_backend_interface* backend)
     if (backend)
     {
         vulkan_context* context = backend->internal_context;
-        VK_CHECK(vkDeviceWaitIdle(context->device.logical_device));
+        brhi_vulkan* rhi = &context->rhi;
+        VK_CHECK(rhi->bvkDeviceWaitIdle(context->device.logical_device));
     }
 }
 
@@ -3916,6 +3987,7 @@ static u32 get_current_image_count(vulkan_context* context)
 
 static b8 vulkan_graphics_pipeline_create(vulkan_context* context, const vulkan_pipeline_config* config, vulkan_pipeline* out_pipeline)
 {
+    brhi_vulkan* rhi = &context->rhi;
     // Viewport state
     VkPipelineViewportStateCreateInfo viewport_state = {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO};
     viewport_state.viewportCount = 1;
@@ -4146,7 +4218,7 @@ static b8 vulkan_graphics_pipeline_create(vulkan_context* context, const vulkan_
     pipeline_layout_create_info.pSetLayouts = config->descriptor_set_layouts;
 
     // Create the pipeline layout
-    VK_CHECK(vkCreatePipelineLayout(
+    VK_CHECK(rhi->bvkCreatePipelineLayout(
         context->device.logical_device,
         &pipeline_layout_create_info,
         context->allocator,
@@ -4190,7 +4262,7 @@ static b8 vulkan_graphics_pipeline_create(vulkan_context* context, const vulkan_
 
     pipeline_create_info.pNext = &pipeline_rendering_create_info;
 
-    VkResult result = vkCreateGraphicsPipelines(
+    VkResult result = rhi->bvkCreateGraphicsPipelines(
         context->device.logical_device,
         VK_NULL_HANDLE,
         1,
@@ -4219,27 +4291,29 @@ static b8 vulkan_graphics_pipeline_create(vulkan_context* context, const vulkan_
 
 static void vulkan_pipeline_destroy(vulkan_context* context, vulkan_pipeline* pipeline)
 {
+    brhi_vulkan* rhi = &context->rhi;
     if (pipeline)
     {
         // Destroy pipeline
         if (pipeline->handle)
         {
-            vkDestroyPipeline(context->device.logical_device, pipeline->handle, context->allocator);
+            rhi->bvkDestroyPipeline(context->device.logical_device, pipeline->handle, context->allocator);
             pipeline->handle = 0;
         }
 
         // Destroy layout
         if (pipeline->pipeline_layout)
         {
-            vkDestroyPipelineLayout(context->device.logical_device, pipeline->pipeline_layout, context->allocator);
+            rhi->bvkDestroyPipelineLayout(context->device.logical_device, pipeline->pipeline_layout, context->allocator);
             pipeline->pipeline_layout = 0;
         }
     }
 }
 
-static void vulkan_pipeline_bind(vulkan_command_buffer* command_buffer, VkPipelineBindPoint bind_point, vulkan_pipeline* pipeline)
+static void vulkan_pipeline_bind(vulkan_context* context, vulkan_command_buffer* command_buffer, VkPipelineBindPoint bind_point, vulkan_pipeline* pipeline)
 {
-    vkCmdBindPipeline(command_buffer->handle, bind_point, pipeline->handle);
+    brhi_vulkan* rhi = &context->rhi;
+    rhi->bvkCmdBindPipeline(command_buffer->handle, bind_point, pipeline->handle);
 }
 
 static u32 get_new_frequency_id(vulkan_shader_frequency_state* frequency_states, u32 max_frequency_count)
@@ -4258,6 +4332,7 @@ static u32 get_new_frequency_id(vulkan_shader_frequency_state* frequency_states,
 static b8 setup_frequency_state(renderer_backend_interface* backend, vulkan_shader* internal_shader, shader_update_frequency frequency, u32* out_frequency_id)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
     vulkan_shader* internal = internal_shader;
 
     // Array of frequency states
@@ -4427,7 +4502,7 @@ static b8 setup_frequency_state(renderer_backend_interface* backend, vulkan_shad
     alloc_info.descriptorPool = internal->descriptor_pool;
     alloc_info.descriptorSetCount = VULKAN_RESOURCE_IMAGE_COUNT;
     alloc_info.pSetLayouts = layouts;
-    VkResult result = vkAllocateDescriptorSets(context->device.logical_device, &alloc_info, frequency_state->descriptor_sets);
+    VkResult result = rhi->bvkAllocateDescriptorSets(context->device.logical_device, &alloc_info, frequency_state->descriptor_sets);
     if (result != VK_SUCCESS)
     {
         BERROR("Error allocating %s descriptor sets in shader: '%s'", frequency_text, vulkan_result_string(result, true));
@@ -4456,6 +4531,8 @@ static b8 setup_frequency_state(renderer_backend_interface* backend, vulkan_shad
 
 static b8 release_shader_frequency_state(vulkan_context* context, vulkan_shader* internal_shader, shader_update_frequency frequency, u32 frequency_id)
 {
+    brhi_vulkan* rhi = &context->rhi;
+
     vulkan_shader_frequency_state* frequency_state = 0;
     vulkan_shader_frequency_info* frequency_info = 0;
     b8 destroy_ubo = false;
@@ -4480,7 +4557,7 @@ static b8 release_shader_frequency_state(vulkan_context* context, vulkan_shader*
     }
 
     // Wait for any pending operations using the descriptor set to finish
-    vkDeviceWaitIdle(context->device.logical_device);
+    rhi->bvkDeviceWaitIdle(context->device.logical_device);
 
     // Destroy bindings and their descriptor states/uniforms.
     // UBO, if one exists
@@ -4500,7 +4577,7 @@ static b8 release_shader_frequency_state(vulkan_context* context, vulkan_shader*
     }
 
     // Descriptor sets
-    VkResult result = vkFreeDescriptorSets(context->device.logical_device, internal_shader->descriptor_pool, VULKAN_RESOURCE_IMAGE_COUNT, frequency_state->descriptor_sets);
+    VkResult result = rhi->bvkFreeDescriptorSets(context->device.logical_device, internal_shader->descriptor_pool, VULKAN_RESOURCE_IMAGE_COUNT, frequency_state->descriptor_sets);
     if (result != VK_SUCCESS)
         BERROR("Error freeing %s shader descriptor sets!", shader_update_frequency_to_string(frequency));
 
@@ -4573,6 +4650,7 @@ static void destroy_shader_frequency_states(shader_update_frequency frequency, v
 static b8 shader_create_modules_and_pipelines(renderer_backend_interface* backend, vulkan_shader* internal_shader, u8 stage_count, shader_stage_config* stage_configs)
 {
     vulkan_context* context = (vulkan_context*)backend->internal_context;
+    brhi_vulkan* rhi = &context->rhi;
 
     b8 has_error = false;
 
@@ -4731,13 +4809,13 @@ static b8 shader_create_modules_and_pipelines(renderer_backend_interface* backen
         }
         for (u32 i = 0; i < internal_shader->stage_count; ++i)
         {
-            vkDestroyShaderModule(context->device.logical_device, new_stages[i].handle, context->allocator);
+            rhi->bvkDestroyShaderModule(context->device.logical_device, new_stages[i].handle, context->allocator);
         }
         goto shader_module_pipeline_cleanup;
     }
 
     // In success, destroy the old pipelines and move the new pipelines over
-    vkDeviceWaitIdle(context->device.logical_device);
+    rhi->bvkDeviceWaitIdle(context->device.logical_device);
     for (u32 i = 0; i < pipeline_count; ++i)
     {
         if (internal_shader->pipelines[i])
@@ -4758,7 +4836,7 @@ static b8 shader_create_modules_and_pipelines(renderer_backend_interface* backen
     // Destroy the old shader modules and copy over the new ones
     for (u32 i = 0; i < internal_shader->stage_count; ++i)
     {
-        vkDestroyShaderModule(context->device.logical_device, internal_shader->stages[i].handle, context->allocator);
+        rhi->bvkDestroyShaderModule(context->device.logical_device, internal_shader->stages[i].handle, context->allocator);
         bcopy_memory(&internal_shader->stages[i], &new_stages[i], sizeof(vulkan_shader_stage));
     }
 
@@ -4818,6 +4896,8 @@ static b8 vulkan_descriptorset_update_and_bind(
     vulkan_shader_frequency_state* frequency_state,
     u32 descriptor_set_index)
 {
+    brhi_vulkan* rhi = &context->rhi;
+
     u32 image_index = get_current_image_index(context);
 
     const frame_data* p_frame_data = engine_frame_data_get();
@@ -4994,7 +5074,7 @@ static b8 vulkan_descriptorset_update_and_bind(
 
     // Immediately update the descriptor set's data
     if (descriptor_write_count > 0)
-        vkUpdateDescriptorSets(context->device.logical_device, descriptor_write_count, descriptor_writes, 0, 0);
+        rhi->bvkUpdateDescriptorSets(context->device.logical_device, descriptor_write_count, descriptor_writes, 0, 0);
 
     // Pick the correct pipeline
     b8 wireframe_enabled = FLAG_GET(internal_shader->flags, SHADER_FLAG_WIREFRAME_BIT);
@@ -5002,7 +5082,7 @@ static b8 vulkan_descriptorset_update_and_bind(
 
     VkCommandBuffer command_buffer = get_current_command_buffer(context)->handle;
     // Bind the descriptor set to be updated, or in case the shader changed
-    vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+    rhi->bvkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                             pipeline_array[internal_shader->bound_pipeline_index]->pipeline_layout, descriptor_set_index, 1,
                             &frequency_state->descriptor_sets[image_index], 0, 0);
 
