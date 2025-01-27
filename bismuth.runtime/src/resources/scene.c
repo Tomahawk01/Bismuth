@@ -9,8 +9,8 @@
 #include "core/console.h"
 #include "core/engine.h"
 #include "core/frame_data.h"
-#include "core_audio_types.h"
 #include "core_render_types.h"
+#include "debug/bassert.h"
 #include "defines.h"
 #include "graphs/hierarchy_graph.h"
 #include "identifiers/identifier.h"
@@ -53,7 +53,12 @@ typedef struct scene_debug_data
 
 typedef struct scene_audio_emitter
 {
-    audio_emitter data;
+    bname name;
+
+    // Handle to the emitter within the audio system
+    bhandle emitter;
+
+    // debug rendering data
     scene_debug_data* debug_data;
     u32 generation;
     bname resource_name;
@@ -469,21 +474,27 @@ void scene_node_initialize(scene* s, bhandle parent_handle, scene_node_config* n
                 */
 
                 scene_audio_emitter new_emitter = {0};
-                new_emitter.data.name = typed_attachment_config->base.name;
-                new_emitter.data.volume = typed_attachment_config->volume;
-                new_emitter.data.inner_radius = typed_attachment_config->inner_radius;
-                new_emitter.data.outer_radius = typed_attachment_config->outer_radius;
-                new_emitter.data.falloff = typed_attachment_config->falloff;
-                new_emitter.data.is_looping = typed_attachment_config->is_looping;
-                new_emitter.resource_name = typed_attachment_config->audio_resource_name;
-                new_emitter.package_name = typed_attachment_config->audio_resource_package_name;
-                new_emitter.is_streaming = typed_attachment_config->is_streaming;
+                new_emitter.name = typed_attachment_config->base.name;
+                if (!baudio_emitter_create(
+                        engine_systems_get()->audio_system,
+                        typed_attachment_config->inner_radius,
+                        typed_attachment_config->outer_radius,
+                        typed_attachment_config->volume,
+                        typed_attachment_config->falloff,
+                        typed_attachment_config->is_looping,
+                        typed_attachment_config->is_streaming,
+                        typed_attachment_config->audio_resource_name,
+                        typed_attachment_config->audio_resource_package_name,
+                        &new_emitter.emitter))
+                {
+                    BERROR("Failed to create audio emitter. See logs for details");
+                }
 
                 // Add debug data and initialize it
                 new_emitter.debug_data = BALLOC_TYPE(scene_debug_data, MEMORY_TAG_RESOURCE);
                 scene_debug_data* debug = new_emitter.debug_data;
 
-                if (!debug_sphere3d_create(new_emitter.data.outer_radius, (vec4){1.0f, 0.5f, 0.0f, 1.0f}, bhandle_invalid(), &debug->sphere))
+                if (!debug_sphere3d_create(typed_attachment_config->outer_radius, (vec4){1.0f, 0.5f, 0.0f, 1.0f}, bhandle_invalid(), &debug->sphere))
                 {
                     BERROR("Failed to create debug sphere for audio emitter");
                 }
@@ -935,11 +946,12 @@ b8 scene_load(scene* scene)
 
             // Get world position for the audio emitter based on it's owning node's xform
             vec3 emitter_world_pos = mat4_position(world);
+            baudio_emitter_world_position_set(audio_state, emitter->emitter, emitter_world_pos);
 
             // NOTE: always use 3d space for emitters
-            if (!baudio_acquire(audio_state, emitter->resource_name, emitter->package_name, emitter->is_streaming, BAUDIO_SPACE_3D, &emitter->data.instance))
+            if (!baudio_emitter_load(audio_state, emitter->emitter))
             {
-                BWARN("Failed to acquire audio resource from audio system");
+                BWARN("Failed to load audio emitter");
             }
             else
             {
@@ -952,16 +964,11 @@ b8 scene_load(scene* scene)
                     scene->audio_emitters[i].debug_data = 0;
                 }
 
-                // HACK: play this in an "on load" callback which should be triggered at the end of this function.
-                // It should "play", but it should also just play when entering the outer_radius
-                baudio_play(audio_state, emitter->data.instance, -1); // HACK: Don't hardcode this
-                // Apply properties to audio
-                baudio_looping_set(audio_state, emitter->data.instance, emitter->data.is_looping);
-                baudio_outer_radius_set(audio_state, emitter->data.instance, emitter->data.outer_radius);
-                baudio_inner_radius_set(audio_state, emitter->data.instance, emitter->data.inner_radius);
-                baudio_falloff_set(audio_state, emitter->data.instance, emitter->data.falloff);
-                baudio_position_set(audio_state, emitter->data.instance, emitter_world_pos);
-                baudio_volume_set(audio_state, emitter->data.instance, emitter->data.volume);
+                // Load the emitter
+                if (!baudio_emitter_load(audio_state, scene->audio_emitters[i].emitter))
+                {
+                    BERROR("Failed to load audio for emitter");
+                }
             }
         }
     }
@@ -1090,16 +1097,10 @@ b8 scene_update(scene* scene, const struct frame_data* p_frame_data)
                     world = mat4_identity();
                 }
 
-                // Get world position for the audio emitter based on it's owning node's xform
+                // Get world position for the audio emitter based on it's owning node's xform and set it
                 vec3 emitter_world_pos = mat4_position(world);
 
-                // Apply properties to audio
-                baudio_looping_set(audio_state, emitter->data.instance, emitter->data.is_looping);
-                baudio_outer_radius_set(audio_state, emitter->data.instance, emitter->data.outer_radius);
-                baudio_inner_radius_set(audio_state, emitter->data.instance, emitter->data.inner_radius);
-                baudio_falloff_set(audio_state, emitter->data.instance, emitter->data.falloff);
-                baudio_position_set(audio_state, emitter->data.instance, emitter_world_pos);
-                baudio_volume_set(audio_state, emitter->data.instance, emitter->data.volume);
+                baudio_emitter_world_position_set(audio_state, emitter->emitter, emitter_world_pos);
             }
         }
 
@@ -2047,9 +2048,8 @@ static void scene_actual_unload(scene* s)
     u32 audio_emitter_count = darray_length(s->audio_emitters);
     for (u32 i = 0; i < audio_emitter_count; ++i)
     {
-        // Stop the sound immediately
-        baudio_stop(engine_systems_get()->audio_system, s->audio_emitters[i].data.instance);
-        // FIXME: Destroy the emitter
+        // Unload the emitter
+        baudio_emitter_unload(engine_systems_get()->audio_system, s->audio_emitters[i].emitter);
 
         // Destroy debug data if it exists
         if (s->audio_emitters[i].debug_data)
@@ -2178,10 +2178,11 @@ static b8 scene_serialize_node(const scene* s, const hierarchy_graph_view* view,
             bson_property attachment = bson_object_property_create(0);
 
             // Add properties to it
-            bson_object_value_add_string(&attachment.value.o, "type", "audio_emitter");
+            BASSERT_MSG(false, "Implement serialization of audio emitters");
+            /* bson_object_value_add_string(&attachment.value.o, "type", "audio_emitter");
             bson_object_value_add_float(&attachment.value.o, "inner_radius", s->audio_emitters[m].data.inner_radius);
             bson_object_value_add_float(&attachment.value.o, "outer_radius", s->audio_emitters[m].data.outer_radius);
-            bson_object_value_add_float(&attachment.value.o, "falloff", s->audio_emitters[m].data.falloff);
+            bson_object_value_add_float(&attachment.value.o, "falloff", s->audio_emitters[m].data.falloff); */
             
             // Push it into the attachments array
             darray_push(attachments_prop.value.o.properties, attachment);

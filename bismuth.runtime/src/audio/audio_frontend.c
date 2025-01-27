@@ -107,6 +107,37 @@ typedef struct baudio_resource_handle_data
     baudio_resource_instance_data* instances;
 } baudio_resource_handle_data;
 
+typedef struct baudio_emitter_handle_data
+{
+    u64 uniqueid;
+
+    // Handle to underlying resource instance
+    audio_instance instance;
+    // Emitter-specific volume
+    f32 volume;
+
+    /** @brief inner_radius The inner radius around the sound's center point. A listener inside this radius experiences the volume at 100% */
+    f32 inner_radius;
+    /** @brief outer_radius The outer radius around the sound's center point. A listener outside this radius experiences the volume at 0% */
+    f32 outer_radius;
+    /** @brief The falloff factor to use for distance-based sound falloff. Only used for exponential falloff */
+    f32 falloff;
+    /** @brief The attenuation model to use for distance-based sound falloff */
+    baudio_attenuation_model attenuation_model;
+    vec3 world_position;
+
+    b8 is_looping;
+    b8 is_streaming;
+
+    // Only changed by audio system when within range
+    b8 playing_in_range;
+
+    bname resource_name;
+    bname package_name;
+
+    vec3 velocity;
+} baudio_emitter_handle_data;
+
 typedef struct baudio_channel
 {
     // The channel index
@@ -158,6 +189,9 @@ typedef struct baudio_system_state
     // Array of internal resources for audio data in the system's frontend
     baudio_resource_handle_data* resources;
 
+    // darray of audio emitters
+    baudio_emitter_handle_data* emitters;
+
     vec3 listener_position;
     vec3 listener_up;
     vec3 listener_forward;
@@ -185,6 +219,7 @@ static baudio_resource_instance_data* get_instance(baudio_system_state* state, b
 static u32 get_active_instance_count(baudio_resource_handle_data* base);
 static baudio_channel* get_channel(baudio_system_state* state, i8 channel_index);
 static baudio_channel* get_available_channel_from_category(baudio_system_state* state, u8 category_index);
+static void baudio_emitter_update(struct baudio_system_state* state, baudio_emitter_handle_data* emitter);
 
 b8 baudio_system_initialize(u64* memory_requirement, void* memory, const char* config_str)
 {
@@ -246,6 +281,9 @@ b8 baudio_system_initialize(u64* memory_requirement, void* memory, const char* c
         bcopy_memory(state->categories[i].channel_ids, config.categories[i].channel_ids, sizeof(u32) * state->categories[i].channel_id_count);
     }
 
+    // Darray for audio emitters
+    state->emitters = darray_create(baudio_emitter_handle_data);
+
     // Load the plugin
     state->plugin = plugin_system_get(engine_systems_get()->plugin_system, config.backend_plugin_name);
     if (!state->plugin)
@@ -283,6 +321,14 @@ b8 baudio_system_update(struct baudio_system_state* state, struct frame_data* p_
         // Listener updates
         state->backend->listener_position_set(state->backend, state->listener_position);
         state->backend->listener_orientation_set(state->backend, state->listener_forward, state->listener_up);
+
+        // Update the registered emitters
+        u32 emitter_count = darray_length(state->emitters);
+        for (u32 i = 0; i < emitter_count; ++i)
+        {
+            if (state->emitters[i].uniqueid != INVALID_ID_U64)
+                baudio_emitter_update(state, &state->emitters[i]);
+        }
 
         // Adjust each channel's properties based on what is bound to them (if anything)
         for (u32 i = 0; i < state->audio_channel_count; ++i)
@@ -1065,6 +1111,166 @@ b8 baudio_channel_volume_set(struct baudio_system_state* state, u8 channel_index
 
     state->channels[channel_index].volume = volume;
     return true;
+}
+
+b8 baudio_emitter_create(struct baudio_system_state* state, f32 inner_radius, f32 outer_radius, f32 volume, f32 falloff, b8 is_looping, b8 is_streaming, bname audio_resource_name, bname package_name, bhandle* out_emitter)
+{
+    if (!state || !out_emitter)
+        return false;
+
+    *out_emitter = bhandle_invalid();
+
+    // Look for a free slot, or push a new one if needed
+    baudio_emitter_handle_data* emitter = 0;
+    u32 length = darray_length(state->emitters);
+    for (u32 i = 0; i < length; ++i)
+    {
+        if (state->emitters[i].uniqueid == INVALID_ID_U64)
+        {
+            emitter = &state->emitters[i];
+            *out_emitter = bhandle_create(i);
+            break;
+        }
+    }
+
+    if (!emitter)
+    {
+        baudio_emitter_handle_data new_emitter = {0};
+        new_emitter.uniqueid = INVALID_ID_U64;
+        darray_push(state->emitters, new_emitter);
+        emitter = &state->emitters[length];
+        *out_emitter = bhandle_create(length);
+    }
+
+    emitter->uniqueid = out_emitter->unique_id.uniqueid;
+    emitter->volume = volume;
+    emitter->inner_radius = inner_radius;
+    emitter->outer_radius = outer_radius;
+    emitter->falloff = falloff;
+    emitter->is_looping = is_looping;
+    emitter->is_streaming = is_streaming;
+    emitter->resource_name = audio_resource_name;
+    emitter->package_name = package_name;
+
+    return true;
+}
+
+b8 baudio_emitter_load(struct baudio_system_state* state, bhandle emitter_handle)
+{
+    if (!state)
+        return false;
+
+    if (bhandle_is_valid(emitter_handle) && bhandle_is_pristine(emitter_handle, state->emitters[emitter_handle.handle_index].uniqueid))
+    {
+        baudio_emitter_handle_data* emitter = &state->emitters[emitter_handle.handle_index];
+        // NOTE: always use 3d space for emitters
+        if (!baudio_acquire(state, emitter->resource_name, emitter->package_name, emitter->is_streaming, BAUDIO_SPACE_3D, &emitter->instance))
+        {
+            BWARN("Failed to acquire audio resource from audio system");
+            return false;
+        }
+
+        // Apply properties to audio
+        baudio_looping_set(state, emitter->instance, emitter->is_looping);
+        baudio_outer_radius_set(state, emitter->instance, emitter->outer_radius);
+        baudio_inner_radius_set(state, emitter->instance, emitter->inner_radius);
+        baudio_falloff_set(state, emitter->instance, emitter->falloff);
+        baudio_position_set(state, emitter->instance, emitter->world_position);
+        baudio_volume_set(state, emitter->instance, emitter->volume);
+
+        return true;
+    }
+
+    return false;
+}
+
+b8 baudio_emitter_unload(struct baudio_system_state* state, bhandle emitter_handle)
+{
+    if (!state)
+        return false;
+
+    if (bhandle_is_valid(emitter_handle) && bhandle_is_pristine(emitter_handle, state->emitters[emitter_handle.handle_index].uniqueid))
+    {
+        baudio_emitter_handle_data* emitter = &state->emitters[emitter_handle.handle_index];
+        if (emitter->playing_in_range)
+        {
+            // Stop playing
+            baudio_stop(state, emitter->instance);
+            emitter->playing_in_range = false;
+        }
+
+        baudio_release(state, &emitter->instance);
+
+        // Take a copy of the invalidated instance
+        audio_instance invalid_inst = emitter->instance;
+
+        bzero_memory(&emitter->instance, sizeof(baudio_emitter_handle_data));
+
+        // Invalidate the handle data
+        emitter->uniqueid = INVALID_ID_U64;
+        emitter->instance = invalid_inst;
+
+        return true;
+    }
+
+    return false;
+}
+
+b8 baudio_emitter_world_position_set(struct baudio_system_state* state, bhandle emitter_handle, vec3 world_position)
+{
+    if (!state)
+        return false;
+
+    if (bhandle_is_valid(emitter_handle) && bhandle_is_pristine(emitter_handle, state->emitters[emitter_handle.handle_index].uniqueid))
+    {
+        baudio_emitter_handle_data* emitter = &state->emitters[emitter_handle.handle_index];
+        emitter->world_position = world_position;
+        baudio_position_set(state, emitter->instance, emitter->world_position);
+        return true;
+    }
+
+    return false;
+}
+
+static void baudio_emitter_update(struct baudio_system_state* state, baudio_emitter_handle_data* emitter)
+{
+    if (emitter->playing_in_range)
+    {
+        // Check if still in range. If not, need to stop
+        if (vec3_distance(state->listener_position, emitter->world_position) > emitter->outer_radius)
+        {
+            BTRACE("Audio emitter no longer in listener range. Stopping...");
+            // Stop playing
+            baudio_stop(state, emitter->instance);
+            emitter->playing_in_range = false;
+        }
+        else
+        {
+            // Continue
+        }
+    }
+    else
+    {
+        // Check if in range. If so, need to start playing
+        if (vec3_distance(state->listener_position, emitter->world_position) <= emitter->outer_radius)
+        {
+            BTRACE("Audio emitter came into listener range. Stopping...");
+            // HACK: Don't hardcode this. Config? Define family group, or index
+            baudio_play(state, emitter->instance, -1);
+            emitter->playing_in_range = true;
+        }
+    }
+    
+    // If still playing, apply audio properties
+    if (emitter->playing_in_range)
+    {
+        baudio_looping_set(state, emitter->instance, emitter->is_looping);
+        baudio_outer_radius_set(state, emitter->instance, emitter->outer_radius);
+        baudio_inner_radius_set(state, emitter->instance, emitter->inner_radius);
+        baudio_falloff_set(state, emitter->instance, emitter->falloff);
+        baudio_position_set(state, emitter->instance, emitter->world_position);
+        baudio_volume_set(state, emitter->instance, emitter->volume);
+    }
 }
 
 static b8 deserialize_config(const char* config_str, baudio_system_config* out_config)

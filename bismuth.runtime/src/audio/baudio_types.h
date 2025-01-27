@@ -16,32 +16,6 @@ typedef struct audio_instance
     bhandle instance;
 } audio_instance;
 
-typedef struct audio_emitter
-{
-    bname name;
-
-    // Handle to underlying resource instance
-    audio_instance instance;
-
-    // Emitter-specific volume
-    f32 volume;
-
-    /** @brief inner_radius The inner radius around the sound's center point. A listener inside this radius experiences the volume at 100% */
-    f32 inner_radius;
-    /** @brief outer_radius The outer radius around the sound's center point. A listener outside this radius experiences the volume at 0% */
-    f32 outer_radius;
-
-    /** @brief The falloff factor to use for distance-based sound falloff. Only used for exponential falloff */
-    f32 falloff;
-
-    /** @brief The attenuation model to use for distance-based sound falloff */
-    baudio_attenuation_model attenuation_model;
-    
-    b8 is_looping;
-
-    vec3 velocity;
-} audio_emitter;
-
 /** @brief The configuration for an audio backend */
 typedef struct baudio_backend_config
 {

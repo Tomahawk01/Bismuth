@@ -64,3 +64,8 @@ BAPI b8 baudio_channel_looping_get(struct baudio_system_state* state, u8 channel
 BAPI b8 baudio_channel_looping_set(struct baudio_system_state* state, u8 channel_index, b8 looping);
 BAPI f32 baudio_channel_volume_get(struct baudio_system_state* state, u8 channel_index);
 BAPI b8 baudio_channel_volume_set(struct baudio_system_state* state, u8 channel_index, f32 volume);
+
+BAPI b8 baudio_emitter_create(struct baudio_system_state* state, f32 inner_radius, f32 outer_radius, f32 volume, f32 falloff, b8 is_looping, b8 is_streaming, bname audio_resource_name, bname package_name, bhandle* out_emitter);
+BAPI b8 baudio_emitter_load(struct baudio_system_state* state, bhandle emitter);
+BAPI b8 baudio_emitter_unload(struct baudio_system_state* state, bhandle emitter_handle);
+BAPI b8 baudio_emitter_world_position_set(struct baudio_system_state* state, bhandle emitter_handle, vec3 world_position);
