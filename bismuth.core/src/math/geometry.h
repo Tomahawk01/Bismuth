@@ -163,6 +163,8 @@ BAPI bgeometry geometry_generate_line2d(vec2 point_0, vec2 point_1, bname name);
  */
 BAPI bgeometry geometry_generate_line3d(vec3 point_0, vec3 point_1, bname name);
 
+BAPI bgeometry geometry_generate_line_sphere3d(f32 radius, u32 segment_count, vec4 color, bname name);
+
 /**
  * @brief Generates a three-dimensional plane of geometry. Note that memory for the
  * vertex and index arrays are dynamically allocated, so this should be cleaned up

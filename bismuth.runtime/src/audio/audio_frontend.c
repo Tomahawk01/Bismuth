@@ -16,8 +16,18 @@
 #include "core/engine.h"
 #include "bresources/bresource_types.h"
 #include "plugins/plugin_types.h"
+#include "strings/bstring.h"
 #include "systems/bresource_system.h"
 #include "systems/plugin_system.h"
+
+typedef struct baudio_category_config
+{
+    bname name;
+    f32 volume;
+    baudio_space audio_space;
+    u32 channel_id_count;
+    u32* channel_ids;
+} baudio_category_config;
 
 typedef struct baudio_system_config
 {
@@ -37,6 +47,9 @@ typedef struct baudio_system_config
 
     /** @brief The maximum number of audio resources (sounds or music) that can be loaded at once */
     u32 max_resource_count;
+
+    u32 category_count;
+    baudio_category_config* categories;
 
     /** @brief The name of the plugin to be loaded for the audio backend */
     const char* backend_plugin_name;
@@ -107,6 +120,15 @@ typedef struct baudio_channel
     baudio_resource_instance_data* bound_instance;
 } baudio_channel;
 
+typedef struct baudio_category
+{
+    bname name;
+    f32 volume;
+    baudio_space audio_space;
+    u32 channel_id_count;
+    u32* channel_ids;
+} baudio_category;
+
 typedef struct baudio_system_state
 {
     f32 master_volume;
@@ -126,6 +148,9 @@ typedef struct baudio_system_state
 
     // Channels which can play audio
     baudio_channel channels[AUDIO_CHANNEL_MAX_COUNT];
+
+    u32 category_count;
+    baudio_category categories[AUDIO_CHANNEL_MAX_COUNT];
 
     // The max number of audio resources that can be loaded at any time
     u32 max_resource_count;
@@ -159,6 +184,7 @@ static baudio_resource_handle_data* get_base(baudio_system_state* state, bhandle
 static baudio_resource_instance_data* get_instance(baudio_system_state* state, baudio_resource_handle_data* base, bhandle instance);
 static u32 get_active_instance_count(baudio_resource_handle_data* base);
 static baudio_channel* get_channel(baudio_system_state* state, i8 channel_index);
+static baudio_channel* get_available_channel_from_category(baudio_system_state* state, u8 category_index);
 
 b8 baudio_system_initialize(u64* memory_requirement, void* memory, const char* config_str)
 {
@@ -206,6 +232,18 @@ b8 baudio_system_initialize(u64* memory_requirement, void* memory, const char* c
         channel->volume = 1.0f;
         // Also set some other reasonable defaults
         channel->bound_resource = 0;
+    }
+
+    // Categories.
+    state->category_count = config.category_count;
+    for (u32 i = 0; i < config.category_count; ++i)
+    {
+        state->categories[i].name = config.categories[i].name;
+        state->categories[i].audio_space = config.categories[i].audio_space;
+        state->categories[i].volume = config.categories[i].volume;
+        state->categories[i].channel_id_count = config.categories[i].channel_id_count;
+        state->categories[i].channel_ids = BALLOC_TYPE_CARRAY(u32, state->categories[i].channel_id_count);
+        bcopy_memory(state->categories[i].channel_ids, config.categories[i].channel_ids, sizeof(u32) * state->categories[i].channel_id_count);
     }
 
     // Load the plugin
@@ -475,6 +513,46 @@ void baudio_release(struct baudio_system_state* state, audio_instance* instance)
             base_resource->uniqueid = INVALID_ID_U64;
         }
     }
+}
+
+i8 baudio_category_id_get(struct baudio_system_state* state, bname name)
+{
+    for (i8 i = 0; i < (i8)state->category_count; ++i)
+    {
+        if (state->categories[i].name == name)
+            return i;
+    }
+
+    // Not found
+    return -1;
+}
+
+b8 baudio_play_in_category_by_name(struct baudio_system_state* state, audio_instance instance, bname category_name)
+{
+    i8 category_index = baudio_category_id_get(state, category_name);
+    if (category_index < 0)
+        return false;
+
+    return baudio_play_in_category(state, instance, (u8)category_index);
+}
+
+b8 baudio_play_in_category(struct baudio_system_state* state, audio_instance instance, u8 category_index)
+{
+    if (!state || category_index >= state->category_count)
+        return false;
+
+    // Get a channel belonging to the category
+    baudio_channel* channel = get_available_channel_from_category(state, category_index);
+    if (!channel)
+    {
+        BWARN("No channel available to auto-select - perhaps increase number of channels for category? index=%u", category_index);
+        // Pick the first channel in the category and clobber it's sound
+        channel = &state->channels[state->categories[category_index].channel_ids[0]];
+        baudio_channel_stop(state, channel->index);
+    }
+
+    // Play it on that channel
+    return baudio_play(state, instance, channel->index);
 }
 
 b8 baudio_play(struct baudio_system_state* state, audio_instance instance, i8 channel_index)
@@ -1068,6 +1146,76 @@ static b8 deserialize_config(const char* config_str, baudio_system_config* out_c
     }
     out_config->chunk_size = chunk_size;
 
+    bson_array category_obj_array = {0};
+    if (bson_object_property_value_get_array(&tree.root, "categories", &category_obj_array))
+    {
+        if (bson_array_element_count_get(&category_obj_array, &out_config->category_count))
+        {
+            out_config->categories = BALLOC_TYPE_CARRAY(baudio_category_config, out_config->category_count);
+
+            // Each category
+            for (u32 i = 0; i < out_config->category_count; ++i)
+            {
+                baudio_category_config* cat = &out_config->categories[i];
+                bson_object cat_obj = {0};
+                if (!bson_array_element_value_get_object(&category_obj_array, i, &cat_obj))
+                {
+                    BERROR("Possible format error reading object at index %u in 'categories' array. Skipping...", i);
+                    continue;
+                }
+
+                // Name - required
+                if (!bson_object_property_value_get_string_as_bname(&cat_obj, "name", &cat->name))
+                {
+                    BERROR("Unable to find required category property 'name' at index %u. Skipping...", i);
+                    continue;
+                }
+
+                // Volume - optional
+                if (!bson_object_property_value_get_float(&cat_obj, "volume", &cat->volume))
+                {
+                    // Default
+                    cat->volume = 1.0f;
+                }
+
+                // Audio space - optional
+                const char* audio_space_str = 0;
+                if (!bson_object_property_value_get_string(&cat_obj, "audio_space", &audio_space_str))
+                {
+                    cat->audio_space = BAUDIO_SPACE_2D; // default to 2d if not provided
+                }
+                else
+                {
+                    cat->audio_space = string_to_audio_space(audio_space_str);
+                    string_free(audio_space_str);
+                }
+
+                // Channel ids - required, must have at least one
+                bson_array channel_ids_array = {0};
+                if (!bson_object_property_value_get_array(&cat_obj, "channel_ids", &channel_ids_array))
+                {
+                    BERROR("'channel_ids', a required field for a cateregory, does not exist for cateregory index %u. Skipping...", i);
+                    continue;
+                }
+                bson_array_element_count_get(&channel_ids_array, &cat->channel_id_count);
+                if (!cat->channel_id_count)
+                {
+                    BERROR("Channel cateregory must have at least one channel id listed. Skipping index %u", i);
+                    continue;
+                }
+
+                cat->channel_ids = BALLOC_TYPE_CARRAY(u32, cat->channel_id_count);
+
+                for (u32 c = 0; c < cat->channel_id_count; c++)
+                {
+                    i64 val = 0;
+                    bson_array_element_value_get_int(&channel_ids_array, c, &val);
+                    cat->channel_ids[c] = (u32)val;
+                }
+            }
+        }
+    }
+
     bson_tree_cleanup(&tree);
     
     return true;
@@ -1201,5 +1349,30 @@ static baudio_channel* get_channel(baudio_system_state* state, i8 channel_index)
         return &state->channels[channel_index];
     }
 
+    return 0;
+}
+
+static baudio_channel* get_available_channel_from_category(baudio_system_state* state, u8 category_index)
+{
+    if (!state)
+        return 0;
+    if (category_index >= state->category_count)
+        return 0;
+
+    baudio_category* cat = &state->categories[category_index];
+    
+    // First available
+    for (u32 i = 0; i < cat->channel_id_count; ++i)
+    {
+        u32 channel_id = cat->channel_ids[i];
+        baudio_channel* channel = &state->channels[channel_id];
+        if (!channel->bound_instance && !channel->bound_resource)
+        {
+            // Available, use it
+            return channel;
+        }
+    }
+
+    BWARN("No channel is available for auto-selection via category, index=%u", category_index);
     return 0;
 }

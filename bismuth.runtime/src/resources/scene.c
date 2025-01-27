@@ -25,6 +25,7 @@
 #include "renderer/renderer_types.h"
 #include "resources/debug/debug_box3d.h"
 #include "resources/debug/debug_line3d.h"
+#include "resources/debug/debug_sphere3d.h"
 #include "resources/skybox.h"
 #include "resources/terrain.h"
 #include "resources/water_plane.h"
@@ -47,6 +48,7 @@ typedef struct scene_debug_data
 {
     debug_box3d box;
     debug_line3d line;
+    debug_sphere3d sphere;
 } scene_debug_data;
 
 typedef struct scene_audio_emitter
@@ -481,17 +483,17 @@ void scene_node_initialize(scene* s, bhandle parent_handle, scene_node_config* n
                 new_emitter.debug_data = BALLOC_TYPE(scene_debug_data, MEMORY_TAG_RESOURCE);
                 scene_debug_data* debug = new_emitter.debug_data;
 
-                if (!debug_box3d_create((vec3){0.5f, 0.5f, 0.5f}, bhandle_invalid(), &debug->box))
+                if (!debug_sphere3d_create(new_emitter.data.outer_radius, (vec4){1.0f, 0.5f, 0.0f, 1.0f}, bhandle_invalid(), &debug->sphere))
                 {
-                    BERROR("Failed to create debug box for audio emitter");
+                    BERROR("Failed to create debug sphere for audio emitter");
                 }
                 else
                 {
-                    // xform_position_set(debug->box.xform, new_emitter.data.position);
+                    // xform_position_set(debug->sphere.xform, new_emitter.data.position);
                 }
-                if (!debug_box3d_initialize(&debug->box))
+                if (!debug_sphere3d_initialize(&debug->sphere))
                 {
-                    BERROR("Failed to create debug box for audio emitter");
+                    BERROR("Failed to create debug sphere for audio emitter");
                 }
                 else
                 {
@@ -943,16 +945,16 @@ b8 scene_load(scene* scene)
             {
                 // Load debug data if it was setup
                 scene_debug_data* debug = (scene_debug_data*)scene->audio_emitters[i].debug_data;
-                if (!debug_box3d_load(&debug->box))
+                if (!debug_sphere3d_load(&debug->sphere))
                 {
-                    BERROR("debug box failed to load");
+                    BERROR("debug sphere failed to load");
                     bfree(scene->audio_emitters[i].debug_data, sizeof(scene_debug_data), MEMORY_TAG_RESOURCE);
                     scene->audio_emitters[i].debug_data = 0;
                 }
 
                 // HACK: play this in an "on load" callback which should be triggered at the end of this function.
                 // It should "play", but it should also just play when entering the outer_radius
-                baudio_play(audio_state, emitter->data.instance, 6); // HACK: Don't hardcode this. Config? Define family group, or index somehow?
+                baudio_play(audio_state, emitter->data.instance, -1); // HACK: Don't hardcode this
                 // Apply properties to audio
                 baudio_looping_set(audio_state, emitter->data.instance, emitter->data.is_looping);
                 baudio_outer_radius_set(audio_state, emitter->data.instance, emitter->data.outer_radius);
@@ -1204,7 +1206,7 @@ void scene_render_frame_prepare(scene* scene, const struct frame_data* p_frame_d
             }
         }
 
-        // Update audio emitter debug boxes
+        // Update audio emitter debug spheres
         if (scene->audio_emitters)
         {
             u32 emitter_count = darray_length(scene->audio_emitters);
@@ -1217,13 +1219,13 @@ void scene_render_frame_prepare(scene* scene, const struct frame_data* p_frame_d
                     scene_attachment* attachment = &scene->audio_emitter_attachments[i];
                     bhandle xform_handle = hierarchy_graph_xform_handle_get(&scene->hierarchy, attachment->hierarchy_node_handle);
                     // Since debug objects aren't actually added to the hierarchy or as attachments, need to manually update the xform here, using the node's world xform as the parent
-                    xform_calculate_local(debug->box.xform);
-                    mat4 local = xform_local_get(debug->box.xform);
+                    xform_calculate_local(debug->sphere.xform);
+                    mat4 local = xform_local_get(debug->sphere.xform);
                     mat4 parent_world = xform_world_get(xform_handle);
                     mat4 model = mat4_mul(local, parent_world);
-                    xform_world_set(debug->box.xform, model);
+                    xform_world_set(debug->sphere.xform, model);
 
-                    debug_box3d_render_frame_prepare(&debug->box, p_frame_data);
+                    debug_sphere3d_render_frame_prepare(&debug->sphere, p_frame_data);
                 }
             }
         }
@@ -1503,17 +1505,21 @@ b8 scene_debug_render_data_query(scene* scene, u32* data_count, geometry_render_
                     {
                         scene_debug_data* debug = (scene_debug_data*)scene->audio_emitters[i].debug_data;
 
-                        // Debug box 3d
+                        // Debug sphere 3d
                         geometry_render_data data = {0};
-                        data.model = xform_world_get(debug->box.xform);
-                        bgeometry* g = &debug->box.geometry;
+                        // Only want the ultimate position of this, since we don't want the debug data to scale or rotate along with any parent it may be under
+                        mat4 sphere_world = xform_world_get(debug->sphere.xform);
+                        vec3 world_pos = mat4_position(sphere_world);
+                        data.model = mat4_translation(world_pos);
+
+                        bgeometry* g = &debug->sphere.geometry;
                         data.material.material = bhandle_invalid(); // debug geometries don't need a material
                         data.material.instance = bhandle_invalid(); // debug geometries don't need a material
                         data.vertex_count = g->vertex_count;
                         data.vertex_buffer_offset = g->vertex_buffer_offset;
                         data.index_count = g->index_count;
                         data.index_buffer_offset = g->index_buffer_offset;
-                        data.unique_id = debug->box.id.uniqueid;
+                        data.unique_id = debug->sphere.id.uniqueid;
 
                         (*debug_geometries)[(*data_count)] = data;
                     }
@@ -2049,8 +2055,8 @@ static void scene_actual_unload(scene* s)
         if (s->audio_emitters[i].debug_data)
         {
             scene_debug_data* debug = (scene_debug_data*)s->audio_emitters[i].debug_data;
-            debug_box3d_unload(&debug->box);
-            debug_box3d_destroy(&debug->box);
+            debug_sphere3d_unload(&debug->sphere);
+            debug_sphere3d_destroy(&debug->sphere);
             bfree(s->audio_emitters[i].debug_data, sizeof(scene_debug_data), MEMORY_TAG_RESOURCE);
             s->audio_emitters[i].debug_data = 0;
         }

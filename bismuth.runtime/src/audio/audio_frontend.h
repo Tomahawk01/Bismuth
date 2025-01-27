@@ -34,6 +34,9 @@ BAPI b8 baudio_outer_radius_set(struct baudio_system_state* state, audio_instanc
 BAPI f32 baudio_falloff_get(struct baudio_system_state* state, audio_instance instance);
 BAPI b8 baudio_falloff_set(struct baudio_system_state* state, audio_instance instance, f32 falloff);
 
+BAPI i8 baudio_category_id_get(struct baudio_system_state* state, bname name);
+BAPI b8 baudio_play_in_category_by_name(struct baudio_system_state* state, audio_instance instance, bname category_name);
+BAPI b8 baudio_play_in_category(struct baudio_system_state* state, audio_instance instance, u8 category_index);
 BAPI b8 baudio_play(struct baudio_system_state* state, audio_instance instance, i8 channel_index);
 BAPI b8 baudio_stop(struct baudio_system_state* state, audio_instance instance);
 BAPI b8 baudio_pause(struct baudio_system_state* state, audio_instance instance);

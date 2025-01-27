@@ -837,7 +837,7 @@ b8 application_initialize(struct application* game_inst)
     */
 
     // Play the test music on channel 7
-    baudio_play(state->audio_system, state->test_music, 7);
+    // baudio_play(state->audio_system, state->test_music, 7);
 
     if (!rendergraph_initialize(&state->forward_graph))
     {
