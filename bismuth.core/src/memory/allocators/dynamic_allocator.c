@@ -1,9 +1,9 @@
 #include "memory/allocators/dynamic_allocator.h"
 
-#include "debug/bassert.h"
-#include "memory/bmemory.h"
-#include "logger.h"
 #include "containers/freelist.h"
+#include "debug/bassert.h"
+#include "logger.h"
+#include "memory/bmemory.h"
 
 typedef struct dynamic_allocator_state
 {
@@ -105,11 +105,14 @@ void* dynamic_allocator_allocate_aligned(dynamic_allocator* allocator, u64 size,
             // Store size just before user data block
             u32* block_size = (u32*)(aligned_block_offset - BSIZE_STORAGE);
             *block_size = (u32)size;
+            BASSERT_MSG(size, "dynamic_allocator_allocate_aligned got a size of 0. Memory corruption likely as this should always be nonzero");
             // Store header immediately after user block
             alloc_header* header = (alloc_header*)(aligned_block_offset + size);
             header->start = ptr;
+            BASSERT_MSG(header->start, "dynamic_allocator_allocate_aligned got a null pointer (0x0). Memory corruption likely as this should always be nonzero");
             header->alignment = alignment;
-            
+            BASSERT_MSG(header->alignment, "dynamic_allocator_allocate_aligned got an alignment of 0. Memory corruption likely as this should always be nonzero");
+
             return (void*)aligned_block_offset;
         }
         else
@@ -159,12 +162,22 @@ b8 dynamic_allocator_free_aligned(dynamic_allocator* allocator, void* block)
     return true;
 }
 
-b8 dynamic_allocator_get_size_alignment(void* block, u64* out_size, u16* out_alignment)
+b8 dynamic_allocator_get_size_alignment(dynamic_allocator* allocator, void* block, u64* out_size, u16* out_alignment)
 {
+    dynamic_allocator_state* state = allocator->memory;
+    if (block < state->memory_block || block >= ((void*)((u8*)state->memory_block) + state->total_size))
+    {
+        // Not owned by this block
+        return false;
+    }
+
     // Get header
     *out_size = *(u32*)((u64)block - BSIZE_STORAGE);
+    BASSERT_MSG(*out_size, "dynamic_allocator_get_size_alignment found an out_size of 0. Memory corruption likely");
     alloc_header* header = (alloc_header*)((u64)block + *out_size);
     *out_alignment = header->alignment;
+    BASSERT_MSG(header->start, "dynamic_allocator_get_size_alignment found a header->start of 0. Memory corruption likely as this should always be at least 1");
+    BASSERT_MSG(header->alignment, "dynamic_allocator_get_size_alignment found a header->alignment of 0. Memory corruption likely as this should always be at least 1");
     return true;
 }
 

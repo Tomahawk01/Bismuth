@@ -5186,9 +5186,9 @@ static void* vulkan_alloc_reallocation(void* user_data, void* original, size_t s
     }
 
     // NOTE: if pOriginal is not null, the same alignment must be used for the new allocation as original
-    u64 alloc_size;
-    u16 alloc_alignment;
-    b8 is_aligned = bmemory_get_size_alignment(original, &alloc_size, &alloc_alignment);
+    u64 original_alloc_size;
+    u16 original_alloc_alignment;
+    b8 is_aligned = bmemory_get_size_alignment(original, &original_alloc_size, &original_alloc_alignment);
     if (!is_aligned)
     {
         BERROR("vulkan_alloc_reallocation of unaligned block %p", original);
@@ -5213,12 +5213,12 @@ static void* vulkan_alloc_reallocation(void* user_data, void* original, size_t s
 #endif
 
         // Copy over the original memory.
-        bcopy_memory(result, original, alloc_size);
+        bcopy_memory(result, original, BMIN(size, original_alloc_size) - 1);
 #ifdef BVULKAN_ALLOCATOR_TRACE
         BTRACE("Freeing original aligned block %p...", original);
 #endif
         // Free the original memory only if the new allocation was successful
-        bfree_aligned(original, alloc_size, alloc_alignment, MEMORY_TAG_VULKAN);
+        bfree_aligned(original, original_alloc_size, original_alloc_alignment, MEMORY_TAG_VULKAN);
     }
     else
     {

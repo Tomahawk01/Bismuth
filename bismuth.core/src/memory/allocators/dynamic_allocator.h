@@ -16,7 +16,7 @@ BAPI void* dynamic_allocator_allocate_aligned(dynamic_allocator* allocator, u64 
 BAPI b8 dynamic_allocator_free(dynamic_allocator* allocator, void* block, u64 size);
 BAPI b8 dynamic_allocator_free_aligned(dynamic_allocator* allocator, void* block);
 
-BAPI b8 dynamic_allocator_get_size_alignment(void* block, u64* out_size, u16* out_alignment);
+BAPI b8 dynamic_allocator_get_size_alignment(dynamic_allocator* allocator, void* block, u64* out_size, u16* out_alignment);
 
 BAPI u64 dynamic_allocator_free_space(dynamic_allocator* allocator);
 
