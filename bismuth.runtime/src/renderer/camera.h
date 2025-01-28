@@ -10,6 +10,8 @@ typedef struct camera
     b8 is_dirty;
 
     mat4 view_matrix;
+
+    mat4 transform;
 } camera;
 
 BAPI camera camera_create(void);
@@ -24,6 +26,7 @@ BAPI void camera_rotation_euler_set(camera* c, vec3 rotation);
 BAPI void camera_rotation_euler_set_radians(camera* c, vec3 rotation_radians);
 
 BAPI mat4 camera_view_get(camera* c);
+BAPI mat4 camera_inverse_view_get(camera* c);
 
 BAPI vec3 camera_forward(camera* c);
 BAPI vec3 camera_backward(camera* c);

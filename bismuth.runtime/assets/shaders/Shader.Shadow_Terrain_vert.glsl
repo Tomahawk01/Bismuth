@@ -11,8 +11,7 @@ layout(location = 5) in vec4 in_mat_weights; // Supports 4 materials
 
 layout(set = 0, binding = 0) uniform global_uniform_object
 {
-    mat4 projections[MAX_CASCADES];
-	mat4 views[MAX_CASCADES];
+    mat4 view_projections[MAX_CASCADES];
 } global_ubo;
 
 layout(push_constant) uniform push_constants
@@ -24,5 +23,5 @@ layout(push_constant) uniform push_constants
 
 void main()
 {
-    gl_Position = global_ubo.projections[local_ubo.cascade_index] * global_ubo.views[local_ubo.cascade_index] * local_ubo.model * vec4(in_position, 1.0);
+    gl_Position = global_ubo.view_projections[local_ubo.cascade_index] * local_ubo.model * vec4(in_position, 1.0);
 }

@@ -76,21 +76,36 @@ void camera_rotation_euler_set(camera* c, vec3 rotation)
     }
 }
 
+static void recalculate_view(camera* c)
+{
+    if (c && c->is_dirty)
+    {
+        mat4 rotation = mat4_euler_xyz(c->euler_rotation.x, c->euler_rotation.y, c->euler_rotation.z);
+        mat4 translation = mat4_translation(c->position);
+
+        c->transform = mat4_mul(rotation, translation);
+        c->view_matrix = mat4_inverse(c->transform);
+
+        c->is_dirty = false;
+    }
+}
+
 mat4 camera_view_get(camera* c)
 {
     if (c)
     {
-        if (c->is_dirty)
-        {
-            mat4 rotation = mat4_euler_xyz(c->euler_rotation.x, c->euler_rotation.y, c->euler_rotation.z);
-            mat4 translation = mat4_translation(c->position);
-
-            c->view_matrix = mat4_mul(rotation, translation);
-            c->view_matrix = mat4_inverse(c->view_matrix);
-
-            c->is_dirty = false;
-        }
+        recalculate_view(c);
         return c->view_matrix;
+    }
+    return mat4_identity();
+}
+
+mat4 camera_inverse_view_get(camera* c)
+{
+    if (c)
+    {
+        recalculate_view(c);
+        return c->transform;
     }
     return mat4_identity();
 }
@@ -99,7 +114,7 @@ vec3 camera_forward(camera* c)
 {
     if (c)
     {
-        mat4 view = camera_view_get(c);
+        mat4 view = camera_inverse_view_get(c);
         return mat4_forward(view);
     }
     return vec3_zero();
@@ -109,7 +124,7 @@ vec3 camera_backward(camera* c)
 {
     if (c)
     {
-        mat4 view = camera_view_get(c);
+        mat4 view = camera_inverse_view_get(c);
         return mat4_backward(view);
     }
     return vec3_zero();
@@ -119,7 +134,7 @@ vec3 camera_left(camera* c)
 {
     if (c)
     {
-        mat4 view = camera_view_get(c);
+        mat4 view = camera_inverse_view_get(c);
         return mat4_left(view);
     }
     return vec3_zero();
@@ -129,7 +144,7 @@ vec3 camera_right(camera* c)
 {
     if (c)
     {
-        mat4 view = camera_view_get(c);
+        mat4 view = camera_inverse_view_get(c);
         return mat4_right(view);
     }
     return vec3_zero();
@@ -139,7 +154,7 @@ vec3 camera_up(camera* c)
 {
     if (c)
     {
-        mat4 view = camera_view_get(c);
+        mat4 view = camera_inverse_view_get(c);
         return mat4_up(view);
     }
     return vec3_zero();
@@ -226,7 +241,7 @@ void camera_pitch(camera* c, f32 amount)
     {
         c->euler_rotation.x += amount;
 
-        static const f32 limit = 1.55334306f;  // 89 degrees in radians
+        static const f32 limit = 1.55334306f; // 89 degrees in radians
         c->euler_rotation.x = BCLAMP(c->euler_rotation.x, -limit, limit);
 
         c->is_dirty = true;
