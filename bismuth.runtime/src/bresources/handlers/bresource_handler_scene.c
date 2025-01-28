@@ -176,6 +176,8 @@ static void scene_basset_on_result(asset_request_result result, const struct bas
 
 static void copy_scene_node(const scene_node_config* source, scene_node_config* target)
 {
+    target->name = source->name;
+
     // Take a copy of attachment configs
     {
         if (source->skybox_configs)

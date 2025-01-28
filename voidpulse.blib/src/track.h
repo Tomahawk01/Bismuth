@@ -20,13 +20,22 @@ typedef struct track_point
     f32 rotation_y;
 } track_point;
 
+typedef struct track_segment
+{
+    track_point* start;
+    track_point* end;
+
+    // Geometry used to visualize the segment
+    bgeometry geometry;
+} track_segment;
+
 typedef struct track
 {
     // darray of points (darray so it's editable)
     track_point* points;
 
-    // Geometry used to visualize the track
-    bgeometry geometry;
+    // Track segments
+    track_segment* segments;
 
     // How many times each segment gets tessellated
     u32 segment_resolution;

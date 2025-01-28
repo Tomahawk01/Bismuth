@@ -16,6 +16,8 @@ f32 bsin(f32 x) { return sinf(x); }
 f32 bcos(f32 x) { return cosf(x); }
 f32 btan(f32 x) { return tanf(x); }
 f32 batan(f32 x) { return atanf(x); }
+f32 batan2(f32 x, f32 y) { return atan2(x, y); }
+f32 basin(f32 x) { return asinf(x); }
 f32 bacos(f32 x) { return acosf(x); }
 f32 bsqrt(f32 x) { return sqrtf(x); }
 f32 babs(f32 x) { return fabsf(x); }
