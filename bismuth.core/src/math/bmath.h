@@ -76,6 +76,11 @@ BAPI f32 blog(f32 x);
 BAPI f32 blog2(f32 x);
 BAPI f32 bpow(f32 x, f32 y);
 
+BINLINE f32 blerp(f32 a, f32 b, f32 t)
+{
+    return a + t * (b - a);
+}
+
 /**
  * Indicates if the value is a power of 2. 0 is considered _not_ a power of 2.
  * @param value The value to be interpreted.

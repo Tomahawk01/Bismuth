@@ -29,12 +29,6 @@ systems = [
         }
     }
     {
-        name="resource"
-        config = {
-            asset_base_path="../voidpulse.assets"
-        }
-    }
-    {
         name="audio"
         config = {
             backend_plugin_name = "bismuth.plugin.audio.openal"

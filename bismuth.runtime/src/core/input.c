@@ -2,10 +2,10 @@
 
 #include "containers/stack.h"
 #include "core/event.h"
-#include "frame_data.h"
 #include "core/keymap.h"
-#include "memory/bmemory.h"
+#include "frame_data.h"
 #include "logger.h"
+#include "memory/bmemory.h"
 
 typedef struct keyboard_state
 {
@@ -160,11 +160,13 @@ void input_process_key(keys key, b8 pressed)
                     unset = true;
                     break;
                 }
-                else if (pressed && binding->type == KEYMAP_BIND_TYPE_PRESS)
+
+                if (pressed && binding->type & KEYMAP_BIND_TYPE_PRESS)
                 {
                     if (binding->callback && check_modifiers(binding->modifiers))
                         binding->callback(key, binding->type, binding->modifiers, binding->user_data);
-                } else if (!pressed && binding->type == KEYMAP_BIND_TYPE_RELEASE)
+                }
+                if (!pressed && binding->type & KEYMAP_BIND_TYPE_RELEASE)
                 {
                     if (binding->callback && check_modifiers(binding->modifiers))
                         binding->callback(key, binding->type, binding->modifiers, binding->user_data);

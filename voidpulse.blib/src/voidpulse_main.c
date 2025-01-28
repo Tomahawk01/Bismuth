@@ -1,6 +1,12 @@
 #include "voidpulse_main.h"
 #include "version.h"
 
+#include "core/keymap.h"
+#include "math/geometry.h"
+#include "voidpulse_types.h"
+#include "renderer/renderer_types.h"
+#include "systems/bresource_system.h"
+
 #include <application/application_types.h>
 #include <containers/darray.h>
 #include <core/console.h>
@@ -31,7 +37,9 @@
 #include <systems/light_system.h>
 #include <systems/plugin_system.h>
 #include <systems/texture_system.h>
+#include <systems/timeline_system.h>
 #include <time/bclock.h>
+#include <time/time_utils.h>
 
 // Standard UI
 #include <controls/sui_button.h>
@@ -49,62 +57,59 @@
 // Utils plugin
 #include <editor/editor_gizmo.h>
 
+// Game files
+#include "track.h"
+
 struct baudio_system_state;
 
-typedef struct voidpulse_game_state
-{
-    b8 running;
-    camera* world_camera;
-    camera* editor_camera;
-    camera* current_camera;
-
-    u16 width, height;
-
-    struct baudio_system_state* audio_system;
-    struct bruntime_plugin* sui_plugin;
-    struct standard_ui_plugin_state* sui_plugin_state;
-    struct standard_ui_state* sui_state;
-
-    bclock update_clock;
-    bclock prepare_clock;
-    bclock render_clock;
-    f64 last_update_elapsed;
-
-    rendergraph forward_graph;
-    scene track_scene;
-
-    viewport world_viewport;
-    viewport ui_viewport;
-
-    u32 render_mode;
-
-    // HACK: Debug stuff to eventually be excluded on release builds
-    sui_control debug_text;
-    sui_control debug_text_shadow;
-    debug_console_state debug_console;
-    editor_gizmo gizmo;
-} voidpulse_game_state;
-
-typedef struct voidpulse_frame_data
-{
-    i32 dummy;
-} voidpulse_frame_data;
+static void game_on_escape_callback(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
+static void setup_keymaps(application* app);
+static void remove_keymaps(application* app);
+static void change_current_camera(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
+static void game_on_yaw(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
+static void game_on_pitch(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
+static void game_on_move_forward(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
+static void game_on_move_backward(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
+static void game_on_move_left(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
+static void game_on_move_right(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
+static void game_on_move_up(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
+static void game_on_move_down(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
+static void game_on_console_change_visibility(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
+static void game_on_set_render_mode_default(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
+static void game_on_set_render_mode_lighting(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
+static void game_on_set_render_mode_normals(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
+static void game_on_set_render_mode_cascades(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
+static void game_on_set_render_mode_wireframe(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
+static void game_on_set_gizmo_mode(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
+static void game_on_gizmo_orientation_set(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
+static void game_on_load_scene(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
+static void game_on_save_scene(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
+static void game_on_unload_scene(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
+static void game_on_play_sound(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
+static void game_on_toggle_sound(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
+static void game_on_console_scroll(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
+static void game_on_console_scroll_hold(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
+static void game_on_console_history_back(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
+static void game_on_console_history_forward(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
+static void game_on_debug_vsync_toggle(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
+static f32 get_engine_delta_time(void);
+static f32 get_engine_total_time(void);
 
 u64 application_state_size(void)
 {
-    return sizeof(voidpulse_game_state);
+    return sizeof(game_state);
 }
 
-b8 application_boot(struct application* game_inst)
+b8 application_boot(struct application* app)
 {
     BINFO("Booting Void Pulse (%s)...", BVERSION);
 
     // Allocate the game state
-    game_inst->state = ballocate(sizeof(voidpulse_game_state), MEMORY_TAG_GAME);
-    voidpulse_game_state* state = game_inst->state;
+    app->state = ballocate(sizeof(game_state), MEMORY_TAG_GAME);
+    game_state* state = app->state;
     state->running = false;
 
-    application_config* config = &game_inst->app_config;
+    application_config* config = &app->app_config;
 
     config->frame_allocator_size = MEBIBYTES(64);
     config->app_frame_data_size = sizeof(voidpulse_frame_data);
@@ -117,18 +122,26 @@ b8 application_boot(struct application* game_inst)
         return false;
     }
 
-    // TODO: Keymaps
+    // Keymaps
+    setup_keymaps(app);
+
+    input_keymap_push(&state->global_keymap);
+
+    // Set default game mode and keymap
+    state->mode = GAME_MODE_WORLD;
+    state->current_camera = state->vehicle_camera;
+    input_keymap_push(&state->world_keymap);
 
     // TODO: Console commands
 
     return true;
 }
 
-b8 application_initialize(struct application* game_inst)
+b8 application_initialize(struct application* app)
 {
     BINFO("Initializing application");
 
-    voidpulse_game_state* state = game_inst->state;
+    game_state* state = app->state;
 
     state->audio_system = engine_systems_get()->audio_system;
 
@@ -139,14 +152,14 @@ b8 application_initialize(struct application* game_inst)
     standard_ui_state* sui_state = state->sui_state;
 
 #ifdef BISMUTH_DEBUG
-    if (!debug_console_create(state->sui_state, &((voidpulse_game_state*)game_inst->state)->debug_console))
+    if (!debug_console_create(state->sui_state, &((game_state*)app->state)->debug_console))
         BERROR("Failed to create debug console");
 #endif
 
     // TODO: register for events here
 
     // Pick out rendergraph(s) config from app config, create/init them from here, save off to state
-    application_config* config = &game_inst->app_config;
+    application_config* config = &app->app_config;
     u32 rendergraph_count = darray_length(config->rendergraphs);
     if (rendergraph_count < 1)
     {
@@ -308,14 +321,18 @@ b8 application_initialize(struct application* game_inst)
     sui_control_position_set(sui_state, &state->debug_text, vec3_create(21, state->height - 74, 0));
 
     // Cameras
-    state->world_camera = camera_system_acquire("world");
-    camera_position_set(state->world_camera, (vec3){-3.95f, 4.25f, 15.8f});
-    camera_rotation_euler_set(state->world_camera, (vec3){-11.5f, -75.0f, 0.0f});
+    state->vehicle_camera = camera_system_acquire("vehicle");
+    camera_position_set(state->vehicle_camera, (vec3){-3.95f, 4.25f, 15.8f});
+    camera_rotation_euler_set(state->vehicle_camera, (vec3){-11.5f, -75.0f, 0.0f});
     // Set the active/current camera to the world camera by default
-    state->current_camera = state->world_camera;
+    state->current_camera = state->vehicle_camera;
 
     // TODO: debug only
     state->editor_camera = camera_system_acquire("editor");
+    camera_position_set(state->editor_camera, (vec3){-10.0f, 10.0f, -10.0f});
+    camera_rotation_euler_set(state->editor_camera, (vec3){-35.0f, 225.0f, 0.0f});
+    state->editor_camera_forward_move_speed = 5.0f * 5.0f;
+    state->editor_camera_backward_move_speed = 2.5f * 5.0f;
 
     // Clocks
     bzero_memory(&state->update_clock, sizeof(bclock));
@@ -350,13 +367,13 @@ b8 application_initialize(struct application* game_inst)
     return true;
 }
 
-b8 application_update(struct application* game_inst, struct frame_data* p_frame_data)
+b8 application_update(struct application* app, struct frame_data* p_frame_data)
 {
     voidpulse_frame_data* app_frame_data = (voidpulse_frame_data*)p_frame_data->application_frame_data;
     if (!app_frame_data)
         return true;
 
-    voidpulse_game_state* state = (voidpulse_game_state*)game_inst->state;
+    game_state* state = (game_state*)app->state;
     if (!state->running)
         return true;
 
@@ -462,12 +479,30 @@ b8 application_update(struct application* game_inst, struct frame_data* p_frame_
         }
 
         char* vsync_text = renderer_flag_enabled_get(RENDERER_CONFIG_FLAG_VSYNC_ENABLED_BIT) ? "YES" : " NO";
+        const char* time_str = time_as_string_from_seconds(get_engine_total_time());
+        const char* game_mode_text = "WORLD";
+        switch (state->mode)
+        {
+        case GAME_MODE_WORLD:
+            game_mode_text = "WORLD";
+            break;
+        case GAME_MODE_EDITOR:
+            game_mode_text = "EDITOR";
+            break;
+        case MAIN_MENU:
+            game_mode_text = "MAIN_MENU";
+            break;
+        case PAUSED_MENU:
+            game_mode_text = "PAUSE";
+            break;
+        }
+
         char* text_buffer = string_format(
             "\
 FPS: %5.1f(%4.1fms)        Pos=[%7.3f %7.3f %7.3f] Rot=[%7.3f, %7.3f, %7.3f]\n\
 Upd: %8.3fus, Prep: %8.3fus, Rend: %8.3fus, Total: %8.3fus \n\
 Mouse: X=%-5d Y=%-5d   L=%s R=%s   NDC: X=%.6f, Y=%.6f\n\
-VSync: %s Drawn: %-5u (%-5u shadow pass)",
+VSync: %s Drawn: %-5u (%-5u shadow pass), Mode: %s, Run time: %s",
             fps,
             frame_time,
             pos.x, pos.y, pos.z,
@@ -483,16 +518,19 @@ VSync: %s Drawn: %-5u (%-5u shadow pass)",
             mouse_y_ndc,
             vsync_text,
             p_frame_data->drawn_mesh_count,
-            p_frame_data->drawn_shadow_mesh_count);
+            p_frame_data->drawn_shadow_mesh_count,
+            game_mode_text,
+            time_str);
 
         // Update the text control
         sui_label_text_set(state->sui_state, &state->debug_text, text_buffer);
         sui_label_text_set(state->sui_state, &state->debug_text_shadow, text_buffer);
         string_free(text_buffer);
+        string_free(time_str);
     }
 
 #ifdef BISMUTH_DEBUG
-    debug_console_update(&((voidpulse_game_state*)game_inst->state)->debug_console);
+    debug_console_update(&((game_state*)app->state)->debug_console);
 #endif
 
     vec3 forward = camera_forward(state->current_camera);
@@ -505,9 +543,9 @@ VSync: %s Drawn: %-5u (%-5u shadow pass)",
     return true;
 }
 
-b8 application_prepare_frame(struct application* app_inst, struct frame_data* p_frame_data)
+b8 application_prepare_frame(struct application* app, struct frame_data* p_frame_data)
 {
-    voidpulse_game_state* state = (voidpulse_game_state*)app_inst->state;
+    game_state* state = (game_state*)app->state;
     if (!state->running)
         return false;
 
@@ -642,6 +680,25 @@ b8 application_prepare_frame(struct application* app_inst, struct frame_data* p_
                         &geometry_count, &geometries))
                 {
                     BERROR("Failed to query scene pass meshes");
+                }
+
+                // HACK: geometry render data for the collision_track
+                {
+                    bgeometry* g = &state->collision_track.geometry;
+                    geometry_render_data data = {0};
+                    data.model = mat4_identity();
+                    data.material = state->collision_track.material;
+                    data.vertex_count = g->vertex_count;
+                    data.vertex_buffer_offset = g->vertex_buffer_offset;
+                    data.vertex_element_size = g->vertex_element_size;
+                    data.index_count = g->index_count;
+                    data.index_buffer_offset = g->index_buffer_offset;
+                    data.index_element_size = g->index_element_size;
+                    data.unique_id = 0;
+                    data.winding_inverted = false;
+                    data.diffuse_color = vec4_one();
+                    darray_push(geometries, data);
+                    geometry_count++;
                 }
 
                 // Track the number of meshes drawn in the forward pass
@@ -945,10 +1002,10 @@ b8 application_prepare_frame(struct application* app_inst, struct frame_data* p_
     return true;
 }
 
-b8 application_render_frame(struct application* game_inst, struct frame_data* p_frame_data)
+b8 application_render_frame(struct application* app, struct frame_data* p_frame_data)
 {
     // Start the frame
-    voidpulse_game_state* state = (voidpulse_game_state*)game_inst->state;
+    game_state* state = (game_state*)app->state;
     if (!state->running)
         return true;
 
@@ -966,12 +1023,12 @@ b8 application_render_frame(struct application* game_inst, struct frame_data* p_
     return true;
 }
 
-void application_on_window_resize(struct application* game_inst, const struct bwindow* window)
+void application_on_window_resize(struct application* app, const struct bwindow* window)
 {
-    if (!game_inst->state)
+    if (!app->state)
         return;
 
-    voidpulse_game_state* state = (voidpulse_game_state*)game_inst->state;
+    game_state* state = (game_state*)app->state;
 
     state->width = window->width;
     state->height = window->height;
@@ -994,9 +1051,9 @@ void application_on_window_resize(struct application* game_inst, const struct bw
     sui_control_position_set(state->sui_state, &state->debug_text_shadow, vec3_create(21, state->height - 94, 0));
 }
 
-void application_shutdown(struct application* game_inst)
+void application_shutdown(struct application* app)
 {
-    voidpulse_game_state* state = (voidpulse_game_state*)game_inst->state;
+    game_state* state = (game_state*)app->state;
     state->running = false;
 
     if (state->track_scene.state == SCENE_STATE_LOADED)
@@ -1004,7 +1061,7 @@ void application_shutdown(struct application* game_inst)
         BDEBUG("Unloading scene...");
 
         scene_unload(&state->track_scene, true);
-        /* clear_debug_objects(game_inst); */
+        /* clear_debug_objects(app); */
         scene_destroy(&state->track_scene);
 
         BDEBUG("Done");
@@ -1017,29 +1074,492 @@ void application_shutdown(struct application* game_inst)
 #endif
 }
 
-void application_lib_on_unload(struct application* game_inst)
+void application_lib_on_unload(struct application* app)
 {
     // TODO: re-enable
-    /* application_unregister_events(game_inst); */
+    /* application_unregister_events(app); */
 #ifdef BISMUTH_DEBUG
-    debug_console_on_lib_unload(&((voidpulse_game_state*)game_inst->state)->debug_console);
+    debug_console_on_lib_unload(&((game_state*)app->state)->debug_console);
 #endif
     // TODO: re-enable
-    /* game_remove_commands(game_inst); */
-    /* game_remove_keymaps(game_inst); */
+    /* game_remove_commands(app); */
+    /* game_remove_keymaps(app); */
 }
 
-void application_lib_on_load(struct application* game_inst)
+void application_lib_on_load(struct application* app)
 {
     // TODO: re-enable
-    /* application_register_events(game_inst); */
+    /* application_register_events(app); */
 #ifdef BISMUTH_DEBUG
-    debug_console_on_lib_load(&((voidpulse_game_state*)game_inst->state)->debug_console, game_inst->stage >= APPLICATION_STAGE_BOOT_COMPLETE);
+    debug_console_on_lib_load(&((game_state*)app->state)->debug_console, app->stage >= APPLICATION_STAGE_BOOT_COMPLETE);
 #endif
-    if (game_inst->stage >= APPLICATION_STAGE_BOOT_COMPLETE)
+    if (app->stage >= APPLICATION_STAGE_BOOT_COMPLETE)
     {
         // TODO: re-enable
-        /* game_setup_commands(game_inst); */
-        /* game_setup_keymaps(game_inst); */
+        /* game_setup_commands(app); */
+        /* game_setup_keymaps(app); */
     }
+}
+
+static void setup_keymaps(application* app)
+{
+    game_state* state = ((game_state*)app->state);
+
+    // Global keymap
+    state->global_keymap = keymap_create();
+    keymap_binding_add(&state->global_keymap, KEY_ESCAPE, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_NONE_BIT, app, game_on_escape_callback);
+    keymap_binding_add(&state->global_keymap, KEY_V, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_NONE_BIT, app, game_on_debug_vsync_toggle);
+    keymap_binding_add(&state->global_keymap, KEY_GRAVE, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_NONE_BIT, app, game_on_console_change_visibility);
+    keymap_binding_add(&state->global_keymap, KEY_L, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_NONE_BIT, app, game_on_load_scene);
+    keymap_binding_add(&state->global_keymap, KEY_U, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_NONE_BIT, app, game_on_unload_scene);
+
+    // World mode keymap
+    state->world_keymap = keymap_create();
+    keymap_binding_add(&state->world_keymap, KEY_C, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_NONE_BIT, app, change_current_camera);
+
+    // Editor mode keymap
+    state->editor_keymap = keymap_create();
+    /* state->editor_keymap.overrides_all = true; */
+    keymap_binding_add(&state->editor_keymap, KEY_C, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_NONE_BIT, app, change_current_camera);
+    keymap_binding_add(&state->editor_keymap, KEY_A, KEYMAP_BIND_TYPE_HOLD, KEYMAP_MODIFIER_NONE_BIT, app, game_on_yaw);
+    keymap_binding_add(&state->editor_keymap, KEY_LEFT, KEYMAP_BIND_TYPE_HOLD, KEYMAP_MODIFIER_NONE_BIT, app, game_on_yaw);
+    keymap_binding_add(&state->editor_keymap, KEY_D, KEYMAP_BIND_TYPE_HOLD, KEYMAP_MODIFIER_NONE_BIT, app, game_on_yaw);
+    keymap_binding_add(&state->editor_keymap, KEY_RIGHT, KEYMAP_BIND_TYPE_HOLD, KEYMAP_MODIFIER_NONE_BIT, app, game_on_yaw);
+    keymap_binding_add(&state->editor_keymap, KEY_UP, KEYMAP_BIND_TYPE_HOLD, KEYMAP_MODIFIER_NONE_BIT, app, game_on_pitch);
+    keymap_binding_add(&state->editor_keymap, KEY_DOWN, KEYMAP_BIND_TYPE_HOLD, KEYMAP_MODIFIER_NONE_BIT, app, game_on_pitch);
+    keymap_binding_add(&state->editor_keymap, KEY_W, KEYMAP_BIND_TYPE_HOLD, KEYMAP_MODIFIER_NONE_BIT, app, game_on_move_forward);
+    keymap_binding_add(&state->editor_keymap, KEY_S, KEYMAP_BIND_TYPE_HOLD, KEYMAP_MODIFIER_NONE_BIT, app, game_on_move_backward);
+    keymap_binding_add(&state->editor_keymap, KEY_Q, KEYMAP_BIND_TYPE_HOLD, KEYMAP_MODIFIER_NONE_BIT, app, game_on_move_left);
+    keymap_binding_add(&state->editor_keymap, KEY_E, KEYMAP_BIND_TYPE_HOLD, KEYMAP_MODIFIER_NONE_BIT, app, game_on_move_right);
+    keymap_binding_add(&state->editor_keymap, KEY_SPACE, KEYMAP_BIND_TYPE_HOLD, KEYMAP_MODIFIER_NONE_BIT, app, game_on_move_up);
+    keymap_binding_add(&state->editor_keymap, KEY_X, KEYMAP_BIND_TYPE_HOLD, KEYMAP_MODIFIER_NONE_BIT, app, game_on_move_down);
+    keymap_binding_add(&state->editor_keymap, KEY_0, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_CONTROL_BIT, app, game_on_set_render_mode_default);
+    keymap_binding_add(&state->editor_keymap, KEY_1, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_CONTROL_BIT, app, game_on_set_render_mode_lighting);
+    keymap_binding_add(&state->editor_keymap, KEY_2, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_CONTROL_BIT, app, game_on_set_render_mode_normals);
+    keymap_binding_add(&state->editor_keymap, KEY_3, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_CONTROL_BIT, app, game_on_set_render_mode_cascades);
+    keymap_binding_add(&state->editor_keymap, KEY_4, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_CONTROL_BIT, app, game_on_set_render_mode_wireframe);
+    keymap_binding_add(&state->editor_keymap, KEY_1, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_NONE_BIT, app, game_on_set_gizmo_mode);
+    keymap_binding_add(&state->editor_keymap, KEY_2, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_NONE_BIT, app, game_on_set_gizmo_mode);
+    keymap_binding_add(&state->editor_keymap, KEY_3, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_NONE_BIT, app, game_on_set_gizmo_mode);
+    keymap_binding_add(&state->editor_keymap, KEY_4, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_NONE_BIT, app, game_on_set_gizmo_mode);
+    keymap_binding_add(&state->editor_keymap, KEY_G, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_NONE_BIT, app, game_on_gizmo_orientation_set);
+
+    // ctrl s
+    keymap_binding_add(&state->editor_keymap, KEY_S, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_CONTROL_BIT, app, game_on_save_scene);
+
+    // A console-specific keymap. Is not pushed by default
+    state->console_keymap = keymap_create();
+    state->console_keymap.overrides_all = true;
+    keymap_binding_add(&state->console_keymap, KEY_GRAVE, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_NONE_BIT, app, game_on_console_change_visibility);
+    keymap_binding_add(&state->console_keymap, KEY_ESCAPE, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_NONE_BIT, app, game_on_console_change_visibility);
+    keymap_binding_add(&state->console_keymap, KEY_PAGEUP, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_NONE_BIT, app, game_on_console_scroll);
+    keymap_binding_add(&state->console_keymap, KEY_PAGEDOWN, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_NONE_BIT, app, game_on_console_scroll);
+    keymap_binding_add(&state->console_keymap, KEY_PAGEUP, KEYMAP_BIND_TYPE_HOLD, KEYMAP_MODIFIER_NONE_BIT, app, game_on_console_scroll_hold);
+    keymap_binding_add(&state->console_keymap, KEY_PAGEDOWN, KEYMAP_BIND_TYPE_HOLD, KEYMAP_MODIFIER_NONE_BIT, app, game_on_console_scroll_hold);
+    keymap_binding_add(&state->console_keymap, KEY_UP, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_NONE_BIT, app, game_on_console_history_back);
+    keymap_binding_add(&state->console_keymap, KEY_DOWN, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_NONE_BIT, app, game_on_console_history_forward);
+
+// If this was done with the console open, push its keymap
+#if BISMUTH_DEBUG
+    b8 console_visible = debug_console_visible(&state->debug_console);
+    if (console_visible)
+        input_keymap_push(&state->console_keymap);
+#endif
+}
+
+static void remove_keymaps(application* app)
+{
+    //
+}
+
+static void game_on_escape_callback(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data)
+{
+    BDEBUG("game_on_escape_callback");
+    event_fire(EVENT_CODE_APPLICATION_QUIT, 0, (event_context){});
+}
+
+static void change_current_camera(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data)
+{
+    application* game_inst = (application*)user_data;
+    game_state* state = (game_state*)game_inst->state;
+
+    if (state->mode == GAME_MODE_WORLD)
+    {
+        state->mode = GAME_MODE_EDITOR;
+        state->current_camera = state->editor_camera;
+        BTRACE("Editor camera: %f %f %f", state->current_camera->position.x, state->current_camera->euler_rotation.y, state->current_camera->euler_rotation.z);
+        if (!input_keymap_pop())
+            BERROR("No keymap was popped during world->editor");
+        input_keymap_push(&state->editor_keymap);
+    }
+    else if (state->mode == GAME_MODE_EDITOR)
+    {
+        state->mode = GAME_MODE_WORLD;
+        state->current_camera = state->vehicle_camera;
+        BTRACE("Vehicle camera: %f %f %f", state->current_camera->position.x, state->current_camera->euler_rotation.y, state->current_camera->euler_rotation.z);
+        if (!input_keymap_pop())
+            BERROR("No keymap was popped during editor->world");
+        input_keymap_push(&state->world_keymap);
+    }
+    else
+    {
+        BERROR("Stuck in unknown state, changing to vehicle");
+        state->mode = GAME_MODE_WORLD;
+        state->current_camera = state->vehicle_camera;
+        if (!input_keymap_pop())
+            BFATAL("No keymap was popped during unknown->world");
+        input_keymap_push(&state->world_keymap);
+    }
+}
+
+static void game_on_yaw(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data)
+{
+    application* game_inst = (application*)user_data;
+    game_state* state = (game_state*)game_inst->state;
+
+    f32 f = 0.0f;
+    if (key == KEY_LEFT || key == KEY_A)
+    {
+        f = 1.0f;
+    }
+    else if (key == KEY_RIGHT || key == KEY_D)
+    {
+        f = -1.0f;
+    }
+    
+    camera_yaw(state->editor_camera, f * get_engine_delta_time());
+}
+
+static void game_on_pitch(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data)
+{
+    application* game_inst = (application*)user_data;
+    game_state* state = (game_state*)game_inst->state;
+
+    f32 f = 0.0f;
+    if (key == KEY_UP)
+    {
+        f = 1.0f;
+    }
+    else if (key == KEY_DOWN)
+    {
+        f = -1.0f;
+    }
+
+    camera_pitch(state->editor_camera, f * get_engine_delta_time());
+}
+
+static void game_on_move_forward(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data)
+{
+    application* game_inst = (application*)user_data;
+    game_state* state = (game_state*)game_inst->state;
+
+    camera_move_forward(state->editor_camera, state->editor_camera_forward_move_speed * get_engine_delta_time());
+}
+
+static void game_on_move_backward(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data)
+{
+    application* game_inst = (application*)user_data;
+    game_state* state = (game_state*)game_inst->state;
+
+    camera_move_backward(state->editor_camera, state->editor_camera_backward_move_speed * get_engine_delta_time());
+}
+
+static void game_on_move_left(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data)
+{
+    application* game_inst = (application*)user_data;
+    game_state* state = (game_state*)game_inst->state;
+
+    camera_move_left(state->editor_camera, state->editor_camera_forward_move_speed * get_engine_delta_time());
+}
+
+static void game_on_move_right(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data)
+{
+    application* game_inst = (application*)user_data;
+    game_state* state = (game_state*)game_inst->state;
+
+    camera_move_right(state->editor_camera, state->editor_camera_forward_move_speed * get_engine_delta_time());
+}
+
+static void game_on_move_up(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data)
+{
+    application* game_inst = (application*)user_data;
+    game_state* state = (game_state*)game_inst->state;
+
+    camera_move_up(state->editor_camera, state->editor_camera_forward_move_speed * get_engine_delta_time());
+}
+
+static void game_on_move_down(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data)
+{
+    application* game_inst = (application*)user_data;
+    game_state* state = (game_state*)game_inst->state;
+
+    camera_move_down(state->editor_camera, state->editor_camera_forward_move_speed * get_engine_delta_time());
+}
+
+static void game_on_console_change_visibility(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data)
+{
+#if BISMUTH_DEBUG
+    application* game_inst = (application*)user_data;
+    game_state* state = (game_state*)game_inst->state;
+
+    b8 console_visible = debug_console_visible(&state->debug_console);
+    console_visible = !console_visible;
+
+    debug_console_visible_set(&state->debug_console, console_visible);
+    if (console_visible)
+        input_keymap_push(&state->console_keymap);
+    else
+        input_keymap_pop();
+#endif
+}
+
+static void game_on_set_render_mode_default(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data)
+{
+    application* game_inst = (application*)user_data;
+    game_state* state = (game_state*)game_inst->state;
+    state->render_mode = RENDERER_VIEW_MODE_DEFAULT;
+}
+
+static void game_on_set_render_mode_lighting(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data)
+{
+    application* game_inst = (application*)user_data;
+    game_state* state = (game_state*)game_inst->state;
+    state->render_mode = RENDERER_VIEW_MODE_LIGHTING;
+}
+
+static void game_on_set_render_mode_normals(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data)
+{
+    application* game_inst = (application*)user_data;
+    game_state* state = (game_state*)game_inst->state;
+    state->render_mode = RENDERER_VIEW_MODE_NORMALS;
+}
+
+static void game_on_set_render_mode_cascades(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data)
+{
+    application* game_inst = (application*)user_data;
+    game_state* state = (game_state*)game_inst->state;
+    state->render_mode = RENDERER_VIEW_MODE_CASCADES;
+}
+
+static void game_on_set_render_mode_wireframe(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data)
+{
+    application* game_inst = (application*)user_data;
+    game_state* state = (game_state*)game_inst->state;
+    state->render_mode = RENDERER_VIEW_MODE_WIREFRAME;
+}
+
+static void game_on_set_gizmo_mode(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data)
+{
+    application* game_inst = (application*)user_data;
+    game_state* state = (game_state*)game_inst->state;
+
+    editor_gizmo_mode mode;
+    switch (key)
+    {
+    case KEY_1:
+    default:
+        mode = EDITOR_GIZMO_MODE_NONE;
+        break;
+    case KEY_2:
+        mode = EDITOR_GIZMO_MODE_MOVE;
+        break;
+    case KEY_3:
+        mode = EDITOR_GIZMO_MODE_ROTATE;
+        break;
+    case KEY_4:
+        mode = EDITOR_GIZMO_MODE_SCALE;
+        break;
+    }
+    editor_gizmo_mode_set(&state->gizmo, mode);
+}
+
+static void game_on_gizmo_orientation_set(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data)
+{
+    application* game_inst = (application*)user_data;
+    game_state* state = (game_state*)game_inst->state;
+
+    editor_gizmo_orientation orientation = editor_gizmo_orientation_get(&state->gizmo);
+    orientation++;
+    if (orientation > EDITOR_GIZMO_ORIENTATION_MAX)
+        orientation = 0;
+
+    editor_gizmo_orientation_set(&state->gizmo, orientation);
+}
+
+static void game_on_load_scene(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data)
+{
+    application* game_inst = (application*)user_data;
+    game_state* state = (game_state*)game_inst->state;
+    if (state->track_scene.state == SCENE_STATE_UNINITIALIZED)
+    {
+        BDEBUG("Loading track scene...");
+
+        bresource_scene_request_info request_info = {0};
+        request_info.base.type = BRESOURCE_TYPE_SCENE;
+        request_info.base.synchronous = true; // HACK: use a callback instead
+        request_info.base.assets = array_bresource_asset_info_create(1);
+        bresource_asset_info* asset = &request_info.base.assets.data[0];
+        asset->type = BASSET_TYPE_SCENE;
+        asset->asset_name = bname_create("track_00");
+        asset->package_name = bname_create("VoidPulse");
+
+        bresource_scene* scene_resource = (bresource_scene*)bresource_system_request(engine_systems_get()->bresource_state, bname_create("test_scene"), (bresource_request_info*)&request_info);
+        if (!scene_resource)
+        {
+            BERROR("Failed to request track scene resource. See logs for details");
+            return;
+        }
+
+        // Create the scene
+        scene_flags scene_load_flags = 0;
+        /* scene_load_flags |= SCENE_FLAG_READONLY;  // NOTE: to enable "editor mode", turn this flag off */
+        if (!scene_create(scene_resource, scene_load_flags, &state->track_scene))
+        {
+            BERROR("Failed to create track scene");
+            return;
+        }
+
+        // HACK: create track
+        if (!track_create(&state->collision_track))
+        {
+            BERROR("Failed to create collision track");
+            return;
+        }
+
+        // Initialize
+        if (!scene_initialize(&state->track_scene))
+        {
+            BERROR("Failed initialize track scene, aborting game");
+            return;
+        }
+
+        // HACK: initialize track
+        if (!track_initialize(&state->collision_track))
+        {
+            BERROR("Failed to initialize collision track");
+            return;
+        }
+
+        // Actually load the scene
+        if (!scene_load(&state->track_scene))
+        {
+            BERROR("Error loading track scene");
+        }
+
+        // HACK: load track
+        if (!track_load(&state->collision_track))
+        {
+            BERROR("Failed to load collision track");
+            return;
+        }
+    }
+}
+
+static void game_on_save_scene(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data)
+{
+    application* game_inst = (application*)user_data;
+    game_state* state = (game_state*)game_inst->state;
+    if (state->track_scene.state == SCENE_STATE_LOADED)
+    {
+        BDEBUG("Saving track scene...");
+        if (!scene_save(&state->track_scene))
+            BERROR("Error saving track scene");
+    }
+}
+
+static void game_on_unload_scene(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data)
+{
+    application* game_inst = (application*)user_data;
+    game_state* state = (game_state*)game_inst->state;
+    if (state->track_scene.state == SCENE_STATE_LOADED)
+    {
+        BDEBUG("Unloading track scene...");
+        scene_unload(&state->track_scene, false);
+        /* clear_debug_objects(game_inst); */
+    }
+}
+
+static void game_on_play_sound(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data)
+{
+    event_fire(EVENT_CODE_DEBUG3, (application*)user_data, (event_context){});
+}
+
+static void game_on_toggle_sound(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data)
+{
+    event_fire(EVENT_CODE_DEBUG4, (application*)user_data, (event_context){});
+}
+
+static void game_on_console_scroll(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data)
+{
+#if BISMUTH_DEBUG
+    application* app = (application*)user_data;
+    game_state* state = (game_state*)app->state;
+    debug_console_state* console_state = &state->debug_console;
+
+    if (key == KEY_PAGEUP)
+        debug_console_move_up(console_state);
+    else if (key == KEY_PAGEDOWN)
+        debug_console_move_down(console_state);
+#endif
+}
+
+static void game_on_console_scroll_hold(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data)
+{
+#if BISMUTH_DEBUG
+    application* app = (application*)user_data;
+    game_state* state = (game_state*)app->state;
+    debug_console_state* console_state = &state->debug_console;
+
+    static f32 accumulated_time = 0.0f;
+    accumulated_time += get_engine_delta_time();
+
+    if (accumulated_time >= 0.1f)
+    {
+        if (key == KEY_PAGEUP)
+            debug_console_move_up(console_state);
+        else if (key == KEY_PAGEDOWN)
+            debug_console_move_down(console_state);
+        accumulated_time = 0.0f;
+    }
+#endif
+}
+
+static void game_on_console_history_back(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data)
+{
+#if BISMUTH_DEBUG
+    application* game_inst = (application*)user_data;
+    game_state* state = (game_state*)game_inst->state;
+    debug_console_history_back(&state->debug_console);
+#endif
+}
+
+static void game_on_console_history_forward(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data)
+{
+#if BISMUTH_DEBUG
+    application* game_inst = (application*)user_data;
+    game_state* state = (game_state*)game_inst->state;
+    debug_console_history_forward(&state->debug_console);
+#endif
+}
+
+static void game_on_debug_vsync_toggle(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data)
+{
+    char cmd[30];
+    string_ncopy(cmd, "bvar_set_int vsync 0", 29);
+    b8 vsync_enabled = renderer_flag_enabled_get(RENDERER_CONFIG_FLAG_VSYNC_ENABLED_BIT);
+    u32 length = string_length(cmd);
+    cmd[length - 1] = vsync_enabled ? '1' : '0';
+    console_command_execute(cmd);
+}
+
+static f32 get_engine_delta_time(void)
+{
+    bhandle engine = timeline_system_get_engine();
+    return timeline_system_delta_get(engine);
+}
+
+static f32 get_engine_total_time(void)
+{
+    bhandle engine = timeline_system_get_engine();
+    return timeline_system_total_get(engine);
 }

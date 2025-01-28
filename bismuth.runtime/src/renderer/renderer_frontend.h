@@ -90,16 +90,12 @@ BAPI bhandle renderer_default_texture_get(struct renderer_system_state* state, r
 
 BAPI renderbuffer* renderer_renderbuffer_get(renderbuffer_type type);
 
-BDEPRECATED("The renderer frontend geometry functions will be removed in a future pass. Upload directly to renderbuffers instead")
 BAPI b8 renderer_geometry_upload(bgeometry* geometry);
 
-BDEPRECATED("The renderer frontend geometry functions will be removed in a future pass. Upload directly to renderbuffers instead")
 BAPI void renderer_geometry_vertex_update(bgeometry* g, u32 offset, u32 vertex_count, void* vertices, b8 include_in_frame_workload);
 
-BDEPRECATED("The renderer frontend geometry functions will be removed in a future pass. Upload directly to renderbuffers instead")
 BAPI void renderer_geometry_destroy(bgeometry* geometry);
 
-BDEPRECATED("The renderer frontend geometry functions will be removed in a future pass. Upload directly to renderbuffers instead")
 BAPI void renderer_geometry_draw(geometry_render_data* data);
 
 BAPI void renderer_clear_color_set(struct renderer_system_state* state, vec4 color);
