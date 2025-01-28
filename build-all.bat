@@ -71,7 +71,11 @@ make -j -f "Makefile.library.mak" %ACTION% TARGET=%TARGET% ASSEMBLY=bismuth.plug
 IF %ERRORLEVEL% NEQ 0 (echo Error:%ERRORLEVEL% && exit)
 
 REM Testbed lib
-make -j -f "Makefile.library.mak" %ACTION% TARGET=%TARGET% ASSEMBLY=testbed.blib VER_MAJOR=0 VER_MINOR=1 DO_VERSION=%DO_VERSION% ADDL_INC_FLAGS="%INC_CORE_RT% -Ibismuth.plugin.ui.standard\src -Ibismuth.plugin.audio.openal\src" ADDL_LINK_FLAGS="%LNK_CORE_RT% -lbismuth.plugin.ui.standard -lbismuth.plugin.audio.openal"
+make -j -f "Makefile.library.mak" %ACTION% TARGET=%TARGET% ASSEMBLY=testbed.blib VER_MAJOR=0 VER_MINOR=1 DO_VERSION=%DO_VERSION% ADDL_INC_FLAGS="%INC_CORE_RT% -Ibismuth.plugin.ui.standard\src -Ibismuth.plugin.audio.openal\src -Ibismuth.plugin.utils\src" ADDL_LINK_FLAGS="%LNK_CORE_RT% -lbismuth.plugin.ui.standard -lbismuth.plugin.audio.openal -lbismuth.plugin.utils"
+IF %ERRORLEVEL% NEQ 0 (echo Error:%ERRORLEVEL% && exit)
+
+REM Void Pulse lib
+make -j -f "Makefile.library.mak" %ACTION% TARGET=%TARGET% ASSEMBLY=voidpulse.blib VER_MAJOR=0 VER_MINOR=1 DO_VERSION=%DO_VERSION% ADDL_INC_FLAGS="%INC_CORE_RT% -Ibismuth.plugin.ui.standard\src -Ibismuth.plugin.audio.openal\src -Ibismuth.plugin.utils\src" ADDL_LINK_FLAGS="%LNK_CORE_RT% -lbismuth.plugin.ui.standard -lbismuth.plugin.audio.openal -lbismuth.plugin.utils"
 IF %ERRORLEVEL% NEQ 0 (echo Error:%ERRORLEVEL% && exit)
 
 @REM ---------------------------------------------------
@@ -80,6 +84,10 @@ IF %ERRORLEVEL% NEQ 0 (echo Error:%ERRORLEVEL% && exit)
 
 REM Testbed
 make -j -f "Makefile.executable.mak" %ACTION% TARGET=%TARGET% ASSEMBLY=testbed.bapp ADDL_INC_FLAGS="%INC_CORE_RT%" ADDL_LINK_FLAGS="%LNK_CORE_RT%"
+IF %ERRORLEVEL% NEQ 0 (echo Error:%ERRORLEVEL% && exit)
+
+REM Void Pulse app
+make -j -f "Makefile.executable.mak" %ACTION% TARGET=%TARGET% ASSEMBLY=voidpulse.bapp ADDL_INC_FLAGS="%INC_CORE_RT%" ADDL_LINK_FLAGS="%LNK_CORE_RT%"
 IF %ERRORLEVEL% NEQ 0 (echo Error:%ERRORLEVEL% && exit)
 
 REM Tests

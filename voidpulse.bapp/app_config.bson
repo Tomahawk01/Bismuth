@@ -1,21 +1,21 @@
 // Application config file
-app_name = "Bismuth Engine Testbed Application"
+app_name = "Void Pulse"
 frame_allocator_size = 128
 app_frame_data_size = 128
-manifest_file_path = "../testbed.bapp/asset_manifest.bson"
+manifest_file_path = "../voidpulse.bapp/asset_manifest.bson"
 windows = [
    {
     resolution = "1280 720"
     position="100 100"
     name="main_window"
-    title = "Testbed Main Window"
+    title = "Void Pulse"
    }
 ]
 package_config = {
     packages = [
         "Bismuth.Runtime"
         "Bismuth.Plugin.Ui.Standard"
-        "Testbed"
+        "VoidPulse"
     ]
     process_as_text [
         "SomeUserAssetType"
@@ -31,7 +31,7 @@ systems = [
     {
         name="resource"
         config = {
-            asset_base_path="../testbed.assets"
+            asset_base_path="../voidpulse.assets"
         }
     }
     {
@@ -108,13 +108,14 @@ systems = [
     {
        name="plugin_system"
        config = {
-           plugins = [
+            plugins = [
                 {
                     name = "bismuth.plugin.utils"
                 }
                 {
                     name = "bismuth.plugin.renderer.vulkan"
                     config = {
+                        
                     }
                 }
                 {
@@ -124,7 +125,7 @@ systems = [
                     }
                 }
                 {
-                     name = "bismuth.plugin.ui.standard"
+                    name = "bismuth.plugin.ui.standard"
                 }
             ]
         }

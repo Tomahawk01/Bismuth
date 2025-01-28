@@ -1,17 +1,16 @@
-#include <entry.h>
-
 #include <containers/darray.h>
 #include <core/event.h>
+#include <entry.h>
 #include <memory/bmemory.h>
 #include <platform/platform.h>
 #include <strings/bstring.h>
 
 typedef u64 (*PFN_application_state_size)(void);
 
-b8 load_game_lib(application* app)
+b8 load_game_lib(application *app)
 {
     // Dynamically load game library
-    if (!platform_dynamic_library_load("testbed.blib_loaded", &app->game_library))
+    if (!platform_dynamic_library_load("voidpulse.blib_loaded", &app->game_library))
         return false;
 
     if (!platform_dynamic_library_load_function("application_boot", &app->game_library))
@@ -28,12 +27,13 @@ b8 load_game_lib(application* app)
         return false;
     if (!platform_dynamic_library_load_function("application_shutdown", &app->game_library))
         return false;
+
     if (!platform_dynamic_library_load_function("application_lib_on_load", &app->game_library))
         return false;
     if (!platform_dynamic_library_load_function("application_lib_on_unload", &app->game_library))
         return false;
 
-    // Assign function pointers
+    // assign function pointers
     app->boot = app->game_library.functions[0].pfn;
     app->initialize = app->game_library.functions[1].pfn;
     app->update = app->game_library.functions[2].pfn;
@@ -44,16 +44,17 @@ b8 load_game_lib(application* app)
     app->lib_on_load = app->game_library.functions[7].pfn;
     app->lib_on_unload = app->game_library.functions[8].pfn;
 
+    // Invoke the onload
     app->lib_on_load(app);
 
     return true;
 }
 
-b8 watched_file_updated(u16 code, void* sender, void* listener_inst, event_context context)
+b8 watched_file_updated(u16 code, void *sender, void *listener_inst, event_context context)
 {
     if (code == EVENT_CODE_RESOURCE_HOT_RELOADED)
     {
-        application* app = (application*)listener_inst;
+        application *app = (application *)listener_inst;
         if (context.data.u32[0] == app->game_library.watch_id)
         {
             BINFO("Hot-Reloading game library");
@@ -61,7 +62,7 @@ b8 watched_file_updated(u16 code, void* sender, void* listener_inst, event_conte
             // Tell the app it is about to be unloaded
             app->lib_on_unload(app);
 
-            // Unload the app's lib
+            // Actually unload the app's lib
             if (!platform_dynamic_library_unload(&app->game_library))
             {
                 BERROR("Failed to unload game library");
@@ -71,12 +72,12 @@ b8 watched_file_updated(u16 code, void* sender, void* listener_inst, event_conte
             // Wait a bit before trying to copy the file
             platform_sleep(100);
 
-            const char* prefix = platform_dynamic_library_prefix();
-            const char* extension = platform_dynamic_library_extension();
+            const char *prefix = platform_dynamic_library_prefix();
+            const char *extension = platform_dynamic_library_extension();
             char source_file[260];
             char target_file[260];
-            string_format_unsafe(source_file, "%stestbed.blib%s", prefix, extension);
-            string_format_unsafe(target_file, "%stestbed.blib_loaded%s", prefix, extension);
+            string_format_unsafe(source_file, "%svoidpulse.blib%s", prefix, extension);
+            string_format_unsafe(target_file, "%svoidpulse.blib_loaded%s", prefix, extension);
 
             platform_error_code err_code = PLATFORM_ERROR_FILE_LOCKED;
             while (err_code == PLATFORM_ERROR_FILE_LOCKED)
@@ -87,7 +88,7 @@ b8 watched_file_updated(u16 code, void* sender, void* listener_inst, event_conte
             }
             if (err_code != PLATFORM_ERROR_SUCCESS)
             {
-                BERROR("File copy failed");
+                BERROR("File copy failed!");
                 return false;
             }
 
@@ -98,21 +99,21 @@ b8 watched_file_updated(u16 code, void* sender, void* listener_inst, event_conte
             }
         }
     }
+
     return false;
 }
 
-// Define function to create a game
-b8 create_application(application* out_application)
+// Define the function to create a game
+b8 create_application(application *out_application)
 {
     // Application configuration
     platform_error_code err_code = PLATFORM_ERROR_FILE_LOCKED;
     while (err_code == PLATFORM_ERROR_FILE_LOCKED)
     {
-        const char* prefix = platform_dynamic_library_prefix();
-        const char* extension = platform_dynamic_library_extension();
-        
-        char* source_file = string_format("%stestbed.blib%s", prefix, extension);
-        char* target_file = string_format("%stestbed.blib_loaded%s", prefix, extension);
+        const char *prefix = platform_dynamic_library_prefix();
+        const char *extension = platform_dynamic_library_extension();
+        char *source_file = string_format("%svoidpulse.blib%s", prefix, extension);
+        char *target_file = string_format("%svoidpulse.blib_loaded%s", prefix, extension);
         err_code = platform_copy_file(source_file, target_file, true);
         string_free(source_file);
         string_free(target_file);
@@ -121,13 +122,13 @@ b8 create_application(application* out_application)
     }
     if (err_code != PLATFORM_ERROR_SUCCESS)
     {
-        BERROR("File copy failed");
+        BERROR("File copy failed!");
         return false;
     }
 
     if (!load_game_lib(out_application))
     {
-        BERROR("Initial game lib load failed");
+        BERROR("Initial game lib load failed!");
         return false;
     }
 
@@ -137,26 +138,26 @@ b8 create_application(application* out_application)
     return true;
 }
 
-const char* application_config_path_get(void)
+const char *application_config_path_get(void)
 {
-    return "../testbed.bapp/app_config.bson";
+    return "../voidpulse.bapp/app_config.bson";
 }
 
-b8 initialize_application(application* app)
+b8 initialize_application(application *app)
 {
     if (!event_register(EVENT_CODE_RESOURCE_HOT_RELOADED, app, watched_file_updated))
         return false;
 
-    const char* prefix = platform_dynamic_library_prefix();
-    const char* extension = platform_dynamic_library_extension();
+    const char *prefix = platform_dynamic_library_prefix();
+    const char *extension = platform_dynamic_library_extension();
     // FIXME: safe version of string format
     char path[260];
     bzero_memory(path, sizeof(char) * 260);
-    string_format_unsafe(path, "%s%s%s", prefix, "testbed.blib", extension);
-
+    string_format_unsafe(path, "%s%s%s", prefix, "voidpulse.blib", extension);
+    
     if (!platform_watch_file(path, &app->game_library.watch_id))
     {
-        BERROR("Failed to watch testbed library");
+        BERROR("Failed to watch the voidpulse library!");
         return false;
     }
 

@@ -1254,7 +1254,7 @@ static void baudio_emitter_update(struct baudio_system_state* state, baudio_emit
         // Check if in range. If so, need to start playing
         if (vec3_distance(state->listener_position, emitter->world_position) <= emitter->outer_radius)
         {
-            BTRACE("Audio emitter came into listener range. Stopping...");
+            BTRACE("Audio emitter came into listener range. Playing...");
             // HACK: Don't hardcode this. Config? Define family group, or index
             baudio_play(state, emitter->instance, -1);
             emitter->playing_in_range = true;

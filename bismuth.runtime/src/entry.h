@@ -8,8 +8,8 @@
 
 // Externally-defined function to create application
 extern b8 create_application(application* out_app);
-
 extern b8 initialize_application(application* app);
+extern const char* application_config_path_get(void);
 
 /**
  * @brief The main entry point of the application
@@ -20,7 +20,7 @@ int main(void)
     // Request application instance from the application
     application app_inst = {0};
 
-    const char* app_file_content = filesystem_read_entire_text_file("../testbed.bapp/app_config.bson");
+    const char* app_file_content = filesystem_read_entire_text_file(application_config_path_get());
     if (!app_file_content)
     {
         BFATAL("Failed to read app_config.bson file text. Application cannot start");

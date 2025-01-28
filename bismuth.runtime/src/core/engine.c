@@ -228,6 +228,8 @@ b8 engine_create(application* game_inst)
         // TODO: deserialize from app config
         vfs_config vfs_sys_config = {0};
         vfs_sys_config.text_user_types = 0;
+        // Take a copy of the asset manifest path
+        vfs_sys_config.manifest_file_path = string_duplicate(game_inst->app_config.manifest_file_path);
 
         vfs_initialize(&systems->vfs_system_memory_requirement, 0, 0);
         systems->vfs_system_state = ballocate(systems->vfs_system_memory_requirement, MEMORY_TAG_ENGINE);

@@ -93,7 +93,7 @@ void bresource_handler_audio_release(struct bresource_handler* self, bresource* 
         t->pcm_data = 0;
         t->pcm_data_size = 0;
         if (t->mono_pcm_data && t->downmixed_size)
-            bfree(t->mono_pcm_data, t->total_sample_count * sizeof(i16), MEMORY_TAG_AUDIO);
+            bfree(t->mono_pcm_data, t->downmixed_size, MEMORY_TAG_AUDIO);
         t->mono_pcm_data = 0;
         t->downmixed_size = 0;
 
@@ -118,7 +118,7 @@ static void audio_basset_on_result(asset_request_result result, const struct bas
         if (listener->typed_resource->channels == 2)
         {
             listener->typed_resource->mono_pcm_data = baudio_downmix_stereo_to_mono(listener->typed_resource->pcm_data, listener->typed_resource->total_sample_count);
-            listener->typed_resource->downmixed_size = listener->typed_resource->total_sample_count * sizeof(i16);
+            listener->typed_resource->downmixed_size = (listener->typed_resource->total_sample_count / 2) * sizeof(i16);
         }
         else
         {
