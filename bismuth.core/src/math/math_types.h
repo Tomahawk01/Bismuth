@@ -253,3 +253,8 @@ typedef union vec4i_t
         };
     };
 } vec4i;
+
+typedef struct triangle
+{
+    vec3 verts[3];
+} triangle;

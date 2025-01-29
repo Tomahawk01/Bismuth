@@ -4,6 +4,13 @@
 #include "systems/material_system.h"
 #include <math/math_types.h>
 
+typedef struct triangle_with_adjacency
+{
+    triangle tri;
+    u32 index;
+    u32 adjacent_triangles[3];
+} triangle_with_adjacency;
+
 typedef struct track_point
 {
     vec3 position;
@@ -18,15 +25,25 @@ typedef struct track_point
 
     // Segments may only be rotated on y
     f32 rotation_y;
+
+    // Leftmost point, generated from geometry. Takes height into account
+    vec3 left;
+    // Rightmost point, generated from geometry. Takes height into account
+    vec3 right;
 } track_point;
 
 typedef struct track_segment
 {
+    u32 index;
+
     track_point* start;
     track_point* end;
 
     // Geometry used to visualize the segment
     bgeometry geometry;
+
+    u32 triangle_count;
+    triangle_with_adjacency* triangles;
 } track_segment;
 
 typedef struct track
@@ -50,4 +67,4 @@ b8 track_load(track* t);
 void track_unload(track* t);
 void track_destroy(track* t);
 
-vec3 track_constrain_object(vec3 object_position, track* t);
+vec3 constrain_to_track(vec3 vehicle_point, vec3 velocity, track* t, vec3* out_surface_normal);
