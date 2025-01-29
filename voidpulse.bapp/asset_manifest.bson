@@ -24,9 +24,19 @@ assets = [
         source_path = "./assets/models/source/Tree.obj"
     }
     {
+        name = "prototype_1024"
+        path = "./assets/images/prototype_1024.bbi"
+        source_path = "./assets/images/source/prototype_1024.png"
+    }
+    {
         name = "testcube"
         path = "./assets/models/testcube.bsm"
         source_path = "./assets/models/source/testcube.obj"
+    }
+    {
+        name = "testcube_mat"
+        path = "./assets/materials/testcube_mat.bmt"
+        source_path = "./assets/models/source/testcube.mtl"
     }
     {
         name = "Fire_loop"
