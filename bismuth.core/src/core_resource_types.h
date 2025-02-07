@@ -1,6 +1,7 @@
 #pragma once
 
 #include "containers/array.h"
+#include "core_physics_types.h"
 #include "math/math_types.h"
 #include "strings/bname.h"
 
@@ -14,6 +15,7 @@ typedef enum scene_node_attachment_type
     SCENE_NODE_ATTACHMENT_TYPE_STATIC_MESH,
     SCENE_NODE_ATTACHMENT_TYPE_HEIGHTMAP_TERRAIN,
     SCENE_NODE_ATTACHMENT_TYPE_WATER_PLANE,
+    SCENE_NODE_ATTACHMENT_TYPE_PHYSICS_BODY,
     SCENE_NODE_ATTACHMENT_TYPE_COUNT
 } scene_node_attachment_type;
 
@@ -25,7 +27,8 @@ static const char* scene_node_attachment_type_strings[SCENE_NODE_ATTACHMENT_TYPE
     "audio_emitter",     // SCENE_NODE_ATTACHMENT_TYPE_AUDIO_EMITTER,
     "static_mesh",       // SCENE_NODE_ATTACHMENT_TYPE_STATIC_MESH,
     "heightmap_terrain", // SCENE_NODE_ATTACHMENT_TYPE_STATIC_HEIGHTMAP_TERRAIN,
-    "water_plane"        // SCENE_NODE_ATTACHMENT_TYPE_WATER_PLANE,
+    "water_plane",       // SCENE_NODE_ATTACHMENT_TYPE_WATER_PLANE,
+    "physics_body"       // SCENE_NODE_ATTACHMENT_TYPE_PHYSICS_BODY,
 };
 
 // Ensure changes to scene attachment types break this if it isn't also updated
@@ -97,10 +100,21 @@ typedef struct scene_node_attachment_water_plane_config
     // TODO: expand configurable properties
 } scene_node_attachment_water_plane_config;
 
+typedef struct scene_node_attachment_physics_body_config
+{
+    scene_node_attachment_config base;
+    bphysics_body_type body_type;
+    bphysics_shape_type shape_type;
+    vec3 extents;
+    f32 radius;
+    bname mesh_resource_name;
+} scene_node_attachment_physics_body_config;
+
 typedef struct scene_node_config
 {
     /** @brief The name of node */
     bname name;
+
     /** @brief Darray of skybox attachment configs */
     scene_node_attachment_skybox_config* skybox_configs;
     /** @brief Darray of directional light attachment configs */
@@ -115,6 +129,9 @@ typedef struct scene_node_config
     scene_node_attachment_heightmap_terrain_config* heightmap_terrain_configs;
     /** @brief Darray of water plane attachment configs */
     scene_node_attachment_water_plane_config* water_plane_configs;
+    /** @brief Darray of physics body attachment configs */
+    scene_node_attachment_physics_body_config* physics_body_configs;
+
     /** @brief The number of children within this node */
     u32 child_count;
     /** @brief An array of of children within this node */

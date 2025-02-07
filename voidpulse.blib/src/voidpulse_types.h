@@ -70,6 +70,7 @@ typedef struct game_state
     // HACK: Gameplay stuff
     bhandle test_vehicle_xform;
     bhandle test_vehicle_mesh_xform;
+    bhandle test_vehicle_physics_body;
 } game_state;
 
 typedef struct voidpulse_frame_data

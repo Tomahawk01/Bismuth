@@ -1,6 +1,7 @@
 #include "application_config.h"
 
 #include "containers/darray.h"
+#include "defines.h"
 #include "logger.h"
 #include "math/bmath.h"
 #include "parsers/bson_parser.h"
@@ -43,6 +44,15 @@ b8 application_config_parse_file_content(const char* file_content, application_c
         out_config->frame_allocator_size = 64;
     else
         out_config->frame_allocator_size = (u64)frame_alloc_size;
+    
+#if BISMUTH_DEBUG
+    // clamp_fps is optional and only available on debug builds, so use a defualt if it isn't defined
+    i64 clamp_fps_i64 = 0; // bson doesn't do unsigned ints, so convert it after
+    if (!bson_object_property_value_get_int(&app_config_tree.root, "clamp_fps", &clamp_fps_i64))
+        out_config->clamp_fps = 0;
+    else
+        out_config->clamp_fps = BCLAMP(clamp_fps_i64, 0, 255);
+#endif
 
     // app_frame_data_size is optional, so use a defualt if it isn't defined
     i64 iapp_frame_data_size = 0; // bson doesn't do unsigned ints, so convert it after

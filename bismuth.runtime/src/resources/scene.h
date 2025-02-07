@@ -6,8 +6,8 @@
 #include "identifiers/bhandle.h"
 #include "bresources/bresource_types.h"
 #include "math/math_types.h"
+#include "physics/physics_types.h"
 #include "resources/debug/debug_grid.h"
-#include "resources/resource_types.h"
 #include "systems/static_mesh_system.h"
 
 struct frame_data;
@@ -95,6 +95,7 @@ typedef struct scene_water_plane_metadata
 } scene_water_plane_metadata;
 
 struct scene_audio_emitter;
+struct scene_physics_body;
 
 typedef struct scene
 {
@@ -106,6 +107,9 @@ typedef struct scene
 
     bname name;
     char* description;
+
+    b8 physics_enabled;
+    vec3 physics_gravity;
 
     // darray of directional lights
     struct directional_light* dir_lights;
@@ -149,6 +153,14 @@ typedef struct scene
     scene_attachment* water_plane_attachments;
     // Array of water plane metadata
     scene_water_plane_metadata* water_plane_metadata;
+
+    // The physics world
+    bphysics_world physics_world;
+
+    // darray of scene physics bodies
+    struct scene_physics_body* physics_bodies;
+    // Array of scene attachments for physics bodies
+    scene_attachment* physics_body_attachments;
 
     // A grid for the scene
     debug_grid grid;
@@ -249,5 +261,8 @@ BAPI b8 scene_terrain_render_data_query_from_line(const scene* scene, vec3 direc
 BAPI b8 scene_water_plane_query(const scene* scene, const frustum* f, vec3 center, struct frame_data* p_frame_data, u32* out_count, struct water_plane*** out_water_planes);
 
 BAPI b8 scene_node_xform_get_by_name(const scene* scene, bname name, bhandle* out_xform_handle);
+
+BAPI bphysics_world* scene_physics_world_get(scene* s);
+BAPI b8 scene_physics_body_get_by_name(const scene* s, bname name, bhandle* out_body_handle);
 
 BAPI b8 scene_save(scene* s);

@@ -453,6 +453,20 @@ mat4 xform_world_get(bhandle t)
     return mat4_identity();
 }
 
+void xform_local_set(bhandle t, mat4 local)
+{
+    xform_system_state* state = engine_systems_get()->xform_system;
+    if (!bhandle_is_invalid(t))
+    {
+        state->local_matrices[t.handle_index] = local;
+        
+        // Extract other properties from the matrix
+        state->positions[t.handle_index] = mat4_position_get(&local);
+        state->rotations[t.handle_index] = mat4_rotation_get(&local);
+        state->scales[t.handle_index] = mat4_scale_get(&local);
+    }
+}
+
 mat4 xform_local_get(bhandle t)
 {
     xform_system_state* state = engine_systems_get()->xform_system;

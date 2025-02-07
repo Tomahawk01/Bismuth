@@ -456,6 +456,8 @@ typedef struct bresource_scene
     const char* description;
     u32 node_count;
     scene_node_config* nodes;
+    b8 physics_enabled;
+    vec3 physics_gravity;
 } bresource_scene;
 
 typedef struct bresource_scene_request_info

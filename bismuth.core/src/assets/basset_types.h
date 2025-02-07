@@ -319,6 +319,8 @@ typedef struct basset_scene
     const char* description;
     u32 node_count;
     scene_node_config* nodes;
+    b8 physics_enabled;
+    vec3 physics_gravity;
 } basset_scene;
 
 #define BASSET_TYPE_NAME_SHADER "Shader"
