@@ -16,7 +16,8 @@ typedef enum scene_node_attachment_type
     SCENE_NODE_ATTACHMENT_TYPE_HEIGHTMAP_TERRAIN,
     SCENE_NODE_ATTACHMENT_TYPE_WATER_PLANE,
     SCENE_NODE_ATTACHMENT_TYPE_PHYSICS_BODY,
-    SCENE_NODE_ATTACHMENT_TYPE_COUNT
+    SCENE_NODE_ATTACHMENT_TYPE_COUNT,
+    SCENE_NODE_ATTACHMENT_TYPE_USER_DEFINED
 } scene_node_attachment_type;
 
 static const char* scene_node_attachment_type_strings[SCENE_NODE_ATTACHMENT_TYPE_COUNT] = {
@@ -39,6 +40,12 @@ typedef struct scene_node_attachment_config
     scene_node_attachment_type type;
     bname name;
 } scene_node_attachment_config;
+
+typedef struct scene_node_attachment_user_defined_config
+{
+    scene_node_attachment_config base;
+    const char* config_source;
+} scene_node_attachment_user_defined_config;
 
 typedef struct scene_node_attachment_skybox_config
 {
@@ -103,8 +110,9 @@ typedef struct scene_node_attachment_water_plane_config
 typedef struct scene_node_attachment_physics_body_config
 {
     scene_node_attachment_config base;
-    bphysics_body_type body_type;
     bphysics_shape_type shape_type;
+    f32 mass;
+    f32 inertia;
     vec3 extents;
     f32 radius;
     bname mesh_resource_name;
@@ -131,6 +139,8 @@ typedef struct scene_node_config
     scene_node_attachment_water_plane_config* water_plane_configs;
     /** @brief Darray of physics body attachment configs */
     scene_node_attachment_physics_body_config* physics_body_configs;
+
+    scene_node_attachment_user_defined_config* user_defined_configs;
 
     /** @brief The number of children within this node */
     u32 child_count;
