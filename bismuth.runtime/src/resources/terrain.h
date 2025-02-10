@@ -3,8 +3,9 @@
 #include "identifiers/identifier.h"
 #include "defines.h"
 #include "math/math_types.h"
-#include "resources/resource_types.h"
 #include "systems/material_system.h"
+
+#define TERRAIN_MAX_MATERIAL_COUNT 4
 
 typedef struct terrain_vertex
 {

@@ -10,7 +10,6 @@
 #include <math/bmath.h>
 #include <memory/bmemory.h>
 #include <renderer/renderer_frontend.h>
-#include <resources/resource_types.h>
 #include <strings/bstring.h>
 #include <systems/font_system.h>
 #include <systems/shader_system.h>

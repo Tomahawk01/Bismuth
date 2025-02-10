@@ -7,7 +7,6 @@
 #include <math/geometry.h>
 #include <math/bmath.h>
 #include <renderer/renderer_frontend.h>
-#include <resources/resource_types.h>
 #include <strings/bstring.h>
 #include <systems/shader_system.h>
 

@@ -8,7 +8,6 @@
 #include "logger.h"
 #include "memory/bmemory.h"
 #include "renderer/renderer_frontend.h"
-#include "resources/resource_types.h"
 #include "runtime_defines.h"
 #include "systems/bresource_system.h"
 #include "strings/bname.h"
@@ -32,40 +31,6 @@ typedef struct texture_system_state
 
     struct bresource_system_state* bresource_system;
 } texture_system_state;
-
-typedef struct texture_load_params
-{
-    char* resource_name;
-    bresource_texture* out_texture;
-    bresource_texture temp_texture;
-    resource image_resource;
-} texture_load_params;
-
-typedef struct texture_load_layered_params
-{
-    char* name;
-    u32 layer_count;
-    char** layer_names;
-    bresource_texture* out_texture;
-} texture_load_layered_params;
-
-typedef enum texture_load_job_code
-{
-    TEXTURE_LOAD_JOB_CODE_FIRST_QUERY_FAILED,
-    TEXTURE_LOAD_JOB_CODE_RESOURCE_LOAD_FAILED,
-    TEXTURE_LOAD_JOB_CODE_RESOURCE_DIMENSION_MISMATCH,
-} texture_load_job_code;
-
-typedef struct texture_load_layered_result
-{
-    char* name;
-    u32 layer_count;
-    bresource_texture* out_texture;
-    u64 data_block_size;
-    u8* data_block;
-    bresource_texture temp_texture;
-    texture_load_job_code result_code;
-} texture_load_layered_result;
 
 static texture_system_state* state_ptr = 0;
 

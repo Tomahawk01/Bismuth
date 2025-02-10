@@ -17,7 +17,6 @@
 #include <memory/bmemory.h>
 #include <renderer/renderer_frontend.h>
 #include <renderer/renderer_types.h>
-#include <resources/resource_types.h>
 #include <strings/bname.h>
 #include <strings/bstring.h>
 #include <systems/font_system.h>

@@ -738,6 +738,16 @@ BAPI b8 bson_object_property_value_get_string_as_bstring_id(const bson_object* o
 BAPI b8 bson_object_property_value_get_object(const bson_object* object, const char* name, bson_object* out_value);
 
 /**
+ * @brief Attempts to retrieve an object of the given name from the object provided and serialize it to a BSON string.
+ * Fails if not found or type mismatch. NOTE: The return value is dynamically allocated and must be freed by the caller
+ *
+ * @param object A constant pointer to the object to search. Required
+ * @param name The property name to search for. Required
+ * @return The serialized BSON string on success; otherwise null/0
+ */
+BAPI const char* bson_object_property_value_get_object_as_source_string(const bson_object* object, const char* name);
+
+/**
  * @brief Attempts to retrieve the a copy given object's property value by name as an array. Fails if not found or on type mismatch
  *
  * @param object A constant pointer to the object to search. Required.
