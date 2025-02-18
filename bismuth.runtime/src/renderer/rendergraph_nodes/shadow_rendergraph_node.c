@@ -13,7 +13,6 @@
 #include "renderer/renderer_frontend.h"
 #include "renderer/rendergraph.h"
 #include "renderer/viewport.h"
-#include "resources/resource_types.h"
 #include "strings/bname.h"
 #include "strings/bstring.h"
 #include "systems/material_system.h"

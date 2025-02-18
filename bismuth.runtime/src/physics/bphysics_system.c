@@ -838,9 +838,9 @@ void bphysics_world_destroy(struct bphysics_system_state* state, bphysics_world*
 
 b8 bphysics_set_world(bphysics_system_state* state, bphysics_world* world)
 {
-    if (!state || !world)
+    if (!state)
     {
-        BERROR("bphysics_set_world requires valid pointers to state and world!");
+        BERROR("bphysics_set_world requires a valid pointer to state!");
         return false;
     }
 
