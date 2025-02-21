@@ -143,7 +143,7 @@ void* _darray_insert_at(void* array, u64 index, void* value_ptr)
     // Set the value at the index
     bcopy_memory((void*)(addr + (index * stride)), value_ptr, stride);
 
-    darray_length_set(array, length - 1);
+    darray_length_set(array, length + 1);
     return array;
 }
 

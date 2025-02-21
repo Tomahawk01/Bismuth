@@ -370,15 +370,15 @@ bgeometry geometry_generate_plane(f32 width, f32 height, u32 x_segment_count, u3
 
     bgeometry out_geometry = {0};
     out_geometry.name = name;
-    out_geometry.type = BGEOMETRY_TYPE_3D_STATIC_COLOR_ONLY;
+    out_geometry.type = BGEOMETRY_TYPE_3D_STATIC;
     out_geometry.generation = INVALID_ID_U16;
     out_geometry.extents.min = (vec3){-half_width, -half_height, 0.0f};
     out_geometry.extents.max = (vec3){half_width, half_height, 0.0f};
     // Always 0 since min/max of each axis are -/+ half of the size
     out_geometry.center = vec3_zero();
-    out_geometry.vertex_element_size = sizeof(color_vertex_3d);
+    out_geometry.vertex_element_size = sizeof(vertex_3d);
     out_geometry.vertex_count = x_segment_count * y_segment_count * 4; // 4 verts per segment
-    out_geometry.vertices = BALLOC_TYPE_CARRAY(color_vertex_3d, out_geometry.vertex_count);
+    out_geometry.vertices = BALLOC_TYPE_CARRAY(vertex_3d, out_geometry.vertex_count);
     out_geometry.vertex_buffer_offset = INVALID_ID_U64;
     out_geometry.index_element_size = sizeof(u32);
     out_geometry.index_count = x_segment_count * y_segment_count * 6; // 6 indices per segment
@@ -762,7 +762,7 @@ bgeometry geometry_generate_grid(grid_orientation orientation, u32 segment_count
 {
     bgeometry out_geometry = {0};
     out_geometry.name = name;
-    out_geometry.type = BGEOMETRY_TYPE_3D_STATIC;
+    out_geometry.type = BGEOMETRY_TYPE_3D_STATIC_COLOR_ONLY;
     out_geometry.generation = INVALID_ID_U16;
 
     f32 max_0 = segment_count_dim_0 * segment_scale;
@@ -793,10 +793,10 @@ bgeometry geometry_generate_grid(grid_orientation orientation, u32 segment_count
     }
     // Always 0 since min/max of each axis are -/+ half of the size
     out_geometry.center = vec3_zero();
-    out_geometry.vertex_element_size = sizeof(vertex_3d);
+    out_geometry.vertex_element_size = sizeof(color_vertex_3d);
     // 2 verts per line, 1 line per tile in each direction, plus one in the middle for each direction. Adding 2 more for third axis
     out_geometry.vertex_count = ((segment_count_dim_0 * 2 + 1) * 2) + ((segment_count_dim_1 * 2 + 1) * 2) + 2;
-    out_geometry.vertices = BALLOC_TYPE_CARRAY(vertex_3d, out_geometry.vertex_count);
+    out_geometry.vertices = BALLOC_TYPE_CARRAY(color_vertex_3d, out_geometry.vertex_count);
     out_geometry.vertex_buffer_offset = INVALID_ID_U64;
     out_geometry.index_element_size = sizeof(u32);
     out_geometry.index_count = 0; // no indices

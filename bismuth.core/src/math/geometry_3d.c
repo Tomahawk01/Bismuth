@@ -61,7 +61,9 @@ b8 raycast_aabb(extents_3d bb_extents, const ray* r, vec3* out_point)
             inside = false;
         }
         else
+        {
             quadrant[i] = 2;  // middle
+        }
     }
 
     // Ray origin inside bounding box
@@ -101,7 +103,9 @@ b8 raycast_aabb(extents_3d bb_extents, const ray* r, vec3* out_point)
                 return false;
         }
         else
+        {
             out_point->elements[i] = candidate_plane.elements[i];
+        }
     }
 
     // Hits box
