@@ -23,6 +23,7 @@
 #include <platform/vulkan_platform.h>
 #include <renderer/renderer_frontend.h>
 #include <renderer/renderer_types.h>
+#include <resources/resource_types.h>
 #include <strings/bname.h>
 #include <strings/bstring.h>
 #include <utils/bsort.h>

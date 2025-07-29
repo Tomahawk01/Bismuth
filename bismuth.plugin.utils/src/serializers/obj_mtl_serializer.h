@@ -4,6 +4,7 @@
 #include <assets/basset_types.h>
 #include <defines.h>
 #include <math/math_types.h>
+#include <resources/resource_types.h>
 
 typedef struct obj_mtl_source_material
 {

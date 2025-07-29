@@ -5,6 +5,7 @@
 #include <core/event.h>
 #include <core/input.h>
 #include <memory/bmemory.h>
+#include <resources/resource_types.h>
 #include <strings/bstring.h>
 
 #include "controls/sui_label.h"
