@@ -20,6 +20,8 @@ typedef enum application_stage
     APPLICATION_STAGE_SHUTTING_DOWN
 } application_stage;
 
+struct application_state;
+
 typedef struct application
 {
     // The application configuration
@@ -52,7 +54,7 @@ typedef struct application
     application_stage stage;
 
     // application-specific state. Created and managed by the application
-    void* state;
+    struct application_state* state;
 
     // Application state
     void* engine_state;

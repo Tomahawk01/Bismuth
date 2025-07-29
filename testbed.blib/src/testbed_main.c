@@ -100,7 +100,7 @@ static f32 get_engine_delta_time(void)
 
 static void clear_debug_objects(struct application* game_inst)
 {
-    testbed_game_state* state = (testbed_game_state*)game_inst->state;
+    application_state* state = (application_state*)game_inst->state;
 
     if (state->test_boxes)
     {
@@ -130,7 +130,7 @@ static void clear_debug_objects(struct application* game_inst)
 b8 game_on_event(u16 code, void* sender, void* listener_inst, event_context context)
 {
     application* game_inst = (application*)listener_inst;
-    testbed_game_state* state = (testbed_game_state*)game_inst->state;
+    application_state* state = (application_state*)game_inst->state;
 
     switch (code)
     {
@@ -176,7 +176,7 @@ b8 game_on_event(u16 code, void* sender, void* listener_inst, event_context cont
 b8 game_on_debug_event(u16 code, void* sender, void* listener_inst, event_context data)
 {
     application* game_inst = (application*)listener_inst;
-    testbed_game_state* state = (testbed_game_state*)game_inst->state;
+    application_state* state = (application_state*)game_inst->state;
 
     if (code == EVENT_CODE_DEBUG0)
     {
@@ -255,7 +255,7 @@ static b8 game_on_drag(u16 code, void* sender, void* listener_inst, event_contex
     i16 x = context.data.i16[0];
     i16 y = context.data.i16[1];
     u16 drag_button = context.data.u16[2];
-    testbed_game_state* state = (testbed_game_state*)listener_inst;
+    application_state* state = (application_state*)listener_inst;
 
     // Left button drags
     if (drag_button == MOUSE_BUTTON_LEFT)
@@ -306,7 +306,7 @@ b8 game_on_button(u16 code, void* sender, void* listener_inst, event_context con
             {
                 i16 x = context.data.i16[1];
                 i16 y = context.data.i16[2];
-                testbed_game_state* state = (testbed_game_state*)listener_inst;
+                application_state* state = (application_state*)listener_inst;
 
                 // If scene isn't loaded, don't do anything else
                 if (state->main_scene.state != SCENE_STATE_LOADED)
@@ -420,7 +420,7 @@ static b8 game_on_mouse_move(u16 code, void* sender, void* listener_inst, event_
         i16 x = context.data.i16[0];
         i16 y = context.data.i16[1];
 
-        testbed_game_state* state = (testbed_game_state*)listener_inst;
+        application_state* state = (application_state*)listener_inst;
 
         mat4 view = camera_view_get(state->world_camera);
         vec3 origin = camera_position_get(state->world_camera);
@@ -446,7 +446,7 @@ static void sui_test_button_on_click(struct standard_ui_state* state, struct sui
 
 u64 application_state_size(void)
 {
-    return sizeof(testbed_game_state);
+    return sizeof(application_state);
 }
 
 b8 application_boot(struct application* game_inst)
@@ -454,8 +454,8 @@ b8 application_boot(struct application* game_inst)
     BINFO("Booting sandbox...");
 
     // Allocate game state
-    game_inst->state = ballocate(sizeof(testbed_game_state), MEMORY_TAG_GAME);
-    testbed_game_state* state = game_inst->state;
+    game_inst->state = ballocate(sizeof(application_state), MEMORY_TAG_GAME);
+    application_state* state = game_inst->state;
     state->running = false;
 
     application_config* config = &game_inst->app_config;
@@ -482,7 +482,7 @@ b8 application_initialize(struct application* game_inst)
 {
     BDEBUG("application_initialize() called!");
 
-    testbed_game_state* state = (testbed_game_state*)game_inst->state;
+    application_state* state = (application_state*)game_inst->state;
     state->audio_system = engine_systems_get()->audio_system;
 
     // Get the standard ui plugin
@@ -492,7 +492,7 @@ b8 application_initialize(struct application* game_inst)
     standard_ui_state* sui_state = state->sui_state;
 
 #ifdef BISMUTH_DEBUG
-    if (!debug_console_create(state->sui_state, &((testbed_game_state*)game_inst->state)->debug_console))
+    if (!debug_console_create(state->sui_state, &((application_state*)game_inst->state)->debug_console))
         BERROR("Failed to create debug console");
 #endif
 
@@ -862,7 +862,7 @@ b8 application_update(struct application* game_inst, struct frame_data* p_frame_
     if (!app_frame_data)
         return true;
 
-    testbed_game_state* state = (testbed_game_state*)game_inst->state;
+    application_state* state = (application_state*)game_inst->state;
     if (!state->running)
         return true;
     
@@ -1000,7 +1000,7 @@ VSync: %s Drawn: %-5u (%-5u shadow pass) Hovered: %s%u",
     }
 
 #ifdef BISMUTH_DEBUG
-    debug_console_update(&((testbed_game_state*)game_inst->state)->debug_console);
+    debug_console_update(&((application_state*)game_inst->state)->debug_console);
 #endif
 
     vec3 forward = camera_forward(state->world_camera);
@@ -1015,7 +1015,7 @@ VSync: %s Drawn: %-5u (%-5u shadow pass) Hovered: %s%u",
 
 b8 application_prepare_frame(struct application* app_inst, struct frame_data* p_frame_data)
 {
-    testbed_game_state* state = (testbed_game_state*)app_inst->state;
+    application_state* state = (application_state*)app_inst->state;
     if (!state->running)
         return false;
 
@@ -1470,7 +1470,7 @@ b8 application_prepare_frame(struct application* app_inst, struct frame_data* p_
 b8 application_render_frame(struct application* game_inst, struct frame_data* p_frame_data)
 {
     // Start the frame
-    testbed_game_state* state = (testbed_game_state*)game_inst->state;
+    application_state* state = (application_state*)game_inst->state;
     if (!state->running)
         return true;
 
@@ -1493,7 +1493,7 @@ void application_on_window_resize(struct application* game_inst, const struct bw
     if (!game_inst->state)
         return;
 
-    testbed_game_state* state = (testbed_game_state*)game_inst->state;
+    application_state* state = (application_state*)game_inst->state;
 
     state->width = window->width;
     state->height = window->height;
@@ -1525,7 +1525,7 @@ void application_on_window_resize(struct application* game_inst, const struct bw
 
 void application_shutdown(struct application* game_inst)
 {
-    testbed_game_state* state = (testbed_game_state*)game_inst->state;
+    application_state* state = (application_state*)game_inst->state;
     state->running = false;
 
     if (state->main_scene.state == SCENE_STATE_LOADED)
@@ -1550,7 +1550,7 @@ void application_lib_on_unload(struct application* game_inst)
 {
     application_unregister_events(game_inst);
 #ifdef BISMUTH_DEBUG
-    debug_console_on_lib_unload(&((testbed_game_state*)game_inst->state)->debug_console);
+    debug_console_on_lib_unload(&((application_state*)game_inst->state)->debug_console);
 #endif
     game_remove_commands(game_inst);
     game_remove_keymaps(game_inst);
@@ -1560,7 +1560,7 @@ void application_lib_on_load(struct application* game_inst)
 {
     application_register_events(game_inst);
 #ifdef BISMUTH_DEBUG
-    debug_console_on_lib_load(&((testbed_game_state*)game_inst->state)->debug_console, game_inst->stage >= APPLICATION_STAGE_BOOT_COMPLETE);
+    debug_console_on_lib_load(&((application_state*)game_inst->state)->debug_console, game_inst->stage >= APPLICATION_STAGE_BOOT_COMPLETE);
 #endif
     if (game_inst->stage >= APPLICATION_STAGE_BOOT_COMPLETE)
     {
@@ -1636,7 +1636,7 @@ void application_unregister_events(struct application* game_inst)
 
 static b8 load_main_scene(struct application* game_inst)
 {
-    testbed_game_state* state = (testbed_game_state*)game_inst->state;
+    application_state* state = (application_state*)game_inst->state;
 
     bresource_scene_request_info request_info = {0};
     request_info.base.type = BRESOURCE_TYPE_SCENE;
@@ -1693,7 +1693,7 @@ static b8 save_main_scene(struct application* game_inst)
     if (!game_inst)
         return false;
 
-    testbed_game_state* state = (testbed_game_state*)game_inst->state;
+    application_state* state = (application_state*)game_inst->state;
 
     return scene_save(&state->main_scene);
 }

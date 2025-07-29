@@ -38,7 +38,7 @@ typedef struct selected_object
     bhandle xform_parent_handle;
 } selected_object;
 
-typedef struct testbed_game_state
+typedef struct application_state
 {
     b8 running;
     camera* world_camera;
@@ -107,7 +107,7 @@ typedef struct testbed_game_state
     u32 proj_box_index;
     u32 cam_proj_line_indices[24];
     // TODO: end temp
-} testbed_game_state;
+} application_state;
 
 typedef struct testbed_application_frame_data
 {
