@@ -81,9 +81,23 @@ typedef struct scene_volume
     const char* on_leave_command;
     const char* on_update_command;
 
+    u32 hit_sphere_tag_count;
+    bname* hit_sphere_tags;
+
     // debug rendering data
     scene_debug_data* debug_data;
+
+    // darray of indices into the scene's hit_spheres array
+    u32* hit_sphere_indices;
 } scene_volume;
+
+typedef struct scene_hit_sphere
+{
+    f32 radius;
+
+    // debug rendering data
+    scene_debug_data* debug_data;
+} scene_hit_sphere;
 
 /** @brief A private structure used to sort geometry by distance from the camera */
 typedef struct geometry_distance
@@ -138,6 +152,7 @@ b8 scene_create(bresource_scene* config, scene_flags flags, scene* out_scene)
     out_scene->skyboxes = darray_create(skybox);
     out_scene->water_planes = darray_create(water_plane);
     out_scene->volumes = darray_create(scene_volume);
+    out_scene->hit_spheres = darray_create(scene_hit_sphere);
 
     // Internal lists of attachments
     /* out_scene->attachments = darray_create(scene_attachment); */
@@ -149,6 +164,7 @@ b8 scene_create(bresource_scene* config, scene_flags flags, scene* out_scene)
     out_scene->audio_emitter_attachments = darray_create(scene_attachment);
     out_scene->water_plane_attachments = darray_create(scene_attachment);
     out_scene->volume_attachments = darray_create(scene_attachment);
+    out_scene->hit_sphere_attachments = darray_create(scene_attachment);
 
     b8 is_readonly = ((out_scene->flags & SCENE_FLAG_READONLY) != 0);
     if (!is_readonly)
@@ -239,6 +255,11 @@ void scene_destroy(scene* s)
             darray_destroy(s->volumes);
         if (s->volume_attachments)
             darray_destroy(s->volume_attachments);
+
+        if (s->hit_spheres)
+            darray_destroy(s->hit_spheres);
+        if (s->hit_sphere_attachments)
+            darray_destroy(s->hit_sphere_attachments);
 
         bzero_memory(s, sizeof(scene));
         
@@ -335,6 +356,12 @@ void scene_node_initialize(scene* s, bhandle parent_handle, scene_node_config* n
                     attachment->resource_handle = bhandle_create(index);
                     attachment->hierarchy_node_handle = hierarchy_node_handle;
                     attachment->attachment_type = SCENE_NODE_ATTACHMENT_TYPE_SKYBOX;
+                    attachment->tag_count = typed_attachment_config->base.tag_count;
+                    if (attachment->tag_count)
+                    {
+                        attachment->tags = BALLOC_TYPE_CARRAY(bname, attachment->tag_count);
+                        BCOPY_TYPE_CARRAY(attachment->tags, typed_attachment_config->base.tags, bname, attachment->tag_count);
+                    }
 
                     // For "edit" mode, retain metadata
                     if (!is_readonly)
@@ -408,6 +435,12 @@ void scene_node_initialize(scene* s, bhandle parent_handle, scene_node_config* n
                     attachment->resource_handle = bhandle_create(index);
                     attachment->hierarchy_node_handle = hierarchy_node_handle;
                     attachment->attachment_type = SCENE_NODE_ATTACHMENT_TYPE_DIRECTIONAL_LIGHT;
+                    attachment->tag_count = typed_attachment_config->base.tag_count;
+                    if (attachment->tag_count)
+                    {
+                        attachment->tags = BALLOC_TYPE_CARRAY(bname, attachment->tag_count);
+                        BCOPY_TYPE_CARRAY(attachment->tags, typed_attachment_config->base.tags, bname, attachment->tag_count);
+                    }
 
                     // NOTE: These dont have metadata. If metadata is required, get it here
                     /* if (!is_readonly)
@@ -478,6 +511,12 @@ void scene_node_initialize(scene* s, bhandle parent_handle, scene_node_config* n
                     attachment->resource_handle = bhandle_create(index);
                     attachment->hierarchy_node_handle = hierarchy_node_handle;
                     attachment->attachment_type = SCENE_NODE_ATTACHMENT_TYPE_POINT_LIGHT;
+                    attachment->tag_count = typed_attachment_config->base.tag_count;
+                    if (attachment->tag_count)
+                    {
+                        attachment->tags = BALLOC_TYPE_CARRAY(bname, attachment->tag_count);
+                        BCOPY_TYPE_CARRAY(attachment->tags, typed_attachment_config->base.tags, bname, attachment->tag_count);
+                    }
 
                     // NOTE: These dont have metadata. If metadata is required, get it here
                     /* if (!is_readonly)
@@ -561,6 +600,12 @@ void scene_node_initialize(scene* s, bhandle parent_handle, scene_node_config* n
                     attachment->resource_handle = bhandle_create(index);
                     attachment->hierarchy_node_handle = hierarchy_node_handle;
                     attachment->attachment_type = SCENE_NODE_ATTACHMENT_TYPE_AUDIO_EMITTER;
+                    attachment->tag_count = typed_attachment_config->base.tag_count;
+                    if (attachment->tag_count)
+                    {
+                        attachment->tags = BALLOC_TYPE_CARRAY(bname, attachment->tag_count);
+                        BCOPY_TYPE_CARRAY(attachment->tags, typed_attachment_config->base.tags, bname, attachment->tag_count);
+                    }
 
                     // NOTE: These dont have metadata. If metadata is required, get it here
                     /* if (!is_readonly)
@@ -621,6 +666,12 @@ void scene_node_initialize(scene* s, bhandle parent_handle, scene_node_config* n
                     attachment->resource_handle = bhandle_create(index);
                     attachment->hierarchy_node_handle = hierarchy_node_handle;
                     attachment->attachment_type = SCENE_NODE_ATTACHMENT_TYPE_STATIC_MESH;
+                    attachment->tag_count = typed_attachment_config->base.tag_count;
+                    if (attachment->tag_count)
+                    {
+                        attachment->tags = BALLOC_TYPE_CARRAY(bname, attachment->tag_count);
+                        BCOPY_TYPE_CARRAY(attachment->tags, typed_attachment_config->base.tags, bname, attachment->tag_count);
+                    }
 
                     // For "edit" mode, retain metadata
                     if (!is_readonly)
@@ -711,6 +762,13 @@ void scene_node_initialize(scene* s, bhandle parent_handle, scene_node_config* n
                     attachment->resource_handle = bhandle_create(index);
                     attachment->hierarchy_node_handle = hierarchy_node_handle;
                     attachment->attachment_type = SCENE_NODE_ATTACHMENT_TYPE_HEIGHTMAP_TERRAIN;
+                    attachment->tag_count = typed_attachment_config->base.tag_count;
+                    if (attachment->tag_count)
+                    {
+                        attachment->tags = BALLOC_TYPE_CARRAY(bname, attachment->tag_count);
+                        BCOPY_TYPE_CARRAY(attachment->tags, typed_attachment_config->base.tags, bname, attachment->tag_count);
+                    }
+
                     // For "edit" mode, retain metadata
                     if (!is_readonly)
                     {
@@ -728,7 +786,7 @@ void scene_node_initialize(scene* s, bhandle parent_handle, scene_node_config* n
             u32 count = darray_length(node_config->water_plane_configs);
             for (u32 i = 0; i < count; ++i)
             {
-                /* scene_node_attachment_water_plane_config* typed_attachment_config = &node_config->water_plane_configs[i]; */
+                scene_node_attachment_water_plane_config* typed_attachment_config = &node_config->water_plane_configs[i];
 
                 /* if (!typed_attachment_config->asset_name)
                 {
@@ -777,6 +835,12 @@ void scene_node_initialize(scene* s, bhandle parent_handle, scene_node_config* n
                     attachment->resource_handle = bhandle_create(index);
                     attachment->hierarchy_node_handle = hierarchy_node_handle;
                     attachment->attachment_type = SCENE_NODE_ATTACHMENT_TYPE_WATER_PLANE;
+                    attachment->tag_count = typed_attachment_config->base.tag_count;
+                    if (attachment->tag_count)
+                    {
+                        attachment->tags = BALLOC_TYPE_CARRAY(bname, attachment->tag_count);
+                        BCOPY_TYPE_CARRAY(attachment->tags, typed_attachment_config->base.tags, bname, attachment->tag_count);
+                    }
 
                     // For "edit" mode, retain metadata
                     if (!is_readonly)
@@ -803,6 +867,18 @@ void scene_node_initialize(scene* s, bhandle parent_handle, scene_node_config* n
                 new_volume.type = typed_attachment_config->volume_type;
                 new_volume.shape_type = typed_attachment_config->shape_type;
 
+                // Tags
+                new_volume.hit_sphere_tag_count = typed_attachment_config->hit_sphere_tag_count;
+                if (new_volume.hit_sphere_tag_count)
+                {
+                    new_volume.hit_sphere_tags = BALLOC_TYPE_CARRAY(bname, new_volume.hit_sphere_tag_count);
+                    BCOPY_TYPE_CARRAY(new_volume.hit_sphere_tags, typed_attachment_config->hit_sphere_tags, bname, new_volume.hit_sphere_tag_count);
+                }
+                else
+                {
+                    new_volume.hit_sphere_tags = 0;
+                }
+
                 // Add debug data and initialize it
                 new_volume.debug_data = BALLOC_TYPE(scene_debug_data, MEMORY_TAG_RESOURCE);
                 scene_debug_data* debug = new_volume.debug_data;
@@ -812,7 +888,7 @@ void scene_node_initialize(scene* s, bhandle parent_handle, scene_node_config* n
                 case SCENE_VOLUME_SHAPE_TYPE_SPHERE:
                     new_volume.shape_config.radius = typed_attachment_config->shape_config.radius;
                     // Create debug sphere
-                    if (!debug_sphere3d_create(typed_attachment_config->shape_config.radius, (vec4){1.0f, 0.0f, 1.0f, 1.0f}, bhandle_invalid(), &debug->sphere))
+                    if (!debug_sphere3d_create(typed_attachment_config->shape_config.radius, (vec4){1.0f, 0.0f, 1.0f, 1.0f}, xform_handle, &debug->sphere))
                     {
                         BERROR("Failed to create debug sphere for sphere volume");
                     }
@@ -820,10 +896,7 @@ void scene_node_initialize(scene* s, bhandle parent_handle, scene_node_config* n
                     {
                         // xform_position_set(debug->sphere.xform, new_emitter.data.position);
                     }
-                    if (!debug_sphere3d_initialize(&debug->sphere))
-                    {
-                        BERROR("Failed to create debug sphere for sphere volume");
-                    }
+                    init_result = debug_sphere3d_initialize(&debug->sphere);
                     break;
                 case SCENE_VOLUME_SHAPE_TYPE_RECTANGLE:
                     new_volume.shape_config.extents = typed_attachment_config->shape_config.extents;
@@ -835,20 +908,23 @@ void scene_node_initialize(scene* s, bhandle parent_handle, scene_node_config* n
                     {
                         /* xform_position_set(debug->box.xform, vec3_from_vec4(new_volume.data.position)); */
                     }
-                    if (!debug_box3d_initialize(&debug->box))
+                    init_result = debug_box3d_initialize(&debug->box);
+
+                    if (init_result)
                     {
-                        BERROR("Failed to create debug box for rectangle volume");
+                        debug_box3d_color_set(&debug->box, (vec4){1.0f, 0.0f, 1.0f, 1.0f});
+                        debug_box3d_update(&debug->box);
                     }
                     break;
                 }
 
-                // Commands
-                new_volume.on_enter_command = string_duplicate(typed_attachment_config->on_enter_command);
-                new_volume.on_leave_command = string_duplicate(typed_attachment_config->on_leave_command);
-                new_volume.on_update_command = string_duplicate(typed_attachment_config->on_update_command);
-
                 if (init_result)
                 {
+                    // Commands
+                    new_volume.on_enter_command = string_duplicate(typed_attachment_config->on_enter_command);
+                    new_volume.on_leave_command = string_duplicate(typed_attachment_config->on_leave_command);
+                    new_volume.on_update_command = string_duplicate(typed_attachment_config->on_update_command);
+
                     // Find a free slot and take it, or push a new one
                     u32 volume_count = darray_length(s->volumes);
                     darray_push(s->volumes, new_volume);
@@ -857,12 +933,76 @@ void scene_node_initialize(scene* s, bhandle parent_handle, scene_node_config* n
                     attachment->resource_handle = bhandle_create(volume_count);
                     attachment->hierarchy_node_handle = hierarchy_node_handle;
                     attachment->attachment_type = SCENE_NODE_ATTACHMENT_TYPE_VOLUME;
+                    attachment->tag_count = typed_attachment_config->base.tag_count;
+                    if (attachment->tag_count)
+                    {
+                        attachment->tags = BALLOC_TYPE_CARRAY(bname, attachment->tag_count);
+                        BCOPY_TYPE_CARRAY(attachment->tags, typed_attachment_config->base.tags, bname, attachment->tag_count);
+                    }
 
                     // NOTE: These dont have metadata. If metadata is required, get it here
                     /* if (!is_readonly)
                     {
                         scene_point_light_metadata* meta = 0;
                     } */
+                }
+                else
+                {
+                    BERROR("Failed to create debug shape for volume");
+                }
+            }
+        }
+
+        // Hit spheres
+        if (node_config->hit_sphere_configs)
+        {
+            u32 count = darray_length(node_config->hit_sphere_configs);
+            for (u32 i = 0; i < count; ++i)
+            {
+                scene_node_attachment_hit_sphere_config* typed_attachment_config = &node_config->hit_sphere_configs[i];
+
+                scene_hit_sphere new_hit_sphere = {0};
+                new_hit_sphere.radius = typed_attachment_config->radius;
+
+                // Add debug data and initialize it
+                new_hit_sphere.debug_data = BALLOC_TYPE(scene_debug_data, MEMORY_TAG_RESOURCE);
+                scene_debug_data* debug = new_hit_sphere.debug_data;
+                // Create debug sphere TODO: color?
+                if (!debug_sphere3d_create(typed_attachment_config->radius, (vec4){0.0f, 0.5f, 1.0f, 1.0f}, bhandle_invalid(), &debug->sphere))
+                {
+                    BERROR("Failed to create debug sphere for hit sphere");
+                }
+                else
+                {
+                    // xform_position_set(debug->sphere.xform, new_emitter.data.position);
+                }
+
+                if (debug_sphere3d_initialize(&debug->sphere))
+                {
+                    // Find a free slot and take it, or push a new one
+                    u32 hit_sphere_count = darray_length(s->hit_spheres);
+                    darray_push(s->hit_spheres, new_hit_sphere);
+                    darray_push(s->hit_sphere_attachments, (scene_attachment){0});
+                    scene_attachment* attachment = &s->hit_sphere_attachments[hit_sphere_count];
+                    attachment->resource_handle = bhandle_create(hit_sphere_count);
+                    attachment->hierarchy_node_handle = hierarchy_node_handle;
+                    attachment->attachment_type = SCENE_NODE_ATTACHMENT_TYPE_HIT_SPHERE;
+                    attachment->tag_count = typed_attachment_config->base.tag_count;
+                    if (attachment->tag_count)
+                    {
+                        attachment->tags = BALLOC_TYPE_CARRAY(bname, attachment->tag_count);
+                        BCOPY_TYPE_CARRAY(attachment->tags, typed_attachment_config->base.tags, bname, attachment->tag_count);
+                    }
+
+                    // NOTE: These dont have metadata. If metadata is required, get it here
+                    /* if (!is_readonly)
+                    {
+                        scene_point_light_metadata* meta = 0;
+                    } */
+                }
+                else
+                {
+                    BERROR("Failed to create debug shape for hit sphere");
                 }
             }
         }
@@ -1076,6 +1216,52 @@ b8 scene_load(scene* scene)
         }
     }
 
+    if (scene->volumes)
+    {
+        u32 volume_count = darray_length(scene->volumes);
+        for (u32 i = 0; i < volume_count; ++i)
+        {
+            // Load debug data if it was setup
+            scene_debug_data* debug = (scene_debug_data*)scene->volumes[i].debug_data;
+            b8 load_result = false;
+            switch (scene->volumes[i].shape_type)
+            {
+            case SCENE_VOLUME_SHAPE_TYPE_SPHERE:
+                load_result = debug_sphere3d_load(&debug->sphere);
+                break;
+            case SCENE_VOLUME_SHAPE_TYPE_RECTANGLE:
+                load_result = debug_box3d_load(&debug->box);
+                break;
+            }
+
+            if (!load_result)
+            {
+                BERROR("debug shape failed to load");
+
+                bfree(scene->volumes[i].debug_data, sizeof(scene_debug_data), MEMORY_TAG_RESOURCE);
+                scene->volumes[i].debug_data = 0;
+            }
+        }
+    }
+
+    if (scene->hit_spheres)
+    {
+        u32 hit_sphere_count = darray_length(scene->hit_spheres);
+        for (u32 i = 0; i < hit_sphere_count; ++i)
+        {
+            // Load debug data if it was setup
+            scene_debug_data* debug = (scene_debug_data*)scene->hit_spheres[i].debug_data;
+
+            if (!debug_sphere3d_load(&debug->sphere))
+            {
+                BERROR("debug shape failed to load");
+
+                bfree(scene->hit_spheres[i].debug_data, sizeof(scene_debug_data), MEMORY_TAG_RESOURCE);
+                scene->hit_spheres[i].debug_data = 0;
+            }
+        }
+    }
+
     // Update the state to show the scene is fully loaded
     scene->state = SCENE_STATE_LOADED;
 
@@ -1100,6 +1286,21 @@ b8 scene_unload(scene* scene, b8 immediate)
     return true;
 }
 
+static b8 any_tags_match(const bname* list_0, u32 count_0, const bname* list_1, u32 count_1)
+{
+    for (u32 i = 0; i < count_0; ++i)
+    {
+        for (u32 j = 0; j < count_1; ++j)
+        {
+            if (list_0[i] == list_0[j])
+            {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 b8 scene_update(scene* scene, const struct frame_data* p_frame_data)
 {
     if (!scene)
@@ -1114,6 +1315,138 @@ b8 scene_update(scene* scene, const struct frame_data* p_frame_data)
     if (scene->state == SCENE_STATE_LOADED)
     {
         hierarchy_graph_update(&scene->hierarchy);
+
+        // Update volumes
+        if (scene->volumes)
+        {
+            u32 volume_count = darray_length(scene->volumes);
+            u32 hit_sphere_count = darray_length(scene->hit_spheres);
+            for (u32 i = 0; i < volume_count; ++i)
+            {
+                scene_volume* volume = &scene->volumes[i];
+
+                // Get world position of the volume
+
+                scene_attachment* vol_attachment = &scene->volume_attachments[i];
+                /* bhandle vol_xform_handle = hierarchy_graph_xform_handle_get(&scene->hierarchy, vol_attachment->hierarchy_node_handle); */
+
+                // World position and rotation
+                /* vec3 vol_world_pos = hierarchy_graph_world_position_get(&scene->hierarchy, vol_xform_handle); */
+                /* quat vol_world_rot = hierarchy_graph_world_rotation_get(&scene->hierarchy, vol_xform_handle); */
+
+                // HACK:
+                bhandle vol_xform_handle = hierarchy_graph_xform_handle_get(&scene->hierarchy, vol_attachment->hierarchy_node_handle);
+
+                mat4 world;
+                if (!bhandle_is_invalid(vol_xform_handle))
+                {
+                    world = xform_world_get(vol_xform_handle);
+                }
+                else
+                {
+                    // TODO: traverse tree to try and find a ancestor node with a transform
+                    world = mat4_identity();
+                }
+                vec3 vol_world_pos = mat4_position(world);
+                // end hack
+
+                // TODO: Iterate hit_spheres with matching tags
+                for (u32 j = 0; j < hit_sphere_count; ++j)
+                {
+                    scene_hit_sphere* hit_sphere = &scene->hit_spheres[j];
+                    scene_attachment* hs_attachment = &scene->hit_sphere_attachments[j];
+
+                    // Check for matching tags. TODO: Need to change this to use a DOD-style lookup
+                    b8 matches_tag = any_tags_match(volume->hit_sphere_tags, volume->hit_sphere_tag_count, hs_attachment->tags, hs_attachment->tag_count);
+                    if (matches_tag)
+                    {
+                        // Check if there is an overlap
+
+                        // Get world position of the current hit sphere
+                        /* scene_attachment* hs_attachment = &scene->hit_sphere_attachments[j];
+                        bhandle hs_hierarchy_node_handle = hs_attachment->hierarchy_node_handle;
+                        bhandle hs_xform_handle = hierarchy_graph_xform_handle_get(&scene->hierarchy, hs_hierarchy_node_handle);
+
+                        // NOTE: Ignoring rotation and scale
+                        vec3 hit_sphere_world_pos = hierarchy_graph_world_position_get(&scene->hierarchy, hs_xform_handle); */
+
+                        // HACK: see if this works
+                        scene_attachment* hs_attachment = &scene->hit_sphere_attachments[j];
+                        bhandle hs_xform_handle = hierarchy_graph_xform_handle_get(&scene->hierarchy, hs_attachment->hierarchy_node_handle);
+
+                        mat4 world;
+                        if (!bhandle_is_invalid(hs_xform_handle))
+                        {
+                            world = xform_world_get(hs_xform_handle);
+                        }
+                        else
+                        {
+                            // TODO: traverse tree to try and find a ancestor node with a transform
+                            world = mat4_identity();
+                        }
+                        vec3 hs_world_pos = mat4_position(world);
+                        // end hack
+
+                        // Check if the hit sphere already exists in the array
+                        i32 index = -1;
+                        if (volume->hit_sphere_indices)
+                        {
+                            u32 hs_count = darray_length(volume->hit_sphere_indices);
+                            for (u32 k = 0; k < hs_count; ++k)
+                            {
+                                if (volume->hit_sphere_indices[k] == j)
+                                {
+                                    index = k;
+                                    break;
+                                }
+                            }
+                        }
+
+                        // Check for collision
+                        b8 has_collision = false;
+                        switch (volume->shape_type)
+                        {
+                        case SCENE_VOLUME_SHAPE_TYPE_SPHERE:
+                            has_collision = (vec3_distance(hs_world_pos, vol_world_pos) <= (hit_sphere->radius + volume->shape_config.radius));
+                            break;
+                        case SCENE_VOLUME_SHAPE_TYPE_RECTANGLE:
+                            // TODO: Bring point into OBB space and check if colliding
+                            has_collision = false;
+                            break;
+                        }
+
+                        if (has_collision)
+                        {
+                            // Have a hit
+                            if (index == -1)
+                            {
+                                if (volume->on_enter_command)
+                                    console_command_execute(volume->on_enter_command);
+
+                                // Add to the list
+                                if (!volume->hit_sphere_indices)
+                                    volume->hit_sphere_indices = darray_create(u32);
+
+                                darray_push(volume->hit_sphere_indices, (u32)j);
+                            }
+                            else
+                            {
+                                if (volume->on_update_command)
+                                    console_command_execute(volume->on_update_command);
+                            }
+                        }
+                        else if (index > -1)
+                        {
+                            if (volume->on_leave_command)
+                                console_command_execute(volume->on_leave_command);
+
+                            u32 rubbish = 0;
+                            darray_pop_at(volume->hit_sphere_indices, (u32)index, &rubbish);
+                        }
+                    }
+                }
+            }
+        }
 
         if (scene->dir_lights)
         {
@@ -1260,6 +1593,47 @@ b8 scene_update(scene* scene, const struct frame_data* p_frame_data)
                 }
             } */
         }
+
+        /* // Update volume debug shapes
+        if (scene->volumes) {
+            u32 volume_count = darray_length(scene->volumes);
+            for (u32 i = 0; i < volume_count; ++i)
+            {
+                // Update the point light's data position (world position) to take into account the owning node's transform
+                scene_attachment* volume_attachment = &scene->volume_attachments[i];
+                bhandle xform_handle = hierarchy_graph_xform_handle_get(&scene->hierarchy, volume_attachment->hierarchy_node_handle);
+
+                mat4 world;
+                if (!bhandle_is_invalid(xform_handle))
+                {
+                    world = xform_world_get(xform_handle);
+                }
+                else
+                {
+                    // TODO: traverse tree to try and find a ancestor node with a transform
+                    world = mat4_identity();
+                }
+
+                // Calculate world position for the point light
+                vec3 pos = vec3_from_vec4(scene->point_lights[i].position);
+                scene->point_lights[i].data.position = vec4_from_vec3(vec3_transform(pos, 1.0f, world), 1.0f);
+
+                // Debug box info update
+                if (scene->point_lights[i].debug_data)
+                {
+                    // TODO: Only update point light if changed
+                    scene_debug_data* debug = (scene_debug_data*)scene->point_lights[i].debug_data;
+                    if (debug->box.geometry.generation != INVALID_ID_U16)
+                    {
+                        // Update transform
+                        xform_position_set(debug->box.xform, vec3_from_vec4(scene->point_lights[i].data.position));
+
+                        // Update color. NOTE: doing this every frame might be expensive if we have to reload the geometry all the time
+                        debug_box3d_color_set(&debug->box, scene->point_lights[i].data.color);
+                    }
+                }
+            }
+        } */
     }
 
     return true;
@@ -1361,6 +1735,66 @@ void scene_render_frame_prepare(scene* scene, const struct frame_data* p_frame_d
 
                     debug_box3d_render_frame_prepare(&debug->box, p_frame_data);
                 } */
+            }
+        }
+
+        // Update spawn point debug boxes/spheres
+        {
+            if (scene->volumes)
+            {
+                u32 volume_count = darray_length(scene->volumes);
+                for (u32 i = 0; i < volume_count; ++i)
+                {
+                    if (scene->volumes[i].debug_data)
+                    {
+                        scene_debug_data* debug = (scene_debug_data*)scene->volumes[i].debug_data;
+
+                        // Lookup the attachment to get the xform handle to set as the parent
+                        scene_attachment* attachment = &scene->volume_attachments[i];
+                        bhandle xform_handle = hierarchy_graph_xform_handle_get(&scene->hierarchy, attachment->hierarchy_node_handle);
+                        // Since debug objects aren't actually added to the hierarchy or as attachments, need to manually update the xform here, using the node's world xform as the parent
+                        xform_calculate_local(debug->box.xform);
+                        mat4 local = xform_local_get(debug->box.xform);
+                        mat4 parent_world = xform_world_get(xform_handle);
+                        mat4 model = mat4_mul(local, parent_world);
+                        xform_world_set(debug->box.xform, model);
+
+                        switch (scene->volumes[i].shape_type)
+                        {
+                        case SCENE_VOLUME_SHAPE_TYPE_SPHERE:
+                            debug_sphere3d_render_frame_prepare(&debug->sphere, p_frame_data);
+                            break;
+                        case SCENE_VOLUME_SHAPE_TYPE_RECTANGLE:
+                            debug_box3d_render_frame_prepare(&debug->box, p_frame_data);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Update audio emitter debug spheres
+        if (scene->audio_emitters)
+        {
+            u32 emitter_count = darray_length(scene->audio_emitters);
+            for (u32 i = 0; i < emitter_count; ++i)
+            {
+                if (scene->audio_emitters[i].debug_data)
+                {
+                    scene_debug_data* debug = (scene_debug_data*)scene->audio_emitters[i].debug_data;
+
+                    // Lookup the attachment to get the xform handle to set as the parent
+                    scene_attachment* attachment = &scene->audio_emitter_attachments[i];
+                    bhandle xform_handle = hierarchy_graph_xform_handle_get(&scene->hierarchy, attachment->hierarchy_node_handle);
+                    // Since debug objects aren't actually added to the hierarchy or as attachments, need to manually update the xform here, using the node's world xform as the parent
+                    xform_calculate_local(debug->sphere.xform);
+                    mat4 local = xform_local_get(debug->sphere.xform);
+                    mat4 parent_world = xform_world_get(xform_handle);
+                    mat4 model = mat4_mul(local, parent_world);
+                    xform_world_set(debug->sphere.xform, model);
+
+                    debug_sphere3d_render_frame_prepare(&debug->sphere, p_frame_data);
+                }
             }
         }
     }
@@ -1662,6 +2096,52 @@ b8 scene_debug_render_data_query(scene* scene, u32* data_count, geometry_render_
                     }
                     (*data_count)++;
                 } */
+            }
+        }
+    }
+
+    // Volumes
+    {
+        if (scene->volumes)
+        {
+            u32 volume_count = darray_length(scene->volumes);
+            for (u32 i = 0; i < volume_count; ++i)
+            {
+                if (scene->volumes[i].debug_data)
+                {
+                    if (debug_geometries)
+                    {
+                        scene_debug_data* debug = (scene_debug_data*)scene->volumes[i].debug_data;
+
+                        // Debug box 3d
+                        geometry_render_data data = {0};
+
+                        bgeometry* g = 0;
+                        switch (scene->volumes[i].shape_type)
+                        {
+                        case SCENE_VOLUME_SHAPE_TYPE_SPHERE:
+                            data.model = xform_world_get(debug->sphere.xform);
+                            g = &debug->sphere.geometry;
+                            data.unique_id = debug->sphere.id.uniqueid;
+                            break;
+                        case SCENE_VOLUME_SHAPE_TYPE_RECTANGLE:
+                            data.model = xform_world_get(debug->box.xform);
+                            g = &debug->box.geometry;
+                            data.unique_id = debug->box.id.uniqueid;
+                            break;
+                        }
+
+                        data.material.material = bhandle_invalid(); // debug geometries don't need a material
+                        data.material.instance = bhandle_invalid(); // debug geometries don't need a material
+                        data.vertex_count = g->vertex_count;
+                        data.vertex_buffer_offset = g->vertex_buffer_offset;
+                        data.index_count = g->index_count;
+                        data.index_buffer_offset = g->index_buffer_offset;
+
+                        (*debug_geometries)[(*data_count)] = data;
+                    }
+                    (*data_count)++;
+                }
             }
         }
     }
@@ -2295,6 +2775,31 @@ static void scene_actual_unload(scene* s)
             BERROR("Failed to unload water plane");
         water_plane_destroy(&s->water_planes[i]);
         // s->water_planes[i].state = WATER_PLANE_STATE_UNDEFINED;
+    }
+
+    {
+        u32 volume_count = darray_length(s->volumes);
+        for (u32 i = 0; i < volume_count; ++i)
+        {
+            // Destroy debug data if it exists
+            if (s->volumes[i].debug_data)
+            {
+                scene_debug_data* debug = (scene_debug_data*)s->volumes[i].debug_data;
+                switch (s->volumes[i].shape_type)
+                {
+                case SCENE_VOLUME_SHAPE_TYPE_SPHERE:
+                    debug_sphere3d_unload(&debug->sphere);
+                    debug_sphere3d_destroy(&debug->sphere);
+                    break;
+                case SCENE_VOLUME_SHAPE_TYPE_RECTANGLE:
+                    debug_box3d_unload(&debug->box);
+                    debug_box3d_destroy(&debug->box);
+                    break;
+                }
+                bfree(s->volumes[i].debug_data, sizeof(scene_debug_data), MEMORY_TAG_RESOURCE);
+                s->volumes[i].debug_data = 0;
+            }
+        }
     }
 
     // Destroy the hierarchy graph

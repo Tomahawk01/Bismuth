@@ -412,6 +412,8 @@ BAPI void string_append_bool(char* dest, const char* source, b8 b);
 
 BAPI void string_append_char(char* dest, const char* source, char c);
 
+BAPI char* string_join(const char** strings, u32 count, char delimiter);
+
 BAPI void string_directory_from_path(char* dest, const char* path);
 
 BAPI void string_filename_from_path(char* dest, const char* path);
