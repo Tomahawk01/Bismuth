@@ -89,7 +89,7 @@ i32 combine_texture_maps(i32 argc, char** argv)
     char out_file_path[1024] = {0};
 
     // Starting at third argument. One argument = 1 shader
-    for (u32 i = 2; i < argc; ++i)
+    for (i32 i = 2; i < argc; ++i)
     {
         char** parts = darray_create(char*);
         string_split(argv[i], '=', &parts, true, false);
@@ -181,12 +181,12 @@ i32 combine_texture_maps(i32 argc, char** argv)
             else if (i == MAP_TYPE_ROUGHNESS)
             {
                 // medium grey
-                for (u64 row = 0; row < width; ++row)
+                for (i32 row = 0; row < width; ++row)
                 {
-                    for (u64 col = 0; col < height; ++col)
+                    for (i32 col = 0; col < height; ++col)
                     {
-                        u64 index = (row * width) + col;
-                        u64 index_bpp = index * 4;
+                        i32 index = (row * width) + col;
+                        i32 index_bpp = index * 4;
                         // Set to a medium gray
                         maps[i].data[index_bpp + 0] = 128;
                         maps[i].data[index_bpp + 1] = 128;
@@ -207,12 +207,12 @@ i32 combine_texture_maps(i32 argc, char** argv)
 
     // combine the data
     u8* target_buffer = malloc(sizeof(u8) * width * height * 4);
-    for (u64 row = 0; row < width; ++row)
+    for (i32 row = 0; row < width; ++row)
     {
-        for (u64 col = 0; col < height; ++col)
+        for (i32 col = 0; col < height; ++col)
         {
-            u64 index = (row * width) + col;
-            u64 index_bpp = index * 4;
+            i32 index = (row * width) + col;
+            i32 index_bpp = index * 4;
             // Set to a medium gray
             target_buffer[index_bpp + 0] = maps[MAP_TYPE_METALLIC].data[index_bpp + 0];
             target_buffer[index_bpp + 1] = maps[MAP_TYPE_ROUGHNESS].data[index_bpp + 1];
