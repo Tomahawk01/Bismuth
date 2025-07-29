@@ -854,6 +854,16 @@ void scene_node_initialize(scene* s, bhandle parent_handle, scene_node_config* n
             }
         }
 
+        // User-defined attachment types
+        if (node_config->user_defined_configs)
+        {
+            u32 count = darray_length(node_config->user_defined_configs);
+            for (u32 i = 0; i < count; ++i)
+            {
+                scene_node_attachment_user_defined_config* typed_attachment_config = &node_config->user_defined_configs[i];
+            }
+        }
+
         // Process children
         if (node_config->children)
         {
@@ -2305,16 +2315,6 @@ static void scene_actual_unload(scene* s)
             BERROR("Failed to unload water plane");
         water_plane_destroy(&s->water_planes[i]);
         // s->water_planes[i].state = WATER_PLANE_STATE_UNDEFINED;
-    }
-
-    // Unset the physics world
-    bphysics_set_world(engine_systems_get()->physics_system, 0);
-
-    u32 physics_body_count = darray_length(s->physics_bodies);
-    for (u32 i = 0; i < physics_body_count; ++i)
-    {
-        scene_physics_body* body = &s->physics_bodies[i];
-        bphysics_body_destroy(engine_systems_get()->physics_system, &body->body_handle);
     }
 
     // Destroy the hierarchy graph

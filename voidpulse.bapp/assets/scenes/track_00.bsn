@@ -85,20 +85,12 @@ nodes = [
     }
     {
         name = "tree2"
-        xform = "52 4.0 50.0 0.000000 0.817741 0.000000 0.575589 2.000000 2.000000 2.000000"
+        xform = "56.887442 0.536942 53.040905 0.000000 0.817741 0.000000 0.575589 2.000000 2.000000 2.000000"
         attachments = [
             {
                 type = "static_mesh"
                 asset_name = "Tree"
                 package_name = "VoidPulse"
-            }
-            {
-                type = "physics_body"
-                name = "tree2_physics_body"
-                body_type = "dynamic"
-                shape_type = "rectangle"
-                mass = 0.0
-                extents = "0.1 2.0 0.1"
             }
         ]
     }
