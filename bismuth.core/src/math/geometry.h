@@ -65,9 +65,6 @@ typedef struct bgeometry
     void* indices;
     /** @brief The offset from the beginning of the index buffer */
     u64 index_buffer_offset;
-
-    u32 triangle_count;
-    triangle_3d* tris;
 } bgeometry;
 
 typedef enum grid_orientation
@@ -244,5 +241,3 @@ BAPI bgeometry geometry_generate_grid(grid_orientation orientation, u32 segment_
  * @param geometry A pointer to the geometry to be destroyed
  */
 BAPI void geometry_destroy(bgeometry* geometry);
-
-BAPI b8 geometry_calculate_triangles(bgeometry* geometry);

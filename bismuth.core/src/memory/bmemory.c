@@ -69,8 +69,7 @@ static const char* memory_tag_strings[MEMORY_TAG_MAX_TAGS] =
     "PLUGIN      ",
     "PLATFORM    ",
     "SERIALIZER  ",
-    "ASSET       ",
-    "POOL        "
+    "ASSET       "
 };
 
 typedef struct memory_system_state

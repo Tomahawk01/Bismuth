@@ -3,7 +3,6 @@ app_name = "Void Pulse"
 frame_allocator_size = 128
 app_frame_data_size = 128
 manifest_file_path = "../voidpulse.bapp/asset_manifest.bson"
-clamp_fps=0
 windows = [
    {
     resolution = "1280 720"

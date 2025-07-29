@@ -10,11 +10,3 @@
  * @return const char* The string formatted time stamp "hh:mm:ss.xx"
  */
 BAPI const char* time_as_string_from_seconds(f32 total_seconds);
-
-/**
- * @brief Returns the number of milliseconds contained within the provided seconds
- *
- * @param seconds The number of seconds to obtain milliseconds for. Can be fractional seconds
- * @return The number of milliseconds
- */
-BAPI u64 milliseconds_from_seconds_f64(f64 seconds);

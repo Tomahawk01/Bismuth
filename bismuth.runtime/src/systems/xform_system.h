@@ -186,8 +186,6 @@ BAPI void xform_translate_rotate(bhandle t, vec3 translation, quat rotation);
  */
 BAPI void xform_calculate_local(bhandle t);
 
-BAPI void xform_local_set(bhandle t, mat4 local);
-
 /**
  * @brief Retrieves the local xformation matrix from the provided xform.
  * Automatically recalculates the matrix if it is dirty. Otherwise, the already

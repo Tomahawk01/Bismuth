@@ -1,15 +1,12 @@
 #pragma once
 
 #include "math/geometry.h"
-#include "physics/physics_types.h"
 #include "systems/material_system.h"
 #include <math/math_types.h>
 
-struct bphysics_world;
-
 typedef struct triangle_with_adjacency
 {
-    triangle_3d tri;
+    triangle tri;
     u32 index;
     u32 adjacent_triangles[3];
 } triangle_with_adjacency;
@@ -29,15 +26,6 @@ typedef struct track_point
     // Segments may only be rotated on y
     f32 rotation_y;
 
-    // The height of the left rail. Negative heights go downward
-    f32 left_rail_height;
-    // The width of the left rail. 0 = straight up/down, < 0 = angled in, > 0 = angled out
-    f32 left_rail_width;
-    // The height of the right rail. Negative heights go downward
-    f32 right_rail_height;
-    // The width of the right rail. 0 = straight up/down, < 0 = angled in, > 0 = angled out
-    f32 right_rail_width;
-
     // Leftmost point, generated from geometry. Takes height into account
     vec3 left;
     // Rightmost point, generated from geometry. Takes height into account
@@ -56,9 +44,6 @@ typedef struct track_segment
 
     u32 triangle_count;
     triangle_with_adjacency* triangles;
-
-    // static physics body representing this segment
-    bhandle physics_body;
 } track_segment;
 
 typedef struct track
@@ -73,14 +58,12 @@ typedef struct track
     u32 segment_resolution;
 
     material_instance material;
-
-    struct bphysics_world* physics_world;
 } track;
 
 b8 track_create(track* out_track);
 
 b8 track_initialize(track* t);
-b8 track_load(track* t, struct bphysics_world* physics_world);
+b8 track_load(track* t);
 void track_unload(track* t);
 void track_destroy(track* t);
 

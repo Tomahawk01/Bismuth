@@ -2,13 +2,10 @@
 #include "version.h"
 
 #include "core/keymap.h"
-#include "defines.h"
 #include "identifiers/bhandle.h"
 #include "input_types.h"
 #include "math/geometry.h"
 #include "voidpulse_types.h"
-#include "physics/bphysics_system.h"
-#include "physics/physics_types.h"
 #include "renderer/renderer_types.h"
 #include "strings/bname.h"
 #include "systems/bresource_system.h"
@@ -408,92 +405,65 @@ b8 application_update(struct application* app, struct frame_data* p_frame_data)
         if (bhandle_is_valid(state->test_vehicle_xform))
         {
             mat4 vehicle_xform = xform_local_get(state->test_vehicle_xform);
-            vec3 vehicle_position = mat4_position_get(&vehicle_xform);
+            vec3 vehicle_position = mat4_position(vehicle_xform);
             vec3 forward = mat4_forward(vehicle_xform);
-            // vec3 right = mat4_right(vehicle_xform);
+            vec3 right = mat4_right(vehicle_xform);
             f32 delta = get_engine_delta_time();
 
             // HACK: Should be stored elsewhere
-            f32 vehicle_top_speed = 2.0f;
-            static f32 acceleration = 0.0f;
+            f32 vehicle_speed = 20.0f;
             f32 vehicle_turn_speed = 2.5f;
             
             vec3 velocity = vec3_zero();
-            quat rotation = quat_identity();
             if (state->mode == GAME_MODE_WORLD)
             {
                 // Move the vehicle
                 if (input_is_key_down(KEY_W))
                 {
-                    acceleration += 0.05f;
-                    /* velocity = vec3_add(velocity, vec3_mul_scalar(forward, delta * vehicle_speed)); */
+                    velocity = vec3_add(velocity, vec3_mul_scalar(forward, delta * vehicle_speed));
                     // xform_translate(state->test_vehicle_xform, vec3_mul_scalar(forward, delta * vehicle_speed));
                 }
-                else if (input_is_key_down(KEY_S))
+                if (input_is_key_down(KEY_S))
                 {
-                    if (acceleration > 0)
-                    {
-                        acceleration -= 0.1f; // Braking hard
-                        if (acceleration < 0.1f)
-                        {
-                            acceleration = 0; // Stop if close to stopping anyway
-                        }
-                    }
-                    else
-                    {
-                        acceleration -= 0.05f; // Accelerating backward
-                    }
-                    /* velocity = vec3_add(velocity, vec3_mul_scalar(forward, delta * -vehicle_speed)); */
+                    velocity = vec3_add(velocity, vec3_mul_scalar(forward, delta * -vehicle_speed));
                     // xform_translate(state->test_vehicle_xform, vec3_mul_scalar(forward, delta * -vehicle_speed));
-                }
-                else
-                {
-                    // Neither is down, cut acceleration to 0
-                    acceleration = 0;
                 }
                 if (input_is_key_down(KEY_Q))
                 {
-                    // velocity = vec3_add(velocity, vec3_mul_scalar(right, delta * -vehicle_speed));
+                    velocity = vec3_add(velocity, vec3_mul_scalar(right, delta * -vehicle_speed));
                     // xform_translate(state->test_vehicle_xform, vec3_mul_scalar(right, delta * -vehicle_speed));
                 }
                 if (input_is_key_down(KEY_E))
                 {
-                    // velocity = vec3_add(velocity, vec3_mul_scalar(right, delta * vehicle_speed));
+                    velocity = vec3_add(velocity, vec3_mul_scalar(right, delta * vehicle_speed));
                     // xform_translate(state->test_vehicle_xform, vec3_mul_scalar(right, delta * vehicle_speed));
                 }
-
                 if (input_is_key_down(KEY_A))
                 {
-                    rotation = quat_mul(rotation, quat_from_axis_angle((vec3){0, 1, 0}, delta * vehicle_turn_speed, false));
-                    // xform_rotate(state->test_vehicle_xform, rotation);
+                    quat rotation = quat_from_axis_angle((vec3){0, 1, 0}, -vehicle_turn_speed * delta, false);
+                    xform_rotate(state->test_vehicle_xform, rotation);
                 }
                 if (input_is_key_down(KEY_D))
                 {
-                    rotation = quat_mul(rotation, quat_from_axis_angle((vec3){0, 1, 0}, delta * -vehicle_turn_speed, false));
-                    // xform_rotate(state->test_vehicle_xform, rotation);
+                    quat rotation = quat_from_axis_angle((vec3){0, 1, 0}, vehicle_turn_speed * delta, false);
+                    xform_rotate(state->test_vehicle_xform, rotation);
                 }
             }
-            // Use the physics system to rotate and apply velocity
-            bphysics_body_rotate(engine_systems_get()->physics_system, state->test_vehicle_physics_body, rotation);
-            // TODO: acceleration
-            acceleration = BCLAMP(acceleration, -1.0f, 1.0f);
-            velocity = vec3_add(velocity, vec3_mul_scalar(forward, acceleration * vehicle_top_speed * delta));
-            bphysics_body_apply_velocity(engine_systems_get()->physics_system, state->test_vehicle_physics_body, velocity);
 
             // Constrain to the track
             vehicle_xform = xform_local_get(state->test_vehicle_xform);
-            vehicle_position = mat4_position_get(&vehicle_xform);
+            vehicle_position = mat4_position(vehicle_xform);
 
-            /* vehicle_position = constrain_to_track(vehicle_position, velocity, &state->collision_track, &surface_normal); */
+            vec3 surface_normal = vec3_up();
+            vehicle_position = constrain_to_track(vehicle_position, velocity, &state->collision_track, &surface_normal);
             // xform_position_set(state->test_vehicle_xform, vec3_add(vehicle_position, velocity));
-            // xform_position_set(state->test_vehicle_xform, vehicle_position);
+            xform_position_set(state->test_vehicle_xform, vehicle_position);
             // BTRACE("surface normal: %.2f, %.2f, %.2f", surface_normal.x, surface_normal.y, surface_normal.z);
 
             // TODO: This doesn't seem to be working correctly
-            /* vec3 surface_normal = vec3_up();
             quat vehicle_rotation_from_normal = quat_from_surface_normal(surface_normal, vec3_up());
             xform_rotation_set(state->test_vehicle_mesh_xform, vehicle_rotation_from_normal);
-            xform_calculate_local(state->test_vehicle_mesh_xform); */
+            xform_calculate_local(state->test_vehicle_mesh_xform);
 
             xform_calculate_local(state->test_vehicle_xform);
 
@@ -666,7 +636,7 @@ VSync: %s Drawn: %-5u (%-5u shadow pass), Mode: %s, Run time: %s",
     {
         // In world mode, the sound follows the vehicle
         mat4 vehicle_xform = xform_local_get(state->test_vehicle_xform);
-        sound_pos = mat4_position_get(&vehicle_xform);
+        sound_pos = mat4_position(vehicle_xform);
         sound_forward = mat4_forward(vehicle_xform);
         sound_up = mat4_up(vehicle_xform);
     }
@@ -838,7 +808,7 @@ b8 application_prepare_frame(struct application* app, struct frame_data* p_frame
                     data.unique_id = 0;
                     data.winding_inverted = false;
                     data.diffuse_color = vec4_one();
-                    darray_insert_at(geometries, 0, data);
+                    darray_push(geometries, data);
                     geometry_count++;
                 }
 
@@ -1611,13 +1581,8 @@ static void game_on_load_scene(keys key, keymap_entry_bind_type type, keymap_mod
             BERROR("Error loading track scene");
         }
 
-        // Physics objects must be obtained after load
-        bphysics_world* scene_physics_world = scene_physics_world_get(&state->track_scene);
-        if (!scene_physics_body_get_by_name(&state->track_scene, bname_create("test_vehicle_physics_body"), &state->test_vehicle_physics_body))
-            BERROR("Unable to get test vehicle physics body");
-
         // HACK: load track
-        if (!track_load(&state->collision_track, scene_physics_world))
+        if (!track_load(&state->collision_track))
         {
             BERROR("Failed to load collision track");
             return;

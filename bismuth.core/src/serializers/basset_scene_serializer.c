@@ -3,11 +3,9 @@
 #include "assets/basset_types.h"
 #include "containers/darray.h"
 #include "core_audio_types.h"
-#include "core_physics_types.h"
 #include "core_resource_types.h"
 #include "defines.h"
 #include "logger.h"
-#include "math/bmath.h"
 #include "memory/bmemory.h"
 #include "parsers/bson_parser.h"
 #include "strings/bname.h"
@@ -48,24 +46,6 @@ const char* basset_scene_serialize(const basset* asset)
     // Description - optional
     if (typed_asset->description)
         bson_object_value_add_string(&tree.root, "description", typed_asset->description);
-
-    // Physics settings
-    bson_object physics_obj = bson_object_create();
-    if (!bson_object_value_add_vec3(&physics_obj, "gravity", typed_asset->physics_gravity))
-    {
-        BERROR("Failed to serialize physics 'gravity' setting");
-        goto cleanup_bson;
-    }
-    if (!bson_object_value_add_boolean(&physics_obj, "enabled", typed_asset->physics_enabled))
-    {
-        BERROR("Failed to serialize physic 'enabled' setting");
-        goto cleanup_bson;
-    }
-    if (!bson_object_value_add_object(&physics_obj, "physics", physics_obj))
-    {
-        BERROR("Failed to serialize physics settings");
-        goto cleanup_bson;
-    }
 
     // Nodes array
     bson_array nodes_array = bson_array_create();
@@ -160,31 +140,6 @@ b8 basset_scene_deserialize(const char* file_text, basset* out_asset)
 
             // Description comes from here, but is still optional
             bson_object_property_value_get_string(&tree.root, "description", &typed_asset->description);
-        }
-
-        // Physics settings, if they exist
-        bson_object physics_obj = {0};
-        if (bson_object_property_value_get_object(&tree.root, "physics", &physics_obj))
-        {
-            // Enabled - optional, default = false
-            if (!bson_object_property_value_get_bool(&physics_obj, "enabled", &typed_asset->physics_enabled))
-            {
-                BWARN("Scene parsing found a 'physics' block, but no 'enabled' was defined. Physics will be disabled for this scene");
-                typed_asset->physics_enabled = false;
-            }
-
-            // Gravity
-            if (!bson_object_property_value_get_vec3(&physics_obj, "gravity", &typed_asset->physics_gravity))
-            {
-                BWARN("Scene parsing found a 'physics' block, but no 'gravity' was defined. Using a reasonable default value");
-                typed_asset->physics_gravity = (vec3){0, -9.8f, 0};
-            }
-        }
-        else
-        {
-            // Physics not defined, set zero gravity
-            typed_asset->physics_gravity = vec3_zero();
-            typed_asset->physics_enabled = false;
         }
 
         // Nodes array
@@ -693,109 +648,6 @@ static b8 serialize_node(scene_node_config* node, bson_object* node_obj)
         }
     }
 
-    if (node->physics_body_configs)
-    {
-        u32 length = darray_length(node->physics_body_configs);
-        for (u32 i = 0; i < length; ++i)
-        {
-            scene_node_attachment_physics_body_config* typed_attachment = &node->physics_body_configs[i];
-            scene_node_attachment_config* attachment = (scene_node_attachment_config*)typed_attachment;
-            bson_object attachment_obj = bson_object_create();
-            const char* attachment_name = bname_string_get(attachment->name);
-
-            // Base properties
-            {
-                // Name, if it exists
-                if (attachment->name)
-                {
-                    if (!bson_object_value_add_bname_as_string(&attachment_obj, "name", attachment->name))
-                    {
-                        BERROR("Failed to add 'name' property for attachment '%s'", attachment_name);
-                        return false;
-                    }
-                }
-
-                // Add the type. Required
-                const char* type_str = scene_node_attachment_type_strings[attachment->type];
-                if (!bson_object_value_add_string(&attachment_obj, "type", type_str))
-                {
-                    BERROR("Failed to add 'name' property for attachment '%s'", attachment_name);
-                    return false;
-                }
-            }
-
-            // Specific properties
-            // Body type
-            {
-                char* body_type_str = 0;
-                switch (typed_attachment->body_type)
-                {
-                case BPHYSICS_BODY_TYPE_STATIC:
-                    body_type_str = "static";
-                    break;
-                case BPHYSICS_BODY_TYPE_DYNAMIC:
-                    body_type_str = "dynamic";
-                    break;
-                }
-
-                if (!bson_object_value_add_string(&attachment_obj, "body_type", body_type_str))
-                {
-                    BERROR("Failed to add 'body_type' property for attachment '%s'", attachment_name);
-                    return false;
-                }
-            }
-
-            // Body type
-            {
-                char* shape_type_str = 0;
-                switch (typed_attachment->shape_type)
-                {
-                case BPHYSICS_SHAPE_TYPE_SPHERE:
-                    shape_type_str = "sphere";
-                    break;
-                case BPHYSICS_SHAPE_TYPE_RECTANGLE:
-                    shape_type_str = "rectangle";
-                    break;
-                case BPHYSICS_SHAPE_TYPE_MESH:
-                    shape_type_str = "mesh";
-                    break;
-                }
-
-                if (!bson_object_value_add_string(&attachment_obj, "body_type", shape_type_str))
-                {
-                    BERROR("Failed to add 'body_type' property for attachment '%s'", attachment_name);
-                    return false;
-                }
-
-                // Only doing this a second time so these are added in a resonable order
-                switch (typed_attachment->shape_type)
-                {
-                case BPHYSICS_SHAPE_TYPE_SPHERE:
-                    if (!bson_object_value_add_float(&attachment_obj, "radius", typed_attachment->radius))
-                    {
-                        BERROR("Failed to add property 'radius' to attachment '%s'", attachment_name);
-                        return false;
-                    }
-                    break;
-                case BPHYSICS_SHAPE_TYPE_RECTANGLE:
-                    if (!bson_object_value_add_vec3(&attachment_obj, "extents", typed_attachment->extents))
-                    {
-                        BERROR("Failed to add property 'radius' to attachment '%s'", attachment_name);
-                        return false;
-                    }
-                    break;
-                case BPHYSICS_SHAPE_TYPE_MESH:
-                    if (!bson_object_value_add_bname_as_string(&attachment_obj, "mesh_resource_name", typed_attachment->mesh_resource_name))
-                    {
-                        BERROR("Failed to add property 'mesh_resource_name' to attachment '%s'", attachment_name);
-                        return false;
-                    }
-                    break;
-                }
-            }
-        }
-    }
-
     // Only write out the attachments array object if it contains something
     u32 total_attachment_count = 0;
     bson_array_element_count_get(&attachment_obj_array, &total_attachment_count);
@@ -985,7 +837,6 @@ static b8 deserialize_attachment(basset* asset, scene_node_config* node, bson_ob
     case SCENE_NODE_ATTACHMENT_TYPE_SKYBOX:
     {
         scene_node_attachment_skybox_config typed_attachment = {0};
-        typed_attachment.base.name = attachment_name;
 
         // Cubemap name
         if (!bson_object_property_value_get_string_as_bname(attachment_obj, "cubemap_image_asset_name", &typed_attachment.cubemap_image_asset_name))
@@ -1017,7 +868,6 @@ static b8 deserialize_attachment(basset* asset, scene_node_config* node, bson_ob
     case SCENE_NODE_ATTACHMENT_TYPE_DIRECTIONAL_LIGHT:
     {
         scene_node_attachment_directional_light_config typed_attachment = {0};
-        typed_attachment.base.name = attachment_name;
 
         // Color
         if (!bson_object_property_value_get_vec4(attachment_obj, "color", &typed_attachment.color))
@@ -1062,7 +912,6 @@ static b8 deserialize_attachment(basset* asset, scene_node_config* node, bson_ob
     case SCENE_NODE_ATTACHMENT_TYPE_POINT_LIGHT:
     {
         scene_node_attachment_point_light_config typed_attachment = {0};
-        typed_attachment.base.name = attachment_name;
 
         // Color
         if (!bson_object_property_value_get_vec4(attachment_obj, "color", &typed_attachment.color))
@@ -1107,7 +956,6 @@ static b8 deserialize_attachment(basset* asset, scene_node_config* node, bson_ob
     case SCENE_NODE_ATTACHMENT_TYPE_AUDIO_EMITTER:
     {
         scene_node_attachment_audio_emitter_config typed_attachment = {0};
-        typed_attachment.base.name = attachment_name;
 
         // volume - optional
         if (!bson_object_property_value_get_float(attachment_obj, "volume", &typed_attachment.volume))
@@ -1170,7 +1018,6 @@ static b8 deserialize_attachment(basset* asset, scene_node_config* node, bson_ob
     case SCENE_NODE_ATTACHMENT_TYPE_STATIC_MESH:
     {
         scene_node_attachment_static_mesh_config typed_attachment = {0};
-        typed_attachment.base.name = attachment_name;
 
         // Asset name
         if (!bson_object_property_value_get_string_as_bname(attachment_obj, "asset_name", &typed_attachment.asset_name))
@@ -1202,7 +1049,6 @@ static b8 deserialize_attachment(basset* asset, scene_node_config* node, bson_ob
     case SCENE_NODE_ATTACHMENT_TYPE_HEIGHTMAP_TERRAIN:
     {
         scene_node_attachment_heightmap_terrain_config typed_attachment = {0};
-        typed_attachment.base.name = attachment_name;
 
         // Asset name
         if (!bson_object_property_value_get_string_as_bname(attachment_obj, "asset_name", &typed_attachment.asset_name))
@@ -1234,106 +1080,12 @@ static b8 deserialize_attachment(basset* asset, scene_node_config* node, bson_ob
     case SCENE_NODE_ATTACHMENT_TYPE_WATER_PLANE:
     {
         scene_node_attachment_water_plane_config typed_attachment = {0};
-        typed_attachment.base.name = attachment_name;
         // NOTE: Intentionally blank until additional config is added to water planes
 
         // Push to the appropriate array
         if (!node->water_plane_configs)
             node->water_plane_configs = darray_create(scene_node_attachment_water_plane_config);
         darray_push(node->water_plane_configs, typed_attachment);
-    } break;
-    case SCENE_NODE_ATTACHMENT_TYPE_PHYSICS_BODY:
-    {
-        scene_node_attachment_physics_body_config typed_attachment = {0};
-        typed_attachment.base.name = attachment_name;
-
-        // Body type is required
-        {
-            const char* body_type_str = 0;
-            if (!bson_object_property_value_get_string(attachment_obj, "body_type", &body_type_str))
-            {
-                BERROR("Failed to get required 'body_type' property for attachment '%s'", attachment_name);
-                return false;
-            }
-            if (strings_equali(body_type_str, "dynamic"))
-            {
-                typed_attachment.body_type = BPHYSICS_BODY_TYPE_DYNAMIC;
-            }
-            else if (strings_equali(body_type_str, "static"))
-            {
-                typed_attachment.body_type = BPHYSICS_BODY_TYPE_STATIC;
-            }
-            else
-            {
-                BERROR("Unrecognized physics body type '%s'. Skipping...", body_type_str);
-                return false;
-            }
-        }
-
-        // Shape type is required
-        {
-            const char* shape_type_str = 0;
-            if (!bson_object_property_value_get_string(attachment_obj, "shape_type", &shape_type_str))
-            {
-                BERROR("Failed to get required 'shape_type' property for attachment '%s'", attachment_name);
-                return false;
-            }
-            if (strings_equali(shape_type_str, "sphere"))
-            {
-                typed_attachment.shape_type = BPHYSICS_SHAPE_TYPE_SPHERE;
-            }
-            else if (strings_equali(shape_type_str, "rect") || strings_equali(shape_type_str, "rectangle"))
-            {
-                typed_attachment.shape_type = BPHYSICS_SHAPE_TYPE_RECTANGLE;
-            }
-            else if (strings_equali(shape_type_str, "mesh"))
-            {
-                typed_attachment.shape_type = BPHYSICS_SHAPE_TYPE_MESH;
-            }
-            else
-            {
-                BERROR("Unrecognized physics shape type '%s'. Skipping...", shape_type_str);
-                return false;
-            }
-        }
-
-        // Extract required properties based on shape type
-        switch (typed_attachment.shape_type)
-        {
-        case BPHYSICS_SHAPE_TYPE_SPHERE:
-        {
-            // Sphere just requires radius
-            if (!bson_object_property_value_get_float(attachment_obj, "radius", &typed_attachment.radius))
-            {
-                BERROR("Attachment '%s', of type 'sphere' did not contain required property 'radius'", attachment_name);
-                return false;
-            }
-        } break;
-        case BPHYSICS_SHAPE_TYPE_RECTANGLE:
-        {
-            // Rectangle just requires extents
-            if (!bson_object_property_value_get_vec3(attachment_obj, "extents", &typed_attachment.extents))
-            {
-                BERROR("Attachment '%s', of type 'rectangle' did not contain required property 'extents'", attachment_name);
-                return false;
-            }
-        } break;
-        case BPHYSICS_SHAPE_TYPE_MESH:
-        {
-            // Mesh just requires the name of the mesh resource to load as collision
-            if (!bson_object_property_value_get_string_as_bname(attachment_obj, "mesh_resource_name", &typed_attachment.mesh_resource_name))
-            {
-                BERROR("Attachment '%s', of type 'mesh' did not contain required property 'mesh_resource_name'", attachment_name);
-                return false;
-            }
-        } break;
-        }
-
-        // Push to the appropriate array
-        if (!node->physics_body_configs)
-            node->physics_body_configs = darray_create(scene_node_attachment_physics_body_config);
-
-        darray_push(node->physics_body_configs, typed_attachment);
     } break;
     case SCENE_NODE_ATTACHMENT_TYPE_COUNT:
         BERROR("Stop trying to serialize the count member of the enum");
