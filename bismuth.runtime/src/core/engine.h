@@ -100,8 +100,8 @@ typedef struct engine_system_states
     struct bresource_system_state* bresource_state;
 } engine_system_states;
 
-BAPI b8 engine_create(struct application* game_inst);
-BAPI b8 engine_run(struct application* game_inst);
+BAPI b8 engine_create(struct application* app);
+BAPI b8 engine_run(struct application* app);
 
 void engine_on_event_system_initialized(void);
 

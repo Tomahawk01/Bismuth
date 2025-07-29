@@ -14,6 +14,7 @@ typedef struct console_command_context
 {
     u8 argument_count;
     console_command_argument* arguments;
+    void* listener;
 } console_command_context;
 
 typedef void (*PFN_console_command)(console_command_context context);
@@ -29,7 +30,7 @@ BAPI void console_consumer_update(u8 consumer_id, void* inst, PFN_console_consum
 
 void console_write(log_level level, const char* message);
 
-BAPI b8 console_command_register(const char* command, u8 arg_count, PFN_console_command func);
+BAPI b8 console_command_register(const char* command, u8 arg_count, void* listener, PFN_console_command func);
 BAPI b8 console_command_unregister(const char* command);
 
 BAPI b8 console_command_execute(const char* command);

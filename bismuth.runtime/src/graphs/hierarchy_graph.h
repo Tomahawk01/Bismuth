@@ -1,7 +1,7 @@
 #pragma once
 
-#include "identifiers/bhandle.h"
-#include "math/math_types.h"
+#include <identifiers/bhandle.h>
+#include <math/math_types.h>
 
 struct frame_data;
 
@@ -40,6 +40,7 @@ BAPI void hierarchy_graph_destroy(hierarchy_graph* graph);
 BAPI void hierarchy_graph_update(hierarchy_graph* graph);
 
 BAPI bhandle hierarchy_graph_xform_handle_get(const hierarchy_graph* graph, bhandle node_handle);
+BAPI b8 hierarchy_graph_xform_local_matrix_get(const hierarchy_graph* graph, bhandle node_handle, mat4* out_matrix);
 BAPI bhandle hierarchy_graph_parent_handle_get(const hierarchy_graph* graph, bhandle node_handle);
 BAPI bhandle hierarchy_graph_parent_xform_handle_get(const hierarchy_graph* graph, bhandle node_handle);
 
@@ -47,6 +48,9 @@ BAPI bhandle hierarchy_graph_root_add(hierarchy_graph* graph);
 BAPI bhandle hierarchy_graph_root_add_with_xform(hierarchy_graph* graph, bhandle xform_handle);
 BAPI bhandle hierarchy_graph_child_add(hierarchy_graph* graph, bhandle parent_node_handle);
 BAPI bhandle hierarchy_graph_child_add_with_xform(hierarchy_graph* graph, bhandle parent_node_handle, bhandle xform_handle);
+
+BAPI u32 hierarchy_graph_child_count_get(const hierarchy_graph* graph, bhandle parent_node_handle);
+BAPI b8 hierarchy_graph_child_get_by_index(const hierarchy_graph* graph, bhandle parent_node_handle, u32 index, bhandle* out_handle);
 
 BAPI void hierarchy_graph_node_remove(hierarchy_graph* graph, bhandle* node_handle, b8 release_xform);
 BAPI quat hierarchy_graph_world_rotation_get(const hierarchy_graph* graph, bhandle node_handle);

@@ -1,6 +1,5 @@
 #include "engine.h"
 
-#include <platform/filesystem.h>
 #include <assets/basset_importer_registry.h>
 #include <containers/darray.h>
 #include <containers/registry.h>
@@ -9,14 +8,15 @@
 #include <logger.h>
 #include <memory/allocators/linear_allocator.h>
 #include <memory/bmemory.h>
+#include <platform/filesystem.h>
 #include <platform/platform.h>
 #include <platform/vfs.h>
 #include <strings/bstring.h>
 #include <time/bclock.h>
 
-#include "audio/audio_frontend.h"
 #include "application/application_config.h"
 #include "application/application_types.h"
+#include "audio/audio_frontend.h"
 #include "console.h"
 #include "core/event.h"
 #include "core/input.h"
@@ -28,7 +28,6 @@
 #include "renderer/rendergraph.h"
 
 // systems
-#include "systems/plugin_system.h"
 #include "systems/asset_system.h"
 #include "systems/camera_system.h"
 #include "systems/font_system.h"
@@ -36,6 +35,7 @@
 #include "systems/bresource_system.h"
 #include "systems/light_system.h"
 #include "systems/material_system.h"
+#include "systems/plugin_system.h"
 #include "systems/shader_system.h"
 #include "systems/static_mesh_system.h"
 #include "systems/texture_system.h"
@@ -48,7 +48,7 @@ struct bwindow;
 
 typedef struct engine_state_t
 {
-    application* game_inst;
+    application* app;
     b8 is_running;
     b8 is_suspended;
     bclock clock;
@@ -117,9 +117,9 @@ static void engine_on_process_mouse_wheel(i8 z_delta);
 static b8 engine_log_file_write(void* engine, log_level level, const char* message);
 static b8 engine_platform_console_write(void* platform, log_level level, const char* message);
 
-b8 engine_create(application* game_inst)
+b8 engine_create(application* app)
 {
-    if (game_inst->engine_state)
+    if (app->engine_state)
     {
         BERROR("engine_create called more than once");
         return false;
@@ -141,9 +141,9 @@ b8 engine_create(application* game_inst)
     metrics_initialize();
 
     // Stand up the engine state
-    game_inst->engine_state = ballocate(sizeof(engine_state_t), MEMORY_TAG_ENGINE);
-    engine_state = game_inst->engine_state;
-    engine_state->game_inst = game_inst;
+    app->engine_state = ballocate(sizeof(engine_state_t), MEMORY_TAG_ENGINE);
+    engine_state = app->engine_state;
+    engine_state->app = app;
     engine_state->is_running = false;
     engine_state->is_suspended = false;
 
@@ -156,7 +156,7 @@ b8 engine_create(application* game_inst)
     // Platform initialization first. NOTE: NOT window creation - that should happen much later
     {
         platform_system_config plat_config = {0};
-        plat_config.application_name = game_inst->app_config.name;
+        plat_config.application_name = app->app_config.name;
         systems->platform_memory_requirement = 0;
         platform_system_startup(&systems->platform_memory_requirement, 0, &plat_config);
         systems->platform_system = ballocate(systems->platform_memory_requirement, MEMORY_TAG_ENGINE);
@@ -229,7 +229,7 @@ b8 engine_create(application* game_inst)
         vfs_config vfs_sys_config = {0};
         vfs_sys_config.text_user_types = 0;
         // Take a copy of the asset manifest path
-        vfs_sys_config.manifest_file_path = string_duplicate(game_inst->app_config.manifest_file_path);
+        vfs_sys_config.manifest_file_path = string_duplicate(app->app_config.manifest_file_path);
 
         vfs_initialize(&systems->vfs_system_memory_requirement, 0, 0);
         systems->vfs_system_state = ballocate(systems->vfs_system_memory_requirement, MEMORY_TAG_ENGINE);
@@ -244,7 +244,7 @@ b8 engine_create(application* game_inst)
     {
         // Get the generic config from application config first
         application_system_config generic_sys_config = {0};
-        if (!application_config_system_config_get(&game_inst->app_config, "asset", &generic_sys_config))
+        if (!application_config_system_config_get(&app->app_config, "asset", &generic_sys_config))
         {
             BERROR("No configuration exists in app config for the asset system. This configuration is required");
             return false;
@@ -296,7 +296,7 @@ b8 engine_create(application* game_inst)
     {
         // Get the generic config from application config first
         application_system_config generic_sys_config = {0};
-        if (!application_config_system_config_get(&game_inst->app_config, "plugin_system", &generic_sys_config))
+        if (!application_config_system_config_get(&app->app_config, "plugin_system", &generic_sys_config))
         {
             BERROR("No configuration exists in app config for the plugin system. This configuration is required");
             return false;
@@ -351,7 +351,7 @@ b8 engine_create(application* game_inst)
     {
         // Get the generic config from application config first
         application_system_config generic_sys_config = {0};
-        if (!application_config_system_config_get(&game_inst->app_config, "renderer", &generic_sys_config))
+        if (!application_config_system_config_get(&app->app_config, "renderer", &generic_sys_config))
         {
             BERROR("No configuration exists in app config for the renderer system. This configuration is required");
             return false;
@@ -376,7 +376,7 @@ b8 engine_create(application* game_inst)
 
     // Reach into platform and open new window(s) in accordance with app config.
     // Notify renderer of window(s)/setup surface(s), etc
-    u32 window_count = darray_length(game_inst->app_config.windows);
+    u32 window_count = darray_length(app->app_config.windows);
     if (window_count > 1)
     {
         BFATAL("Multiple windows are not yet implemented at the engine level. Please just stick to one for now");
@@ -386,7 +386,7 @@ b8 engine_create(application* game_inst)
     engine_state->windows = darray_create(bwindow);
     for (u32 i = 0; i < window_count; ++i)
     {
-        bwindow_config* window_config = &game_inst->app_config.windows[i];
+        bwindow_config* window_config = &app->app_config.windows[i];
         bwindow new_window = {0};
         new_window.name = string_duplicate(window_config->name);
         // Add to tracked window list
@@ -475,7 +475,7 @@ b8 engine_create(application* game_inst)
     {
         // Get the generic config from application config first
         application_system_config generic_sys_config = {0};
-        if (!application_config_system_config_get(&game_inst->app_config, "audio", &generic_sys_config))
+        if (!application_config_system_config_get(&app->app_config, "audio", &generic_sys_config))
         {
             // TODO: Maybe audio shouldn't be required?
             BERROR("No configuration exists in app config for the audio system. This configuration is required");
@@ -573,7 +573,7 @@ b8 engine_create(application* game_inst)
     {
         // Get the generic config from application config first
         application_system_config generic_sys_config = {0};
-        if (!application_config_system_config_get(&game_inst->app_config, "font", &generic_sys_config))
+        if (!application_config_system_config_get(&app->app_config, "font", &generic_sys_config))
         {
             BERROR("No configuration exists in app config for the font system. This configuration is required");
             return false;
@@ -634,8 +634,8 @@ b8 engine_create(application* game_inst)
 
     // NOTE: Boot sequence =========================================================================
     // Perform the application's boot sequence
-    game_inst->stage = APPLICATION_STAGE_BOOTING;
-    if (!game_inst->boot(game_inst))
+    app->stage = APPLICATION_STAGE_BOOTING;
+    if (!app->boot(app))
     {
         BFATAL("Game boot sequence failed; aborting application...");
         return false;
@@ -649,41 +649,35 @@ b8 engine_create(application* game_inst)
         return false;
     }
 
-    // TODO: Handle post-boot items in systems that require app config.
-    //
-    // TODO: font system
-    // TODO: Load fonts as configured in app config. in post-boot
-    // &game_inst->app_config->font_config
-
     // Setup the frame allocator
-    linear_allocator_create(game_inst->app_config.frame_allocator_size, 0, &engine_state->frame_allocator);
+    linear_allocator_create(app->app_config.frame_allocator_size, 0, &engine_state->frame_allocator);
     engine_state->p_frame_data.allocator.allocate = frame_allocator_allocate;
     engine_state->p_frame_data.allocator.free = frame_allocator_free;
     engine_state->p_frame_data.allocator.free_all = frame_allocator_free_all;
 
     // Allocate for the application's frame data.
-    if (game_inst->app_config.app_frame_data_size > 0)
-        engine_state->p_frame_data.application_frame_data = ballocate(game_inst->app_config.app_frame_data_size, MEMORY_TAG_GAME);
+    if (app->app_config.app_frame_data_size > 0)
+        engine_state->p_frame_data.application_frame_data = ballocate(app->app_config.app_frame_data_size, MEMORY_TAG_GAME);
     else
         engine_state->p_frame_data.application_frame_data = 0;
 
-    game_inst->stage = APPLICATION_STAGE_BOOT_COMPLETE;
+    app->stage = APPLICATION_STAGE_BOOT_COMPLETE;
 
     // Initialize the game
-    game_inst->stage = APPLICATION_STAGE_INITIALIZING;
-    if (!engine_state->game_inst->initialize(engine_state->game_inst))
+    app->stage = APPLICATION_STAGE_INITIALIZING;
+    if (!app->initialize(app))
     {
         BFATAL("Game failed to initialize");
         return false;
     }
-    game_inst->stage = APPLICATION_STAGE_INITIALIZED;
+    app->stage = APPLICATION_STAGE_INITIALIZED;
 
     return true;
 }
 
-b8 engine_run(application* game_inst)
+b8 engine_run(application* app)
 {
-    game_inst->stage = APPLICATION_STAGE_RUNNING;
+    app->stage = APPLICATION_STAGE_RUNNING;
     engine_state->is_running = true;
     bclock_start(&engine_state->clock);
     bclock_update(&engine_state->clock);
@@ -748,7 +742,7 @@ b8 engine_run(application* game_inst)
                     renderer_frame_prepare_window_surface(engine_state->systems.renderer_system, w, &engine_state->p_frame_data);
 
                     // Notify the application of the resize
-                    engine_state->game_inst->on_window_resize(engine_state->game_inst, w);
+                    app->on_window_resize(app, w);
 
                     w->frames_since_resize = 0;
                     w->resizing = false;
@@ -769,11 +763,11 @@ b8 engine_run(application* game_inst)
                 // This can also happen not just from a resize above, but also if a renderer flag
                 // (such as VSync) changed, which may also require resource recreation. To handle this,
                 // Notify the application of a resize event, which it can then pass on to its rendergraph(s) as needed
-                engine_state->game_inst->on_window_resize(engine_state->game_inst, w);
+                app->on_window_resize(app, w);
                 continue;
             }
 
-            if (!engine_state->game_inst->update(engine_state->game_inst, &engine_state->p_frame_data))
+            if (!app->update(app, &engine_state->p_frame_data))
             {
                 BFATAL("Game update failed. Shutting down...");
                 engine_state->is_running = false;
@@ -796,7 +790,7 @@ b8 engine_run(application* game_inst)
             plugin_system_frame_prepare_plugins(engine_state->systems.plugin_system, &engine_state->p_frame_data);
 
             // Have the application generate the render packet
-            b8 prepare_result = engine_state->game_inst->prepare_frame(engine_state->game_inst, &engine_state->p_frame_data);
+            b8 prepare_result = app->prepare_frame(app, &engine_state->p_frame_data);
             // End "prepare_frame" render event grouping
             renderer_end_debug_label();
 
@@ -804,7 +798,7 @@ b8 engine_run(application* game_inst)
                 continue;
 
             // Call the game's render routine
-            if (!engine_state->game_inst->render_frame(engine_state->game_inst, &engine_state->p_frame_data))
+            if (!app->render_frame(app, &engine_state->p_frame_data))
             {
                 BFATAL("Game render failed. Shutting down...");
                 engine_state->is_running = false;
@@ -868,10 +862,10 @@ b8 engine_run(application* game_inst)
     }
 
     engine_state->is_running = false;
-    game_inst->stage = APPLICATION_STAGE_SHUTTING_DOWN;
+    app->stage = APPLICATION_STAGE_SHUTTING_DOWN;
 
     // Shut down the game
-    engine_state->game_inst->shutdown(engine_state->game_inst);
+    app->shutdown(app);
 
     // Unregister from events
     event_unregister(EVENT_CODE_APPLICATION_QUIT, 0, engine_on_event);
@@ -917,7 +911,7 @@ b8 engine_run(application* game_inst)
         memory_system_shutdown();
     }
 
-    game_inst->stage = APPLICATION_STAGE_UNINITIALIZED;
+    app->stage = APPLICATION_STAGE_UNINITIALIZED;
 
     return true;
 }

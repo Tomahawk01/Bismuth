@@ -249,5 +249,12 @@ BAPI b8 scene_terrain_render_data_query_from_line(const scene* scene, vec3 direc
 BAPI b8 scene_water_plane_query(const scene* scene, const frustum* f, vec3 center, struct frame_data* p_frame_data, u32* out_count, struct water_plane*** out_water_planes);
 
 BAPI b8 scene_node_xform_get_by_name(const scene* scene, bname name, bhandle* out_xform_handle);
+BAPI b8 scene_node_xform_get(const scene* scene, bhandle node_handle, bhandle* out_xform_handle);
+BAPI b8 scene_node_local_matrix_get(const scene* scene, bhandle node_handle, mat4* out_matrix);
+BAPI b8 scene_node_local_matrix_get_by_name(const scene* scene, bname name, mat4* out_matrix);
+
+BAPI b8 scene_node_exists(const scene* s, bname name);
+BAPI b8 scene_node_child_count_get(const scene* s, bname name, u32* out_child_count);
+BAPI b8 scene_node_child_name_get_by_index(const scene* s, bname name, u32 index, bname* out_child_name);
 
 BAPI b8 scene_save(scene* s);

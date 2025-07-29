@@ -19,6 +19,7 @@ typedef struct console_command
     const char* name;
     u8 arg_count;
     PFN_console_command func;
+    void* listener;
 } console_command;
 
 typedef struct console_object
@@ -119,7 +120,7 @@ void console_write(log_level level, const char* message)
     }
 }
 
-b8 console_command_register(const char* command, u8 arg_count, PFN_console_command func)
+b8 console_command_register(const char* command, u8 arg_count, void* listener, PFN_console_command func)
 {
     BASSERT_MSG(state_ptr && command, "console_command_register requires state and valid command");
 
@@ -134,10 +135,13 @@ b8 console_command_register(const char* command, u8 arg_count, PFN_console_comma
         }
     }
 
-    console_command new_command = {};
-    new_command.arg_count = arg_count;
-    new_command.func = func;
-    new_command.name = string_duplicate(command);
+    console_command new_command = {
+        .arg_count = arg_count,
+        .func = func,
+        .name = string_duplicate(command),
+        .listener = listener,
+    };
+
     darray_push(state_ptr->registered_commands, new_command);
 
     return true;
@@ -1262,7 +1266,7 @@ b8 console_command_execute(const char* command)
             else
             {
                 // Execute it, passing along arguments if needed
-                console_command_context context = {};
+                console_command_context context = {0};
                 context.argument_count = cmd->arg_count;
                 if (context.argument_count > 0)
                 {
@@ -1270,6 +1274,8 @@ b8 console_command_execute(const char* command)
                     for (u8 j = 0; j < cmd->arg_count; ++j)
                         context.arguments[j].value = parts[j + 1];
                 }
+
+                context.listener = cmd->listener;
 
                 cmd->func(context);
 

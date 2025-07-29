@@ -25,7 +25,7 @@ typedef struct bvar_state
 
 static bvar_state* state_ptr;
 
-static void bvar_console_commands_register(void);
+static void bvar_console_commands_register(bvar_state* state);
 
 b8 bvar_system_initialize(u64* memory_requirement, struct bvar_state* memory, void* config)
 {
@@ -38,7 +38,7 @@ b8 bvar_system_initialize(u64* memory_requirement, struct bvar_state* memory, vo
 
     bzero_memory(state_ptr, sizeof(bvar_state));
 
-    bvar_console_commands_register();
+    bvar_console_commands_register(memory);
 
     return true;
 }
@@ -451,19 +451,19 @@ static void bvar_console_command_print_all(console_command_context context)
     }
 }
 
-static void bvar_console_commands_register(void)
+static void bvar_console_commands_register(bvar_state* state)
 {
     // Print a var by name
-    console_command_register("bvar_print", 1, bvar_console_command_print);
+    console_command_register("bvar_print", 1, state, bvar_console_command_print);
     // Print all bvars
-    console_command_register("bvar_print_all", 0, bvar_console_command_print_all);
+    console_command_register("bvar_print_all", 0, state, bvar_console_command_print_all);
 
     // Create/set an int-type bvar by name
-    console_command_register("bvar_set_int", 2, bvar_console_command_i32_set);
-    console_command_register("bvar_set_i32", 2, bvar_console_command_i32_set);  // alias
+    console_command_register("bvar_set_int", 2, state, bvar_console_command_i32_set);
+    console_command_register("bvar_set_i32", 2, state, bvar_console_command_i32_set);  // alias
     // Create/set a float-type bvar by name
-    console_command_register("bvar_set_float", 2, bvar_console_command_f32_set);
-    console_command_register("bvar_set_f32", 2, bvar_console_command_f32_set);  // alias
+    console_command_register("bvar_set_float", 2, state, bvar_console_command_f32_set);
+    console_command_register("bvar_set_f32", 2, state, bvar_console_command_f32_set);  // alias
     // Create/set a string-type bvar by name
-    console_command_register("bvar_set_string", 2, bvar_console_command_string_set);
+    console_command_register("bvar_set_string", 2, state, bvar_console_command_string_set);
 }
