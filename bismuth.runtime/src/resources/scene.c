@@ -69,10 +69,9 @@ typedef struct scene_audio_emitter
 
 typedef struct scene_physics_body
 {
+    bphysics_body_type body_type;
     bphysics_shape_type shape_type;
     bname name;
-    f32 mass;
-    f32 inertia;
     vec3 extents;
     f32 radius;
     bname mesh_resource_name;
@@ -824,11 +823,9 @@ void scene_node_initialize(scene* s, bhandle parent_handle, scene_node_config* n
 
                 // Save off properties required for intialization/loading
                 scene_physics_body spb = {0};
+                spb.body_type = typed_attachment_config->body_type;
                 spb.shape_type = typed_attachment_config->shape_type;
                 spb.name = typed_attachment_config->base.name;
-
-                spb.mass = typed_attachment_config->mass;
-                spb.inertia = typed_attachment_config->inertia;
 
                 // Initialize the physics body
                 switch (typed_attachment_config->shape_type)
@@ -851,16 +848,6 @@ void scene_node_initialize(scene* s, bhandle parent_handle, scene_node_config* n
                 attachment->resource_handle = bhandle_invalid(); // No resource handle for physics attachments
                 attachment->hierarchy_node_handle = hierarchy_node_handle;
                 attachment->attachment_type = SCENE_NODE_ATTACHMENT_TYPE_PHYSICS_BODY;
-            }
-        }
-
-        // User-defined attachment types
-        if (node_config->user_defined_configs)
-        {
-            u32 count = darray_length(node_config->user_defined_configs);
-            for (u32 i = 0; i < count; ++i)
-            {
-                scene_node_attachment_user_defined_config* typed_attachment_config = &node_config->user_defined_configs[i];
             }
         }
 
@@ -1058,7 +1045,7 @@ b8 scene_load(scene* scene)
                 {
                 case BPHYSICS_SHAPE_TYPE_SPHERE:
                 {
-                    if (!bphysics_body_create_sphere(engine_systems_get()->physics_system, body->name, position, body->radius, body->mass, body->inertia, &body->body_handle))
+                    if (!bphysics_body_create_sphere(engine_systems_get()->physics_system, body->name, position, body->radius, body->body_type, &body->body_handle))
                     {
                         BERROR("Failed to create sphere body for physics body attachment. See logs for details");
                         continue;
@@ -1067,7 +1054,7 @@ b8 scene_load(scene* scene)
                 case BPHYSICS_SHAPE_TYPE_RECTANGLE:
                 {
                     vec3 half_extents = vec3_mul_scalar(body->extents, 0.5f);
-                    if (!bphysics_body_create_rectangle(engine_systems_get()->physics_system, body->name, position, half_extents, body->mass, body->inertia, &body->body_handle))
+                    if (!bphysics_body_create_rectangle(engine_systems_get()->physics_system, body->name, position, half_extents, body->body_type, &body->body_handle))
                     {
                         BERROR("Failed to create sphere body for physics body attachment. See logs for details.");
                         continue;
@@ -1083,7 +1070,7 @@ b8 scene_load(scene* scene)
                         continue;
                     }
                     // TODO: Load up a mesh resource. Might need to define some rules in terms of what this loads (i.e. only static meshes)
-                    if (!bphysics_body_create_mesh(engine_systems_get()->physics_system, body->name, position, body->radius, body->mass, body->inertia, &body->body_handle))
+                    if (!bphysics_body_create_mesh(engine_systems_get()->physics_system, body->name, position, body->radius, body->body_type, &body->body_handle))
                     {
                         BERROR("Failed to create sphere body for physics body attachment. See logs for details");
                         continue;

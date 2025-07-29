@@ -16,15 +16,10 @@ typedef struct bphysics_body
     // Used for handle verification
     u64 uniqueid;
 
+    bphysics_body_type body_type;
     bphysics_shape_type shape_type;
 
-    // If mass == 0, the body is static
-    f32 mass;
-    // Higher = more sluggish change of direction
-    f32 inertia;
-
     vec3 velocity;
-    vec3 force;
 
     vec3 position;
     quat rotation;
@@ -105,20 +100,19 @@ void bphysics_system_shutdown(bphysics_system_state* state)
     }
 }
 
-static void resolve_collision(bphysics_body* body_0, bphysics_body* body_1, const bphysics_collision_data* collision, f32 step_time)
+static void resolve_collision(bphysics_body* body_0, bphysics_body* body_1, const bphysics_collision_data* collision)
 {
-    if (body_0->mass == 0.0f)
+    if (body_0->body_type == BPHYSICS_BODY_TYPE_STATIC)
     {
         // Static bodies don't move
         return;
     }
 
     // Resolve
-    if (body_1->mass != 0.0f)
+    if (body_1->body_type == BPHYSICS_BODY_TYPE_DYNAMIC)
     {
-        // Both are dynamic - split the correction between the 2 of them
+        // Split the correction between the 2 of them
         // TODO: This would need to be adjusted to take mass into account
-        // This should do things similarly to the below
         f32 half_penetration = collision->depth * 0.5f;
 
         // First body
@@ -141,24 +135,48 @@ static void resolve_collision(bphysics_body* body_0, bphysics_body* body_1, cons
         // Move body out of penetration
         body_0->position = vec3_mul_add_scalar(collision->normal, collision->depth, body_0->position);
 
-        // Apply friction along surface
         f32 velocity_along_normal = vec3_dot(body_0->velocity, collision->normal);
 
         // HACK: hardcoded
-        f32 NORMAL_DAMPING = 0.7f;       // "bounciness" = 0.5-0.7 to absorb downward impact
-        f32 FRICTION_SCALE = 0.02f;      // 0.05 to 0.02
-        f32 FRICTION_COEFFICIENT = 0.1f; // 0.1 to 0.3 // higher = more grip
+        f32 NORMAL_DAMPING = 0.2f;
+        f32 FRICTION_SCALE = 0.4f;
+        f32 FRICTION_COEFFICIENT = 0.01f;
         if (velocity_along_normal < 0)
         {
             // Instead of completely removing velocity, keep a small portion of it
-            body_0->velocity = vec3_sub(body_0->velocity, vec3_mul_scalar(collision->normal, velocity_along_normal * (1.0f - NORMAL_DAMPING)));
+            body_0->velocity = vec3_add(body_0->velocity, vec3_mul_scalar(collision->normal, -velocity_along_normal * (1.0f - NORMAL_DAMPING)));
         }
 
         // Tangent velocity (sliding)
         vec3 velocity_tangent = vec3_sub(body_0->velocity, vec3_mul_scalar(collision->normal, vec3_dot(body_0->velocity, collision->normal)));
 
         // Scale friction to prevent excessive slowdown uphill
-        body_0->velocity = vec3_sub(velocity_tangent, vec3_mul_scalar(velocity_tangent, FRICTION_COEFFICIENT * FRICTION_SCALE));
+        body_0->velocity = vec3_add(velocity_tangent, vec3_mul_scalar(velocity_tangent, -FRICTION_COEFFICIENT * FRICTION_SCALE));
+
+        // TODO: old
+        /* // NOTE: Simple velocity reflection
+        body_0->velocity = vec3_reflect(body_0->velocity, collision->normal);
+
+        // Apply Friction
+        const f32 friction = 0.005f; // TODO: Apply based on surface properties
+
+        f32 dot = vec3_dot(body_0->velocity, collision->normal);
+
+#if 0
+        // Method 1 - very sticky, moves slowly
+        // Adjust velocity to slide along collision surface
+        body_0->velocity = vec3_add(body_1->velocity, vec3_mul_scalar(collision->normal, -dot));
+        // Apply Friction
+        body_0->velocity = vec3_add(body_1->velocity, vec3_mul_scalar(collision->normal, -friction));
+
+#else
+
+        // Method 2 - faster, but struggles going uphill. Very "slippery"
+        // Get the velocity tangent (perpendicular to instantaneous path of motion)
+        vec3 velocity_tangent = vec3_sub(body_0->velocity, vec3_mul_scalar(collision->normal, dot));
+        // Apply Friction
+        body_0->velocity = vec3_add(velocity_tangent, vec3_mul_scalar(velocity_tangent, -friction));
+#endif */
     }
 }
 
@@ -200,6 +218,21 @@ f32 point_plane_distance(vec3 point, vec3 plane_point, vec3 plane_normal)
 
 b8 check_sphere_triangle_collision(vec3 sphere_center, f32 sphere_radius, const triangle_3d* tri, bphysics_collision_data* out_collision)
 {
+    /* vec3 closest_point = triangle_3d_get_closest_point(sphere_center, tri);
+
+    vec3 sphere_to_closest = vec3_sub(closest_point, sphere_center);
+    f32 distance = vec3_length(sphere_to_closest);
+
+    if (distance <= sphere_radius)
+    {
+        // Collision detected!
+        out_collision->depth = sphere_radius - distance;
+        out_collision->normal = vec3_normalized(sphere_to_closest);
+        return true;
+    }
+
+    return false; */
+
     vec3 triangle_normal = triangle_3d_get_normal(tri);
 
     // Project sphere center onto triangle plane
@@ -511,18 +544,10 @@ static b8 check_obb_triangle_collision(const oriented_bounding_box* obb, const t
     return true;
 } */
 
-static f32 calculate_air_density(f32 altitude)
-{
-    const f32 sea_level_density = 1.225f; // kg/m^3
-    const f32 scale_height = 8500.0f;     // meters
-
-    return sea_level_density * bexp(-altitude / scale_height);
-}
-
 // NOTE: The first body should always be dynamic. The second can be either dynamic or static
-static b8 collide_bodies(bphysics_body* body_0, bphysics_body* body_1, f32 step_time, u32* collision_count, f32* penetration_depth)
+static b8 collide_bodies(bphysics_body* body_0, bphysics_body* body_1)
 {
-    if (body_0->mass == 0.0f)
+    if (body_0->body_type != BPHYSICS_BODY_TYPE_DYNAMIC)
     {
         BERROR("%s - body_0 should always be dynamic", __FUNCTION__);
         return false;
@@ -540,12 +565,8 @@ static b8 collide_bodies(bphysics_body* body_0, bphysics_body* body_1, f32 step_
             // sphere->sphere
             if (check_sphere_sphere_collision(body_0->position, body_0->radius, body_1->position, body_1->radius, &collision))
             {
-                (*collision_count)++;
-
                 // Resolve
-                resolve_collision(body_0, body_1, &collision, step_time);
-
-                *penetration_depth = collision.depth;
+                resolve_collision(body_0, body_1, &collision);
             }
         } break;
         case BPHYSICS_SHAPE_TYPE_RECTANGLE:
@@ -558,18 +579,16 @@ static b8 collide_bodies(bphysics_body* body_0, bphysics_body* body_1, f32 step_
 
             if (check_obb_sphere_collision(&obb, body_0->position, body_0->radius, &collision))
             {
-                (*collision_count)++;
-
                 // Resolve
-                resolve_collision(body_0, body_1, &collision, step_time);
-                *penetration_depth = collision.depth;
+                resolve_collision(body_0, body_1, &collision);
             }
         } break;
         case BPHYSICS_SHAPE_TYPE_MESH:
         {
             // sphere->mesh
 
-            u32 local_collision_count = 0;
+            // Number of collisions
+            u32 collision_count = 0;
             // Accumulate the collision normals
             vec3 accumulated_collision_normal = vec3_zero();
             // Track the max penetration depth
@@ -580,16 +599,15 @@ static b8 collide_bodies(bphysics_body* body_0, bphysics_body* body_1, f32 step_
             {
                 if (check_sphere_triangle_collision(body_0->position, body_0->radius, &body_1->tris[i], &collision))
                 {
-                    local_collision_count++;
+                    collision_count++;
                     accumulated_collision_normal = vec3_add(accumulated_collision_normal, collision.normal);
                     if (collision.depth > max_pen_depth)
                         max_pen_depth = collision.depth;
                 }
             }
-            *penetration_depth = max_pen_depth;
 
             // If there were collisions, resolve
-            if (local_collision_count)
+            if (collision_count)
             {
                 // Use the normalized accumulated normal and the largest penetration depth
                 vec3_normalize(&accumulated_collision_normal);
@@ -600,9 +618,8 @@ static b8 collide_bodies(bphysics_body* body_0, bphysics_body* body_1, f32 step_
                     .normal = accumulated_collision_normal};
 
                 // Resolve
-                resolve_collision(body_0, body_1, &accumulated_collision_data, step_time);
+                resolve_collision(body_0, body_1, &accumulated_collision_data);
             }
-            (*collision_count) += local_collision_count;
         } break;
         }
         break;
@@ -619,11 +636,8 @@ static b8 collide_bodies(bphysics_body* body_0, bphysics_body* body_1, f32 step_
 
             if (check_obb_sphere_collision(&obb, body_1->position, body_1->radius, &collision))
             {
-                (*collision_count)++;
-
                 // Resolve
-                resolve_collision(body_0, body_1, &collision, step_time);
-                *penetration_depth = collision.depth;
+                resolve_collision(body_0, body_1, &collision);
             }
         } break;
         case BPHYSICS_SHAPE_TYPE_RECTANGLE:
@@ -640,11 +654,8 @@ static b8 collide_bodies(bphysics_body* body_0, bphysics_body* body_1, f32 step_
 
             if (check_obb_obb_collision(&obb_0, &obb_1, &collision))
             {
-                (*collision_count)++;
-
                 // Resolve
-                resolve_collision(body_0, body_1, &collision, step_time);
-                *penetration_depth = collision.depth;
+                resolve_collision(body_0, body_1, &collision);
             }
 
         } break;
@@ -661,14 +672,12 @@ static b8 collide_bodies(bphysics_body* body_0, bphysics_body* body_1, f32 step_
             {
                 if (check_obb_triangle_collision(&obb, &body_1->tris[i], &collision))
                 {
-                    (*collision_count)++;
-
                     BTRACE("Rectangle collided with mesh!");
 
                     // TODO: what if multiple triangles collide? Should an average be taken? Iterate them all?
 
                     // Resolve
-                    resolve_collision(body_0, body_1, &collision, step_time);
+                    resolve_collision(body_0, body_1, &collision);
                     break;
                 }
             }
@@ -683,9 +692,9 @@ static b8 collide_bodies(bphysics_body* body_0, bphysics_body* body_1, f32 step_
     return true;
 }
 
-static b8 physics_step(bphysics_system_state* state, f64 step_time)
+static void apply_gravity(bphysics_system_state* state, f64 fixed_update_time)
 {
-    vec3 step_gravity = vec3_mul_scalar(state->active_world->gravity, step_time);
+    vec3 step_gravity = vec3_mul_scalar(state->active_world->gravity, fixed_update_time);
 
     u32 body_count = darray_length(state->active_world->bodies);
     for (u32 i = 0; i < body_count; ++i)
@@ -696,27 +705,38 @@ static b8 physics_step(bphysics_system_state* state, f64 step_time)
             if (body_0)
             {
                 // Only want to affect dynamic bodies
-                if (body_0->mass != 0.0f)
+                if (body_0->body_type == BPHYSICS_BODY_TYPE_DYNAMIC)
                 {
-                    // Apply gravity first
+                    // Apply gravity
                     body_0->velocity = vec3_add(body_0->velocity, step_gravity);
 
-                    // Calculate acceleration from force
-                    vec3 force_acceleration = vec3_mul_scalar(body_0->force, (1.0f / body_0->mass) * step_time);
+                    // HACK: terminal velocity
+                    // TODO: define a ground plane
+                    if (body_0->velocity.y < step_gravity.y)
+                        body_0->velocity.y = step_gravity.y;
 
-                    // Apply inertia only to force-driven movement
-                    f32 inertia_factor = 1.0f / (BMAX(1.0f + body_0->inertia * step_time, B_FLOAT_EPSILON));
-                    vec3 adjusted_force = vec3_mul_scalar(force_acceleration, inertia_factor);
+                    // TODO: Should this be applied here?
+                    body_0->position = vec3_add(body_0->position, body_0->velocity);
+                }
+            }
+        }
+    }
+}
 
-                    // Apply the force
-                    body_0->velocity = vec3_add(body_0->velocity, adjusted_force);
-
-                    // Update position
-                    body_0->position = vec3_add(body_0->position, vec3_mul_scalar(body_0->velocity, step_time));
-
+static b8 physics_step(bphysics_system_state* state, f64 delta_time)
+{
+    u32 body_count = darray_length(state->active_world->bodies);
+    for (u32 i = 0; i < body_count; ++i)
+    {
+        if (bhandle_is_valid(state->active_world->bodies[i]))
+        {
+            bphysics_body* body_0 = bpool_get_by_index(&state->all_bodies, state->active_world->bodies[i].handle_index);
+            if (body_0)
+            {
+                // Only want to affect dynamic bodies
+                if (body_0->body_type == BPHYSICS_BODY_TYPE_DYNAMIC)
+                {
                     // Check against all other bodies in the world
-                    u32 collision_count = 0;
-                    f32 penetration_depth = 0;
                     // TODO: Need some sort of spatial partitioning here to speed this up
                     for (u32 j = 0; j < body_count; ++j)
                     {
@@ -730,8 +750,7 @@ static b8 physics_step(bphysics_system_state* state, f64 step_time)
                             }
                             if (body_1)
                             {
-                                // Check for and correct collisions
-                                if (!collide_bodies(body_0, body_1, step_time, &collision_count, &penetration_depth))
+                                if (!collide_bodies(body_0, body_1))
                                 {
                                     BERROR("Failed to handle body collision. See logs for details. Physics step failed");
                                     return false;
@@ -739,31 +758,7 @@ static b8 physics_step(bphysics_system_state* state, f64 step_time)
                             }
                         }
                     }
-                    
-                    // If there was no collision, apply drag if flying through the air
-                    if (!collision_count || penetration_depth < 0.01f)
-                    {
-                        // Calculate drag
-                        f32 speed = vec3_length(body_0->velocity);
-                        f32 air_density = calculate_air_density(body_0->position.y); // HACK: Should probably be based off gravity direction
-                        f32 linear_drag = 0.05;                                      // TODO: configurable
-                        f32 quadratic_drag = 0.007f;
-                        f32 drag_magnitude = air_density * (linear_drag * speed + quadratic_drag * speed);
-
-                        vec3 normalized_velocity = vec3_normalized(body_0->velocity);
-
-                        // Drag should affect higher-mass objects less
-                        vec3 drag_acceleration = vec3_mul_scalar(normalized_velocity, -drag_magnitude / body_0->mass);
-
-                        // HACK: Additional air friction - need a way to set this
-                        f32 friction_multiplier = speed;
-                        drag_acceleration = vec3_mul_scalar(drag_acceleration, friction_multiplier);
-
-                        body_0->velocity = vec3_add(body_0->velocity, vec3_mul_scalar(drag_acceleration, step_time));
-
-                        // Update position again
-                        body_0->position = vec3_add(body_0->position, vec3_mul_scalar(body_0->velocity, step_time));
-                    }
+                    // TODO: May want to apply some sort of "air friction" if no other collision happened
                 }
             }
         }
@@ -780,7 +775,7 @@ b8 bphysics_system_fixed_update(bphysics_system_state* state, f64 fixed_update_t
     if (state->active_world)
     {
         // Apply gravity first
-        // apply_gravity(state, fixed_update_time);
+        apply_gravity(state, fixed_update_time);
 
         // Perform collision tests (stepped)
         f64 step_delta = fixed_update_time / state->config.steps_per_frame;
@@ -790,18 +785,6 @@ b8 bphysics_system_fixed_update(bphysics_system_state* state, f64 fixed_update_t
             {
                 BERROR("Failed to apply physics step. See logs for details");
                 return false;
-            }
-        }
-
-        // Reset force each step so it only lasts 1 frame unless re-applied
-        u32 body_count = darray_length(state->active_world->bodies);
-        for (u32 i = 0; i < body_count; ++i)
-        {
-            if (bhandle_is_valid(state->active_world->bodies[i]))
-            {
-                bphysics_body* body_0 = bpool_get_by_index(&state->all_bodies, state->active_world->bodies[i].handle_index);
-                if (body_0)
-                    body_0->force = vec3_zero();
             }
         }
     }
@@ -897,7 +880,7 @@ b8 bphysics_world_remove_body(struct bphysics_system_state* state, bphysics_worl
     return false;
 }
 
-b8 bphysics_body_create_sphere(struct bphysics_system_state* state, bname name, vec3 position, f32 radius, f32 mass, f32 inertia, bhandle* out_handle)
+b8 bphysics_body_create_sphere(struct bphysics_system_state* state, bname name, vec3 position, f32 radius, bphysics_body_type body_type, bhandle* out_handle)
 {
     if (!state || !out_handle)
     {
@@ -908,8 +891,7 @@ b8 bphysics_body_create_sphere(struct bphysics_system_state* state, bname name, 
     bphysics_body* body = create_body(state, out_handle);
 
     body->name = name;
-    body->mass = mass;
-    body->inertia = inertia;
+    body->body_type = body_type;
     body->shape_type = BPHYSICS_SHAPE_TYPE_SPHERE;
     body->position = position;
     body->radius = radius;
@@ -917,7 +899,7 @@ b8 bphysics_body_create_sphere(struct bphysics_system_state* state, bname name, 
     return true;
 }
 
-b8 bphysics_body_create_rectangle(struct bphysics_system_state* state, bname name, vec3 position, vec3 half_extents, f32 mass, f32 inertia, bhandle* out_handle)
+b8 bphysics_body_create_rectangle(struct bphysics_system_state* state, bname name, vec3 position, vec3 half_extents, bphysics_body_type body_type, bhandle* out_handle)
 {
     if (!state || !out_handle)
     {
@@ -928,8 +910,7 @@ b8 bphysics_body_create_rectangle(struct bphysics_system_state* state, bname nam
     bphysics_body* body = create_body(state, out_handle);
 
     body->name = name;
-    body->mass = mass;
-    body->inertia = inertia;
+    body->body_type = body_type;
     body->shape_type = BPHYSICS_SHAPE_TYPE_RECTANGLE;
     body->position = position;
     body->half_extents = half_extents;
@@ -937,7 +918,7 @@ b8 bphysics_body_create_rectangle(struct bphysics_system_state* state, bname nam
     return true;
 }
 
-b8 bphysics_body_create_mesh(struct bphysics_system_state* state, bname name, vec3 position, u32 triangle_count, triangle_3d* tris, f32 mass, f32 inertia, bhandle* out_handle)
+b8 bphysics_body_create_mesh(struct bphysics_system_state* state, bname name, vec3 position, u32 triangle_count, triangle_3d* tris, bphysics_body_type body_type, bhandle* out_handle)
 {
     if (!state || !out_handle)
     {
@@ -948,8 +929,7 @@ b8 bphysics_body_create_mesh(struct bphysics_system_state* state, bname name, ve
     bphysics_body* body = create_body(state, out_handle);
 
     body->name = name;
-    body->mass = mass;
-    body->inertia = inertia;
+    body->body_type = body_type;
     body->shape_type = BPHYSICS_SHAPE_TYPE_MESH;
     body->position = position;
     body->triangle_count = triangle_count;
@@ -1022,20 +1002,6 @@ b8 bphysics_body_apply_velocity(struct bphysics_system_state* state, bhandle bod
 
     b->velocity = vec3_add(b->velocity, velocity);
 
-    return true;
-}
-
-b8 bphysics_body_set_force(struct bphysics_system_state* state, bhandle body, vec3 force)
-{
-    if (!state)
-        return false;
-
-    bphysics_body* b = get_body(state, body);
-    if (!b)
-        return false;
-
-    b->force = force;
-    
     return true;
 }
 

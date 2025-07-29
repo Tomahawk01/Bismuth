@@ -77,7 +77,6 @@ BAPI f32 bceil(f32 x);
 BAPI f32 blog(f32 x);
 BAPI f32 blog2(f32 x);
 BAPI f32 bpow(f32 x, f32 y);
-BAPI f32 bexp(f32 x);
 
 BINLINE f32 blerp(f32 a, f32 b, f32 t)
 {
@@ -1248,16 +1247,6 @@ BAPI mat4 quat_to_mat4(quat q);
 BAPI mat4 quat_to_rotation_matrix(quat q, vec3 center);
 
 BAPI quat quat_from_axis_angle(vec3 axis, f32 angle, b8 normalize);
-
-BAPI quat quat_from_euler_radians(vec3 euler_rotation_radians);
-
-BAPI vec3 quat_to_euler_radians(quat q);
-
-BAPI vec3 quat_to_euler(quat q);
-
-BAPI quat quat_from_direction(vec3 direction);
-
-BAPI quat quat_lookat(vec3 from, vec3 to);
 
 BAPI quat quat_slerp(quat q_0, quat q_1, f32 percentage);
 

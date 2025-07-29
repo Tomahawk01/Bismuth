@@ -260,27 +260,6 @@ static b8 serialize_node(scene_node_config* node, bson_object* node_obj)
     // Process attachments by type, but place them all into the same array in the output file
     bson_array attachment_obj_array = bson_array_create();
 
-    // User-defined configs are output directly as-is, not processed here
-    if (node->user_defined_configs)
-    {
-        u32 length = darray_length(node->user_defined_configs);
-        for (u32 i = 0; i < length; ++i)
-        {
-            scene_node_attachment_user_defined_config* typed_attachment = &node->user_defined_configs[i];
-            /* scene_node_attachment_config* attachment = (scene_node_attachment_config*)typed_attachment; */
-
-            // Deserialize config source to a temp BSON tree
-            bson_tree temp = {0};
-            bson_tree_from_string(typed_attachment->config_source, &temp);
-
-            // Add that tree's root as the attachment object
-            bson_array_value_add_object(&attachment_obj_array, temp.root);
-
-            // Cleanup the temp tree
-            bson_tree_cleanup(&temp);
-        }
-    }
-
     if (node->skybox_configs)
     {
         u32 length = darray_length(node->skybox_configs);
@@ -746,25 +725,27 @@ static b8 serialize_node(scene_node_config* node, bson_object* node_obj)
             }
 
             // Specific properties
-            // Mass
+            // Body type
             {
-                if (!bson_object_value_add_float(&attachment_obj, "mass", typed_attachment->mass))
+                char* body_type_str = 0;
+                switch (typed_attachment->body_type)
                 {
-                    BERROR("Failed to add 'mass' property for attachment '%s'", attachment_name);
+                case BPHYSICS_BODY_TYPE_STATIC:
+                    body_type_str = "static";
+                    break;
+                case BPHYSICS_BODY_TYPE_DYNAMIC:
+                    body_type_str = "dynamic";
+                    break;
+                }
+
+                if (!bson_object_value_add_string(&attachment_obj, "body_type", body_type_str))
+                {
+                    BERROR("Failed to add 'body_type' property for attachment '%s'", attachment_name);
                     return false;
                 }
             }
 
-            // Inertia
-            {
-                if (!bson_object_value_add_float(&attachment_obj, "inertia", typed_attachment->inertia))
-                {
-                    BERROR("Failed to add 'inertia' property for attachment '%s'", attachment_name);
-                    return false;
-                }
-            }
-
-            // Shape type
+            // Body type
             {
                 char* shape_type_str = 0;
                 switch (typed_attachment->shape_type)
@@ -988,27 +969,13 @@ static b8 deserialize_attachment(basset* asset, scene_node_config* node, bson_ob
     }
     if (type == SCENE_NODE_ATTACHMENT_TYPE_UNKNOWN)
     {
-        // Switch to user-defined if no match is found
-        type = SCENE_NODE_ATTACHMENT_TYPE_USER_DEFINED;
+        BERROR("Unrecognized attachment type '%s'. Attachment deserialization failed", type_str);
+        return false;
     }
 
     // Process based on attachment type
     switch (type)
     {
-    case SCENE_NODE_ATTACHMENT_TYPE_USER_DEFINED:
-    {
-        scene_node_attachment_user_defined_config typed_attachment = {0};
-
-        // Store off the source as a string and deserialize later
-        bson_tree temp = {0};
-        temp.root = *attachment_obj;
-        typed_attachment.config_source = bson_tree_to_string(&temp);
-
-        // Push to the appropriate array
-        if (!node->user_defined_configs)
-            node->user_defined_configs = darray_create(scene_node_attachment_user_defined_config);
-        darray_push(node->user_defined_configs, typed_attachment);
-    } break;
     case SCENE_NODE_ATTACHMENT_TYPE_UNKNOWN:
     {
         BERROR("Stop trying to deserialize the unknown member of the enum!");
@@ -1280,16 +1247,27 @@ static b8 deserialize_attachment(basset* asset, scene_node_config* node, bson_ob
         scene_node_attachment_physics_body_config typed_attachment = {0};
         typed_attachment.base.name = attachment_name;
 
-        // Mass is optional and defaults to 0 (i.e. static body)
+        // Body type is required
         {
-            if (!bson_object_property_value_get_float(attachment_obj, "mass", &typed_attachment.mass))
-                typed_attachment.mass = 0;
-        }
-
-        // Inertia is optional and defaults to 0 (i.e. changes direction sharply)
-        {
-            if (!bson_object_property_value_get_float(attachment_obj, "inertia", &typed_attachment.inertia))
-                typed_attachment.inertia = 0;
+            const char* body_type_str = 0;
+            if (!bson_object_property_value_get_string(attachment_obj, "body_type", &body_type_str))
+            {
+                BERROR("Failed to get required 'body_type' property for attachment '%s'", attachment_name);
+                return false;
+            }
+            if (strings_equali(body_type_str, "dynamic"))
+            {
+                typed_attachment.body_type = BPHYSICS_BODY_TYPE_DYNAMIC;
+            }
+            else if (strings_equali(body_type_str, "static"))
+            {
+                typed_attachment.body_type = BPHYSICS_BODY_TYPE_STATIC;
+            }
+            else
+            {
+                BERROR("Unrecognized physics body type '%s'. Skipping...", body_type_str);
+                return false;
+            }
         }
 
         // Shape type is required
