@@ -12,6 +12,9 @@ typedef struct console_command_argument
 
 typedef struct console_command_context
 {
+    const char* command;
+    const char* command_name;
+
     u8 argument_count;
     console_command_argument* arguments;
     void* listener;
