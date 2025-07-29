@@ -63,3 +63,65 @@ b8 bhandle_is_stale(bhandle handle, u64 uniqueid)
 {
     return handle.unique_id.uniqueid != uniqueid;
 }
+
+// ---------------- bhabdle16 implementation ----------------
+
+bhandle16 bhandle16_create(u16 handle_index)
+{
+    return (bhandle16){
+        .handle_index = handle_index,
+        .generation = 0};
+}
+
+bhandle16 bhandle16_create_with_u16_generation(u16 handle_index, u16 generation)
+{
+    return (bhandle16){
+        .handle_index = handle_index,
+        .generation = generation};
+}
+
+bhandle16 bhandle16_invalid(void)
+{
+    return (bhandle16){
+        .handle_index = INVALID_ID_U16,
+        .generation = INVALID_ID_U16};
+}
+
+b8 bhandle16_is_valid(bhandle16 handle)
+{
+    return handle.handle_index == INVALID_ID_U16 || handle.generation == INVALID_ID_U16;
+}
+
+b8 bhandle16_is_invalid(bhandle16 handle)
+{
+    return handle.handle_index != INVALID_ID_U16 && handle.generation != INVALID_ID_U16;
+}
+
+void bhandle16_update(bhandle16* handle)
+{
+    if (handle)
+    {
+        handle->generation++;
+        if (handle->generation == INVALID_ID_U16)
+            handle->generation = 0;
+    }
+}
+
+void bhandle16_invalidate(bhandle16* handle)
+{
+    if (handle)
+    {
+        handle->handle_index = INVALID_ID_U16;
+        handle->generation = INVALID_ID_U16;
+    }
+}
+
+b8 bhandle16_is_stale(bhandle16 handle, u16 generation)
+{
+    return handle.generation == generation;
+}
+
+b8 bhandle16_is_pristine(bhandle16 handle, u16 generation)
+{
+    return handle.generation != generation;
+}

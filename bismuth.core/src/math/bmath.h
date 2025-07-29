@@ -1848,6 +1848,8 @@ BAPI b8 plane_intersects_sphere(const plane_3d* p, const vec3* center, f32 radiu
 
 BAPI b8 frustum_intersects_sphere(const frustum* f, const vec3* center, f32 radius);
 
+BAPI b8 frustum_intersects_bsphere(const frustum* f, const bsphere* sphere);
+
 BAPI b8 plane_intersects_aabb(const plane_3d* p, const vec3* center, const vec3* extents);
 
 BAPI b8 frustum_intersects_aabb(const frustum* f, const vec3* center, const vec3* extents);
@@ -1859,12 +1861,31 @@ BINLINE b8 rect_2d_contains_point(rect_2d rect, vec2 point)
 
 BAPI f32 vec3_distance_to_line(vec3 point, vec3 line_start, vec3 line_direction);
 
+BINLINE vec3 extents_2d_center(extents_2d extents)
+{
+    return (vec3)
+    {
+        (extents.min.x + extents.max.x) * 0.5f,
+        (extents.min.y + extents.max.y) * 0.5f
+    };
+}
+
 BINLINE vec3 extents_2d_half(extents_2d extents)
+{
+    return (vec3)
+    {
+        babs(extents.min.x - extents.max.x) * 0.5f,
+        babs(extents.min.y - extents.max.y) * 0.5f
+    };
+}
+
+BINLINE vec3 extents_3d_center(extents_3d extents)
 {
     return (vec3)
     {
         (extents.min.x + extents.max.x) * 0.5f,
         (extents.min.y + extents.max.y) * 0.5f,
+        (extents.min.z + extents.max.z) * 0.5f
     };
 }
 
@@ -1872,9 +1893,9 @@ BINLINE vec3 extents_3d_half(extents_3d extents)
 {
     return (vec3)
     {
-        (extents.min.x + extents.max.x) * 0.5f,
-        (extents.min.y + extents.max.y) * 0.5f,
-        (extents.min.z + extents.max.z) * 0.5f
+        babs(extents.min.x - extents.max.x) * 0.5f,
+        babs(extents.min.y - extents.max.y) * 0.5f,
+        babs(extents.min.z - extents.max.z) * 0.5f
     };
 }
 

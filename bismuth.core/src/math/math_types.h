@@ -223,6 +223,32 @@ typedef union vec2i_t
     };
 } vec2i;
 
+typedef union vec3i_t
+{
+    i32 elements[3];
+    union
+    {
+        struct
+        {
+            union
+            {
+                /** First element */
+                i32 x, r, s;
+            };
+            union
+            {
+                /** Second element */
+                i32 y, g, t;
+            };
+            union
+            {
+                /** Third element */
+                i32 z, b, p;
+            };
+        };
+    };
+} vec3i;
+
 typedef union vec4i_t
 {
     i32 elements[4];
@@ -258,3 +284,9 @@ typedef struct triangle
 {
     vec3 verts[3];
 } triangle;
+
+typedef struct bsphere
+{
+    vec3 position;
+    f32 radius;
+} bsphere;

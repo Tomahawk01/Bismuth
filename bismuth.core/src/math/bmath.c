@@ -192,6 +192,16 @@ b8 frustum_intersects_sphere(const frustum* f, const vec3* center, f32 radius)
     return true;
 }
 
+b8 frustum_intersects_bsphere(const frustum* f, const bsphere* sphere)
+{
+    for (u8 i = 0; i < 6; ++i)
+    {
+        if (!plane_intersects_sphere(&f->sides[i], &sphere->position, sphere->radius))
+            return false;
+    }
+    return true;
+}
+
 b8 plane_intersects_aabb(const plane_3d* p, const vec3* center, const vec3* extents)
 {
     f32 r = extents->x * babs(p->normal.x) +

@@ -75,6 +75,8 @@ BAPI void* ballocate_aligned(u64 size, u16 alignment, memory_tag tag);
 BAPI void ballocate_report(u64 size, memory_tag tag);
 
 BAPI void* breallocate(void* block, u64 old_size, u64 new_size, memory_tag tag);
+#define BREALLOC_TYPE_CARRAY(block, type, old_count, new_count) (type*)breallocate(block, sizeof(type) * old_count, sizeof(type) * new_count, MEMORY_TAG_ARRAY)
+
 BAPI void* breallocate_aligned(void* block, u64 old_size, u64 new_size, u16 alignment, memory_tag tag);
 BAPI void breallocate_report(u64 old_size, u64 new_size, memory_tag tag);
 

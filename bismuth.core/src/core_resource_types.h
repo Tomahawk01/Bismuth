@@ -4,6 +4,12 @@
 #include "math/math_types.h"
 #include "strings/bname.h"
 
+typedef struct bresource_info
+{
+    bname resource_name;
+    bname package_name;
+} bresource_info;
+
 typedef enum scene_node_attachment_type
 {
     SCENE_NODE_ATTACHMENT_TYPE_UNKNOWN,

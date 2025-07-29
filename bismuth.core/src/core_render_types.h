@@ -1,8 +1,11 @@
 #pragma once
 
 #include "defines.h"
+#include "identifiers/bhandle.h"
+#include "math/math_types.h"
 #include "strings/bname.h"
 #include "strings/bstring_id.h"
+#include "utils/bcolor.h"
 
 /** @brief Determines face culling mode during rendering */
 typedef enum face_cull_mode
@@ -366,3 +369,138 @@ typedef struct bmaterial_sampler_config
     texture_repeat repeat_v;
     texture_repeat repeat_w;
 } bmaterial_sampler_config;
+
+/**
+ * @brief A material instance, which contains handles to both
+ * the base material as well as the instance itself. Every time
+ * an instance is "acquired", one of these is created, and the instance
+ * should be referenced using this going from that point.
+ */
+typedef struct material_instance
+{
+    /** @brief Handle to the base material */
+    bhandle material;
+    /** @brief Handle to the instance */
+    bhandle instance;
+} material_instance;
+
+typedef struct brenderbuffer_render_data
+{
+    /** @brief The element count */
+    u32 count;
+    /** @brief The offset from the beginning of the buffer */
+    u64 offset;
+} brenderbuffer_render_data;
+
+/** @brief Represents render data for arbitrary geometry */
+typedef struct bgeometry_render_data
+{
+    struct renderbuffer* vertex_buffer;
+    brenderbuffer_render_data vertex_data;
+    struct renderbuffer* index_buffer;
+    brenderbuffer_render_data index_data;
+} bgeometry_render_data;
+
+typedef struct bskybox_render_data
+{
+    mat4 model;
+    u32 group_id;
+    u32 draw_id;
+    struct bresource_texture* cubemap;
+} bkybox_render_data;
+
+/** @brief Defines flags used for rendering static meshes */
+typedef enum bstatic_mesh_render_data_flag
+{
+    /** @brief Indicates that the winding order for the given static mesh should be inverted */
+    BSTATIC_MESH_RENDER_DATA_FLAG_WINDING_INVERTED_BIT = 0x0001
+} bstaticm_esh_render_data_flag;
+
+/**
+ * @brief Collection of flags for a static mesh submesh to be rendered
+ * @see bstatic_mesh_render_data_flag
+ */
+typedef u32 bstatic_mesh_render_data_flag_bits;
+
+/**
+ * @brief The render data for an individual static sub-mesh to be rendered
+ */
+typedef struct bstatic_mesh_submesh_render_data
+{
+    /** @brief Flags for the static mesh to be rendered */
+    bstatic_mesh_render_data_flag_bits flags;
+
+    /** @brief The vertex data */
+    brenderbuffer_render_data vertex_data;
+
+    /** @brief The index data */
+    brenderbuffer_render_data index_data;
+
+    /** @brief The instance of the material to use with this static mesh when rendering */
+    material_instance material;
+} bstatic_mesh_submesh_render_data;
+
+/**
+ * @brief Contains data required to render a static mesh (ultimately its submeshes)
+ */
+typedef struct bstatic_mesh_render_data
+{
+    /** The identifier of the mesh instance being rendered */
+    u64 instance_id;
+
+    /** @brief The number of submeshes to be rendered */
+    u32 submesh_count;
+    /** @brief The array of submeshes to be rendered */
+    bstatic_mesh_submesh_render_data* submeshes;
+
+    /** @brief The tint override to be used when rendering all submeshes. Typically white (1, 1, 1, 1) if not used */
+    vec4 tint;
+} bstatic_mesh_render_data;
+
+/**
+ * @brief Directional light data formatted for direct shader use
+ */
+typedef struct bdirectional_light_render_data
+{
+    /** @brief The light color */
+    color4 color;
+    /** @brief The direction of the light. The w component is ignored */
+    vec4 direction;
+
+    f32 shadow_distance;
+    f32 shadow_fade_distance;
+    f32 shadow_split_mult;
+    f32 padding;
+} bdirectional_light_render_data;
+
+/**
+ * @brief Point light data formatted for direct shader use
+ */
+typedef struct bpoint_light_render_data
+{
+    /** @brief The light color */
+    color4 color;
+    /** @brief The position of the light in the world. The w component is ignored */
+    vec4 position;
+    /** @brief Usually 1, make sure denominator never gets smaller than 1 */
+    f32 constant_f;
+    /** @brief Reduces light intensity linearly */
+    f32 linear;
+    /** @brief Makes the light fall off slower at longer distances */
+    f32 quadratic;
+    /** @brief Additional padding used for memory alignment purposes. Ignored */
+    f32 padding;
+} bpoint_light_render_data;
+
+typedef struct bwater_plane_render_data
+{
+    mat4 model;
+    /** @brief The vertex data */
+    brenderbuffer_render_data vertex_data;
+
+    /** @brief The index data */
+    brenderbuffer_render_data index_data;
+
+    /** @brief The instance of the material to use with this static mesh when rendering */
+    material_instance material;
+} bwater_plane_render_data;
