@@ -1,15 +1,17 @@
-#include "basset_binary_image_serializer.h"
+#include "basset_image_serializer.h"
 
 #include "assets/basset_types.h"
-#include "assets/basset_utils.h"
 #include "logger.h"
 #include "memory/bmemory.h"
+#include "utils/render_type_utils.h"
+
+#define IMAGE_ASSET_CURRENT_VERSION 1
 
 typedef struct binary_image_header
 {
     // The base binary asset header. Must always be the first member
     binary_asset_header base;
-    // The image format. cast to basset_image_format
+    // The image format. cast to bpixel_format
     u32 format;
     // The image width in pixels
     u32 width;
@@ -21,7 +23,7 @@ typedef struct binary_image_header
     u8 padding[3];
 } binary_image_header;
 
-BAPI void* basset_binary_image_serialize(const basset* asset, u64* out_size)
+BAPI void* basset_image_serialize(const basset_image* asset, u64* out_size)
 {
     if (!asset)
     {
@@ -29,37 +31,29 @@ BAPI void* basset_binary_image_serialize(const basset* asset, u64* out_size)
         return 0;
     }
 
-    if (asset->type != BASSET_TYPE_IMAGE)
-    {
-        BERROR("Cannot serialize a non-image asset using the image serializer");
-        return 0;
-    }
-
-    basset_image* typed_asset = (basset_image*)asset;
-
     binary_image_header header = {0};
     // Base attributes
     header.base.magic = ASSET_MAGIC;
-    header.base.type = (u32)asset->type;
-    header.base.data_block_size = typed_asset->pixel_array_size;
+    header.base.type = (u32)BASSET_TYPE_IMAGE;
+    header.base.data_block_size = asset->pixel_array_size;
     // Always write the most current version
     header.base.version = 1;
 
-    header.height = typed_asset->height;
-    header.width = typed_asset->width;
-    header.mip_levels = typed_asset->mip_levels;
-    header.format = (u32)typed_asset->format;
+    header.height = asset->height;
+    header.width = asset->width;
+    header.mip_levels = asset->mip_levels;
+    header.format = (u32)asset->format;
 
-    *out_size = sizeof(binary_image_header) + typed_asset->pixel_array_size;
+    *out_size = sizeof(binary_image_header) + asset->pixel_array_size;
 
     void* block = ballocate(*out_size, MEMORY_TAG_SERIALIZER);
     bcopy_memory(block, &header, sizeof(binary_image_header));
-    bcopy_memory(((u8*)block) + sizeof(binary_image_header), typed_asset->pixels, typed_asset->pixel_array_size);
+    bcopy_memory(((u8*)block) + sizeof(binary_image_header), asset->pixels, asset->pixel_array_size);
 
     return block;
 }
 
-BAPI b8 basset_binary_image_deserialize(u64 size, const void* block, basset* out_asset)
+BAPI b8 basset_image_deserialize(u64 size, const void* block, basset_image* out_asset)
 {
     if (!size || !block || !out_asset)
     {
@@ -95,9 +89,13 @@ BAPI b8 basset_binary_image_deserialize(u64 size, const void* block, basset* out
     out_image->mip_levels = header->mip_levels;
     out_image->format = header->format;
     out_image->pixel_array_size = header->base.data_block_size;
-    out_image->base.meta.version = header->base.version;
-    out_image->base.type = type;
-    out_image->channel_count = channel_count_from_image_format(header->format);
+    u8 version = (u8)header->base.version;
+    if (version > IMAGE_ASSET_CURRENT_VERSION)
+    {
+        BERROR("Invalid image asset version - version %u is higher than the current version");
+        return false;
+    }
+    out_image->channel_count = channel_count_from_pixel_format(out_image->format);
 
     // Copy the actual image data block
     out_image->pixels = ballocate(out_image->pixel_array_size, MEMORY_TAG_ASSET);

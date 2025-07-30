@@ -136,7 +136,7 @@ b8 bresource_handler_texture_request(struct bresource_handler* self, bresource* 
         typed_resource->renderer_texture_handle = bhandle_invalid();
 
         // Acquire the resources for the texture
-        b8 acquisition_result = renderer_bresource_texture_resources_acquire(
+        b8 acquisition_result = renderer_texture_resources_acquire(
             renderer,
             typed_resource->base.name,
             typed_resource->type,
@@ -192,7 +192,7 @@ b8 bresource_handler_texture_request(struct bresource_handler* self, bresource* 
         typed_resource->renderer_texture_handle = bhandle_invalid();
 
         // Acquire the resources for the texture
-        b8 acquisition_result = renderer_bresource_texture_resources_acquire(
+        b8 acquisition_result = renderer_texture_resources_acquire(
             renderer,
             typed_resource->base.name,
             typed_resource->type,
@@ -262,7 +262,7 @@ static void texture_basset_on_result(asset_request_result result, const struct b
 
             listener->typed_resource->renderer_texture_handle = bhandle_invalid();
             // Acquire GPU resources for the texture resource
-            b8 result = renderer_bresource_texture_resources_acquire(
+            b8 result = renderer_texture_resources_acquire(
                 renderer,
                 listener->typed_resource->base.name,
                 listener->request_info->texture_type,

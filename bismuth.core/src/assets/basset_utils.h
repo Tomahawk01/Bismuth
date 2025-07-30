@@ -31,5 +31,3 @@ const char* basset_type_to_string(basset_type type);
  * @param vfs_asset_data The VFS asset data containing the result of the VFS load operation and potential asset data
  */
 BAPI void asset_handler_base_on_asset_loaded(struct vfs_state* vfs, vfs_asset_data asset_data);
-
-BAPI u8 channel_count_from_image_format(basset_image_format format);

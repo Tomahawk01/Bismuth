@@ -165,33 +165,16 @@ typedef struct basset_heightmap_terrain
     bname* material_names;
 } basset_heightmap_terrain;
 
-typedef enum basset_image_format
-{
-    BASSET_IMAGE_FORMAT_UNDEFINED = 0,
-    // 4 channel, 8 bits per channel
-    BASSET_IMAGE_FORMAT_RGBA8 = 1
-    // TODO: additional formats
-} basset_image_format;
-
-/** @brief Import options for images */
-typedef struct basset_image_import_options
-{
-    /** @brief Indicates if the image should be flipped on the y-axis when imported */
-    b8 flip_y;
-    /** @brief The expected format of the image */
-    basset_image_format format;
-} basset_image_import_options;
-
 #define BASSET_TYPE_NAME_IMAGE "Image"
 
 typedef struct basset_image
 {
-    basset base;
     u32 width;
     u32 height;
+    u32 depth;
     u8 channel_count;
     u8 mip_levels;
-    basset_image_format format;
+    bpixel_format format;
     u64 pixel_array_size;
     u8* pixels;
 } basset_image;
@@ -297,7 +280,6 @@ typedef struct basset_text
 
 typedef struct basset_binary
 {
-    basset base;
     u64 size;
     const void* content;
 } basset_binary;

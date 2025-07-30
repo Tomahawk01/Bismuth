@@ -73,7 +73,7 @@ void asset_handler_base_on_asset_loaded(struct vfs_state* vfs, vfs_asset_data as
 
         // Check if the file was loaded as primary or from source
         b8 from_source = (asset_data.flags & VFS_ASSET_FLAG_FROM_SOURCE) ? true : false;
-        BTRACE("%s asset '%s' loaded",from_source ? "Source" : "Primary", bname_string_get(asset_data.asset_name));
+        BTRACE("%s asset '%s' loaded", from_source ? "Source" : "Primary", bname_string_get(asset_data.asset_name));
         if (from_source)
         {
             // Import it, write the binary version to disk and request the primary again
@@ -222,16 +222,5 @@ void asset_handler_base_on_asset_loaded(struct vfs_state* vfs, vfs_asset_data as
             BERROR("Source file does not exist to be imported. Asset handler failed to load anything for asset '%s'", bname_string_get(asset_data.asset_name));
             context.user_callback(ASSET_REQUEST_RESULT_VFS_REQUEST_FAILED, context.asset, context.listener_instance);
         }
-    }
-}
-
-u8 channel_count_from_image_format(basset_image_format format)
-{
-    switch (format)
-    {
-    case BASSET_IMAGE_FORMAT_RGBA8:
-        return 4;
-    default:
-        return 4;
     }
 }

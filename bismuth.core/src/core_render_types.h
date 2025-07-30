@@ -38,6 +38,24 @@ typedef enum primitive_topology_type_bits
 /** @brief A combination of topology bit flags */
 typedef u32 primitive_topology_types;
 
+/** @brief Represents the format of image (or texture) pixel data */
+typedef enum bpixel_format
+{
+    BPIXEL_FORMAT_UNKNOWN,
+    BPIXEL_FORMAT_RGBA8,
+    BPIXEL_FORMAT_RGB8,
+    BPIXEL_FORMAT_RG8,
+    BPIXEL_FORMAT_R8,
+    BPIXEL_FORMAT_RGBA16,
+    BPIXEL_FORMAT_RGB16,
+    BPIXEL_FORMAT_RG16,
+    BPIXEL_FORMAT_R16,
+    BPIXEL_FORMAT_RGBA32,
+    BPIXEL_FORMAT_RGB32,
+    BPIXEL_FORMAT_RG32,
+    BPIXEL_FORMAT_R32,
+} bpixel_format;
+
 /** @brief Represents supported texture filtering modes */
 typedef enum texture_filter
 {

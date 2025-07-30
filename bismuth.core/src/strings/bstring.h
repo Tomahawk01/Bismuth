@@ -398,6 +398,16 @@ BAPI u32 string_split(const char* str, char delimiter, char*** str_darray, b8 tr
  */
 BAPI void string_cleanup_split_darray(char** str_darray);
 
+/**
+ * @brief Cleans up string allocations in str_array and frees the array itself
+ *
+ * NOTE: Not for use with darrays! Use string_cleanup_split_darray() instead or memory will be leaked
+ *
+ * @param str_array The array to be cleaned up and freed
+ * @param length The number of string elements in the array
+ */
+BAPI void string_cleanup_array(const char** str_array, u32 length);
+
 BAPI u32 string_nsplit(const char* str, char delimiter, u32 max_count, char** str_array, b8 trim_entries, b8 include_empty);
 
 BAPI void string_cleanup_split_array(char** str_array, u32 max_count);
