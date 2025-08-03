@@ -1,4 +1,4 @@
-#include "basset_binary_static_mesh_serializer.h"
+#include "basset_static_mesh_serializer.h"
 
 #include "assets/basset_types.h"
 #include "logger.h"
@@ -26,7 +26,7 @@ typedef struct binary_static_mesh_geometry
     vec3 center;
 } binary_static_mesh_geometry;
 
-BAPI void* basset_binary_static_mesh_serialize(const basset* asset, u64* out_size)
+BAPI void* basset_static_mesh_serialize(const basset_static_mesh* asset, u64* out_size)
 {
     if (!asset)
     {
@@ -34,16 +34,10 @@ BAPI void* basset_binary_static_mesh_serialize(const basset* asset, u64* out_siz
         return 0;
     }
 
-    if (asset->type != BASSET_TYPE_STATIC_MESH)
-    {
-        BERROR("Cannot serialize a non-static_mesh asset using the static_mesh serializer");
-        return 0;
-    }
-
     binary_static_mesh_header header = {0};
     // Base attributes
     header.base.magic = ASSET_MAGIC;
-    header.base.type = (u32)asset->type;
+    header.base.type = (u32)BASSET_TYPE_STATIC_MESH;
     header.base.data_block_size = 0;
     // Always write the most current version
     header.base.version = 1;
@@ -206,7 +200,7 @@ BAPI void* basset_binary_static_mesh_serialize(const basset* asset, u64* out_siz
     return block;
 }
 
-BAPI b8 basset_binary_static_mesh_deserialize(u64 size, const void* in_block, basset* out_asset)
+BAPI b8 basset_static_mesh_deserialize(u64 size, const void* in_block, basset_static_mesh* out_asset)
 {
     if (!size || !in_block || !out_asset)
     {
@@ -230,9 +224,6 @@ BAPI b8 basset_binary_static_mesh_deserialize(u64 size, const void* in_block, ba
         BERROR("Memory is not a Bismuth static_mesh asset");
         return false;
     }
-
-    out_asset->meta.version = header->base.version;
-    out_asset->type = type;
 
     basset_static_mesh* typed_asset = (basset_static_mesh*)out_asset;
     typed_asset->geometry_count = header->geometry_count;

@@ -196,7 +196,6 @@ typedef struct basset_static_mesh_geometry
 /** @brief Represents a static mesh asset */
 typedef struct basset_static_mesh
 {
-    basset base;
     u16 geometry_count;
     basset_static_mesh_geometry* geometries;
     extents_3d extents;

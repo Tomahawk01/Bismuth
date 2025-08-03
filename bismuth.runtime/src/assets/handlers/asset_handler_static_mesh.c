@@ -10,7 +10,7 @@
 #include <debug/bassert.h>
 #include <logger.h>
 #include <platform/vfs.h>
-#include <serializers/basset_binary_static_mesh_serializer.h>
+#include <serializers/basset_static_mesh_serializer.h>
 
 void asset_handler_static_mesh_create(struct asset_handler* self, struct vfs_state* vfs)
 {
