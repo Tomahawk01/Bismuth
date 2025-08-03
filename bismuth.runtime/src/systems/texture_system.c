@@ -3,41 +3,54 @@
 #include "assets/basset_types.h"
 #include "containers/u64_bst.h"
 #include "core/engine.h"
+#include "core_render_types.h"
 #include "defines.h"
 #include "identifiers/bhandle.h"
 #include "bresources/bresource_types.h"
-#include "bresources/bresource_utils.h"
 #include "logger.h"
 #include "memory/bmemory.h"
 #include "renderer/renderer_frontend.h"
-#include "resources/resource_types.h"
-#include "runtime_defines.h"
 #include "strings/bname.h"
 #include "strings/bstring.h"
 #include "systems/asset_system.h"
-#include "systems/bresource_system.h"
 #include "utils/render_type_utils.h"
 
 typedef struct texture_system_state
 {
     texture_system_config config;
 
-    // All registered textures. id=INVALID_ID means slot is "free"
-    btexture* textures;
+    // All registered textures. format=BPIXEL_FORMAT_UNKNOWN means slot is "free"
+
+    /** @brief The the handle to renderer-specific texture data */
+    bhandle* renderer_texture_handles;
+    /** @brief The texture type */
+    btexture_type* types;
+    /** @brief The texture width */
+    u32* widths;
+    /** @brief The texture height */
+    u32* heights;
+    /** @brief The format of the texture data */
+    bpixel_format* formats;
+    /** @brief Holds various flags for this texture */
+    btexture_flag_bits* flags;
+    /** @brief For arrayed textures, how many "layers" there are. Otherwise this is 1 */
+    u16* array_sizes;
+    /** @brief The number of mip maps the internal texture has. Must always be at least 1 */
+    u8* mip_level_counts;
     u16* texture_reference_counts;
     b8* auto_releases;
 
     // For quick lookups by name
     bt_node* texture_name_lookup;
 
-    btexture* default_kresource_texture;
-    btexture* default_kresource_base_color_texture;
-    btexture* default_kresource_specular_texture;
-    btexture* default_kresource_normal_texture;
-    btexture* default_kresource_mra_texture;
-    btexture* default_kresource_cube_texture;
-    btexture* default_kresource_water_normal_texture;
-    btexture* default_kresource_water_dudv_texture;
+    btexture default_kresource_texture;
+    btexture default_kresource_base_color_texture;
+    btexture default_kresource_specular_texture;
+    btexture default_kresource_normal_texture;
+    btexture default_kresource_mra_texture;
+    btexture default_kresource_cube_texture;
+    btexture default_kresource_water_normal_texture;
+    btexture default_kresource_water_dudv_texture;
 
     // A convenience pointer to the renderer system state
     struct renderer_system_state* renderer;
@@ -45,72 +58,32 @@ typedef struct texture_system_state
     struct asset_system_state* basset_system;
 } texture_system_state;
 
-typedef struct texture_load_params
-{
-    char* resource_name;
-    bresource_texture* out_texture;
-    bresource_texture temp_texture;
-    resource image_resource;
-} texture_load_params;
-
-typedef struct texture_load_layered_params
-{
-    char* name;
-    u32 layer_count;
-    char** layer_names;
-    bresource_texture* out_texture;
-} texture_load_layered_params;
-
-typedef enum texture_load_job_code
-{
-    TEXTURE_LOAD_JOB_CODE_FIRST_QUERY_FAILED,
-    TEXTURE_LOAD_JOB_CODE_RESOURCE_LOAD_FAILED,
-    TEXTURE_LOAD_JOB_CODE_RESOURCE_DIMENSION_MISMATCH,
-} texture_load_job_code;
-
-typedef struct texture_load_layered_result
-{
-    char* name;
-    u32 layer_count;
-    bresource_texture* out_texture;
-    u64 data_block_size;
-    u8* data_block;
-    bresource_texture temp_texture;
-    texture_load_job_code result_code;
-} texture_load_layered_result;
-
 typedef struct texture_asset_load_listener_context
 {
     PFN_texture_loaded_callback user_callback;
     void* user_listener;
-    btexture* texture;
+    btexture texture;
     // NOTE: size of array is texture->layer_count
     basset_image** assets;
     bname name;
     const char** image_asset_names;
     const char** package_names;
     btexture_load_options options;
+    u32 loaded_asset_count;
 } texture_asset_load_listener_context;
 
 static texture_system_state* state_ptr = 0;
 
 static b8 create_default_textures(texture_system_state* state);
 static void release_default_textures(texture_system_state* state);
-static void increment_generation(bresource_texture* t);
-static void invalidate_texture(bresource_texture* t);
-static b8 is_default_texture(texture_system_state* state, bresource_texture* t);
-
-static bresource_texture* default_texture_by_name(texture_system_state* state, bname name);
-static bresource_texture* request_writeable_arrayed(bname name, u32 width, u32 height, texture_format format, b8 has_transparency, texture_type type, u16 array_size, b8 is_depth, b8 is_stencil, b8 multiframe_buffering);
-
 static void texture_basset_image_loaded(void* listener, basset_image* asset);
-static btexture* texture_get_if_exists(bname name);
-static btexture* texture_get_new(bname name);
-static b8 texture_resources_acquire(btexture* t, bname name);
-static void texture_cleanup(btexture* t, b8 clear_references);
+static btexture texture_get_if_exists(bname name);
+static btexture texture_get_new(bname name);
+static b8 texture_resources_acquire(btexture t, bname name);
+static void texture_cleanup(btexture t, b8 clear_references);
 static b8 get_image_asset_names_from_options(const btexture_load_options* options, u16* out_count, const char*** image_asset_names, const char*** package_names);
 static void combine_asset_pixel_data(basset_image** assets, u32 count, u32 expected_width, u32 expected_height, b8 release_assets, u32* out_size, void** out_pixels);
-static b8 texture_apply_asset_data(btexture* t, bname name, const btexture_load_options* options, basset_image** assets);
+static b8 texture_apply_asset_data(btexture t, bname name, const btexture_load_options* options, basset_image** assets);
 
 b8 texture_system_initialize(u64* memory_requirement, void* state, void* config)
 {
@@ -132,13 +105,17 @@ b8 texture_system_initialize(u64* memory_requirement, void* state, void* config)
     state_ptr->config = *typed_config;
 
     // Setup texture cache
-    state_ptr->textures = BALLOC_TYPE_CARRAY(btexture, typed_config->max_texture_count);
+    state_ptr->renderer_texture_handles = BALLOC_TYPE_CARRAY(bhandle, typed_config->max_texture_count);
+    state_ptr->types = BALLOC_TYPE_CARRAY(btexture_type, typed_config->max_texture_count);
+    state_ptr->widths = BALLOC_TYPE_CARRAY(u32, typed_config->max_texture_count);
+    state_ptr->heights = BALLOC_TYPE_CARRAY(u32, typed_config->max_texture_count);
+    state_ptr->formats = BALLOC_TYPE_CARRAY(bpixel_format, typed_config->max_texture_count);
+    state_ptr->flags = BALLOC_TYPE_CARRAY(btexture_flag_bits, typed_config->max_texture_count);
+    state_ptr->array_sizes = BALLOC_TYPE_CARRAY(u16, typed_config->max_texture_count);
+    state_ptr->mip_level_counts = BALLOC_TYPE_CARRAY(u8, typed_config->max_texture_count);
+
     state_ptr->texture_reference_counts = BALLOC_TYPE_CARRAY(u16, typed_config->max_texture_count);
     state_ptr->auto_releases = BALLOC_TYPE_CARRAY(b8, typed_config->max_texture_count);
-
-    // Auto-release and texture reference counts default to false/0
-    for (u32 i = 0; i < typed_config->max_texture_count; ++i)
-        state_ptr->textures[i].id = INVALID_ID;
 
     // Keep a pointer to the renderer system state
     state_ptr->renderer = engine_systems_get()->renderer_system;
@@ -158,18 +135,37 @@ void texture_system_shutdown(void* state)
     {
         release_default_textures(state_ptr);
 
+        texture_system_config* typed_config = &state_ptr->config;
+
+        BFREE_TYPE_CARRAY(state_ptr->renderer_texture_handles, bhandle, typed_config->max_texture_count);
+        BFREE_TYPE_CARRAY(state_ptr->types, btexture_type, typed_config->max_texture_count);
+        BFREE_TYPE_CARRAY(state_ptr->widths, u32, typed_config->max_texture_count);
+        BFREE_TYPE_CARRAY(state_ptr->heights, u32, typed_config->max_texture_count);
+        BFREE_TYPE_CARRAY(state_ptr->formats, bpixel_format, typed_config->max_texture_count);
+        BFREE_TYPE_CARRAY(state_ptr->flags, btexture_flag_bits, typed_config->max_texture_count);
+        BFREE_TYPE_CARRAY(state_ptr->array_sizes, u16, typed_config->max_texture_count);
+        BFREE_TYPE_CARRAY(state_ptr->mip_level_counts, u8, typed_config->max_texture_count);
+        BFREE_TYPE_CARRAY(state_ptr->texture_reference_counts, u16, typed_config->max_texture_count);
+        BFREE_TYPE_CARRAY(state_ptr->auto_releases, b8, typed_config->max_texture_count);
+
         state_ptr->renderer = 0;
         state_ptr = 0;
     }
 }
 
-btexture* texture_acquire(const char* image_asset_name, void* listener, PFN_texture_loaded_callback callback)
+btexture texture_acquire(const char* image_asset_name, void* listener, PFN_texture_loaded_callback callback)
 {
-    return texture_acquire_async_internal(image_asset_name, 0, listener, callback);
+    btexture_load_options options = {
+        .type = BTEXTURE_TYPE_2D,
+        .auto_release = true,
+        .name = image_asset_name,
+        .image_asset_name = image_asset_name,
+        .package_name = 0};
+    return texture_acquire_with_options(options, listener, callback);
 }
 
 // auto_release=true, default options
-btexture* texture_acquire_sync(const char* image_asset_name)
+btexture texture_acquire_sync(const char* image_asset_name)
 {
     btexture_load_options options = {
         .type = BTEXTURE_TYPE_2D,
@@ -180,13 +176,36 @@ btexture* texture_acquire_sync(const char* image_asset_name)
     return texture_acquire_with_options_sync(options);
 }
 
-// auto_release=true, default options
-btexture* texture_acquire_from_package(const char* image_asset_name, const char* package_name, void* listener, PFN_texture_loaded_callback callback)
+void texture_release(btexture texture)
 {
-    return texture_acquire_async_internal(image_asset_name, package_name, listener, callback);
+    if (texture != INVALID_ID_U16 && state_ptr->formats[texture] != BPIXEL_FORMAT_UNKNOWN)
+    {
+        if (state_ptr->texture_reference_counts[texture] > 0)
+        {
+            state_ptr->texture_reference_counts[texture]--;
+
+            if (state_ptr->texture_reference_counts[texture] == 0 && state_ptr->auto_releases[texture] == true)
+                texture_cleanup(texture, true);
+        }
+        else
+        {
+            BWARN("Texture id %u has no references and cannot be released", texture);
+        }
+    }
 }
 
-btexture* texture_acquire_from_package_sync(const char* image_asset_name, const char* package_name)
+btexture texture_acquire_from_package(const char* image_asset_name, const char* package_name, void* listener, PFN_texture_loaded_callback callback)
+{
+    btexture_load_options options = {
+        .type = BTEXTURE_TYPE_2D,
+        .auto_release = true,
+        .name = image_asset_name,
+        .image_asset_name = image_asset_name,
+        .package_name = package_name};
+    return texture_acquire_with_options(options, listener, callback);
+}
+
+btexture texture_acquire_from_package_sync(const char* image_asset_name, const char* package_name)
 {
     btexture_load_options options = {
         .type = BTEXTURE_TYPE_2D,
@@ -197,25 +216,100 @@ btexture* texture_acquire_from_package_sync(const char* image_asset_name, const 
     return texture_acquire_with_options_sync(options);
 }
 
-btexture* texture_cubemap_acquire(const char* image_asset_name_prefix)
+btexture texture_cubemap_acquire(const char* image_asset_name_prefix, void* listener, PFN_texture_loaded_callback callback)
 {
+    btexture_load_options options = {
+        .type = BTEXTURE_TYPE_CUBE,
+        .auto_release = true,
+        .name = image_asset_name_prefix,
+        .image_asset_name = image_asset_name_prefix,
+        .package_name = 0};
+    return texture_acquire_with_options(options, listener, callback);
 }
 
-// auto_release=true, default options
-btexture* texture_cubemap_acquire_from_package(const char* image_asset_name_prefix, const char* package_name)
+btexture texture_cubemap_acquire_sync(const char* image_asset_name_prefix)
 {
+    btexture_load_options options = {
+        .type = BTEXTURE_TYPE_CUBE,
+        .auto_release = true,
+        .name = image_asset_name_prefix,
+        .image_asset_name = image_asset_name_prefix,
+        .package_name = 0};
+    return texture_acquire_with_options_sync(options);
 }
 
-// Easier idea? synchronous. auto_release=true, default options
-btexture* texture_acquire_from_image(const struct basset_image* image)
+btexture texture_cubemap_acquire_from_package(const char* image_asset_name_prefix, const char* package_name, void* listener, PFN_texture_loaded_callback callback)
 {
+    btexture_load_options options = {
+        .type = BTEXTURE_TYPE_CUBE,
+        .auto_release = true,
+        .name = image_asset_name_prefix,
+        .image_asset_name = image_asset_name_prefix,
+        .package_name = package_name};
+    return texture_acquire_with_options(options, listener, callback);
 }
 
-btexture* texture_cubemap_acquire_from_images(const struct basset_image* images[6])
+btexture texture_cubemap_acquire_from_package_sync(const char* image_asset_name_prefix, const char* package_name)
 {
+    btexture_load_options options = {
+        .type = BTEXTURE_TYPE_CUBE,
+        .auto_release = true,
+        .name = image_asset_name_prefix,
+        .image_asset_name = image_asset_name_prefix,
+        .package_name = package_name};
+    return texture_acquire_with_options_sync(options);
 }
 
-btexture* texture_acquire_with_options(btexture_load_options options, void* listener, PFN_texture_loaded_callback callback)
+btexture texture_acquire_from_image(const struct basset_image* image, const char* name)
+{
+    btexture_load_options options = {
+        .type = BTEXTURE_TYPE_2D,
+        .auto_release = true,
+        .name = name,
+        .pixel_array_size = image->pixel_array_size,
+        .pixel_data = image->pixels};
+    return texture_acquire_with_options_sync(options);
+}
+
+btexture texture_acquire_from_pixel_data(bpixel_format format, u32 pixel_array_size, void* pixels, u32 width, u32 height, const char* name)
+{
+    if (!width || !height)
+    {
+        BERROR("%s requires a nonzero width and height!", __FUNCTION__);
+        return 0;
+    }
+    btexture_load_options options = {
+        .type = BTEXTURE_TYPE_2D,
+        .auto_release = true,
+        .name = name,
+        .pixel_array_size = pixel_array_size,
+        .format = format,
+        .width = width,
+        .height = height,
+        .pixel_data = pixels};
+    return texture_acquire_with_options_sync(options);
+}
+
+btexture texture_cubemap_acquire_from_pixel_data(bpixel_format format, u32 pixel_array_size, void* pixels, u32 width, u32 height, const char* name)
+{
+    if (!width || !height)
+    {
+        BERROR("%s requires a nonzero width and height!", __FUNCTION__);
+        return 0;
+    }
+    btexture_load_options options = {
+        .type = BTEXTURE_TYPE_CUBE,
+        .auto_release = true,
+        .name = name,
+        .pixel_array_size = pixel_array_size,
+        .format = format,
+        .width = width,
+        .height = height,
+        .pixel_data = pixels};
+    return texture_acquire_with_options_sync(options);
+}
+
+btexture texture_acquire_with_options(btexture_load_options options, void* listener, PFN_texture_loaded_callback callback)
 {
     if ((!options.name || !string_length(options.name)) && (!options.image_asset_name || !string_length(options.image_asset_name)))
     {
@@ -225,13 +319,13 @@ btexture* texture_acquire_with_options(btexture_load_options options, void* list
 
     b8 success = false;
     bname name = bname_create(options.name ? options.name : options.image_asset_name);
-    btexture* t = texture_get_if_exists(name);
+    btexture t = texture_get_if_exists(name);
 
     // If an entry with the name exists, return it
-    if (t)
+    if (t != INVALID_ID_U16)
     {
         // Increment reference count
-        state_ptr->texture_reference_counts[t->id]++;
+        state_ptr->texture_reference_counts[t]++;
 
         // Immediately make the user callback, and boot
         if (callback)
@@ -242,27 +336,27 @@ btexture* texture_acquire_with_options(btexture_load_options options, void* list
 
     // Pick a free slot in the texture cache
     t = texture_get_new(name);
-    if (!t)
+    if (t == INVALID_ID_U16)
         goto texture_acquire_with_options_async_cleanup;
 
     // Set some default properties
-    t->format = options.format;
-    t->type = options.type;
-    t->width = options.width;
-    t->height = options.height;
-    t->mip_levels = options.mip_levels;
+    state_ptr->formats[t] = options.format;
+    state_ptr->types[t] = options.type;
+    state_ptr->widths[t] = options.width;
+    state_ptr->heights[t] = options.height;
+    state_ptr->mip_level_counts[t] = options.mip_levels;
 
     // Parse flags from options booleans
-    t->flags = FLAG_SET(t->flags, BTEXTURE_FLAG_DEPTH, options.is_depth);
-    t->flags = FLAG_SET(t->flags, BTEXTURE_FLAG_STENCIL, options.is_stencil);
-    t->flags = FLAG_SET(t->flags, BTEXTURE_FLAG_IS_WRITEABLE, options.is_writeable);
-    t->flags = FLAG_SET(t->flags, BTEXTURE_FLAG_RENDERER_BUFFERING, options.multiframe_buffering);
+    state_ptr->flags[t] = FLAG_SET(state_ptr->flags[t], BTEXTURE_FLAG_DEPTH, options.is_depth);
+    state_ptr->flags[t] = FLAG_SET(state_ptr->flags[t], BTEXTURE_FLAG_STENCIL, options.is_stencil);
+    state_ptr->flags[t] = FLAG_SET(state_ptr->flags[t], BTEXTURE_FLAG_IS_WRITEABLE, options.is_writeable);
+    state_ptr->flags[t] = FLAG_SET(state_ptr->flags[t], BTEXTURE_FLAG_RENDERER_BUFFERING, options.multiframe_buffering);
 
-    state_ptr->auto_releases[t->id] = options.auto_release;
+    state_ptr->auto_releases[t] = options.auto_release;
 
     const char** image_asset_names = 0;
     const char** package_names = 0;
-    if (!get_image_asset_names_from_options(&options, &t->array_size, &image_asset_names, &package_names))
+    if (!get_image_asset_names_from_options(&options, &state_ptr->array_sizes[t], &image_asset_names, &package_names))
         goto texture_acquire_with_options_async_cleanup;
 
     // If there are assets, need to break off into "async callback" logic, and handle resource acquisition and GPU upload later
@@ -277,10 +371,11 @@ btexture* texture_acquire_with_options(btexture_load_options options, void* list
         context->user_callback = callback;
         context->name = name;
         context->options = options;
-        context->assets = BALLOC_TYPE_CARRAY(basset_image*, t->array_size);
+        context->assets = BALLOC_TYPE_CARRAY(basset_image*, state_ptr->array_sizes[t]);
 
         // Fetch assets
-        for (u16 i = 0; i < t->array_size; ++i)
+        u16 array_size = state_ptr->array_sizes[t];
+        for (u16 i = 0; i < array_size; ++i)
         {
             if (package_names[i])
             {
@@ -301,10 +396,52 @@ btexture* texture_acquire_with_options(btexture_load_options options, void* list
         return t;
     }
 
-    // TODO: handle pixel data
+    if (!texture_resources_acquire(t, name))
+    {
+        BERROR("%s - Failed to acquire renderer texture resources for texture '%s'", __FUNCTION__, bname_string_get(name));
+        goto texture_acquire_with_options_async_cleanup;
+    }
+
+    // Handle pixel data if provided
+    if (options.pixel_data && options.pixel_array_size)
+    {
+        // Upload the pixel data to the GPU
+        b8 has_transparency = pixel_data_has_transparency(options.pixel_data, options.pixel_array_size, state_ptr->formats[t]);
+        state_ptr->flags[t] = FLAG_SET(state_ptr->flags[t], BTEXTURE_FLAG_HAS_TRANSPARENCY, has_transparency);
+
+        // Write the image asset data to the texture
+        u32 texture_data_offset = 0; // NOTE: The only time this potentially could be nonzero is when explicitly loading a layer of texture data
+        b8 write_result = renderer_texture_write_data(
+            state_ptr->renderer,
+            state_ptr->renderer_texture_handles[t],
+            texture_data_offset, options.pixel_array_size, options.pixel_data);
+
+        if (!write_result)
+        {
+            BERROR("%s - Failed to write texture data resource '%s'", __FUNCTION__, options.image_asset_name);
+            goto texture_acquire_with_options_async_cleanup;
+        }
+    }
+
+    success = true;
+texture_acquire_with_options_async_cleanup:
+
+    if (t != INVALID_ID_U16)
+    {
+        string_cleanup_array(image_asset_names, state_ptr->array_sizes[t]);
+        string_cleanup_array(package_names, state_ptr->array_sizes[t]);
+    }
+
+    if (!success)
+    {
+        texture_cleanup(t, true);
+        t = 0;
+    }
+
+    return t;
 }
 
-btexture* texture_acquire_with_options_sync(btexture_load_options options)
+btexture texture_acquire_with_options_sync(btexture_load_options options)
 {
     if ((!options.name || !string_length(options.name)) && (!options.image_asset_name || !string_length(options.image_asset_name)))
     {
@@ -314,48 +451,48 @@ btexture* texture_acquire_with_options_sync(btexture_load_options options)
 
     b8 success = false;
     bname name = bname_create(options.name ? options.name : options.image_asset_name);
-    btexture* t = texture_get_if_exists(name);
+    btexture t = texture_get_if_exists(name);
 
     // If an entry with the name exists, return it
-    if (t)
+    if (t != INVALID_ID_U16)
     {
         // Increment reference count
-        state_ptr->texture_reference_counts[t->id]++;
+        state_ptr->texture_reference_counts[t]++;
         return t;
     }
 
     // Pick a free slot in the texture cache
     t = texture_get_new(name);
-    if (!t)
+    if (t == INVALID_ID_U16)
         goto texture_acquire_with_options_sync_cleanup;
 
     // Set some default properties
-    t->format = options.format;
-    t->type = options.type;
-    t->width = options.width;
-    t->height = options.height;
-    t->mip_levels = options.mip_levels;
+    state_ptr->formats[t] = options.format;
+    state_ptr->types[t] = options.type;
+    state_ptr->widths[t] = options.width;
+    state_ptr->heights[t] = options.height;
+    state_ptr->mip_level_counts[t] = options.mip_levels;
 
     // Parse flags from options booleans
-    t->flags = FLAG_SET(t->flags, BTEXTURE_FLAG_DEPTH, options.is_depth);
-    t->flags = FLAG_SET(t->flags, BTEXTURE_FLAG_STENCIL, options.is_stencil);
-    t->flags = FLAG_SET(t->flags, BTEXTURE_FLAG_IS_WRITEABLE, options.is_writeable);
-    t->flags = FLAG_SET(t->flags, BTEXTURE_FLAG_RENDERER_BUFFERING, options.multiframe_buffering);
+    state_ptr->flags[t] = FLAG_SET(state_ptr->flags[t], BTEXTURE_FLAG_DEPTH, options.is_depth);
+    state_ptr->flags[t] = FLAG_SET(state_ptr->flags[t], BTEXTURE_FLAG_STENCIL, options.is_stencil);
+    state_ptr->flags[t] = FLAG_SET(state_ptr->flags[t], BTEXTURE_FLAG_IS_WRITEABLE, options.is_writeable);
+    state_ptr->flags[t] = FLAG_SET(state_ptr->flags[t], BTEXTURE_FLAG_RENDERER_BUFFERING, options.multiframe_buffering);
 
     basset_image** assets = 0;
 
     // Gather asset/package names, if relevant
     const char** image_asset_names = 0;
     const char** package_names = 0;
-    if (!get_image_asset_names_from_options(&options, &t->array_size, &image_asset_names, &package_names))
+    if (!get_image_asset_names_from_options(&options, &state_ptr->array_sizes[t], &image_asset_names, &package_names))
         goto texture_acquire_with_options_sync_cleanup;
 
 
     if (image_asset_names)
     {
         // Fetch assets
-        assets = BALLOC_TYPE_CARRAY(basset_image*, t->array_size);
-        for (u16 i = 0; i < t->array_size; ++i)
+        assets = BALLOC_TYPE_CARRAY(basset_image*, state_ptr->array_sizes[t]);
+        for (u16 i = 0; i < state_ptr->array_sizes[t]; ++i)
         {
             if (package_names[i])
             {
@@ -375,27 +512,27 @@ btexture* texture_acquire_with_options_sync(btexture_load_options options)
         // Take the dimensions of the first asset as the size for layered images
         if (assets[0])
         {
-            t->width = assets[0]->width;
-            t->height = assets[0]->height;
-            t->mip_levels = assets[0]->mip_levels;
+            state_ptr->widths[t] = assets[0]->width;
+            state_ptr->heights[t] = assets[0]->height;
+            state_ptr->mip_level_counts[t] = assets[0]->mip_levels;
         }
         else
         {
             BWARN("Asset sub 0 not found, using reasonable defaults");
             // Provide reasonable defaults
-            if (!t->width)
-                t->width = 16;
-            if (!t->height)
-                t->height = 16;
+            if (!state_ptr->widths[t])
+                state_ptr->widths[t] = 16;
+            if (!state_ptr->heights[t])
+                state_ptr->heights[t] = 16;
 
         }
     }
 
     // Calculate mip levels if needed
-    if (!t->mip_levels)
-        t->mip_levels = calculate_mip_levels_from_dimension(t->width, t->height);
+    if (!state_ptr->mip_level_counts[t])
+        state_ptr->mip_level_counts[t] = calculate_mip_levels_from_dimension(state_ptr->widths[t], state_ptr->heights[t]);
 
-    state_ptr->auto_releases[t->id] = options.auto_release;
+    state_ptr->auto_releases[t] = options.auto_release;
 
     if (!texture_resources_acquire(t, name))
     {
@@ -416,18 +553,18 @@ btexture* texture_acquire_with_options_sync(btexture_load_options options)
     else if (assets)
     {
         free_pixels = true;
-        combine_asset_pixel_data(assets, t->array_size, t->width, t->height, true, &all_pixel_size, (void*)&all_pixels);
+        combine_asset_pixel_data(assets, state_ptr->array_sizes[t], state_ptr->widths[t], state_ptr->heights[t], true, &all_pixel_size, (void*)&all_pixels);
     }
 
     // Determine transparency
-    b8 has_transparency = pixel_data_has_transparency(all_pixels, all_pixel_size, t->format);
-    t->flags = FLAG_SET(t->flags, BTEXTURE_FLAG_HAS_TRANSPARENCY, has_transparency);
+    b8 has_transparency = pixel_data_has_transparency(all_pixels, all_pixel_size, state_ptr->formats[t]);
+    state_ptr->flags[t] = FLAG_SET(state_ptr->flags[t], BTEXTURE_FLAG_HAS_TRANSPARENCY, has_transparency);
 
     // Write the image asset data to the texture
     u32 texture_data_offset = 0; // NOTE: The only time this potentially could be nonzero is when explicitly loading a layer of texture data
     b8 write_result = renderer_texture_write_data(
         state_ptr->renderer,
-        t->renderer_texture_handle,
+        state_ptr->renderer_texture_handles[t],
         texture_data_offset, all_pixel_size, all_pixels);
 
     if (!write_result)
@@ -445,10 +582,10 @@ texture_acquire_with_options_sync_cleanup:
     if (t)
     {
         if (assets)
-            BFREE_TYPE_CARRAY(assets, basset_image, t->array_size);
+            BFREE_TYPE_CARRAY(assets, basset_image, state_ptr->array_sizes[t]);
 
-        string_cleanup_array(image_asset_names, t->array_size);
-        string_cleanup_array(package_names, t->array_size);
+        string_cleanup_array(image_asset_names, state_ptr->array_sizes[t]);
+        string_cleanup_array(package_names, state_ptr->array_sizes[t]);
     }
 
     if (!success)
@@ -460,266 +597,47 @@ texture_acquire_with_options_sync_cleanup:
     return t;
 }
 
-void texture_release(btexture* texture)
+b8 texture_resize(btexture t, u32 width, u32 height, b8 regenerate_internal_data)
 {
-    if (texture && texture->id != INVALID_ID)
+    if (t != INVALID_ID_U16)
     {
-        if (state_ptr->texture_reference_counts[texture->id] > 0)
+        if (!width || !height)
         {
-            state_ptr->texture_reference_counts[texture->id]--;
-
-            if (state_ptr->texture_reference_counts[texture->id] == 0 && state_ptr->auto_releases[texture->id] == true)
-                texture_cleanup(texture, true);
+            BERROR("%s - A nonzero width and height are required!", __FUNCTION__);
+            return false;
         }
-        else
-        {
-            BWARN("Texture id %u has no references and cannot be released", texture->id);
-        }
-    }
-}
-
-bresource_texture* texture_system_request(bname name, bname package_name, void* listener, PFN_resource_loaded_user_callback callback)
-{
-    texture_system_state* state = engine_systems_get()->texture_system;
-
-    // Check that name is not the name of a default texture. If it is, immediately make the callback with the appropriate default texture and return it
-    bresource_texture* t = default_texture_by_name(state, name);
-    if (t)
-    {
-        if (callback)
-            callback((bresource*)t, listener);
-        return t;
-    }
-    // If not default, request the resource from the resource system
-    bresource_texture_request_info request = {0};
-    request.base.type = BRESOURCE_TYPE_TEXTURE;
-    request.base.listener_inst = listener;
-    request.base.user_callback = callback;
-
-    request.base.assets = array_bresource_asset_info_create(1);
-    request.base.assets.data[0].type = BASSET_TYPE_IMAGE;
-    request.base.assets.data[0].package_name = package_name;
-    request.base.assets.data[0].asset_name = name;
-
-    request.array_size = 1;
-    request.texture_type = TEXTURE_TYPE_2D;
-    request.flags = 0;
-    request.flip_y = true;
-
-    t = (bresource_texture*)bresource_system_request(state->bresource_system, name, (bresource_request_info*)&request);
-    if (!t)
-        BERROR("Failed to properly request resource for texture '%s'", bname_string_get(name));
-
-    return t;
-}
-
-bresource_texture* texture_system_request_cube(bname name, b8 auto_release, b8 multiframe_buffering, void* listener, PFN_resource_loaded_user_callback callback)
-{
-    texture_system_state* state = engine_systems_get()->texture_system;
-
-    // If requesting the default cube texture name, just return it
-    if (name == state->default_bresource_cube_texture->base.name)
-        return state->default_bresource_cube_texture;
-
-    if (name == INVALID_BNAME)
-    {
-        BWARN("texture_system_request_cube - name supplied is invalid. Returning default cubemap instead");
-        return state->default_bresource_cube_texture;
-    }
-
-    // If not default, request the resource from the resource system
-    bresource_texture_request_info request = {0};
-    request.base.type = BRESOURCE_TYPE_TEXTURE;
-    request.base.listener_inst = listener;
-    request.base.user_callback = callback;
-
-    request.base.assets = array_bresource_asset_info_create(6);
-
-    // +X,-X,+Y,-Y,+Z,-Z in cubemap space, which is LH y-down
-    // Build out image side asset names. Order is important here
-    // name_r Right
-    // name_l Left
-    // name_u Up
-    // name_d Down
-    // name_f Front
-    // name_b Back
-    const char* sides = "rludfb";
-    const char* base_name = bname_string_get(name);
-    for (u8 i = 0; i < 6; ++i)
-    {
-        const char* buf = string_format("%s_%c", base_name, sides[i]);
-        bname side_name = bname_create(buf);
-        string_free(buf);
-
-        request.base.assets.data[i].type = BASSET_TYPE_IMAGE;
-        request.base.assets.data[i].package_name = INVALID_BNAME; // TODO: automatic package name
-        request.base.assets.data[i].asset_name = side_name;
-    }
-
-    request.array_size = 6;
-    request.texture_type = TEXTURE_TYPE_CUBE;
-    request.flags = multiframe_buffering ? TEXTURE_FLAG_RENDERER_BUFFERING : 0;
-    request.flip_y = false;
-
-    bresource_texture* t = (bresource_texture*)bresource_system_request(state->bresource_system, name, (bresource_request_info*)&request);
-    if (!t)
-        BERROR("Failed to properly request resource for cube texture '%s'", bname_string_get(name));
-
-    return t;
-}
-
-bresource_texture* texture_system_request_cube_writeable(bname name, u32 dimension, b8 auto_release, b8 multiframe_buffering)
-{
-    texture_system_state* state = engine_systems_get()->texture_system;
-    // If requesting the default cube texture name, just return it
-    if (name == state->default_bresource_cube_texture->base.name)
-        return state->default_bresource_cube_texture;
-
-    if (name == INVALID_BNAME)
-    {
-        BWARN("texture_system_request_cube - name supplied is invalid. Returning default cubemap instead");
-        return state->default_bresource_cube_texture;
-    }
-    return request_writeable_arrayed(name, dimension, dimension, TEXTURE_FORMAT_RGBA8, false, TEXTURE_TYPE_CUBE, 6, false, false, multiframe_buffering);
-}
-
-bresource_texture* texture_system_request_cube_depth(bname name, u32 dimension, b8 auto_release, b8 include_stencil, b8 multiframe_buffering)
-{
-    texture_system_state* state = engine_systems_get()->texture_system;
-    // If requesting the default cube texture name, just return it
-    if (name == state->default_bresource_cube_texture->base.name)
-        return state->default_bresource_cube_texture;
-
-    if (name == INVALID_BNAME)
-    {
-        BWARN("texture_system_request_cube - name supplied is invalid. Returning default cubemap instead");
-        return state->default_bresource_cube_texture;
-    }
-    return request_writeable_arrayed(name, dimension, dimension, TEXTURE_FORMAT_RGBA8, false, TEXTURE_TYPE_CUBE, 6, true, include_stencil, multiframe_buffering);
-}
-
-bresource_texture* texture_system_request_writeable(bname name, u32 width, u32 height, texture_format format, b8 has_transparency, b8 multiframe_buffering)
-{
-    return request_writeable_arrayed(name, width, height, format, has_transparency, TEXTURE_TYPE_2D, 1, false, false, multiframe_buffering);
-}
-
-bresource_texture* texture_system_request_writeable_arrayed(bname name, u32 width, u32 height, texture_format format, b8 has_transparency, b8 multiframe_buffering, texture_type type, u16 array_size)
-{
-    return request_writeable_arrayed(name, width, height, format, has_transparency, type, array_size, false, false, multiframe_buffering);
-}
-
-bresource_texture* texture_system_request_depth(bname name, u32 width, u32 height, b8 include_stencil, b8 multiframe_buffering)
-{
-    return request_writeable_arrayed(name, width, height, TEXTURE_FORMAT_RGBA8, false, TEXTURE_TYPE_2D, 1, true, include_stencil, multiframe_buffering);
-}
-
-bresource_texture* texture_system_request_depth_arrayed(bname name, u32 width, u32 height, u16 array_size, b8 include_stencil, b8 multiframe_buffering)
-{
-    return request_writeable_arrayed(name, width, height, TEXTURE_FORMAT_RGBA8, false, TEXTURE_TYPE_2D_ARRAY, array_size, true, include_stencil, multiframe_buffering);
-}
-
-bresource_texture* texture_system_acquire_textures_as_arrayed(bname name, bname package_name, u32 layer_count, bname* layer_asset_names, b8 auto_release, b8 multiframe_buffering, void* listener, PFN_resource_loaded_user_callback callback)
-{
-    if (layer_count < 1)
-    {
-        BERROR("Must contain at least one layer");
-        return 0;
-    }
-
-    texture_system_state* state = engine_systems_get()->texture_system;
-
-    // Check that name is not the name of a default texture. If it is, immediately make the callback with the appropriate default texture and return it
-    bresource_texture* t = default_texture_by_name(state, name);
-    if (t)
-    {
-        if (callback)
-            callback((bresource*)t, listener);
-        return t;
-    }
-    // If not default, request the resource from the resource system
-    bresource_texture_request_info request = {0};
-    request.base.type = BRESOURCE_TYPE_TEXTURE;
-    request.base.listener_inst = listener;
-    request.base.user_callback = callback;
-
-    request.base.assets = array_bresource_asset_info_create(layer_count);
-    for (u32 i = 0; i < layer_count; ++i)
-    {
-        bresource_asset_info* asset = &request.base.assets.data[i];
-        asset->type = BASSET_TYPE_IMAGE;
-        asset->package_name = package_name;
-        asset->asset_name = layer_asset_names[i];
-    }
-
-    request.array_size = layer_count;
-    request.texture_type = TEXTURE_TYPE_2D_ARRAY;
-    request.flags = 0;
-    request.flip_y = true;
-
-    t = (bresource_texture*)bresource_system_request(state->bresource_system, name, (bresource_request_info*)&request);
-    if (!t)
-        BERROR("Failed to properly request resource for arrayed texture '%s'", bname_string_get(name));
-
-    return t;
-}
-
-void texture_system_release_resource(bresource_texture* t)
-{
-    struct bresource_system_state* resource_system = engine_systems_get()->bresource_state;
-    texture_system_state* state = engine_systems_get()->texture_system;
-
-    // Do nothing if this is a default texture
-    if (is_default_texture(state, t))
-    {
-        return;
-    }
-
-    bresource_system_release(resource_system, t->base.name);
-}
-
-b8 texture_system_resize(bresource_texture* t, u32 width, u32 height, b8 regenerate_internal_data)
-{
-    if (t)
-    {
-        if (!(t->flags & TEXTURE_FLAG_IS_WRITEABLE))
+        
+        if (!(state_ptr->flags[t] & BTEXTURE_FLAG_IS_WRITEABLE))
         {
             BWARN("texture_system_resize should not be called on textures that are not writeable");
             return false;
         }
-        t->width = width;
-        t->height = height;
+        state_ptr->widths[t] = width;
+        state_ptr->heights[t] = height;
         // FIXME: remove this requirement, and potentially the regenerate_internal_data flag as well
         // Only allow this for writeable textures that are not wrapped.
         // Wrapped textures can call texture_system_set_internal then call
         // this function to get the above parameter updates and generation update
-        if (!(t->flags & TEXTURE_FLAG_IS_WRAPPED) && regenerate_internal_data)
+        if (!(state_ptr->flags[t] & BTEXTURE_FLAG_IS_WRAPPED) && regenerate_internal_data)
         {
             // Regenerate internals for new size
-            b8 result = renderer_texture_resize(state_ptr->renderer, t->renderer_texture_handle, width, height);
-            increment_generation(t);
-            return result;
+            return renderer_texture_resize(state_ptr->renderer, state_ptr->renderer_texture_handles[t], width, height);
         }
         return true;
     }
     return false;
 }
 
-b8 texture_system_write_data(bresource_texture* t, u32 offset, u32 size, void* data)
+b8 texture_write_data(btexture t, u32 offset, u32 size, void* data)
 {
     if (t)
     {
-        return renderer_texture_write_data(state_ptr->renderer, t->renderer_texture_handle, offset, size, data);
+        return renderer_texture_write_data(state_ptr->renderer, state_ptr->renderer_texture_handles[t], offset, size, data);
     }
     return false;
 }
 
-#define RETURN_TEXT_PTR_OR_NULL(texture, func_name)                                             \
-    if (state_ptr)                                                                              \
-        return &texture;                                                                        \
-    BERROR("%s called before texture system initialization! Null pointer returned", func_name); \
-    return 0;
-
-static b8 is_default_texture(texture_system_state* state, bresource_texture* t)
+static b8 texture_is_default(texture_system_state* state, btexture t)
 {
     if (!state_ptr)
         return false;
@@ -732,31 +650,6 @@ static b8 is_default_texture(texture_system_state* state, bresource_texture* t)
            (t == state->default_bresource_cube_texture) ||
            (t == state->default_bresource_water_normal_texture) ||
            (t == state->default_bresource_water_dudv_texture);
-}
-
-bresource_texture* create_default_bresource_texture(texture_system_state* state, bname name, texture_type type, u32 tex_dimension, u8 layer_count, u8 channel_count, u32 pixel_array_size, u8* pixels)
-{
-    bresource_texture_request_info request = {0};
-    bzero_memory(&request, sizeof(bresource_texture_request_info));
-    request.texture_type = type;
-    request.array_size = layer_count;
-    request.flags = TEXTURE_FLAG_IS_WRITEABLE;
-    request.pixel_data = array_bresource_texture_pixel_data_create(1);
-    bresource_texture_pixel_data* px = &request.pixel_data.data[0];
-    px->pixel_array_size = pixel_array_size;
-    px->pixels = pixels;
-    px->width = tex_dimension;
-    px->height = tex_dimension;
-    px->channel_count = channel_count;
-    px->format = TEXTURE_FORMAT_RGBA8;
-    px->mip_levels = 1;
-    request.base.type = BRESOURCE_TYPE_TEXTURE;
-    request.flip_y = false;
-    bresource_texture* t = (bresource_texture*)bresource_system_request(state->bresource_system, name, (bresource_request_info*)&request);
-    if (!t)
-        BERROR("Failed to request resources for default texture");
-
-    return t;
 }
 
 static b8 create_default_textures(texture_system_state* state)
@@ -801,7 +694,7 @@ static b8 create_default_textures(texture_system_state* state)
 
         // Request new resource texture
         u32 pixel_array_size = sizeof(u8) * pixel_count * channels;
-        state->default_bresource_texture = create_default_bresource_texture(state, bname_create(DEFAULT_TEXTURE_NAME), TEXTURE_TYPE_2D, tex_dimension, 1, channels, pixel_array_size, pixels);
+        state->default_bresource_texture = texture_acquire_from_pixel_data(BPIXEL_FORMAT_RGBA8, pixel_array_size, pixels, 16, 16, DEFAULT_TEXTURE_NAME);
         if (!state->default_bresource_texture)
         {
             BERROR("Failed to request resources for default texture");
@@ -819,7 +712,7 @@ static b8 create_default_textures(texture_system_state* state)
 
         // Request new resource texture
         u32 pixel_array_size = sizeof(u8) * pixel_count * channels;
-        state->default_bresource_base_color_texture = create_default_bresource_texture(state, bname_create(DEFAULT_BASE_COLOR_TEXTURE_NAME), TEXTURE_TYPE_2D, tex_dimension, 1, channels, pixel_array_size, diff_pixels);
+        state->default_bresource_base_color_texture = texture_acquire_from_pixel_data(BPIXEL_FORMAT_RGBA8, pixel_array_size, diff_pixels, 16, 16, DEFAULT_BASE_COLOR_TEXTURE_NAME);
         if (!state->default_bresource_base_color_texture)
         {
             BERROR("Failed to request resources for default base color texture");
@@ -836,7 +729,7 @@ static b8 create_default_textures(texture_system_state* state)
 
         // Request new resource texture
         u32 pixel_array_size = sizeof(u8) * pixel_count * channels;
-        state->default_bresource_specular_texture = create_default_bresource_texture(state, bname_create(DEFAULT_SPECULAR_TEXTURE_NAME), TEXTURE_TYPE_2D, tex_dimension, 1, channels, pixel_array_size, spec_pixels);
+        state->default_bresource_specular_texture = texture_acquire_from_pixel_data(BPIXEL_FORMAT_RGBA8, pixel_array_size, spec_pixels, 16, 16, DEFAULT_SPECULAR_TEXTURE_NAME);
         if (!state->default_bresource_specular_texture)
         {
             BERROR("Failed to request resources for default specular texture");
@@ -865,7 +758,7 @@ static b8 create_default_textures(texture_system_state* state)
 
         // Request new resource texture
         u32 pixel_array_size = sizeof(u8) * pixel_count * channels;
-        state->default_bresource_normal_texture = create_default_bresource_texture(state, bname_create(DEFAULT_NORMAL_TEXTURE_NAME), TEXTURE_TYPE_2D, tex_dimension, 1, channels, pixel_array_size, normal_pixels);
+        state->default_bresource_normal_texture = texture_acquire_from_pixel_data(BPIXEL_FORMAT_RGBA8, pixel_array_size, normal_pixels, 16, 16, DEFAULT_NORMAL_TEXTURE_NAME);
         if (!state->default_bresource_normal_texture)
         {
             BERROR("Failed to request resources for default normal texture");
@@ -894,7 +787,7 @@ static b8 create_default_textures(texture_system_state* state)
 
         // Request new resource texture
         u32 pixel_array_size = sizeof(u8) * pixel_count * channels;
-        state->default_bresource_mra_texture = create_default_bresource_texture(state, bname_create(DEFAULT_MRA_TEXTURE_NAME), TEXTURE_TYPE_2D, tex_dimension, 1, channels, pixel_array_size, mra_pixels);
+        state->default_bresource_mra_texture = texture_acquire_from_pixel_data(BPIXEL_FORMAT_RGBA8, pixel_array_size, mra_pixels, 16, 16, DEFAULT_MRA_TEXTURE_NAME);
         if (!state->default_bresource_mra_texture)
         {
             BERROR("Failed to request resources for default MRA texture");
@@ -949,7 +842,7 @@ static b8 create_default_textures(texture_system_state* state)
 
         // Request new resource texture
         u32 pixel_array_size = image_size;
-        state->default_bresource_cube_texture = create_default_bresource_texture(state, bname_create(DEFAULT_CUBE_TEXTURE_NAME), TEXTURE_TYPE_CUBE, tex_dimension, 6, channels, pixel_array_size, pixels);
+        state->default_bresource_cube_texture = texture_cubemap_acquire_from_pixel_data(BPIXEL_FORMAT_RGBA8, pixel_array_size, pixels, 16, 16, DEFAULT_CUBE_TEXTURE_NAME);
         if (!state->default_bresource_cube_texture)
         {
             BERROR("Failed to request resources for default cube texture");
@@ -988,10 +881,10 @@ static b8 create_default_textures(texture_system_state* state)
     } */
 
    // Default water normal texture is part of the runtime package - request it
-    state->default_bresource_water_normal_texture = texture_system_request(bname_create(DEFAULT_WATER_NORMAL_TEXTURE_NAME), bname_create(PACKAGE_NAME_RUNTIME), 0, 0);
+    state->default_bresource_water_normal_texture = texture_acquire_sync(DEFAULT_WATER_NORMAL_TEXTURE_NAME);
 
     // Default water dudv texture is part of the runtime package - request it
-    state->default_bresource_water_dudv_texture = texture_system_request(bname_create(DEFAULT_WATER_DUDV_TEXTURE_NAME), bname_create(PACKAGE_NAME_RUNTIME), 0, 0);
+    state->default_bresource_water_dudv_texture = texture_acquire_sync(DEFAULT_WATER_DUDV_TEXTURE_NAME);
 
     return true;
 }
@@ -1000,155 +893,93 @@ static void release_default_textures(texture_system_state* state)
 {
     if (state)
     {
-        bresource_system_release(state->bresource_system, state->default_bresource_texture->base.name);
-        bresource_system_release(state->bresource_system, state->default_bresource_base_color_texture->base.name);
-        bresource_system_release(state->bresource_system, state->default_bresource_specular_texture->base.name);
-        bresource_system_release(state->bresource_system, state->default_bresource_normal_texture->base.name);
-        bresource_system_release(state->bresource_system, state->default_bresource_mra_texture->base.name);
-        bresource_system_release(state->bresource_system, state->default_bresource_cube_texture->base.name);
-        bresource_system_release(state->bresource_system, state->default_bresource_water_normal_texture->base.name);
-        bresource_system_release(state->bresource_system, state->default_bresource_water_dudv_texture->base.name);
+        texture_release(state->default_bresource_texture);
+        texture_release(state->default_bresource_base_color_texture);
+        texture_release(state->default_bresource_specular_texture);
+        texture_release(state->default_bresource_normal_texture);
+        texture_release(state->default_bresource_mra_texture);
+        texture_release(state->default_bresource_cube_texture);
+        texture_release(state->default_bresource_water_normal_texture);
+        texture_release(state->default_bresource_water_dudv_texture);
     }
 }
 
-static void increment_generation(bresource_texture* t)
-{
-    if (t)
-    {
-        t->base.generation++;
-        // Ensure we don't land on invalid before rolling over
-        if (t->base.generation == INVALID_ID_U8)
-            t->base.generation = 0;
-    }
-}
-
-static void invalidate_texture(bresource_texture* t)
-{
-    if (t)
-    {
-        bzero_memory(t, sizeof(bresource_texture));
-        t->base.generation = INVALID_ID_U8;
-        t->renderer_texture_handle = bhandle_invalid();
-    }
-}
-
-static bresource_texture* default_texture_by_name(texture_system_state* state, bname name)
-{
-    if (name == state->default_bresource_texture->base.name) {
-        return state->default_bresource_texture;
-    } else if (name == state->default_bresource_base_color_texture->base.name) {
-        return state->default_bresource_base_color_texture;
-    } else if (name == state->default_bresource_normal_texture->base.name) {
-        return state->default_bresource_normal_texture;
-    } else if (name == state->default_bresource_specular_texture->base.name) {
-        return state->default_bresource_specular_texture;
-    } else if (name == state->default_bresource_mra_texture->base.name) {
-        return state->default_bresource_mra_texture;
-    } else if (name == state->default_bresource_cube_texture->base.name) {
-        return state->default_bresource_cube_texture;
-    } else if (state->default_bresource_water_normal_texture && name == state->default_bresource_water_normal_texture->base.name) {
-        return state->default_bresource_water_normal_texture;
-    } else if (state->default_bresource_water_dudv_texture && name == state->default_bresource_water_dudv_texture->base.name) {
-        return state->default_bresource_water_dudv_texture;
-    }
-
+#define RETURN_TEXT_PTR_OR_NULL(texture, func_name)                                              \
+    if (state_ptr)                                                                               \
+        return &texture;                                                                         \
+    BERROR("%s called before texture system initialization! Null pointer returned", func_name); \
     return 0;
-}
-
-static bresource_texture* request_writeable_arrayed(bname name, u32 width, u32 height, texture_format format, b8 has_transparency, texture_type type, u16 array_size, b8 is_depth, b8 is_stencil, b8 multiframe_buffering)
-{
-    struct bresource_system_state* bresource_system = engine_systems_get()->bresource_state;
-    bresource_texture_request_info request = {0};
-    bzero_memory(&request, sizeof(bresource_texture_request_info));
-    request.texture_type = type;
-    request.array_size = array_size;
-    request.flags = TEXTURE_FLAG_IS_WRITEABLE;
-    request.flags |= has_transparency ? TEXTURE_FLAG_HAS_TRANSPARENCY : 0;
-    request.flags |= is_depth ? TEXTURE_FLAG_DEPTH : 0;
-    request.flags |= is_stencil ? TEXTURE_FLAG_STENCIL : 0;
-    request.flags |= multiframe_buffering ? TEXTURE_FLAG_RENDERER_BUFFERING : 0;
-    request.width = width;
-    request.height = height;
-    request.format = format;
-    request.mip_levels = 1; // TODO: configurable?
-    request.base.type = BRESOURCE_TYPE_TEXTURE;
-    request.flip_y = false; // Doesn't really matter anyway for this type.
-    bresource_texture* t = (bresource_texture*)bresource_system_request(bresource_system, name, (bresource_request_info*)&request);
-    if (!t)
-    {
-        BERROR("Failed to request resources for arrayed writeable texture");
-        return 0;
-    }
-
-    return t;
-}
 
 static void texture_basset_image_loaded(void* listener, basset_image* asset)
 {
     texture_asset_load_listener_context* context = (texture_asset_load_listener_context*)listener;
 
+    context->loaded_asset_count++;
+
     b8 success = false;
-    btexture* t = context->texture;
+    btexture t = context->texture;
 
-    // TODO: Check the number of loaded assets vs the number required. Only proceed when these match
-
-    // FIXME: Handle these defaults in a more reasonable way - such as finding _any_ of the assets with a nonzero dimension.
-    // Take the dimensions of the first asset as the size for layered images
-    if (context->assets[0])
+    // Check the number of loaded assets vs the number required. Only proceed when these match
+    if (context->loaded_asset_count == state_ptr->array_sizes[t])
     {
-        t->width = context->assets[0]->width;
-        t->height = context->assets[0]->height;
-        // TODO: Should this use the calculated?
-        t->mip_levels = context->assets[0]->mip_levels;
+        BDEBUG("Required asset loaded count (%u) met for texture id %u, proceeding to upload to GPU", state_ptr->array_sizes[t], t);
+
+        // FIXME: Handle these defaults in a more reasonable way - such as finding _any_ of the assets with a nonzero dimension
+        // Take the dimensions of the first asset as the size for layered images
+        if (context->assets[0])
+        {
+            state_ptr->widths[t] = context->assets[0]->width;
+            state_ptr->heights[t] = context->assets[0]->height;
+            // TODO: Should this use the calculated?
+            state_ptr->mip_level_counts[t] = context->assets[0]->mip_levels;
+        }
+        else
+        {
+            BWARN("Asset sub 0 not found, using reasonable defaults");
+            // Provide reasonable defaults
+            if (!state_ptr->widths[t])
+                state_ptr->widths[t] = 16;
+            if (!state_ptr->heights[t])
+                state_ptr->heights[t] = 16;
+            if (!state_ptr->mip_level_counts[t])
+                state_ptr->mip_level_counts[t] = 1;
+        }
+
+        // Handle the GPU upload of pixel data
+        if (texture_apply_asset_data(t, context->name, &context->options, context->assets))
+            success = true;
+
+        if (context->assets)
+            BFREE_TYPE_CARRAY(context->assets, basset_image*, state_ptr->array_sizes[t]);
+        string_cleanup_array(context->image_asset_names, state_ptr->array_sizes[t]);
+        string_cleanup_array(context->package_names, state_ptr->array_sizes[t]);
+
+        if (!success)
+        {
+            if (t != INVALID_ID_U16)
+                texture_cleanup(t, true);
+
+            t = 0;
+        }
+
+        if (t && context->user_callback)
+            context->user_callback(t, context->user_listener);
+
+        BFREE_TYPE(context, texture_asset_load_listener_context, MEMORY_TAG_RESOURCE);
     }
-    else
-    {
-        BWARN("Asset sub 0 not found, using reasonable defaults");
-        // Provide reasonable defaults
-        if (!t->width)
-            t->width = 16;
-        if (!t->height)
-            t->height = 16;
-        if (!t->mip_levels)
-            t->mip_levels = 1;
-    }
-
-    // Handle the GPU upload of pixel data
-    if (texture_apply_asset_data(t, context->name, &context->options, context->assets))
-        success = true;
-
-    if (context->assets)
-        BFREE_TYPE_CARRAY(context->assets, basset_image*, t->array_size);
-
-    string_cleanup_array(context->image_asset_names, t->array_size);
-    string_cleanup_array(context->package_names, t->array_size);
-
-    if (!success)
-    {
-        if (t && t->id != INVALID_ID)
-            texture_cleanup(t, true);
-
-        t = 0;
-    }
-
-    if (t && context->user_callback)
-        context->user_callback(t, context->user_listener);
-
-    BFREE_TYPE(context, texture_asset_load_listener_context, MEMORY_TAG_RESOURCE);
 }
 
-static btexture* texture_get_if_exists(bname name)
+static btexture texture_get_if_exists(bname name)
 {
-    btexture* t = 0;
+    btexture t = 0;
 
     // Check first if an entry with the name exists. If it does, return it
     const bt_node* node = u64_bst_find(state_ptr->texture_name_lookup, name);
     if (node)
     {
         // Already exists, just return it
-        u32 index = node->value.u32;
-        t = &state_ptr->textures[index];
-        if (t->id != index)
+        t = node->value.u16;
+        if (state_ptr->formats[t] != BPIXEL_FORMAT_UNKNOWN)
         {
             BERROR("%s - lookup for name '%s' exists, but texture is invalid. This likely means a release wasn't done properly", __FUNCTION__, bname_string_get(name));
             return 0;
@@ -1158,70 +989,73 @@ static btexture* texture_get_if_exists(bname name)
         return t;
     }
 
-    return 0;
+    return INVALID_ID_U16;
 }
 
-static btexture* texture_get_new(bname name)
+static btexture texture_get_new(bname name)
 {
-    btexture* t = 0;
-    for (u32 i = 0; i < state_ptr->config.max_texture_count; ++i)
+    for (u16 i = 0; i < state_ptr->config.max_texture_count; ++i)
     {
-        if (state_ptr->textures[i].id == INVALID_ID)
+        if (state_ptr->formats[i] == BPIXEL_FORMAT_UNKNOWN)
         {
             // Found one, use it
-            t = &state_ptr->textures[i];
-            t->id = i;
 
             // Insert into the lookup tree
-            bt_node_value val = {.u32 = t->id};
+            bt_node_value val = {.u16 = i};
             bt_node* new_node = u64_bst_insert(state_ptr->texture_name_lookup, name, val);
             if (!state_ptr->texture_name_lookup)
                 state_ptr->texture_name_lookup = new_node;
 
             // Start reference count at 1
-            state_ptr->texture_reference_counts[t->id] = 1;
+            state_ptr->texture_reference_counts[i] = 1;
 
             // Invalidate the renderer handle
-            t->renderer_texture_handle = bhandle_invalid();
+            state_ptr->renderer_texture_handles[i] = bhandle_invalid();
 
-            return t;
+            return i;
         }
     }
 
     BERROR("%s - Failed to find free slot in texture cache. Cache is full. Increase max_texture_count");
-    return 0;
+    return INVALID_ID_U16;
 }
 
-static b8 texture_resources_acquire(btexture* t, bname name)
+static b8 texture_resources_acquire(btexture t, bname name)
 {
     return renderer_texture_resources_acquire(
         state_ptr->renderer,
         name,
-        t->type,
-        t->width,
-        t->height,
-        channel_count_from_pixel_format(t->format),
-        t->mip_levels,
-        t->array_size,
-        t->flags,
-        &t->renderer_texture_handle);
+        state_ptr->types[t],
+        state_ptr->widths[t],
+        state_ptr->heights[t],
+        channel_count_from_pixel_format(state_ptr->formats[t]),
+        state_ptr->mip_level_counts[t],
+        state_ptr->array_sizes[t],
+        state_ptr->flags[t],
+        &state_ptr->renderer_texture_handles[t]);
 }
 
-static void texture_cleanup(btexture* t, b8 clear_references)
+static void texture_cleanup(btexture t, b8 clear_references)
 {
-    if (t && t->id != INVALID_ID)
+    if (t != INVALID_ID_U16)
     {
-        renderer_texture_resources_release(state_ptr->renderer, &t->renderer_texture_handle);
+        renderer_texture_resources_release(state_ptr->renderer, &state_ptr->renderer_texture_handles[t]);
 
         if (clear_references)
         {
-            state_ptr->texture_reference_counts[t->id] = 0;
-            state_ptr->auto_releases[t->id] = false;
+            state_ptr->texture_reference_counts[t] = 0;
+            state_ptr->auto_releases[t] = false;
         }
 
-        bzero_memory(t, sizeof(btexture));
-        t->id = INVALID_ID;
-        t->renderer_texture_handle = bhandle_invalid();
+        state_ptr->renderer_texture_handles[t] = bhandle_invalid();
+        state_ptr->types[t] = 0;
+        state_ptr->widths[t] = 0;
+        state_ptr->heights[t] = 0;
+        // This marks the slot as 'free'
+        state_ptr->formats[t] = BPIXEL_FORMAT_UNKNOWN;
+        state_ptr->mip_level_counts[t] = 0;
+        state_ptr->array_sizes[t] = 0;
+        state_ptr->flags[t] = 0;
     }
 }
 
@@ -1334,14 +1168,14 @@ static void combine_asset_pixel_data(basset_image** assets, u32 count, u32 expec
             goto acquire_with_options_sync_asset_continue;
         }
 
-        if (asset->width != expected_width)
+        if (assets[i]->width != expected_width)
         {
-            BERROR("Width mismatch at index %u. Expected: %u, Actual: %u", i, expected_width, asset->width);
+            BERROR("Width mismatch at index %u. Expected: %u, Actual: %u", i, expected_width, assets[i]->width);
             goto acquire_with_options_sync_asset_continue;
         }
-        if (asset->height != expected_height)
+        if (assets[i]->height != expected_height)
         {
-            BERROR("Height mismatch at index %u. Expected: %u, Actual: %u", i, expected_height, asset->height);
+            BERROR("Height mismatch at index %u. Expected: %u, Actual: %u", i, expected_height, assets[i]->height);
             goto acquire_with_options_sync_asset_continue;
         }
         if (asset->pixel_array_size != layer_size)
@@ -1367,13 +1201,13 @@ static void combine_asset_pixel_data(basset_image** assets, u32 count, u32 expec
     }
 }
 
-static b8 texture_apply_asset_data(btexture* t, bname name, const btexture_load_options* options, basset_image** assets)
+static b8 texture_apply_asset_data(btexture t, bname name, const btexture_load_options* options, basset_image** assets)
 {
     b8 success = false;
 
     // Calculate mip levels if needed
-    if (!t->mip_levels)
-        t->mip_levels = calculate_mip_levels_from_dimension(t->width, t->height);
+    if (!state_ptr->mip_level_counts[t])
+        state_ptr->mip_level_counts[t] = calculate_mip_levels_from_dimension(state_ptr->widths[t], state_ptr->heights[t]);
 
     if (!texture_resources_acquire(t, name))
     {
@@ -1393,18 +1227,18 @@ static b8 texture_apply_asset_data(btexture* t, bname name, const btexture_load_
     else if (assets)
     {
         free_pixels = true;
-        combine_asset_pixel_data(assets, t->array_size, t->width, t->height, true, &all_pixel_size, (void*)&all_pixels);
+        combine_asset_pixel_data(assets, state_ptr->array_sizes[t], state_ptr->widths[t], state_ptr->heights[t], true, &all_pixel_size, (void*)&all_pixels);
     }
 
     // Upload the pixel data to the GPU
-    b8 has_transparency = pixel_data_has_transparency(all_pixels, all_pixel_size, t->format);
-    t->flags = FLAG_SET(t->flags, BTEXTURE_FLAG_HAS_TRANSPARENCY, has_transparency);
+    b8 has_transparency = pixel_data_has_transparency(all_pixels, all_pixel_size, state_ptr->formats[t]);
+    state_ptr->flags[t] = FLAG_SET(state_ptr->flags[t], BTEXTURE_FLAG_HAS_TRANSPARENCY, has_transparency);
 
     // Write the image asset data to the texture
     u32 texture_data_offset = 0; // NOTE: The only time this potentially could be nonzero is when explicitly loading a layer of texture data
     b8 write_result = renderer_texture_write_data(
         state_ptr->renderer,
-        t->renderer_texture_handle,
+        state_ptr->renderer_texture_handles[t],
         texture_data_offset, all_pixel_size, all_pixels);
 
     if (!write_result)
@@ -1422,7 +1256,7 @@ texture_apply_asset_data_cleanup:
     if (t)
     {
         if (assets)
-            BFREE_TYPE_CARRAY(assets, basset_image, t->array_size);
+            BFREE_TYPE_CARRAY(assets, basset_image, state_ptr->array_sizes[t]);
     }
 
     if (!success)

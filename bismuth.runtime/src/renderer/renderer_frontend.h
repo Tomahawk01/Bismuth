@@ -76,7 +76,7 @@ BAPI void renderer_end_rendering(struct renderer_system_state* state, struct fra
 BAPI void renderer_set_stencil_compare_mask(u32 compare_mask);
 BAPI void renderer_set_stencil_write_mask(u32 write_mask);
 
-BAPI b8 renderer_texture_resources_acquire(struct renderer_system_state* state, bname name, texture_type type, u32 width, u32 height, u8 channel_count, u8 mip_levels, u16 array_size, texture_flag_bits flags, bhandle* out_renderer_texture_handle);
+BAPI b8 renderer_texture_resources_acquire(struct renderer_system_state* state, bname name, btexture_type type, u32 width, u32 height, u8 channel_count, u8 mip_levels, u16 array_size, btexture_flag_bits flags, bhandle* out_renderer_texture_handle);
 BAPI void renderer_texture_resources_release(struct renderer_system_state* state, bhandle* handle);
 
 BAPI b8 renderer_texture_resize(struct renderer_system_state* state, bhandle renderer_texture_handle, u32 new_width, u32 new_height);
@@ -106,7 +106,7 @@ BAPI b8 renderer_clear_color(struct renderer_system_state* state, bhandle textur
 BAPI b8 renderer_clear_depth_stencil(struct renderer_system_state* state, bhandle texture_handle);
 
 BAPI void renderer_color_texture_prepare_for_present(struct renderer_system_state* state, bhandle texture_handle);
-BAPI void renderer_texture_prepare_for_sampling(struct renderer_system_state* state, bhandle texture_handle, texture_flag_bits flags);
+BAPI void renderer_texture_prepare_for_sampling(struct renderer_system_state* state, bhandle texture_handle, btexture_flag_bits flags);
 
 BAPI b8 renderer_shader_create(struct renderer_system_state* state, bhandle shader, const bresource_shader* shader_resource);
 BAPI void renderer_shader_destroy(struct renderer_system_state* state, bhandle shader);

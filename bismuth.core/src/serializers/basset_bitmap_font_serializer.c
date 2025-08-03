@@ -22,17 +22,11 @@ typedef struct bitmap_font_header
     u32 face_name_len;
 } bitmap_font_header;
 
-void* basset_bitmap_font_serialize(const basset* asset, u64* out_size)
+void* basset_bitmap_font_serialize(const basset_bitmap_font* asset, u64* out_size)
 {
     if (!asset)
     {
         BERROR("Cannot serialize without an asset");
-        return 0;
-    }
-
-    if (asset->type != BASSET_TYPE_BITMAP_FONT)
-    {
-        BERROR("Cannot serialize a non-bitmap_font asset using the bitmap_font serializer");
         return 0;
     }
 
@@ -41,7 +35,7 @@ void* basset_bitmap_font_serialize(const basset* asset, u64* out_size)
 
     // Base attributes
     header.base.magic = ASSET_MAGIC;
-    header.base.type = (u32)asset->type;
+    header.base.type = (u32)BASSET_TYPE_BITMAP_FONT;
     header.base.data_block_size = 0;
     // Always write the most current version
     header.base.version = 1;
@@ -117,7 +111,7 @@ void* basset_bitmap_font_serialize(const basset* asset, u64* out_size)
     return block;
 }
 
-b8 basset_bitmap_font_deserialize(u64 size, const void* block, basset* out_asset)
+b8 basset_bitmap_font_deserialize(u64 size, const void* block, basset_bitmap_font* out_asset)
 {
     if (!size || !block || !out_asset)
     {
@@ -139,8 +133,7 @@ b8 basset_bitmap_font_deserialize(u64 size, const void* block, basset* out_asset
         return false;
     }
 
-    out_asset->meta.version = header->base.version;
-    out_asset->type = type;
+    // out_asset->meta.version = header->base.version; // TODO: version
 
     basset_bitmap_font* typed_asset = (basset_bitmap_font*)out_asset;
     typed_asset->baseline = header->baseline;

@@ -79,8 +79,8 @@ void material_system_shutdown(struct material_system_state* state);
 
 BAPI b8 material_system_get_handle(struct material_system_state* state, bname name, bhandle* out_material_handle);
 
-BAPI bresource_texture* material_texture_get(struct material_system_state* state, bhandle material, material_texture_input tex_input);
-BAPI void material_texture_set(struct material_system_state* state, bhandle material, material_texture_input tex_input, bresource_texture* texture);
+BAPI btexture material_texture_get(struct material_system_state* state, bhandle material, material_texture_input tex_input);
+BAPI void material_texture_set(struct material_system_state* state, bhandle material, material_texture_input tex_input, btexture texture);
 
 BAPI texture_channel material_metallic_texture_channel_get(struct material_system_state* state, bhandle material);
 BAPI void material_metallic_texture_channel_set(struct material_system_state* state, bhandle material, texture_channel value);
@@ -150,8 +150,8 @@ typedef struct material_frame_data
     f32 shadow_bias;
     f32 delta_time;
     f32 game_time;
-    bresource_texture* shadow_map_texture;
-    bresource_texture* irradiance_cubemap_textures[MATERIAL_MAX_SHADOW_CASCADES];
+    btexture shadow_map_texture;
+    btexture irradiance_cubemap_textures[MATERIAL_MAX_SHADOW_CASCADES];
 } material_frame_data;
 b8 material_system_prepare_frame(struct material_system_state* state, material_frame_data mat_frame_data, struct frame_data* p_frame_data);
 

@@ -15,7 +15,9 @@
 #include "assets/handlers/asset_handler_system_font.h"
 #include "assets/handlers/asset_handler_text.h"
 #include "platform/vfs.h"
+#include "serializers/basset_bitmap_font_serializer.h"
 #include "serializers/basset_image_serializer.h"
+#include "serializers/basset_system_font_serializer.h"
 
 #include <assets/asset_handler_types.h>
 #include <assets/basset_types.h>
@@ -388,5 +390,111 @@ void asset_system_release_image(struct asset_system_state* state, basset_image* 
             bfree((void*)asset->pixels, asset->pixel_array_size, MEMORY_TAG_ASSET);
 
         BFREE_TYPE(asset, basset_image, MEMORY_TAG_ASSET);
+    }
+}
+
+// -----------------------------------
+// ======== BITMAP FONT ASSETS =======
+// -----------------------------------
+
+// sync load from game package
+basset_bitmap_font* asset_system_request_bitmap_font_sync(struct asset_system_state* state, const char* name)
+{
+    return asset_system_request_bitmap_font_from_package_sync(state, state->application_package_name_str, name);
+}
+
+// sync load from specific package
+basset_bitmap_font* asset_system_request_bitmap_font_from_package_sync(struct asset_system_state* state, const char* package_name, const char* name)
+{
+    if (!state || !name || !string_length(name))
+    {
+        BERROR("%s requires valid pointers to state and name", __FUNCTION__);
+        return 0;
+    }
+
+    basset_bitmap_font* out_asset = BALLOC_TYPE(basset_bitmap_font, MEMORY_TAG_ASSET);
+    vfs_request_info info = {
+        .asset_name = bname_create(name),
+        .package_name = bname_create(package_name),
+        .get_source = false,
+        .is_binary = true,
+        .watch_for_hot_reload = false,
+    };
+    vfs_asset_data data = vfs_request_asset_sync(state->vfs, info);
+
+    b8 result = basset_bitmap_font_deserialize(data.size, data.bytes, out_asset);
+    if (!result)
+    {
+        BERROR("Failed to deserialize bitmap font asset. See logs for details");
+        BFREE_TYPE(out_asset, basset_bitmap_font, MEMORY_TAG_ASSET);
+        return 0;
+    }
+
+    return out_asset;
+}
+
+void asset_system_release_bitmap_font(struct asset_system_state* state, basset_bitmap_font* asset)
+{
+    if (state && asset)
+    {
+        array_basset_bitmap_font_kerning_destroy(&asset->kernings);
+        array_basset_bitmap_font_glyph_destroy(&asset->glyphs);
+        array_basset_bitmap_font_page_destroy(&asset->pages);
+
+        bzero_memory(asset, sizeof(basset_bitmap_font));
+    }
+}
+
+// -----------------------------------
+// ======== SYSTEM FONT ASSETS =======
+// -----------------------------------
+
+// sync load from game package
+basset_system_font* asset_system_request_system_font_sync(struct asset_system_state* state, const char* name)
+{
+    return asset_system_request_system_font_from_package_sync(state, state->application_package_name_str, name);
+}
+
+// sync load from specific package
+basset_system_font* asset_system_request_system_font_from_package_sync(struct asset_system_state* state, const char* package_name, const char* name)
+{
+    if (!state || !name || !string_length(name))
+    {
+        BERROR("%s requires valid pointers to state and name", __FUNCTION__);
+        return 0;
+    }
+
+    basset_system_font* out_asset = BALLOC_TYPE(basset_system_font, MEMORY_TAG_ASSET);
+    vfs_request_info info = {
+        .asset_name = bname_create(name),
+        .package_name = bname_create(package_name),
+        .get_source = false,
+        .is_binary = true,
+        .watch_for_hot_reload = false,
+    };
+    vfs_asset_data data = vfs_request_asset_sync(state->vfs, info);
+
+    b8 result = basset_system_font_deserialize(data.text, out_asset);
+    if (!result)
+    {
+        BERROR("Failed to deserialize system font asset. See logs for details");
+        BFREE_TYPE(out_asset, basset_system_font, MEMORY_TAG_ASSET);
+        return 0;
+    }
+
+    return out_asset;
+}
+
+void asset_system_release_system_font(struct asset_system_state* state, basset_system_font* asset)
+{
+    if (state && asset)
+    {
+        if (asset->faces && asset->face_count)
+            BFREE_TYPE_CARRAY(asset->faces, basset_system_font_face, asset->face_count);
+
+        if (asset->font_binary && asset->font_binary_size)
+            bfree(asset->font_binary, asset->font_binary_size, MEMORY_TAG_RESOURCE);
+
+        bzero_memory(asset, sizeof(basset_system_font));
     }
 }

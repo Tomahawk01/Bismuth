@@ -50,3 +50,26 @@ BAPI basset_image* asset_system_request_image_from_package(struct asset_system_s
 BAPI basset_image* asset_system_request_image_from_package_sync(struct asset_system_state* state, const char* package_name, const char* name, b8 flip_y);
 
 BAPI void asset_system_release_image(struct asset_system_state* state, basset_image* asset);
+
+// -----------------------------------
+// ======== BITMAP FONT ASSETS =======
+// -----------------------------------
+
+// sync load from game package
+BAPI basset_bitmap_font* asset_system_request_bitmap_font_sync(struct asset_system_state* state, const char* name);
+// sync load from specific package
+BAPI basset_bitmap_font* asset_system_request_bitmap_font_from_package_sync(struct asset_system_state* state, const char* package_name, const char* name);
+
+BAPI void asset_system_release_bitmap_font(struct asset_system_state* state, basset_bitmap_font* asset);
+
+// -----------------------------------
+// ======== SYSTEM FONT ASSETS =======
+// -----------------------------------
+
+// sync load from game package
+BAPI basset_system_font* asset_system_request_system_font_sync(struct asset_system_state* state, const char* name);
+
+// sync load from specific package
+BAPI basset_system_font* asset_system_request_system_font_from_package_sync(struct asset_system_state* state, const char* package_name, const char* name);
+
+BAPI void asset_system_release_system_font(struct asset_system_state* state, basset_system_font* asset);

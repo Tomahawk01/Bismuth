@@ -14,7 +14,6 @@
 #include "bresources/handlers/bresource_handler_static_mesh.h"
 #include "bresources/handlers/bresource_handler_system_font.h"
 #include "bresources/handlers/bresource_handler_text.h"
-#include "bresources/handlers/bresource_handler_texture.h"
 #include "bresources/bresource_types.h"
 #include "bresources/bresource_utils.h"
 #include "logger.h"
@@ -22,8 +21,8 @@
 #include "strings/bname.h"
 #include "systems/asset_system.h"
 
-#include <core/event.h>
 #include <containers/darray.h>
+#include <core/event.h>
 
 struct asset_system_state;
 
@@ -98,19 +97,6 @@ b8 bresource_system_initialize(u64* memory_requirement, struct bresource_system_
         if (!bresource_system_handler_register(state, BRESOURCE_TYPE_BINARY, handler))
         {
             BERROR("Failed to register binary resource handler");
-            return false;
-        }
-    }
-
-    // Texture handler
-    {
-        bresource_handler handler = {0};
-        handler.size = sizeof(bresource_texture);
-        handler.release = bresource_handler_texture_release;
-        handler.request = bresource_handler_texture_request;
-        if (!bresource_system_handler_register(state, BRESOURCE_TYPE_TEXTURE, handler))
-        {
-            BERROR("Failed to register texture resource handler");
             return false;
         }
     }
@@ -218,9 +204,6 @@ b8 bresource_system_initialize(u64* memory_requirement, struct bresource_system_
             return false;
         }
     }
-
-    // Register a callback with the asset system to get notified when an asset has been hot-reloaded
-    asset_system_register_hot_reload_callback(state->asset_system, state, on_asset_system_hot_reload);
 
     BINFO("Resource system (new) initialized");
     return true;

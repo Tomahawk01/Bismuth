@@ -365,7 +365,6 @@ typedef struct basset_system_font_face
 
 typedef struct basset_system_font
 {
-    basset base;
     bname ttf_asset_name;
     bname ttf_asset_package_name;
     u32 face_count;
@@ -408,7 +407,6 @@ ARRAY_TYPE(basset_bitmap_font_page);
 
 typedef struct basset_bitmap_font
 {
-    basset base;
     bname face;
     u32 size;
     i32 line_height;
